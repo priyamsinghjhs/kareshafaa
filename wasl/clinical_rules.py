@@ -37,7 +37,11 @@ FIT_URGENT_UG_G = 400.0         # CONFIRM: local rule (no screening guideline) -
 FIT_MAX_PLAUSIBLE = 10000.0
 
 HBA1C_PCT = {"prediabetes": 5.7, "diabetes": 6.5, "high": 10.0, "critical": 15.0}   # ADA 2026 Tables 2.1/2.2
-HBA1C_MMOL = {"prediabetes": 39, "diabetes": 48, "high": 86, "critical": 140}      # ADA pairs; 140 = 15 % rounded DOWN (safer)
+# mmol/mol cut-offs = exact NGSP->IFCC conversion of the % cut-offs, rounded DOWN to 0.1 (safer). Integer lab
+# reports classify exactly as ADA's published pairs (39 / 48 / 86 mmol/mol); decimals never fall on the less
+# urgent side. The CRITICAL cut-off (local rule) also tolerates integer rounding by the lab: 15.0 % = 140.43
+# mmol/mol may be reported as "140", so 139.9 is used (found by test_hba1c_units_agree_on_category).
+HBA1C_MMOL = {"prediabetes": 38.7, "diabetes": 47.5, "high": 85.7, "critical": 139.9}
 HBA1C_LOW_PCT, HBA1C_LOW_MMOL = 4.0, 20                                           # CONFIRM: suspiciously low
 HBA1C_RANGE_PCT, HBA1C_RANGE_MMOL = (3.0, 20.0), (9.0, 195.0)                     # physiological/reportable
 
@@ -261,6 +265,9 @@ def _cervical(r: ResultInput) -> Decision:
                         "CX-HPVOTHER-NILM", target="Surveillance plan documented; recall at 12 months")
         if cyto == "UNSAT":
             return _act("routine", "repeat_sample", "Repeat cervical sample", "CX-UNSAT", target="Repeat in 2-4 months (ASCCP)")
+    if hpv == "invalid" and cyto in ("ASC-US", "LSIL"):
+        return _rev("malformed_value", "CX-HPVINV-LG", tier="high",
+                    step="Clinician review: low-grade cytology with an invalid HPV test (repeat HPV vs colposcopy)")
     if hpv == "invalid" or (hpv is None and cyto == "UNSAT"):
         return _act("routine", "repeat_sample", "Repeat cervical sample", "CX-UNSAT", target="Repeat in 2-4 months (ASCCP)")
     if hpv == "neg":

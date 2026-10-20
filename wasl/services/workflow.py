@@ -101,8 +101,8 @@ def programme_pool(db: Session, programme: str) -> Practitioner:
 def programme_clinical_lead(db: Session, programme: str) -> Practitioner:
     p = db.scalar(select(Practitioner).where(Practitioner.role == "clinical_lead", Practitioner.active.is_(True),
                                              Practitioner.programme.in_([programme, None])).order_by(Practitioner.programme.desc()))
-    if p is None:
-        raise DomainError("no clinical lead configured")
+    if p is None:  # never fail the ingest (that could lose the result): the programme team pool owns it
+        return programme_pool(db, programme)
     return p
 
 
@@ -806,7 +806,16 @@ def create_consult(db: Session, case: Case, actor: Actor, question: str, *, targ
     if actor.role == "patient":
         if actor.patient_id != case.patient_id:
             raise Forbidden("not your case")
-        target_practitioner_id = case.patient.gp_id or case.owner_id
+        # the patient's own GP if active; otherwise the case owner if a clinician; otherwise the clinical lead.
+        # A patient's question must never be rejected because their GP has left.
+        target_practitioner_id = None
+        for pid_ in (case.patient.gp_id, case.owner_id):
+            cand = db.get(Practitioner, pid_) if pid_ else None
+            if cand and cand.active and cand.role in ("gp", "specialist", "clinical_lead"):
+                target_practitioner_id = cand.id
+                break
+        if target_practitioner_id is None:
+            target_practitioner_id = programme_clinical_lead(db, case.programme).id
         rtype = "patient"
     else:
         if not actor.can("consult:create"):

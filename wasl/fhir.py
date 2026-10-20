@@ -130,10 +130,14 @@ def export_case(db: Session, case: Case, include_audit: bool = True) -> dict:
                                     {"actor": _ref("Organization", a.org_id), "status": "accepted"}],
                     **({"cancelationReason": {"text": f"no-show barrier: {a.barrier_code}"}} if a.barrier_code else {})})
     for cp in db.scalars(select(CarePlan).where(CarePlan.case_id == case.id)):
+        if cp.recorded_by_id:
+            prac_ids.add(cp.recorded_by_id)
         res.append({"resourceType": "CarePlan", "id": str(cp.id), "status": cp.status, "intent": "plan",
                     "category": [{"text": cp.kind}], "description": cp.description, "subject": _ref("Patient", p.id),
                     "created": _ts(cp.created_at), "author": _ref("Practitioner", cp.recorded_by_id)})
     for c in db.scalars(select(Communication).where(Communication.case_id == case.id)):
+        if c.recipient_practitioner_id:
+            prac_ids.add(c.recipient_practitioner_id)
         status = {"completed": "completed", "failed": "stopped", "not-done": "not-done", "pending": "in-progress"}[c.status]
         res.append({"resourceType": "Communication", "id": str(c.id), "status": status,
                     "category": [{"text": c.category}], "medium": [{"text": c.channel}],
@@ -143,6 +147,7 @@ def export_case(db: Session, case: Case, include_audit: bool = True) -> dict:
                     "payload": [{"contentString": c.content}], "language": c.language,
                     "meta": {"tag": [{"system": SYS + "/data", "code": "simulated-channel"}]}})
     for t in db.scalars(select(CallTask).where(CallTask.case_id == case.id)):
+        prac_ids.add(t.owner_id)
         res.append({"resourceType": "Task", "id": f"call-{t.id}", "status": t.status, "intent": "order",
                     "code": {"text": "phone-outreach"}, "for": _ref("Patient", p.id), "owner": _ref("Practitioner", t.owner_id),
                     "partOf": [_ref("Task", f"case-{case.id}")], **({"output": [{"type": {"text": "outcome"},

@@ -35,7 +35,8 @@ LAST = {
 
 
 def pick(rng: random.Random, pairs):
-    r, acc = rng.random(), 0.0
+    tot = sum(w for _, w in pairs)  # normalised: a table that does not sum to 1 must not bias the last item
+    r, acc = rng.random() * tot, 0.0
     for k, w in pairs:
         acc += w
         if r <= acc:

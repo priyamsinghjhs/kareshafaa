@@ -38,7 +38,7 @@ CYTO_1618 = [("NILM", .50), ("ASC-US", .15), ("LSIL", .12), ("ASC-H", .07), ("HS
 REFLEX_ON_REPORT = 0.80    # A: share of HPV-other reports that already carry reflex cytology
 BIRADS = [("1", .600), ("2", .292), ("0", .100), ("3", .002), ("4", .005), ("5", .001)]  # recall 10 %: DoH <10-15 %, BCSC 11.6 %
 A1C_BANDS = [  # (lower %, upper %, probability)  - IDF 2021 UAE: diabetes 12.3 % (20-79); IGT 18.3 % used as prediabetes proxy
-    (4.2, 5.69, 0.577), (5.7, 6.49, 0.180), (6.5, 9.99, 0.094), (10.0, 14.99, 0.027), (15.0, 17.5, 0.002)]
+    (4.2, 5.69, 0.697), (5.7, 6.49, 0.180), (6.5, 9.99, 0.094), (10.0, 14.99, 0.027), (15.0, 17.5, 0.002)]
 A1C_MMOL_SHARE = 0.20      # A: labs reporting IFCC mmol/mol
 FPG_SHARE = 0.15           # A: diabetes screens done with fasting glucose instead of HbA1c
 FPG_MMOL_SHARE = 0.30      # A
@@ -47,7 +47,10 @@ DEFECTS = [  # A: per-result data-quality defect rates in realistic mode (x5 in 
 
 
 def _pick(rng: random.Random, pairs):
-    r, acc = rng.random(), 0.0
+    """Weighted choice. Weights must sum to 1 (checked by tests/test_synthetic_data.py); normalised defensively
+    so a mis-specified table can never silently pile the remainder onto the LAST (often most severe) item."""
+    tot = sum(w for _, w in pairs)
+    r, acc = rng.random() * tot, 0.0
     for k, w in pairs:
         acc += w
         if r <= acc:
