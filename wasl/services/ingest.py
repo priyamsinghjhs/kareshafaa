@@ -234,6 +234,11 @@ def _match(db: Session, r: ParsedResult) -> tuple[Patient | None, str | None]:
     found = {p.id: p for p in db.scalars(select(Patient).where(Patient.mrn.in_(ids)))}
     if len(found) > 1:
         return None, "the message's patient identifiers point to different patients"
+    if not found:  # no MRN match: an Emirates ID (PID-3 repetition) may identify the patient
+        by_eid = {p.id: p for p in db.scalars(select(Patient).where(Patient.national_id.in_(ids)))}
+        if len(by_eid) > 1:
+            return None, "the Emirates ID belongs to more than one patient record (possible duplicate identity)"
+        found = by_eid
     p = next(iter(found.values()), None)
     if p is None:
         return None, "identifier not found"

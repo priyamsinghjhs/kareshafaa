@@ -159,6 +159,14 @@ def default_owner(db: Session, case: Case, state: S) -> Practitioner:
 RECENT_CLOSURE_DAYS = 180  # a result for a programme closed within this window goes to human review
 
 
+def identity_group(db: Session, patient: Patient) -> list[int]:
+    """Patient ids that are probably the same person: the patient plus any record with the same Emirates ID."""
+    if not patient.national_id:
+        return [patient.id]
+    ids = list(db.scalars(select(Patient.id).where(Patient.national_id == patient.national_id)))
+    return sorted(set(ids) | {patient.id})
+
+
 def patient_context(patient: Patient, programme: str, at: datetime) -> PatientContext:
     sc = {x.strip() for x in (patient.specialist_care or "").split(",") if x.strip()}
     return PatientContext(age=(at.year - patient.birth_year) if patient.birth_year else None, sex=patient.gender,
@@ -238,12 +246,15 @@ def ingest_result(db: Session, patient: Patient, programme: str, *, value: float
     audit.record(db, actor, "C", "result.received", entity_type="DiagnosticReport", entity_id=rep.id, ts=now,
                  detail={"programme": programme, "disposition": dec.disposition, "tier": dec.tier,
                          "rule": dec.rule_id, "reasons": dec.reasons})
-    open_case = db.scalar(select(Case).where(Case.patient_id == patient.id, Case.programme == programme,
+    group = identity_group(db, patient)
+    open_case = db.scalar(select(Case).where(Case.patient_id.in_(group), Case.programme == programme,
                                              Case.state != S.CLOSED).order_by(Case.id.desc()).limit(1))
     if open_case is not None:
         # never create a second open case; never silently absorb a new result either
         rep.case_id = open_case.id
         reasons = list(dec.reasons)
+        if open_case.patient_id != patient.id:  # same Emirates ID, other record: one person, two MRNs
+            reasons.append("possible_duplicate_identity")
         same = db.scalar(select(func.count()).select_from(Observation).join(DiagnosticReport).where(
             DiagnosticReport.case_id == open_case.id, DiagnosticReport.id != rep.id,
             Observation.value.is_(None) if value is None else Observation.value == value,
@@ -258,7 +269,9 @@ def ingest_result(db: Session, patient: Patient, programme: str, *, value: float
     if not dec.creates_case:
         return rep, None
     reasons = list(dec.reasons)
-    recent = db.scalar(select(Case.id).where(Case.patient_id == patient.id, Case.programme == programme,
+    if len(group) > 1:
+        reasons.append("possible_duplicate_identity")
+    recent = db.scalar(select(Case.id).where(Case.patient_id.in_(group), Case.programme == programme,
                                              Case.state == S.CLOSED, Case.closed_at >= now - timedelta(days=RECENT_CLOSURE_DAYS))
                        .order_by(Case.id.desc()).limit(1))
     if recent:

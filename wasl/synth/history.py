@@ -407,11 +407,22 @@ class Replayer:
         return self.rng.choice(["forgot", "childcare", "cost", "unknown", "work", "transport"])
 
 
+def synthetic_emirates_id(birth_year: int, idx: int) -> str:
+    """784-YYYY-NNNNNNN-C format with a Luhn check digit; deterministic, clearly synthetic (serial 9xxxxxx)."""
+    body = f"784{birth_year:04d}{9000000 + idx % 1000000:07d}"
+    total = 0
+    for i, ch in enumerate(reversed(body)):
+        d = int(ch) * (2 if i % 2 == 0 else 1)
+        total += d - 9 if d > 9 else d
+    return f"784-{birth_year:04d}-{body[7:]}-{(10 - total % 10) % 10}"
+
+
 def add_patient(db: Session, sp: SynthPatient, d: dict, rng: random.Random, now: datetime, *, age_at: datetime | None = None) -> Patient:
     phcs = [o for o in d["phc"] if o.region == sp.region] or d["phc"]
     org = rng.choice(phcs)
     gp = rng.choice(d["gps"][org.id])
-    p = Patient(mrn=f"SYN-{100000 + sp.idx}", given_name=sp.given, family_name=sp.family, gender=sp.gender,
+    p = Patient(mrn=f"SYN-{100000 + sp.idx}", national_id=synthetic_emirates_id((age_at or now).year - sp.age, sp.idx),
+                given_name=sp.given, family_name=sp.family, gender=sp.gender,
                 birth_year=(age_at or now).year - sp.age, age_band=sp.age_band, nationality_group=sp.nationality, language=sp.language,
                 region=sp.region, phone_valid=sp.phone_valid, has_smartphone=sp.has_smartphone, whatsapp=sp.whatsapp,
                 alt_contact=sp.alt_contact, prior_no_shows=sp.prior_no_shows, prior_screens=sp.prior_screens,

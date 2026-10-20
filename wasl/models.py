@@ -66,6 +66,9 @@ class Patient(Base):  # FHIR Patient (synthetic only)
     __tablename__ = "patients"
     id: Mapped[int] = mapped_column(primary_key=True)
     mrn: Mapped[str] = mapped_column(String(40), unique=True)
+    # Emirates ID (synthetic). Deliberately NOT unique: real registries hold the same person under two MRNs;
+    # results for either record are cross-checked (workflow.identity_group) instead of being trusted blindly.
+    national_id: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     given_name: Mapped[str] = mapped_column(String(100))
     family_name: Mapped[str] = mapped_column(String(100))
     gender: Mapped[str] = mapped_column(String(20))
