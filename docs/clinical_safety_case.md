@@ -57,6 +57,11 @@ clinical leads, directors, analysts, patients (portal).
 | H-23 | Patient receives an unreviewed or outdated translation / wording | machine-drafted translation or edited text reaches patients without review | misunderstanding, false reassurance or alarm | 3 | 3 | content sign-off bound to the sha256 of the exact wording; non-English needs a translator AND a different clinician; unsigned pathway text falls back to English + interpreter call or a neutral "your team will call you" message; reading-level and tone checks block clinical sign-off | `tests/test_patient_messages.py`; validator `content.no_unapproved_translation_sent`, `content.signoffs_by_different_people` = 0 | 1 | 3; older prototype content is listed but not yet gated |
 | H-24 | Automated job takes a high-impact decision | integration or script runs with a privileged role | case closed, re-opened, reassigned or model promoted without a human | 4 | 2 | single sign-off registry (`wasl/signoff.py`, 17 actions): named human + permission + rationale, audited | `tests/test_human_signoff.py` (static + behavioural, bots carrying a lead's role refused) | 1 | 4 |
 | H-25 | Mis-calibrated or unfair outreach-priority model | small or shifted training data | over-/under-confident ordering, under-served groups contacted later (never a tier/clinical change) | 2 | 3 | promotion gates: AUC floor, ECE, calibration slope 0.7-1.3, abs(CITL) <= 0.05, beats-current, subgroup AUC/recall/calibration CIs; clinical lead approval; per-case rationale shown; ML orders only within tier | `tests/test_ml_calibration.py`, `docs/ml_calibration.md` (20k: slope 1.04, CITL 0.037, ECE 0.047) | 1 | 3; subgroup tests have low power at these sizes |
+| H-26 | Several values in one message, only one used | bilateral mammogram, duplicate OBX, HbA1c + FPG in one ORU | BI-RADS 4 filed negative (found: first OBX used) | 4 | 2 | every value evaluated, most severe drives the decision, all kept on the report, `multiple_results` review (floor high); multi-patient messages to review; SN comparators kept as text (urgent review) | `tests/test_ingest_adversarial.py` (incl. Hypothesis HL7/FHIR fuzz); F34–F36, F42 killed | 1 | 4 |
+| H-27 | Corrected result lost as a "replay" | sender reuses MSH-10 for a correction | corrected positive silently dropped | 4 | 2 | payload sha256 per message; identical replay idempotent, different content -> review case (`control_id_reused`) | `test_reused_control_id_with_different_content_is_not_silently_dropped`; F37 killed | 1 | 4 |
+| H-28 | Two people act on one case at once | concurrent clinicians / workers / SLA sweep | action applied on a stale view (e.g. after closure), duplicate open case | 3 | 3 | optimistic row-version (409, nothing saved), DB unique index one open case per patient+programme, retry-on-conflict ingest, sweep re-run | `tests/test_concurrency.py`; F38 killed; invariant `case.at_most_one_open_case_per_patient_programme` | 1 | 3 |
+| H-29 | Time-zone / clock errors | UTC vs UAE local day, offsets dropped, skewed client clock | SLA clocks 4 h off at weekend/holiday edges; wrong appointment time to patient; no-show recorded before the appointment | 3 | 3 | calendar in Asia/Dubai, offsets converted, patient times local, attendance not before start (4 h early allowance) | `tests/test_time_handling.py`; F39, F41 killed; invariant `dates.attendance_not_before_appointment` | 1 | 3 |
+| H-30 | One person under two records | duplicate MRNs in the registry | conflicting results never compared, two coordinators for one person | 3 | 3 | Emirates ID cross-check: open-case / recent-closure checks span the identity group, `possible_duplicate_identity` review; ambiguous EID -> match review | `tests/test_duplicate_identity.py`; F40 killed; invariant `identity.one_open_case_per_emirates_id_programme` | 1 | 3; real EMPI still required (residual 3) |
 
 ## 4. Verification summary (Iteration 6, updated Iteration 7)
 
@@ -68,10 +73,10 @@ clinical leads, directors, analysts, patients (portal).
   time travel, unauthorised tier writes) checking invariants after every step.
 * Exhaustive state machine: all 256 transition pairs, 400 evidence-closure and 768 authorised-closure
   combinations, system-actor closure for every state.
-* Full-cohort: 20,000 realistic synthetic people, 48 invariants, 0 violations, 0 lost actionable results; alert
+* Full-cohort: 20,000 realistic synthetic people, 50 invariants, 0 violations, 0 lost actionable results; alert
   precision 100 % and recall 100 % against an independent breach labelling (`docs/alert_precision.md`).
-* Fault injection: 33 deliberate faults in rules, state machine, workflow and messaging; all 33 detected
-  (`docs/fault_injection_results.md`). Mutation testing with mutmut on `clinical_rules.py` and `statemachine.py`: see ITERATIONS.md (Iteration 7).
+* Fault injection: 42 deliberate faults in rules, state machine, workflow, messaging, ingest, concurrency, time and identity handling; see
+  (`docs/fault_injection_results.md` for the kill count). Mutation testing with mutmut on `clinical_rules.py` and `statemachine.py`: see ITERATIONS.md (Iteration 7).
 * Differential testing against an independent reference implementation: 10,000,000 randomised results, 0
   safety-critical disagreements (one-sided 95 % upper bound 3.0 × 10⁻⁷, rule of three); it found 2 safety bugs (H-21,
   `docs/differential_results.md`).
@@ -81,7 +86,8 @@ clinical leads, directors, analysts, patients (portal).
 1. **Clinical sign-off** of all rules and CONFIRM items (H-18) - currently unacceptable.
 2. **Clinical validation on real data**: rule concordance with clinician decisions, lab-specific units and
    assays, FIT device threshold, BI-RADS report text variants, HL7/FHIR message variants (H-01, H-02, H-17).
-3. **Identity**: EMPI/Emirates ID matching and date of birth instead of birth year (H-07, H-20).
+3. **Identity**: EMPI/Emirates ID matching and date of birth instead of birth year (H-07, H-20). Iteration 7 adds an
+   Emirates ID cross-check (H-30) but cannot detect duplicates that lack a shared ID.
 4. **Capacity**: guideline targets can still be missed for capacity reasons; Wasl only makes this visible (H-12).
 5. **Workload** of safer defaults (prediabetes cases, review floors) must be agreed (H-19).
 6. **Translations** of new patient texts (H-16, H-23): Arabic/Hindi/Urdu drafts exist but need a professional

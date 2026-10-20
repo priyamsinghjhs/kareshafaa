@@ -18,6 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 R, SM, WF, CM = "wasl/clinical_rules.py", "wasl/statemachine.py", "wasl/services/workflow.py", "wasl/comms/service.py"
+IN, MO, CAL = "wasl/services/ingest.py", "wasl/models.py", "wasl/calendar_uae.py"
 
 FAULTS = [
     # id, file, original, replacement, description
@@ -54,10 +55,31 @@ FAULTS = [
     ("F31", WF, "    if case.review_required and not (closure_type == \"authorised_decision\"", "    if False and not (closure_type == \"authorised_decision\"", "Review-flagged case closable with evidence"),
     ("F32", CM, "    if case.review_required and case.state == \"issued\":", "    if False:", "Patient messaged before clinician review"),
     ("F33", WF, "    if case.patient.deceased:\n        raise Invalid(", "    if False:\n        raise Invalid(", "Deceased patient pathway resumed by review"),
+    # Iteration 7 failure-mode round (adversarial HL7, concurrency, time, duplicate identities)
+    ("F34", IN, "    main = min(mains, key=lambda k: _severity(prog, k[0][1], k[1], k[2], cyto)) if len(mains) > 1 else mains[0]",
+     "    main = mains[0]", "HL7: first OBX used, not the most severe (bilateral BI-RADS 1 + 4)"),
+    ("F35", IN, "    if len(pids) > 1:\n        return ParsedResult(", "    if False:\n        return ParsedResult(",
+     "HL7: two patients in one message merged"),
+    ("F36", IN, 'val = num if cmp_ in ("", "=") and len(parts) <= 2 else', "val = num if True else",
+     "HL7: structured-numeric comparator dropped ('>9.9' read as 9.9)"),
+    ("F37", IN, "or prior.payload_sha256 == r.payload_sha256):", "or True):",
+     "HL7: reused control ID with new content treated as a replay"),
+    ("F38", MO, '    __mapper_args__ = {"version_id_col": row_version}\n', "",
+     "Concurrency: optimistic row-version removed"),
+    ("F39", CAL, "    return to_utc(add_working_hours(to_local(start_utc), hours))", "    return add_working_hours(start_utc, hours)",
+     "Time: SLA working calendar applied to the UTC date"),
+    ("F40", WF, "    group = identity_group(db, patient)", "    group = [patient.id]",
+     "Identity: other records with the same Emirates ID ignored"),
+    ("F41", WF, "    if not attended and now < appt.start:", "    if False:",
+     "Clock: no-show accepted before the appointment time"),
+    ("F42", IN, "    if not isinstance(v, str) or not _NUMERIC.match(v):", "    if not isinstance(v, str):",
+     "HL7: float() quirks accepted ('1_000' read as 1000)"),
 ]
 
 TESTS = ["tests/test_clinical_golden.py", "tests/test_failsafe.py", "tests/test_properties.py",
-         "tests/test_statemachine_exhaustive.py", "tests/test_statemachine.py", "tests/test_workflow.py"]
+         "tests/test_statemachine_exhaustive.py", "tests/test_statemachine.py", "tests/test_workflow.py",
+         "tests/test_ingest_adversarial.py", "tests/test_concurrency.py", "tests/test_time_handling.py",
+         "tests/test_duplicate_identity.py"]
 
 
 def run_tests() -> tuple[bool, str]:

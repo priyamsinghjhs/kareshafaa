@@ -310,3 +310,100 @@ with patient safety as the top priority. Committed in checkpoints 912451d → (f
   - full cohort: 1
   - original: 105
 - 20k cohort: 0 violations across 45 invariants. 2k demo: 0. Server on :8000 with the 2k demo seed.
+
+### Round 4: consolidated alert policy, precision and recall
+- `wasl/alert_policy.py` defines the ladder. The step clock raises one L2 per breach (L3 for critical), then
+  L3 at 1.5× and L4 at 2× (L4 for critical/urgent only); L1 is a pre-breach reminder at 50 %. The pathway clock raises
+  **one consolidated alert per case per level**. Steps opened after a missed target inherit the breach and do not
+  repeat it.
+- `scripts/alert_eval.py` labels true breaches independently of the policy and replays the sweep. Validator invariant 46.
+- 20k cohort: **precision 100 %, recall 100 %, 0 missed**, against the legacy policy's 77 % precision and 90 % recall
+  (about 320 missed, nearly 1,500 repeat alerts). The full-cohort test now fails on any missed true breach.
+
+### Round 5: ML calibration, fairness and rationale
+- Added calibration statistics: ECE, Brier, calibration slope, calibration-in-the-large, and reliability bins with
+  Wilson CIs.
+- New promotion gates: slope 0.7–1.3 and |CITL| ≤ 0.05.
+- Recalibration is optional. The default is "none"; "auto" applies Platt scaling chosen on a temporal tuning slice. On
+  the 2k cohort Platt over-corrected the held-out set (slope about 1.4), which is why it is not the default.
+- Each outreach priority now carries a rationale (one-at-a-time substitution against a reference profile), shown in
+  the API, the case page and the queue tooltip. Rollback clears it.
+- Fixed an inverted rationale label (`early_teach_back_failed`).
+- Report: `docs/ml_calibration.md`.
+
+### Round 6: patient messages
+- Reading-level and tone checks for every message in every language. English uses Flesch–Kincaid and reading ease;
+  Arabic, Hindi and Urdu use sentence-length and word-length proxies.
+- Arabic, Hindi and Urdu drafts of the pathway texts are flagged `translation_pending`. They are **not sent** until a
+  clinician and a separate translator have both signed off the exact wording (hash-bound). Until then the patient gets
+  the English text or the neutral text.
+- Validator invariants 47 and 48. Details in `docs/patient_messages.md`.
+
+### Round 7: human sign-off
+- `wasl/signoff.py` registers 17 high-impact actions. Each requires a named human, the permission and a rationale.
+- Guards were added to 9 actions that previously checked permission only: reopen, assign, transfer, confirmatory
+  result, referral decision, start care, escalation acknowledgement, model reject/rollback, and proposal decision.
+- Details in `docs/human_signoff.md`.
+
+### Round 8: efficiency
+- On the 10k load test the work-queue p95 had regressed to about 1.3 s. Cause: the per-row GIL hand-off in sqlite3
+  plus concurrent requests piling into one worker.
+- Fixes:
+  - JSON is decoded only for the returned page;
+  - GIL switch interval set to 0.5 ms;
+  - at most 2 concurrent queue computations per process;
+  - multi-process `SO_REUSEPORT` server (`python -m wasl.serve`).
+- Coordinator queue p95 went from **1,272 ms to 301 ms** (83 req/s).
+
+### Round 9: new failure modes (adversarial HL7/FHIR, concurrency, time, duplicate identities)
+Re-run first: full suite green; 10M differential (seed 20261021) found **0 disagreements** (95 % upper bound 3.0e-7).
+Then each failure mode was probed and fixed, one commit each. Bugs found, clinical first:
+
+1. **A bilateral mammogram with BI-RADS 1 (left) and BI-RADS 4 (right) was filed NEGATIVE.** The HL7 parser used the
+   first OBX only. The same thing happened with two FIT values (5 and 300 → 5), and with HbA1c plus FPG in one
+   message (the second test was silently ignored).
+   - Now every value is evaluated by the clinical rules and the **most severe** one drives the decision; ties go to
+     the diagnostic-range result.
+   - All values are kept on the report.
+   - If the values differ, the case goes to review (`multiple_results`, floor high).
+2. **Two patients in one HL7 message were merged.** Patient B's FIT 300 was lost and patient A was given B's value.
+   Such messages now go to the review queue ("split per patient"), and the same applies to FHIR Bundles with more than
+   one Patient.
+3. **Structured-numeric comparators were dropped.** `>^9.9` became 9.9. The comparator is now kept as text (`>9.9`),
+   so the result goes to urgent review.
+4. **A reused control ID with different content was silently treated as a replay,** so a corrected result was lost.
+   Now a payload hash is stored; a byte-identical replay is still idempotent, but different content becomes a new
+   review case (`control_id_reused`).
+5. **Concurrent actions on one case.** Two users acting on a stale view both succeeded; the probe showed a transition
+   applied twice.
+   - Now there is an optimistic row-version on cases: the second action gets **409 and nothing is saved**.
+   - A DB unique index allows only one open case per patient and programme.
+   - Result, HL7 and FHIR ingest retry on conflict, so 8 concurrent deliveries give 1 message and 1 case.
+   - The SLA sweep re-runs on conflict.
+6. **Time handling:**
+   - the SLA working calendar used the UTC date, so 20:00–24:00 UAE time was counted as the wrong day around
+     weekends and holidays. It now uses UAE local time (`Asia/Dubai`, no DST);
+   - an appointment time sent with `+04:00` had the offset dropped, a 4-hour error. It is now converted;
+   - the patient's confirmation showed UTC (a 09:00 appointment read 05:00). It now shows UAE local time in the
+     language-neutral form dd/mm/yyyy HH:MM;
+   - a no-show (or attendance more than 4 h early) could be recorded before the appointment. Both are now rejected;
+   - HL7 ACK timestamps now carry `+0000`.
+7. **Duplicate identities (one person under two MRNs) were invisible.** A negative on record B could not be compared
+   with the positive case open on record A.
+   - Patients now carry a synthetic Emirates ID.
+   - Open-case and recent-closure checks span all records with the same ID, and the case is flagged
+     `possible_duplicate_identity` (floor high).
+   - HL7 can match on an Emirates ID in a PID-3 repetition. An ambiguous ID goes to match review.
+8. **Robustness:**
+   - structurally broken FHIR Bundles and deeply nested JSON returned **500**; they now return 4xx;
+   - `float()` accepted `1_000` (as 1000), `nan` and `inf` as lab values. Strict decimal syntax is now enforced, and
+     anything else stays text and goes to review;
+   - PID-3 repetitions are now split, delimiters are read from MSH-1/2, and HL7 escape sequences are decoded.
+
+- Validator invariants 49 (one open case per Emirates ID and programme) and 50 (attendance not before the
+  appointment). 0 violations on demo, 10k and 20k.
+- Fault injection was extended with F34–F42, one for each fix above.
+- New tests: `test_ingest_adversarial.py` (including Hypothesis fuzzing of HL7 and FHIR), `test_concurrency.py`,
+  `test_time_handling.py` and `test_duplicate_identity.py`.
+- Not changed: the demo seed's two candidate models both fail the fairness recall gate for age 40–49, so the demo has
+  no production model. Outreach falls back to rule order, as designed. The gate was not relaxed.

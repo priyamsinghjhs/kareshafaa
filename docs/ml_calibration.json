@@ -907,130 +907,130 @@
  },
  "realistic_20k": {
   "db": "data/wasl_large.db",
-  "as_of": "2026-10-20 20:51:32.696067",
+  "as_of": "2026-10-20 22:01:50.014570",
   "results": [
    {
     "recalibration": "none",
     "algorithm": "logreg",
     "chosen": "none",
-    "n_train": 4112,
-    "n_holdout": 1371,
-    "auc": 0.7062,
+    "n_train": 4170,
+    "n_holdout": 1391,
+    "auc": 0.6827,
     "raw": {
-     "ece": 0.0474,
-     "brier": 0.116,
-     "citl": 0.0369,
-     "slope": 1.035,
-     "bins_within_ci": 8,
+     "ece": 0.0295,
+     "brier": 0.1298,
+     "citl": 0.0208,
+     "slope": 1.061,
+     "bins_within_ci": 10,
      "bins": 10
     },
     "final": {
-     "ece": 0.0474,
-     "brier": 0.116,
-     "citl": 0.0369,
-     "slope": 1.035,
-     "bins_within_ci": 8,
+     "ece": 0.0295,
+     "brier": 0.1298,
+     "citl": 0.0208,
+     "slope": 1.061,
+     "bins_within_ci": 10,
      "bins": 10
     },
     "reliability": [
      {
-      "mean_pred": 0.088,
-      "observed": 0.08,
+      "mean_pred": 0.099,
+      "observed": 0.114,
       "ci": [
-       0.045,
-       0.137
+       0.072,
+       0.178
       ],
-      "n": 138,
+      "n": 140,
       "within_ci": true
      },
      {
-      "mean_pred": 0.11,
-      "observed": 0.095,
+      "mean_pred": 0.121,
+      "observed": 0.144,
       "ci": [
-       0.056,
-       0.156
+       0.095,
+       0.212
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.126,
-      "observed": 0.066,
+      "mean_pred": 0.136,
+      "observed": 0.101,
       "ci": [
-       0.035,
-       0.12
+       0.061,
+       0.162
       ],
-      "n": 137,
-      "within_ci": false
-     },
-     {
-      "mean_pred": 0.14,
-      "observed": 0.102,
-      "ci": [
-       0.062,
-       0.164
-      ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.155,
-      "observed": 0.175,
+      "mean_pred": 0.148,
+      "observed": 0.129,
       "ci": [
-       0.121,
-       0.247
+       0.084,
+       0.195
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.173,
-      "observed": 0.146,
+      "mean_pred": 0.162,
+      "observed": 0.144,
       "ci": [
-       0.097,
-       0.215
+       0.095,
+       0.212
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.195,
-      "observed": 0.153,
+      "mean_pred": 0.179,
+      "observed": 0.129,
       "ci": [
-       0.102,
-       0.223
+       0.084,
+       0.195
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.222,
-      "observed": 0.182,
+      "mean_pred": 0.2,
+      "observed": 0.144,
       "ci": [
-       0.127,
-       0.256
+       0.095,
+       0.212
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.267,
-      "observed": 0.146,
+      "mean_pred": 0.229,
+      "observed": 0.18,
       "ci": [
-       0.097,
-       0.215
+       0.125,
+       0.252
       ],
-      "n": 137,
-      "within_ci": false
+      "n": 139,
+      "within_ci": true
      },
      {
-      "mean_pred": 0.63,
-      "observed": 0.591,
+      "mean_pred": 0.269,
+      "observed": 0.252,
       "ci": [
-       0.508,
-       0.67
+       0.187,
+       0.33
       ],
-      "n": 137,
+      "n": 139,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.591,
+      "observed": 0.59,
+      "ci": [
+       0.507,
+       0.668
+      ],
+      "n": 139,
       "within_ci": true
      }
     ],
@@ -1045,12 +1045,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0956
+       "gap": 0.2346
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.3484
+       "gap": 0.5048
       },
       "calibration": {
        "passed": true,
@@ -1062,12 +1062,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1352
+       "gap": 0.1735
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.465
+       "gap": 0.3678
       },
       "calibration": {
        "passed": true,
@@ -1079,12 +1079,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0186
+       "gap": 0.0911
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0338
+       "gap": 0.1803
       },
       "calibration": {
        "passed": true,
@@ -1096,12 +1096,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1571
+       "gap": 0.1659
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.3546
+       "gap": 0.227
       },
       "calibration": {
        "passed": true,
@@ -1113,12 +1113,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0172
+       "gap": 0.0605
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.2678
+       "gap": 0.426
       },
       "calibration": {
        "passed": true,
@@ -1132,125 +1132,125 @@
     "recalibration": "none",
     "algorithm": "gbm",
     "chosen": "none",
-    "n_train": 4112,
-    "n_holdout": 1371,
-    "auc": 0.6948,
+    "n_train": 4170,
+    "n_holdout": 1391,
+    "auc": 0.6788,
     "raw": {
-     "ece": 0.0506,
-     "brier": 0.1158,
-     "citl": 0.0389,
-     "slope": 0.975,
-     "bins_within_ci": 8,
+     "ece": 0.0249,
+     "brier": 0.1284,
+     "citl": 0.0201,
+     "slope": 1.037,
+     "bins_within_ci": 10,
      "bins": 10
     },
     "final": {
-     "ece": 0.0506,
-     "brier": 0.1158,
-     "citl": 0.0389,
-     "slope": 0.975,
-     "bins_within_ci": 8,
+     "ece": 0.0249,
+     "brier": 0.1284,
+     "citl": 0.0201,
+     "slope": 1.037,
+     "bins_within_ci": 10,
      "bins": 10
     },
     "reliability": [
      {
-      "mean_pred": 0.093,
-      "observed": 0.116,
+      "mean_pred": 0.103,
+      "observed": 0.129,
       "ci": [
-       0.073,
-       0.18
+       0.083,
+       0.194
       ],
-      "n": 138,
+      "n": 140,
       "within_ci": true
      },
      {
-      "mean_pred": 0.117,
-      "observed": 0.066,
+      "mean_pred": 0.122,
+      "observed": 0.101,
       "ci": [
-       0.035,
-       0.12
+       0.061,
+       0.162
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.13,
-      "observed": 0.08,
+      "mean_pred": 0.132,
+      "observed": 0.129,
       "ci": [
-       0.045,
-       0.138
+       0.084,
+       0.195
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.143,
-      "observed": 0.131,
+      "mean_pred": 0.145,
+      "observed": 0.108,
       "ci": [
-       0.085,
-       0.198
+       0.066,
+       0.17
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.154,
-      "observed": 0.131,
+      "mean_pred": 0.158,
+      "observed": 0.137,
       "ci": [
-       0.085,
-       0.198
+       0.089,
+       0.204
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.166,
-      "observed": 0.124,
+      "mean_pred": 0.173,
+      "observed": 0.137,
       "ci": [
-       0.079,
-       0.19
+       0.089,
+       0.204
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.185,
-      "observed": 0.161,
+      "mean_pred": 0.192,
+      "observed": 0.209,
       "ci": [
-       0.109,
-       0.231
+       0.149,
+       0.284
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.213,
-      "observed": 0.175,
+      "mean_pred": 0.22,
+      "observed": 0.187,
       "ci": [
-       0.121,
-       0.247
+       0.131,
+       0.26
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.263,
-      "observed": 0.175,
+      "mean_pred": 0.272,
+      "observed": 0.223,
       "ci": [
-       0.121,
-       0.247
+       0.162,
+       0.299
       ],
-      "n": 137,
-      "within_ci": false
+      "n": 139,
+      "within_ci": true
      },
      {
-      "mean_pred": 0.663,
-      "observed": 0.577,
+      "mean_pred": 0.612,
+      "observed": 0.568,
       "ci": [
-       0.493,
-       0.656
+       0.485,
+       0.648
       ],
-      "n": 137,
-      "within_ci": false
+      "n": 139,
+      "within_ci": true
      }
     ],
     "tuning": {
@@ -1264,12 +1264,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1431
+       "gap": 0.2095
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.466
+       "gap": 0.5059
       },
       "calibration": {
        "passed": true,
@@ -1281,12 +1281,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1571
+       "gap": 0.1575
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.505
+       "gap": 0.4344
       },
       "calibration": {
        "passed": true,
@@ -1298,12 +1298,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0098
+       "gap": 0.0523
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0024
+       "gap": 0.0937
       },
       "calibration": {
        "passed": true,
@@ -1315,12 +1315,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.2288
+       "gap": 0.1125
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.3146
+       "gap": 0.241
       },
       "calibration": {
        "passed": true,
@@ -1332,12 +1332,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0366
+       "gap": 0.0327
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1808
+       "gap": 0.2932
       },
       "calibration": {
        "passed": true,
@@ -1351,138 +1351,138 @@
     "recalibration": "auto",
     "algorithm": "logreg",
     "chosen": "platt",
-    "n_train": 4112,
-    "n_holdout": 1371,
-    "auc": 0.7062,
+    "n_train": 4170,
+    "n_holdout": 1391,
+    "auc": 0.6827,
     "raw": {
-     "ece": 0.0474,
-     "brier": 0.116,
-     "citl": 0.0369,
-     "slope": 1.035,
-     "bins_within_ci": 8,
+     "ece": 0.0295,
+     "brier": 0.1298,
+     "citl": 0.0208,
+     "slope": 1.061,
+     "bins_within_ci": 10,
      "bins": 10
     },
     "final": {
-     "ece": 0.0448,
-     "brier": 0.116,
-     "citl": 0.0364,
-     "slope": 1.108,
-     "bins_within_ci": 8,
+     "ece": 0.0303,
+     "brier": 0.13,
+     "citl": 0.0214,
+     "slope": 1.148,
+     "bins_within_ci": 10,
      "bins": 10
     },
     "reliability": [
      {
-      "mean_pred": 0.093,
-      "observed": 0.08,
+      "mean_pred": 0.106,
+      "observed": 0.114,
       "ci": [
-       0.045,
-       0.137
+       0.072,
+       0.178
       ],
-      "n": 138,
+      "n": 140,
       "within_ci": true
      },
      {
-      "mean_pred": 0.115,
-      "observed": 0.095,
+      "mean_pred": 0.127,
+      "observed": 0.144,
       "ci": [
-       0.056,
-       0.156
+       0.095,
+       0.212
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.13,
-      "observed": 0.066,
+      "mean_pred": 0.142,
+      "observed": 0.101,
       "ci": [
-       0.035,
-       0.12
+       0.061,
+       0.162
       ],
-      "n": 137,
-      "within_ci": false
-     },
-     {
-      "mean_pred": 0.143,
-      "observed": 0.102,
-      "ci": [
-       0.062,
-       0.164
-      ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.158,
-      "observed": 0.175,
+      "mean_pred": 0.153,
+      "observed": 0.129,
       "ci": [
-       0.121,
-       0.247
+       0.084,
+       0.195
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.175,
-      "observed": 0.146,
+      "mean_pred": 0.166,
+      "observed": 0.144,
       "ci": [
-       0.097,
-       0.215
+       0.095,
+       0.212
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.195,
-      "observed": 0.153,
+      "mean_pred": 0.182,
+      "observed": 0.129,
       "ci": [
-       0.102,
-       0.223
+       0.084,
+       0.195
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.22,
-      "observed": 0.182,
+      "mean_pred": 0.202,
+      "observed": 0.144,
       "ci": [
-       0.127,
-       0.256
+       0.095,
+       0.212
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.262,
-      "observed": 0.146,
+      "mean_pred": 0.229,
+      "observed": 0.18,
       "ci": [
-       0.097,
-       0.215
+       0.125,
+       0.252
       ],
-      "n": 137,
-      "within_ci": false
+      "n": 139,
+      "within_ci": true
      },
      {
-      "mean_pred": 0.61,
-      "observed": 0.591,
+      "mean_pred": 0.265,
+      "observed": 0.252,
       "ci": [
-       0.508,
-       0.67
+       0.187,
+       0.33
       ],
-      "n": 137,
+      "n": 139,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.57,
+      "observed": 0.59,
+      "ci": [
+       0.507,
+       0.668
+      ],
+      "n": 139,
       "within_ci": true
      }
     ],
     "tuning": {
-     "n_tune": 823,
+     "n_tune": 834,
      "none": {
-      "ece": 0.0337,
-      "slope": 0.931,
-      "citl": 0.0183
+      "ece": 0.0229,
+      "slope": 0.78,
+      "citl": 0.0042
      },
      "platt": {
-      "ece": 0.0372,
-      "slope": 1.008,
-      "citl": 0.0185
+      "ece": 0.021,
+      "slope": 0.831,
+      "citl": 0.0049
      },
      "chosen": "platt"
     },
@@ -1493,12 +1493,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0956
+       "gap": 0.2346
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.3484
+       "gap": 0.5048
       },
       "calibration": {
        "passed": true,
@@ -1510,12 +1510,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1352
+       "gap": 0.1735
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.465
+       "gap": 0.3678
       },
       "calibration": {
        "passed": true,
@@ -1527,12 +1527,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0186
+       "gap": 0.0911
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0338
+       "gap": 0.1803
       },
       "calibration": {
        "passed": true,
@@ -1544,12 +1544,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1571
+       "gap": 0.1659
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.3546
+       "gap": 0.227
       },
       "calibration": {
        "passed": true,
@@ -1561,12 +1561,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0172
+       "gap": 0.0605
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.2678
+       "gap": 0.426
       },
       "calibration": {
        "passed": true,
@@ -1579,141 +1579,141 @@
    {
     "recalibration": "auto",
     "algorithm": "gbm",
-    "chosen": "none",
-    "n_train": 4112,
-    "n_holdout": 1371,
-    "auc": 0.6948,
+    "chosen": "platt",
+    "n_train": 4170,
+    "n_holdout": 1391,
+    "auc": 0.6788,
     "raw": {
-     "ece": 0.0506,
-     "brier": 0.1158,
-     "citl": 0.0389,
-     "slope": 0.975,
-     "bins_within_ci": 8,
+     "ece": 0.0249,
+     "brier": 0.1284,
+     "citl": 0.0201,
+     "slope": 1.037,
+     "bins_within_ci": 10,
      "bins": 10
     },
     "final": {
-     "ece": 0.0506,
-     "brier": 0.1158,
-     "citl": 0.0389,
-     "slope": 0.975,
-     "bins_within_ci": 8,
+     "ece": 0.0265,
+     "brier": 0.1284,
+     "citl": 0.0203,
+     "slope": 1.114,
+     "bins_within_ci": 10,
      "bins": 10
     },
     "reliability": [
      {
-      "mean_pred": 0.093,
-      "observed": 0.116,
+      "mean_pred": 0.108,
+      "observed": 0.129,
       "ci": [
-       0.073,
-       0.18
+       0.083,
+       0.194
       ],
-      "n": 138,
+      "n": 140,
       "within_ci": true
      },
      {
-      "mean_pred": 0.117,
-      "observed": 0.066,
+      "mean_pred": 0.127,
+      "observed": 0.101,
       "ci": [
-       0.035,
-       0.12
+       0.061,
+       0.162
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.13,
-      "observed": 0.08,
+      "mean_pred": 0.137,
+      "observed": 0.129,
       "ci": [
-       0.045,
-       0.138
+       0.084,
+       0.195
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.143,
-      "observed": 0.131,
+      "mean_pred": 0.149,
+      "observed": 0.108,
       "ci": [
-       0.085,
-       0.198
+       0.066,
+       0.17
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.154,
-      "observed": 0.131,
+      "mean_pred": 0.161,
+      "observed": 0.137,
       "ci": [
-       0.085,
-       0.198
+       0.089,
+       0.204
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.166,
-      "observed": 0.124,
+      "mean_pred": 0.176,
+      "observed": 0.137,
       "ci": [
-       0.079,
-       0.19
+       0.089,
+       0.204
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.185,
-      "observed": 0.161,
+      "mean_pred": 0.193,
+      "observed": 0.209,
       "ci": [
-       0.109,
-       0.231
+       0.149,
+       0.284
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.213,
-      "observed": 0.175,
+      "mean_pred": 0.219,
+      "observed": 0.187,
       "ci": [
-       0.121,
-       0.247
+       0.131,
+       0.26
       ],
-      "n": 137,
+      "n": 139,
       "within_ci": true
      },
      {
-      "mean_pred": 0.263,
-      "observed": 0.175,
+      "mean_pred": 0.267,
+      "observed": 0.223,
       "ci": [
-       0.121,
-       0.247
+       0.162,
+       0.299
       ],
-      "n": 137,
-      "within_ci": false
+      "n": 139,
+      "within_ci": true
      },
      {
-      "mean_pred": 0.663,
-      "observed": 0.577,
+      "mean_pred": 0.594,
+      "observed": 0.568,
       "ci": [
-       0.493,
-       0.656
+       0.485,
+       0.648
       ],
-      "n": 137,
-      "within_ci": false
+      "n": 139,
+      "within_ci": true
      }
     ],
     "tuning": {
-     "n_tune": 823,
+     "n_tune": 834,
      "none": {
-      "ece": 0.0236,
-      "slope": 0.964,
-      "citl": 0.0194
+      "ece": 0.0246,
+      "slope": 0.811,
+      "citl": 0.0049
      },
      "platt": {
-      "ece": 0.0279,
-      "slope": 1.029,
-      "citl": 0.0189
+      "ece": 0.0239,
+      "slope": 0.881,
+      "citl": 0.0054
      },
-     "chosen": "none"
+     "chosen": "platt"
     },
     "gates_failed": [],
     "all_gates_passed": true,
@@ -1722,12 +1722,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1431
+       "gap": 0.2095
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.466
+       "gap": 0.5059
       },
       "calibration": {
        "passed": true,
@@ -1739,12 +1739,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1571
+       "gap": 0.1575
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.505
+       "gap": 0.4344
       },
       "calibration": {
        "passed": true,
@@ -1756,12 +1756,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0098
+       "gap": 0.0523
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0024
+       "gap": 0.0937
       },
       "calibration": {
        "passed": true,
@@ -1773,12 +1773,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.2288
+       "gap": 0.1125
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.3146
+       "gap": 0.241
       },
       "calibration": {
        "passed": true,
@@ -1790,12 +1790,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0366
+       "gap": 0.0327
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1808
+       "gap": 0.2932
       },
       "calibration": {
        "passed": true,

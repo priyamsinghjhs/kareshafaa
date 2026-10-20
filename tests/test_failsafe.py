@@ -179,6 +179,11 @@ def test_review_case_cannot_progress_or_message_or_close_with_evidence(sdb):
     with pytest.raises(Forbidden):
         wf.resolve_review(sdb, c, actor_from_user(coord_user), note="coordinator is not a clinician")
     lead = _lead(sdb, "colorectal_fit")
+    # even a clinical lead who passes sign-off cannot close a review-flagged case with "evidence"
+    # (the review guard itself, not the sign-off check, must refuse - fault F31)
+    with pytest.raises(Forbidden, match="unresolved clinical review"):
+        wf.close_case(sdb, c, lead, "evidence", evidence_type="appointment_fulfilled",
+                      note="closing on evidence while a clinical review is open")
     with pytest.raises(Invalid):
         wf.resolve_review(sdb, c, lead, note="short")
     wf.resolve_review(sdb, c, lead, note="Lab confirmed unit ug/g; proceed on colonoscopy pathway.")
