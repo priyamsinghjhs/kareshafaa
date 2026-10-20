@@ -256,6 +256,16 @@ def consent(case_id: int, body: sch.ConsentIn, actor: Actor = Depends(require("c
     return _done(db, c, actor)
 
 
+@router.post("/cases/{case_id}/patient-deceased")
+def patient_deceased(case_id: int, body: sch.NoteIn, actor: Actor = Depends(require("closure:authorise")),
+                     db: Session = Depends(get_db)) -> dict:
+    """Record the patient's death (named clinician, rationale/source required). Stops all outreach; open cases
+    go to clinician review to be closed with an authorised decision."""
+    c = _load(db, actor, case_id)
+    flagged = wf.record_death(db, c.patient, actor, body.note)
+    return _done(db, c, actor, flagged_cases=flagged)
+
+
 @router.post("/cases/{case_id}/consults")
 def consult(case_id: int, body: sch.ConsultIn, actor: Actor = Depends(require("consult:create")),
             db: Session = Depends(get_db)) -> dict:

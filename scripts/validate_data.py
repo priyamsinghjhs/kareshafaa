@@ -71,6 +71,9 @@ def run(max_examples: int = 5) -> dict:
                                                                            "case.review_flagged")))):
             ev_by_case[e.case_id].append(e)
         cases_by_id = {c.id: c for c in cases}
+        # death recorded during the pathway (workflow.record_death): contact BEFORE that moment was legitimate
+        died_at = {int(e.entity_id): e.ts for e in db.scalars(select(AuditEvent).where(
+            AuditEvent.event == "patient.deceased_recorded"))}
 
         # --- patient-level -------------------------------------------------------------------------
         for p in patients.values():
@@ -225,8 +228,11 @@ def run(max_examples: int = 5) -> dict:
                         if first_resolved is None or m.sent_at < first_resolved:
                             bad("safety.no_patient_contact_before_clinician_review", (c.id, m.id))
                             break
-            if p.deceased and comms.get(c.id):
+            if p.deceased and any(p.id not in died_at or (m.sent_at and m.sent_at >= died_at[p.id])
+                                  for m in comms.get(c.id, [])):
                 bad("safety.deceased_never_contacted", c.id)
+            if c.closure_reason == "deceased" and not p.deceased:
+                bad("closure.deceased_reason_requires_deceased_patient", c.id)
             if p.pregnant and c.programme in ("cervical", "diabetes_hba1c", "breast") and \
                     "pregnant" not in (c.review_reasons or []):
                 bad("safety.pregnancy_flagged_for_review", c.id)
@@ -318,7 +324,7 @@ INVARIANTS = [
     "case.at_most_one_open_case_per_patient_programme", "alert.one_pathway_alert_per_case_per_level",
     "content.no_unapproved_translation_sent", "content.signoffs_by_different_people", "audit.hash_chain_valid",
     "identity.one_open_case_per_emirates_id_programme", "dates.attendance_not_before_appointment",
-    "comms.reminders_inside_patient_window",
+    "comms.reminders_inside_patient_window", "closure.deceased_reason_requires_deceased_patient",
 ]
 
 

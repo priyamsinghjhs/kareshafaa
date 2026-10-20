@@ -30,6 +30,7 @@ Automated actors may only ingest results, auto-triage non-urgent cases, send pat
 | `proposal.decide` | proposal:decide | 5 | `wasl.services.improve:decide_proposal` | Changes SLAs, reminder timing, message variants or channel order for everyone. |
 | `ingest.match.resolve` | case:create | reason code / n.a. | `wasl.services.ingest:resolve_match` | Attaches an unmatched result to a patient record. |
 | `content.signoff` | content:approve or content:translation_review | 5 | `wasl.comms.governance:approve` | Makes patient-facing wording (or a translation) live. |
+| `patient.deceased.record` | closure:authorise | 10 | `wasl.services.workflow:record_death` | Stops all patient messaging and outreach; every open case goes to clinical review (wrong patient = care silently stopped). |
 
 Additional two-person rules already in place: a model's trainer cannot approve it (`model:train` vs
 `model:approve` roles); transfers are two-key (the current owner stays accountable until the receiver accepts);
@@ -44,5 +45,5 @@ decision, starting care, acknowledging escalations, model reject/rollback, and d
 through the guard. Declining a transfer now needs a reason.
 
 Tests: `tests/test_human_signoff.py` (static check that every registered function calls the guard with its
-action name; guard behaviour for bots, missing permission and short rationale for all 17 actions; service
+action name; guard behaviour for bots, missing permission and short rationale for all 18 actions; service
 functions refuse automated actors before any state change; API re-open needs permission and a reason).

@@ -56,6 +56,9 @@ HIGH_IMPACT: dict[str, HighImpact] = {
                                   "Changes SLAs, reminder timing, message variants or channel order for everyone."),
     "ingest.match.resolve": HighImpact(("case:create",), 0, "wasl.services.ingest:resolve_match",
                                        "Attaches an unmatched result to a patient record."),
+    "patient.deceased.record": HighImpact(("closure:authorise",), 10, "wasl.services.workflow:record_death",
+                                          "Stops ALL patient messaging and outreach and sends every open case to clinical "
+                                          "review; recording it against the wrong patient would silently stop their care."),
     "content.signoff": HighImpact(("content:approve", "content:translation_review"), 5,
                                   "wasl.comms.governance:approve", "Makes patient-facing wording (or a translation) live."),
 }

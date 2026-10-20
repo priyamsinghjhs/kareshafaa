@@ -500,6 +500,9 @@ def close_case(db: Session, case: Case, actor: Actor, closure_type: str, *, evid
     else:
         if reason == "informed_decline" and consent_status(db, case.patient_id, "care_followup", case.id) != "deny":
             raise TransitionError("informed_decline requires a documented decline (Consent) for this case")
+        if reason == "deceased" and not case.patient.deceased:
+            raise TransitionError("closure reason 'deceased' requires the death to be recorded for the patient first "
+                                  "(record_death: stops all outreach and reviews every open case)")
         if reason == "unable_to_contact":
             failed = db.scalar(select(func.count()).select_from(CallTask).where(
                 CallTask.case_id == case.id, CallTask.status == "completed", CallTask.outcome != "reached"))
@@ -853,6 +856,35 @@ def reconsider(db: Session, case: Case, actor: Actor, note: str, now: datetime |
     if dst == S.ACKNOWLEDGED:
         raise TransitionError("patient must pass the teach-back check before resuming")
     return transition(db, case, dst, actor, note=note, now=now)
+
+
+def record_death(db: Session, patient: Patient, actor: Actor, note: str, now: datetime | None = None) -> list[int]:
+    """A named clinician records that the patient has died (e.g. from the death registry or the family).
+
+    All automated and manual patient messaging stops (comms.service refuses), queued reminders and open call tasks
+    are cancelled, and every open case goes to clinician review (reason `deceased`) to be closed with an authorised
+    decision - never closed automatically. Returns the ids of the open cases flagged."""
+    require_signoff(actor, "patient.deceased.record", note)
+    now = _now(now)
+    if patient.deceased:
+        raise Invalid("patient is already recorded as deceased")
+    patient.deceased = True
+    cases = list(db.scalars(select(Case).where(Case.patient_id == patient.id, Case.state != S.CLOSED)))
+    ids = [c.id for c in cases]
+    calls = list(db.scalars(select(CallTask).where(CallTask.case_id.in_(ids), CallTask.status == "requested"))) if ids else []
+    for t in calls:
+        t.status, t.completed_at = "cancelled", now
+    held = list(db.scalars(select(Communication).where(Communication.patient_id == patient.id,
+                                                       Communication.status == "on-hold")))
+    for h in held:
+        h.status = "stopped"
+    audit.record(db, actor, "U", "patient.deceased_recorded", entity_type="Patient", entity_id=patient.id, ts=now,
+                 detail={"note": note, "open_cases": ids, "call_tasks_cancelled": len(calls),
+                         "queued_messages_stopped": len(held)})
+    for c in cases:
+        _claim(c)
+        flag_review(db, c, ["deceased"], actor, now, detail={"note": note})
+    return ids
 
 
 def record_consent(db: Session, patient: Patient, actor: Actor, scope: str, decision: str, note: str | None = None,

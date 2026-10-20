@@ -456,3 +456,16 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
   `collection_date_in_future` (high floor). Both go to clinician review; the clinical tier is never lowered.
   Unparseable dates are ignored (nothing is dropped).
 - 14 new tests; full suite 3,100 tests, all passing. Rules engine `evaluate` unchanged.
+
+### Round 13: patient dies mid-pathway (21 Oct 2026, ~04:55-05:10 IST)
+- **Failure modes.** (1) A death could only be set at registration, so after a death registry or family notification
+  reminders and phone tasks continued. (2) Any case could be closed with reason `deceased` although the patient was not
+  recorded as deceased: a mis-click silently ended a living patient's follow-up, while other programmes kept messaging.
+- **Fix.** New high-impact action `patient.deceased.record` (`workflow.record_death`, API
+  `POST /api/cases/{id}/patient-deceased`): named clinician with `closure:authorise`, rationale >= 10 chars, audited.
+  It stops all messaging, cancels open call tasks and queued reminders, and flags every open case (`deceased`) for an
+  authorised clinician closure - nothing is closed automatically. Closure reason `deceased` now requires the recorded
+  death.
+- Validator invariant 52 (`closure.deceased_reason_requires_deceased_patient`); `safety.deceased_never_contacted` now
+  allows contact before the recorded death. 0 violations on demo, 10k and 20k. Sign-off registry: 18 actions.
+- 5 new tests; full suite 3,105 tests, all passing.
