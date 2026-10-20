@@ -32,7 +32,7 @@ from ..models import (
     utcnow,
 )
 from ..clinical_rules import TIER_TARGET_DAYS, target_days
-from ..clinical_rules import TIER_RANK, PatientContext, ResultInput, evaluate, is_downgrade, max_tier, review_min_tier
+from ..clinical_rules import TIER_RANK, Decision, PatientContext, ResultInput, evaluate, is_downgrade, max_tier, review_min_tier
 from ..programmes import CLINICIAN_CONFIRMED_TIERS, PROGRAMMES
 from ..security import SYSTEM, Actor
 from ..signoff import require_signoff
@@ -182,7 +182,8 @@ def flag_review(db: Session, case: Case, reasons: list[str], actor: Actor, now: 
 
 def ingest_result(db: Session, patient: Patient, programme: str, *, value: float | None, value_text: str | None,
                   performer_org_id: int, unit: str | None = None, test: str | None = None, status: str = "final",
-                  cytology: str | None = None, actor: Actor = SYSTEM, now: datetime | None = None
+                  cytology: str | None = None, actor: Actor = SYSTEM, now: datetime | None = None,
+                  extra_reasons: list[str] | None = None, other_observations: list[list] | None = None
                   ) -> tuple[DiagnosticReport, Case | None]:
     """Receive a screening result and apply the clinical rules (wasl/clinical_rules.py).
 
@@ -194,6 +195,12 @@ def ingest_result(db: Session, patient: Patient, programme: str, *, value: float
     ctx = patient_context(patient, programme, now)
     dec = evaluate(ResultInput(programme=programme, value=value, value_text=value_text, unit=unit, test=test,
                                status=status, cytology=cytology), ctx)
+    if extra_reasons:  # message-level concerns (e.g. several values for one test): human review, never lower tier
+        dec = Decision("review", max_tier(dec.tier, review_min_tier(extra_reasons)),
+                       "human_review" if dec.disposition == "negative" else dec.pathway,
+                       dec.next_step if dec.disposition != "negative" else "Clinician review of the result",
+                       dec.needs_confirmation, dec.target, dec.rule_id, dec.reasons + list(extra_reasons),
+                       dec.clinical_tier, dec.normalised)
     if prog is None:  # the API schema prevents this; message ingest routes unknown programmes to its review queue
         raise Invalid(f"unknown programme {programme}")
     rep = DiagnosticReport(patient_id=patient.id, programme=programme, category="screening", code=prog.screening_code,
@@ -204,6 +211,15 @@ def ingest_result(db: Session, patient: Patient, programme: str, *, value: float
                                         value_text=(value_text if not cytology else f"{value_text or ''}|{cytology}")[:100]
                                         if (value_text or cytology) else None,
                                         unit=(unit or None) and str(unit)[:30], interpretation=dec.interpretation))
+    for code, otest, raw, ounit in other_observations or []:  # every value in the message is kept, never dropped
+        try:
+            ov = float(raw)
+        except (TypeError, ValueError):
+            ov = None
+        rep.observations.append(Observation(code=str(code)[:40], display=f"{otest} (additional value in same message)"[:200],
+                                            value=ov if ov is not None and ov == ov and abs(ov) != float("inf") else None,
+                                            value_text=None if ov is not None else (str(raw or "")[:100] or None),
+                                            unit=(ounit or None) and str(ounit)[:30], interpretation="A"))
     db.add(rep)
     db.flush()
     audit.record(db, actor, "C", "result.received", entity_type="DiagnosticReport", entity_id=rep.id, ts=now,

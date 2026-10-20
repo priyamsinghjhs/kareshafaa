@@ -486,6 +486,10 @@ class IngestMessage(Base):  # inbound HL7 v2 / FHIR message log (idempotency + h
     case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     resolved_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    payload_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)  # detects a reused control ID
+    flags: Mapped[list | None] = mapped_column(JSON, nullable=True)  # message-level review reasons
+    other_observations: Mapped[list | None] = mapped_column(JSON, nullable=True)  # further values, same test
+    alt_identifiers: Mapped[list | None] = mapped_column(JSON, nullable=True)  # PID-3 repetitions
 
 
 # ---- performance indexes (iteration 4: profiled at 10k+ cases) ------------------------------------------

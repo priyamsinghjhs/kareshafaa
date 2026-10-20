@@ -10,7 +10,9 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+import hashlib
+import json
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
@@ -49,6 +51,10 @@ class ParsedResult:
     status: str = "final"
     cytology: str | None = None
     problem: str | None = None  # set when no programme could be determined (goes to human review)
+    flags: list[str] = field(default_factory=list)  # message-level review reasons (e.g. multiple_results)
+    alt_identifiers: list[str] = field(default_factory=list)  # further patient identifiers (PID-3 repetitions)
+    other_observations: list[list] = field(default_factory=list)  # [loinc, test, raw value, unit] not chosen
+    payload_sha256: str | None = None
 
 
 def _field(seg: list[str], i: int) -> str:
@@ -63,9 +69,25 @@ def _num_or_none(v: str) -> float | None:
     return f if f == f and f not in (float("inf"), float("-inf")) else None
 
 
+def _severity(prog: str, test: str, raw: str, unit: str | None, cyto: str | None) -> tuple:
+    """Severity of one observation by the clinical rules alone (lower = more severe)."""
+    from ..clinical_rules import TIER_RANK, PatientContext, ResultInput, evaluate  # noqa: PLC0415
+
+    v = _num_or_none(raw) if prog in ("colorectal_fit", "diabetes_hba1c") else None
+    d = evaluate(ResultInput(programme=prog, value=v, value_text=None if v is not None else (raw.strip() or None),
+                             unit=unit, test=test, cytology=cyto), PatientContext(age=50))  # in-range context
+    # ties (e.g. prediabetes HbA1c vs diabetic-range FPG, both routine) -> the diagnostic-range result
+    return (0 if d.disposition != "negative" else 1, TIER_RANK.get(d.clinical_tier or d.tier or "", 9),
+            0 if d.needs_confirmation else 1)
+
+
 def _combine(control_id: str, ident: str | None, birth_year: int | None,
              obs: list[tuple[str, str, str | None, str, str | None]]) -> ParsedResult:
-    """obs: (loinc, raw value, unit, status, raw text). Combines HPV + reflex cytology; flags conflicts."""
+    """obs: (loinc, raw value, unit, status, raw text). Combines HPV + reflex cytology; flags conflicts.
+
+    Several results for the same programme in one message (left and right breast, two FIT samples, HbA1c and
+    FPG together...) are never reduced to "the first one": the MOST SEVERE by the clinical rules is used and,
+    if the values differ, the case goes to human review (reason multiple_results)."""
     known = [(LOINC[c], v, u, st, c) for c, v, u, st, _ in obs if c in LOINC]
     if not known:
         codes = ",".join(sorted({c for c, *_ in obs})) or "none"
@@ -78,46 +100,92 @@ def _combine(control_id: str, ident: str | None, birth_year: int | None,
     prog = progs.pop()
     statuses = [HL7_STATUS.get((st or "F").upper()[:1], st.lower() if st else "final") for *_, st, _ in known]
     status = next((x for x in statuses if x != "final"), "final")
-    main = next((k for k in known if k[0][1] != "CYTOLOGY"), known[0])
+    mains = [k for k in known if k[0][1] != "CYTOLOGY"]
+    cytos = [k for k in known if k[0][1] == "CYTOLOGY"]
+    flags: list[str] = []
+    if not mains:
+        if len({(v or "").strip().lower() for (_, v, *_r) in cytos}) > 1:
+            flags.append("multiple_results")
+        (_, test), raw, unit, _, code = cytos[0]
+        return ParsedResult(control_id, ident, birth_year, prog, None, raw.strip() or None, None, "CYTOLOGY", status,
+                            flags=flags, other_observations=[[k[4], k[0][1], k[1], k[2]] for k in cytos[1:]] if flags else [])
+    cyto_vals = sorted({(v or "").strip() for (_, v, *_r) in cytos if (v or "").strip()})
+    if len(cyto_vals) > 1:
+        flags.append("multiple_results")
+    cyto = None
+    if cyto_vals:  # the most severe cytology alongside an HPV result
+        cyto = min(cyto_vals, key=lambda c: _severity(prog, "HPV", "positive", None, c)) if len(cyto_vals) > 1 \
+            else cyto_vals[0]
+    if len({((v or "").strip().lower(), (u or "").strip().lower(), t[1]) for (t, v, u, *_r) in mains}) > 1:
+        flags.append("multiple_results")
+    main = min(mains, key=lambda k: _severity(prog, k[0][1], k[1], k[2], cyto)) if len(mains) > 1 else mains[0]
     (_, test), raw, unit, _, code = main
-    cyto = next((v for (pt, v, u, st, c) in known if pt[1] == "CYTOLOGY" and main is not None and c != code), None)
-    if test == "CYTOLOGY":
-        return ParsedResult(control_id, ident, birth_year, prog, None, raw.strip() or None, None, "CYTOLOGY", status)
+    others = [[k[4], k[0][1], k[1], k[2]] for k in known if k is not main] if flags else []
     if prog in ("colorectal_fit", "diabetes_hba1c"):
         v = _num_or_none(raw)
         return ParsedResult(control_id, ident, birth_year, prog, v, None if v is not None else (raw.strip() or None),
-                            unit or None, test, status)
+                            unit or None, test, status, flags=sorted(set(flags)), other_observations=others)
     return ParsedResult(control_id, ident, birth_year, prog, None, raw.strip() or None, None, test, status,
-                        cytology=(cyto or "").strip() or None)
+                        cytology=cyto, flags=sorted(set(flags)), other_observations=others)
+
+
+_COMPARATORS = ("<", ">", "<=", ">=", "<>")
 
 
 def parse_hl7v2(raw: str) -> ParsedResult:
     text = raw.replace("\r\n", "\r").replace("\n", "\r").strip()
-    segs = [s.split("|") for s in text.split("\r") if s.strip()]
-    if not segs or segs[0][0] != "MSH":
+    if not text.startswith("MSH") or len(text) < 8:
         raise Invalid("not an HL7 v2 message (missing MSH)")
+    # delimiters are declared by the message itself (MSH-1 and MSH-2); never assume '|' and '^'
+    fs, comp, rep, esc = text[3], text[4], text[5], text[6]
+    if len({fs, comp, rep, esc}) < 4 or any(ch.isalnum() or ch.isspace() for ch in (fs, comp, rep, esc)):
+        raise Invalid("invalid HL7 delimiters in MSH-1/MSH-2")
+
+    def unesc(v: str) -> str:
+        if esc not in v:
+            return v
+        for code, ch in (("F", fs), ("S", comp), ("T", text[7] if len(text) > 7 else "&"), ("R", rep), ("E", esc)):
+            v = v.replace(f"{esc}{code}{esc}", ch)
+        return v
+
+    segs = [s.split(fs) for s in text.split("\r") if s.strip()]
     msh = segs[0]
+    msh[0] = "MSH"
     # MSH-1 is the field separator itself, so MSH-n is at index n-1
-    msg_type, control_id = _field(msh, 8), _field(msh, 9)
+    msg_type, control_id = _field(msh, 8).replace(comp, "^"), unesc(_field(msh, 9))
     if not msg_type.startswith("ORU^R01"):
         raise Invalid(f"unsupported message type {msg_type or '?'} (expected ORU^R01)")
+    digest = hashlib.sha256(text.encode()).hexdigest()
     if not control_id:  # never drop: derive a content-based id so the message is still idempotent and reviewable
-        import hashlib
-
-        control_id = "NOID-" + hashlib.sha256(text.encode()).hexdigest()[:16]
-    pid = next((s for s in segs if s[0] == "PID"), None)
+        control_id = "NOID-" + digest[:16]
+    pids = [s for s in segs if s[0] == "PID"]
+    pid = pids[0] if pids else None
     ident = birth_year = None
+    alt: list[str] = []
     if pid is not None:
-        ident = _field(pid, 3).split("^")[0] or None
+        ids = [unesc(r.split(comp)[0]).strip() for r in _field(pid, 3).split(rep)]
+        ids = [i for i in ids if i]
+        ident, alt = (ids[0] if ids else None), ids[1:]
         dob = _field(pid, 7)
         birth_year = int(dob[:4]) if len(dob) >= 4 and dob[:4].isdigit() else None
     obs = []
     for obx in (s for s in segs if s[0] == "OBX"):
-        code = _field(obx, 3).split("^")[0]
-        raw_val = _field(obx, 5).split("^")
-        val = raw_val[1] if len(raw_val) > 1 and raw_val[1] else raw_val[0]
-        obs.append((code, val, _field(obx, 6).split("^")[0] or None, _field(obx, 11) or "F", val))
+        code = _field(obx, 3).split(comp)[0]
+        vtype = _field(obx, 2).upper()
+        parts = [unesc(x) for x in _field(obx, 5).split(rep)[0].split(comp)]
+        if vtype == "SN" or (len(parts) > 1 and parts[0].strip() in _COMPARATORS + ("=",)):
+            # structured numeric: comparator^num1^separator^num2. A comparator ("<10", ">9.9") is NEVER dropped -
+            # it is passed on as text and the clinical rules send it to human review
+            cmp_, num = parts[0].strip(), (parts[1].strip() if len(parts) > 1 else "")
+            val = num if cmp_ in ("", "=") and len(parts) <= 2 else "".join(p.strip() for p in parts)
+        else:
+            val = parts[1] if len(parts) > 1 and parts[1] else parts[0]
+        obs.append((code, val, unesc(_field(obx, 6).split(comp)[0]) or None, _field(obx, 11) or "F", val))
     r = _combine(control_id, ident, birth_year, obs)
+    r.alt_identifiers, r.payload_sha256 = alt, digest
+    if len(pids) > 1:
+        return ParsedResult(control_id, ident, birth_year, None, None, None, payload_sha256=digest,
+                            problem="more than one patient (PID segment) in one message - split per patient")
     if pid is None and r.problem is None:
         r.problem = "PID segment missing"
     return r
@@ -149,6 +217,11 @@ def parse_fhir_bundle(bundle: dict[str, Any]) -> ParsedResult:
             val, unit = o.get("valueString") or (o.get("valueCodeableConcept") or {}).get("text") or "", None
         obs.append((code, val, unit, fhir_status.get(o.get("status", "final"), "F"), val))
     r = _combine(str(mid), ident, birth_year, obs)
+    r.payload_sha256 = hashlib.sha256(json.dumps(bundle, sort_keys=True, default=str).encode()).hexdigest()
+    pats = [x for x in res if x.get("resourceType") == "Patient"]
+    if len(pats) > 1:
+        return ParsedResult(str(mid), ident, birth_year, None, None, None, payload_sha256=r.payload_sha256,
+                            problem="more than one Patient in one Bundle - split per patient")
     if pat is None and r.problem is None:
         r.problem = "Bundle has no Patient"
     return r
@@ -157,7 +230,11 @@ def parse_fhir_bundle(bundle: dict[str, Any]) -> ParsedResult:
 def _match(db: Session, r: ParsedResult) -> tuple[Patient | None, str | None]:
     if not r.patient_identifier:
         return None, "no patient identifier"
-    p = db.scalar(select(Patient).where(Patient.mrn == r.patient_identifier))
+    ids = [r.patient_identifier, *r.alt_identifiers]
+    found = {p.id: p for p in db.scalars(select(Patient).where(Patient.mrn.in_(ids)))}
+    if len(found) > 1:
+        return None, "the message's patient identifiers point to different patients"
+    p = next(iter(found.values()), None)
     if p is None:
         return None, "identifier not found"
     if r.birth_year is not None and p.birth_year != r.birth_year:
@@ -169,7 +246,8 @@ def _create(db: Session, p: Patient, r: ParsedResult, actor: Actor, now: datetim
     lab = db.scalar(select(Organization).where(Organization.kind == "lab"))
     rep, case = wf.ingest_result(db, p, r.programme, value=r.value, value_text=r.value_text, unit=r.unit, test=r.test,
                                  status=r.status, cytology=r.cytology,
-                                 performer_org_id=lab.id if lab else p.managing_org_id, actor=actor, now=now)
+                                 performer_org_id=lab.id if lab else p.managing_org_id, actor=actor, now=now,
+                                 extra_reasons=list(r.flags) or None, other_observations=r.other_observations or None)
     if case is not None and case.tier not in CLINICIAN_CONFIRMED_TIERS and S(case.state) == S.ISSUED \
             and not case.review_required:
         wf.transition(db, case, S.TRIAGED, SYSTEM, now=now, note="auto-triaged by deterministic programme rule")
@@ -179,14 +257,27 @@ def _create(db: Session, p: Patient, r: ParsedResult, actor: Actor, now: datetim
 def ingest(db: Session, source: str, r: ParsedResult, actor: Actor, now: datetime | None = None) -> IngestMessage:
     now = now or utcnow()
     prior = db.scalar(select(IngestMessage).where(IngestMessage.message_id == r.message_id))
-    if prior is not None:
+    if prior is not None and (prior.payload_sha256 is None or r.payload_sha256 is None
+                              or prior.payload_sha256 == r.payload_sha256):
         audit.record(db, actor, "E", "ingest.duplicate", entity_type="IngestMessage", entity_id=prior.id, ts=now,
                      detail={"message_id": r.message_id})
         return prior
+    if prior is not None:
+        # same control ID, DIFFERENT content: never silently treat it as a replay (it may be a corrected result)
+        conflict_id = f"{r.message_id[:100]}#conflict-{r.payload_sha256[:12]}"
+        again = db.scalar(select(IngestMessage).where(IngestMessage.message_id == conflict_id))
+        if again is not None:
+            return again
+        r.message_id = conflict_id
+        # processed as a result (it may be a correction) but always reviewed by a clinician, never auto-actioned
+        r.flags = sorted({*r.flags, "control_id_reused"})
     msg = IngestMessage(source=source, message_id=r.message_id, received_at=now, patient_identifier=r.patient_identifier,
                         birth_year=r.birth_year, programme=r.programme, value=r.value,
                         value_text=(r.value_text or "")[:60] or None, unit=(r.unit or "")[:30] or None, test=r.test,
-                        result_status=r.status, cytology=(r.cytology or "")[:30] or None, status="processed")
+                        result_status=r.status, cytology=(r.cytology or "")[:30] or None, status="processed",
+                        payload_sha256=r.payload_sha256, flags=list(r.flags) or None,
+                        alt_identifiers=list(r.alt_identifiers) or None,
+                        other_observations=r.other_observations or None)
     p, why = _match(db, r)
     if r.programme is None:
         msg.status, msg.error = "needs_review", r.problem or "result could not be interpreted"
@@ -224,7 +315,8 @@ def resolve_match(db: Session, msg_id: int, patient_id: int, actor: Actor, now: 
     if not msg.programme:
         raise DomainError("the test could not be identified: handle this message manually with the lab")
     r = ParsedResult(msg.message_id, msg.patient_identifier, msg.birth_year, msg.programme, msg.value, msg.value_text,
-                     msg.unit, msg.test, msg.result_status or "final", msg.cytology)
+                     msg.unit, msg.test, msg.result_status or "final", msg.cytology, flags=list(msg.flags or []),
+                     other_observations=list(msg.other_observations or []))
     msg.report_id, case = _create(db, p, r, actor, now)
     msg.case_id = case.id if case else None
     msg.status = "resolved"
