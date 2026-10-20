@@ -11,6 +11,7 @@ import argparse
 import json
 import sys
 import time
+from datetime import timedelta
 from collections import defaultdict
 from pathlib import Path
 
@@ -234,6 +235,26 @@ def run(max_examples: int = 5) -> dict:
         for k, ids in open_by_pp.items():
             if len(ids) > 1:
                 bad("case.at_most_one_open_case_per_patient_programme", (k, ids))
+        # one person under two records (same Emirates ID) must not have two open cases for one programme
+        by_eid = defaultdict(list)
+        for (pid_, prog_), ids in open_by_pp.items():
+            eid = getattr(patients[pid_], "national_id", None)
+            if eid:
+                by_eid[(eid, prog_)].extend(ids)
+        for k, ids in by_eid.items():
+            checked["identity_groups"] += 1
+            if len(ids) > 1:
+                bad("identity.one_open_case_per_emirates_id_programme", (k, ids))
+        # clock sanity: attendance / no-show never recorded before the appointment (early arrival allowance)
+        from wasl.models import Appointment as _A
+        from wasl.services.workflow import ATTENDANCE_EARLY_HOURS as _EARLY
+
+        for a in db.query(_A).filter(_A.status.in_(("fulfilled", "noshow"))):
+            checked["attendance"] += 1
+            if a.updated_at is not None and (
+                    (a.status == "noshow" and a.updated_at < a.start)
+                    or (a.status == "fulfilled" and a.updated_at < a.start - timedelta(hours=_EARLY))):
+                bad("dates.attendance_not_before_appointment", (a.id, a.status))
         from collections import Counter as _C
 
         from wasl.models import Escalation as _E
@@ -286,6 +307,7 @@ INVARIANTS = [
     "safety.deceased_never_contacted", "safety.pregnancy_flagged_for_review", "safety.review_case_has_owner",
     "case.at_most_one_open_case_per_patient_programme", "alert.one_pathway_alert_per_case_per_level",
     "content.no_unapproved_translation_sent", "content.signoffs_by_different_people", "audit.hash_chain_valid",
+    "identity.one_open_case_per_emirates_id_programme", "dates.attendance_not_before_appointment",
 ]
 
 
