@@ -1,0 +1,157 @@
+# Wasl (وصل) – Closing the Screening-to-Care Loop
+
+> **Prototype on synthetic data only.** Not a medical device and not validated for clinical use. No real person,
+> result or message exists in this system. Every patient message is **simulated and never sent**. Every KPI on the
+> dashboard that compares "baseline vs with Wasl" comes from a **simulation** with assumed parameters. It is not real-world
+> evidence.
+
+Wasl turns every actionable screening result into a **tracked case** that carries it to care, across four programmes:
+bowel (FIT), cervical (HPV), breast (mammogram) and diabetes (HbA1c). Built for Future Health Digital Innovation
+Challenge 05 and aligned with `../Challenge05_Solution_Design.md`.
+
+* **Exactly one accountable owner** for every open case at all times, enforced in the DB and the service layer.
+* **Deterministic state machine** with SLA clocks per state and tier (T0–T3), a UAE working-day calendar and an
+  **L1–L4 escalation ladder**. Covers no-shows, rejected referrals, unreachable patients, transfers and declines.
+* **Closure guard**: a case closes only with evidence (care plan, procedure or negative confirmation) or an
+  authorised human decision with a reason. Enforced in code and tested.
+* **Patient communication** in English, Arabic (RTL), Hindi and Urdu, with result-specific wording, a teach-back
+  check and a channel fallback ladder (app → WhatsApp → SMS → navigator call → letter). Tagalog and Malayalam
+  speakers get English plus an interpreter-supported call, and a notice in their own language says so.
+* **Interoperability**: HL7 v2 ORU^R01 and FHIR R4 Bundle ingest (idempotent, ACK AA/AE, human match review) and FHIR R4
+  export per case.
+* **Governed ML** (scikit-learn) used **only** for outreach priority and queue order. A model registry with AUC,
+  calibration and fairness gates. Promotion needs a better candidate **and** clinical-lead approval. Drift monitoring,
+  rollback and model cards. A lessons-learned engine proposes rule changes that a human must approve.
+* **Security**: RBAC with 7 roles, consent checks, an **append-only, hash-chained audit log** of every read and write,
+  and suppression of analyst cells below 5.
+
+## Quickstart
+
+Requires Python 3.11+ (tested on 3.13) and `make`. Everything is free and open source.
+
+```bash
+make setup          # venv + dependencies (~1 min)
+make seed           # 2,000 synthetic patients, 6 months of history, train + register models (~55 s)
+make run            # http://localhost:8000  (4 uvicorn workers; WORKERS=1 for a single process)
+make test           # 105 pytest tests (~16 s)
+```
+
+Open http://localhost:8000. To start, click **“Open demo scenarios”** or pick a demo user in the role switcher.
+Demo logins have no password and can be turned off with `WASL_DEMO_LOGINS=false`.
+
+| Demo user | Role | Try |
+|---|---|---|
+| `aisha.rahman` | Care coordinator | Work queue, outreach, calls, demo scenarios, results inbox (HL7) |
+| `omar.haddad` | GP | Confirmatory tests, referrals, e-consults; try to close a case without evidence |
+| `vikram.mehta` | Specialist | Accept or reject referrals with a reason; booking, attendance, care plan |
+| `fatima.al.mansoori`, `layla.al.hashimi` | Clinical lead / medical director (L4) | Escalations, model and rule approvals, KPIs |
+| `analyst` | Analyst | Aggregates only, small cells suppressed |
+| `admin` | Admin | Audit log and chain verification, model training |
+| `patient.ar`, `.en`, `.hi`, `.ur`, `.tl` | Named demo patients | Fatima Al Kaabi (FIT, Al Ain), Emma Clarke (BI-RADS 0), Ramesh Kumar (HbA1c), Ayesha Khan (HPV), Maria Santos (BI-RADS 4, Tagalog) |
+
+**One-click scenarios** (`/demo`, coordinator, clinical lead or admin, demo mode only). Each one creates a new synthetic
+patient and runs through the real service layer, guards and audit:
+1. Fatima: result arrives as HL7 ORU → Arabic teach-back → GP referral → hospital rejects (capacity) → re-route.
+2. Maria: T1, no smartphone, digital ladder fails → navigator task → the demo clock fast-forwards → L1→L2→L3→L4; closure is blocked.
+3. Ramesh: confirmed HbA1c → two-key transfer to another GP.
+4. Unreachable-patient ladder. 5. Ramadan no-show with the `ramadan_hours` barrier.
+
+**HL7 sample:** `samples/oru_r01_fit_positive.hl7`. The results inbox (`/ingest`) also has a *Load sample* button
+that builds an ORU for a real synthetic patient, because the deterministic matcher correctly refuses a birth-year
+mismatch.
+
+Docker: `docker build -t wasl . && docker run -p 8000:8000 wasl`. It runs as a non-root user and seeds on first start.
+
+## Architecture
+
+```
+Browser (Jinja + vanilla JS + Pico.css; RTL aware)          HL7 v2 / FHIR R4 senders
+        │  bearer token or HttpOnly cookie                          │
+FastAPI ─┬─ api/        auth, cases, actions, queue/ops, me (patient), governance, ingest, demo
+         ├─ services/   workflow (state machine + guards), escalation (SLA sweep), queue, ingest,
+         │              analytics (+cache, suppression), improve (lessons → proposals), access (RBAC scope)
+         ├─ comms/      templates en/ar/hi/ur, teach-back, channel ladder (SIMULATED only)
+         ├─ ml/         features, registry (gates, approval, drift, rollback, model cards)
+         ├─ synth/      cohort (UAE mix), provider directory, history replay, baseline-vs-Wasl simulator
+         ├─ audit.py    append-only hash chain (DB triggers + ORM guard + writer lock)
+         └─ fhir.py     FHIR R4 export (Patient, DiagnosticReport, Task, ServiceRequest, Appointment, CarePlan…)
+SQLAlchemy 2 → SQLite (WAL, default) or PostgreSQL (WASL_DATABASE_URL; add `psycopg[binary]`)
+Background: one elected worker runs the SLA/escalation sweep every WASL_SWEEP_INTERVAL_SECONDS (default 300)
+```
+
+**Data model (FHIR-shaped):** Patient, Organization, Practitioner, DiagnosticReport, Case (≈ EpisodeOfCare), StepTask
+(≈ Task with SLA), ServiceRequest, Appointment, CarePlan, Communication, QuestionnaireResponse (teach-back), Consent,
+ConsultRequest, Escalation, AuditEvent, ModelVersion, Lesson / Proposal, IngestMessage.
+
+**Tiers and SLAs** (`wasl/sla.py`, overridable by JSON config). T0 Critical (HbA1c ≥ 15 %), T1 Urgent (BI-RADS 4/5,
+FIT ≥ 400, HPV16/18), T2 Soon and T3 Routine. T0/T1 clocks run 24/7 and need clinician-confirmed triage. T2/T3
+clocks count UAE working days (Mon–Fri, public holidays, Ramadan windows; Islamic dates approximate).
+**Ladder:** L1 owner nudge plus patient reminder at 50 % of the SLA, L2 programme coordinator at breach, L3 clinical
+lead at 1.5× (T0 goes straight to L3), L4 medical director at 2× (T0/T1 only). Inactive owners are auto-pooled.
+
+**Pathways** (`wasl/programmes.py`):
+* FIT+ goes straight to colonoscopy.
+* HPV16/18 goes to direct colposcopy; other high-risk HPV gets reflex cytology first.
+* BI-RADS 0 gets diagnostic recall; BI-RADS 4/5 goes to direct biopsy.
+* HbA1c gets a repeat HbA1c or FPG, then a GP visit and care plan.
+
+## Performance (10,005 cases, 1,509 open; 160k audit events; 10 concurrent clients)
+
+| Endpoint | p50 / p95 before (iteration 3) | p50 / p95 now (4 workers) |
+|---|---|---|
+| Work queue, page of 50 (coordinator) | 4,297 / 4,527 ms | **29 / 448 ms** |
+| Work queue, GP (org-scoped) | 14,553 / 15,109 ms | **32 / 599 ms** |
+| Case detail | 153 / 200 ms | **51 / 88 ms** |
+| Case FHIR export | 110 / 181 ms | **43 / 79 ms** |
+| KPIs (cached) | 32,770 / 33,795 ms | **3.5 / 29 ms** |
+| HL7 ingest (write) | – | **77 / 182 ms** |
+
+Audit chain verified intact after the load test. Reproduce with `scripts/loadtest.py` (see ITERATIONS.md, iteration 4).
+Background sweep over 1,705 open clocks: 35–76 ms.
+
+## Governance – alignment, not certification
+
+Wasl is designed to **align with** the frameworks below. It is **not certified** against any of them, and a real
+deployment would need formal assessment.
+
+| Framework | How the prototype aligns |
+|---|---|
+| **WHO** guidance on ethics & governance of AI for health; WHO screening principles | Human oversight; AI never makes clinical decisions; equity monitoring by language, region and nationality; transparency through model cards |
+| **NIST AI RMF 1.0** (Govern / Map / Measure / Manage) | Intended and prohibited uses on the model card (Map); AUC, calibration and fairness gates with CIs plus drift (Measure); human-approved promotion, rollback and audit (Manage); roles and approvals (Govern) |
+| **ISO/IEC 42001** (AI management system) | Lifecycle records: registry, gate results, approvals with notes, change proposals with human decision, audit trail |
+| **UAE data protection**: Federal Decree-Law 45/2021 (PDPL), Federal Law 2/2019 (ICT in health fields, data localisation), Abu Dhabi DoH healthcare-data and AI policies | Consent checks before outreach; least-privilege RBAC with org scoping; full read/write audit; aggregate-only analytics with suppression; synthetic data only; designed for in-country hosting (no external calls) |
+
+**Safety invariants enforced in code and tests:**
+* The ML score is never read by the state machine, triage or closure.
+* SLA status and tier always sort ahead of the score.
+* A model cannot be promoted without passing the gates and getting a clinical lead's approval; rollback needs a previous version.
+* Rule and template changes from the lessons loop only apply after human approval.
+* A case cannot close without evidence or an authorised decision with a reason.
+* The audit log is append-only (DB triggers) and tamper-evident (hash chain; `GET /api/audit/verify`).
+
+## Assumptions
+
+* Population mix, channel availability, no-show and unreachable rates, Ramadan and holiday effects are **illustrative
+  assumptions**, not official statistics. They are documented in `wasl/synth/cohort.py` and `history.py`.
+* SLA hours, tier thresholds and pathways follow common international practice. **Programme clinical leads must set the
+  real values**, which are configurable.
+* All patient-facing text is prototype wording. It needs clinical review and professional translation and patient testing.
+* Organisations and practitioners are fictional. HL7/FHIR profiles are simplified (no national profile, no MPI).
+
+## Known limitations
+
+* Synthetic data only. The ML model (AUC ≈ 0.65) and the simulator say nothing about real-world performance.
+* Fairness gates use bootstrap CIs on a ~445-case holdout, so small groups (e.g. hi, ur, tl, n < 50 positives) are
+  *not eligible* for gating and are only monitored. A real deployment needs larger validation sets.
+* Channels are simulated. There is no SMS, WhatsApp or email integration, and no real telephony.
+* Authentication is demo-grade: HMAC tokens with role-switcher logins. Production needs OIDC/SSO (UAE PASS for patients), MFA and secret management.
+* The queue still orders all open cases in Python (SLA status depends on the working-day calendar). It is fine at 10k
+  cases with ~1.5k open, but beyond that it should use a materialised due/RAG column with SQL ORDER BY/LIMIT.
+* SQLite is for the demo. Multi-host deployment needs PostgreSQL; the audit writer lock already uses `pg_advisory_xact_lock` there.
+* The Islamic holiday and Ramadan dates are approximate. Tagalog and Malayalam content is not translated yet.
+* Docker build is written but could not be tested on the build box (no Docker daemon available).
+
+## Repository map
+
+`wasl/` app · `tests/` pytest (105) · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
+`scripts/ui_smoke.py` (optional Playwright) · `ITERATIONS.md` build log with self-assessments · `Makefile` · `Dockerfile` · `.env.example`
