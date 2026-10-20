@@ -1,6 +1,8 @@
 """Work queue, analytics (aggregates only), directory, admin (sweep, audit)."""
 from __future__ import annotations
 
+import threading
+
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, Query
@@ -24,12 +26,19 @@ from .deps import require
 router = APIRouter(prefix="/api", tags=["operations"])
 
 
+# At most 2 queue computations at a time per process. Each one fetches every open case row; sqlite3 hands the GIL
+# back and forth on every row, so several at once in one process convoy (measured p95 1.1-1.4 s at 10 clients).
+# Waiting for a slot is far cheaper than convoying.
+_QUEUE_SLOTS = threading.BoundedSemaphore(2)
+
+
 @router.get("/queue")
 def queue(view: str = Query("all"), programme: str | None = None, limit: int = Query(50, ge=1, le=1000),
           offset: int = Query(0, ge=0), q: str | None = Query(None, max_length=80), actor: Actor = Depends(require("queue:read")), db: Session = Depends(get_db)) -> dict:
     if view not in VIEWS:
         view = "all"
-    return work_queue(db, actor, view, limit=limit, programme=programme, offset=offset, search=q)
+    with _QUEUE_SLOTS:
+        return work_queue(db, actor, view, limit=limit, programme=programme, offset=offset, search=q)
 
 
 @router.post("/sla/sweep")

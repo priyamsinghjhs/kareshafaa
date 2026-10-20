@@ -60,8 +60,7 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
     sla = SlaLookup.load(db)
     owner = aliased(Practitioner)
     q = (select(Case.id, Case.programme, Case.tier, Case.state, Case.owner_id, Case.due_at, sa_case((Case.target_alert_level > Case.escalation_level, Case.target_alert_level), else_=Case.escalation_level),
-                Case.risk_score, Case.risk_model_version, Case.risk_rationale, Case.transfer_pending_owner_id, Case.review_required,
-                Case.review_reasons,
+                Case.risk_score, Case.risk_model_version, Case.transfer_pending_owner_id, Case.review_required,
                 Patient.given_name, Patient.family_name, Patient.mrn, Patient.language,
                 owner.name, owner.is_pool, owner.active, StepTask.started_at, StepTask.due_at, StepTask.state)
          .join(Patient, Patient.id == Case.patient_id).join(owner, owner.id == Case.owner_id)
@@ -87,7 +86,7 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
     open_consults = set(db.scalars(select(ConsultRequest.case_id).where(ConsultRequest.status == "requested")))
     counts = {v: 0 for v in VIEWS}
     rows = []
-    for (cid, prog, tier, state, owner_id, due, esc, risk, risk_v, risk_why, pending, review, reasons, given, family, mrn, lang,
+    for (cid, prog, tier, state, owner_id, due, esc, risk, risk_v, pending, review, given, family, mrn, lang,
          oname, opool, oactive, s_start, s_due, s_state) in rows_db:
         if scoped is not None and cid not in scoped:
             continue
@@ -101,10 +100,9 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
             "owner_is_pool": bool(opool), "due_at": due.isoformat() if due else None, "sla_status": rag,
             "sla_fraction": round(frac, 2), "escalation_level": esc,
             "risk_score": None if risk is None else round(risk, 3), "risk_model_version": risk_v,
-            "risk_rationale": "; ".join(f"{w['text']} ({w['direction']})" for w in (risk_why or [])),
             "transfer_pending": pending is not None, "call_task": cid in open_calls,
             "open_escalation": cid in open_esc, "open_consult": cid in open_consults, "unassigned": unassigned,
-            "review_required": bool(review), "review_reasons": reasons or [],
+            "review_required": bool(review),
         }
         member = {
             "all": True, "review": bool(review), "overdue": rag == "red", "unassigned": unassigned, "rejected": state == S.REFERRAL_REJECTED,
@@ -116,6 +114,14 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
         if member.get(view, False):
             rows.append(row)
     rows.sort(key=sort_key)
+    page = rows[offset:offset + limit]
+    # JSON columns are decoded only for the returned page (was: for every open case on every request)
+    extra = {cid: (rr, why) for cid, rr, why in db.execute(
+        select(Case.id, Case.review_reasons, Case.risk_rationale).where(Case.id.in_([r["id"] for r in page])))}
+    for r in page:
+        rr, why = extra.get(r["id"], (None, None))
+        r["review_reasons"] = rr or []
+        r["risk_rationale"] = "; ".join(f"{w['text']} ({w['direction']})" for w in (why or []))
     return {"view": view, "counts": counts, "total": len(rows), "offset": offset, "limit": limit,
-            "items": rows[offset:offset + limit],
+            "items": page,
             "ordering": "SLA status, then urgency tier, then clinical-review flag, then ML outreach priority (within tier only), then due time"}

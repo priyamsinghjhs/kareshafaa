@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     # 'none' (default): log-loss-fitted models are used as-is; 'auto': Platt recalibration chosen on a temporal tuning
     # slice of the training data. At demo/pilot volumes (<5k labelled cases) 'auto' over-corrected on the hold-out.
     ml_recalibration: str = "none"
+    gil_switch_interval_ms: float = 0.5  # see main.lifespan (sqlite row-fetch convoy)
     fairness_auc_tolerance: float = 0.05  # group AUC CI must not lie wholly below overall - tol
     fairness_tpr_tolerance: float = 0.15  # group recall-at-top CI must not lie wholly below overall - tol
     fairness_cal_tolerance: float = 0.10  # group calibration-in-the-large CI must not lie wholly outside +/- tol

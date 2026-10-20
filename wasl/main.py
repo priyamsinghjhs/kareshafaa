@@ -5,6 +5,7 @@ import asyncio
 
 import logging
 import re
+import sys
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -97,6 +98,10 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         init_db()
+        # sqlite3 releases and re-acquires the GIL around every row fetched; with the default 5 ms switch interval
+        # a thread fetching ~1,500 queue rows while other request threads run can wait 5 ms per row (convoy
+        # effect, measured p95 1.3 s at 10 concurrent clients). A shorter interval bounds that wait.
+        sys.setswitchinterval(s.gil_switch_interval_ms / 1000)
         task = asyncio.create_task(_sweep_loop(s.sweep_interval_seconds)) if s.sweep_interval_seconds > 0 else None
         yield
         if task:

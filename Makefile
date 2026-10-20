@@ -39,7 +39,7 @@ validate-large:
 demo: seed run
 
 run:
-	$(BIN)/uvicorn wasl.main:app --host $(HOST) --port $(PORT) --workers $(WORKERS)
+	$(BIN)/python -m wasl.serve --host $(HOST) --port $(PORT) --workers $(WORKERS)
 
 dev:
 	$(BIN)/uvicorn wasl.main:app --host $(HOST) --port $(PORT) --reload
