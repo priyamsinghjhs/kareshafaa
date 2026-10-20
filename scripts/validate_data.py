@@ -245,6 +245,16 @@ def run(max_examples: int = 5) -> dict:
             checked["identity_groups"] += 1
             if len(ids) > 1:
                 bad("identity.one_open_case_per_emirates_id_programme", (k, ids))
+        # automated SLA reminders reach patients only inside the UAE-local message window
+        from wasl.calendar_uae import to_local as _tl
+        from wasl.config import get_settings as _gs
+        from wasl.models import Communication as _Cm
+
+        _w0, _w1 = _gs().patient_message_window
+        for cm in db.query(_Cm).filter(_Cm.category == "reminder", _Cm.channel.in_(("app", "sms", "whatsapp"))):
+            checked["reminders"] += 1
+            if not _w0 <= _tl(cm.sent_at).hour < _w1:
+                bad("comms.reminders_inside_patient_window", (cm.id, cm.sent_at.isoformat()))
         # clock sanity: attendance / no-show never recorded before the appointment (early arrival allowance)
         from wasl.models import Appointment as _A
         from wasl.services.workflow import ATTENDANCE_EARLY_HOURS as _EARLY
@@ -308,6 +318,7 @@ INVARIANTS = [
     "case.at_most_one_open_case_per_patient_programme", "alert.one_pathway_alert_per_case_per_level",
     "content.no_unapproved_translation_sent", "content.signoffs_by_different_people", "audit.hash_chain_valid",
     "identity.one_open_case_per_emirates_id_programme", "dates.attendance_not_before_appointment",
+    "comms.reminders_inside_patient_window",
 ]
 
 
