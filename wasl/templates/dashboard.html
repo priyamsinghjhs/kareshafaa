@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<hgroup><h3 style="margin-bottom:.2rem">KPIs, fairness &amp; before/after simulation</h3>
+<p class="small muted">All figures are computed on <b>synthetic data</b>. Cells with n&lt;5 are suppressed (“&lt;5” / “suppressed”) with complementary suppression.</p></hgroup>
+<div class="tabs"><button data-t="sim">Before / after simulation</button><button class="secondary outline" data-t="live">Live KPIs (synthetic DB)</button><button class="secondary outline" data-t="fair">Equity slices</button><button class="secondary outline" data-t="lessons">Delay &amp; drop-off reasons</button></div>
+<div id="dash"><div class="empty">Loading…</div></div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/dashboard.js"></script>{% endblock %}

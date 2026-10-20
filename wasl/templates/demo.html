@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<hgroup><h3 style="margin-bottom:.2rem">One-click demo scenarios</h3>
+<p class="small muted">Each button creates a <b>new synthetic patient</b> and drives the case through the real rules, guards and audit
+to the start of a story. Nothing is sent: every message is simulated. Use the role switcher (top right) to act as the suggested user.</p></hgroup>
+<div id="sc" class="grid-cards"><div class="empty">Loading…</div></div>
+<div id="result"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function load() {
+  const d = await W.api("/api/demo/scenarios");
+  const canRun = ["coordinator", "clinical_lead", "admin", "gp"].includes(W.me.role);
+  document.getElementById("sc").innerHTML = d.items.map(s => `<article class="card"><h4 style="margin-bottom:.3rem">${W.esc(s.title)}</h4>
+    <p class="small muted" style="margin-bottom:.4rem">${W.esc(s.requirements)}</p>
+    <p class="small">Suggested login: <b>${W.esc(s.login)}</b></p>
+    <button ${canRun ? "" : "disabled"} onclick="run('${s.key}', this)" aria-label="Start scenario: ${W.esc(s.title)}">Start scenario</button></article>`).join("");
+}
+window.run = async (key, btn) => {
+  btn.setAttribute("aria-busy", "true"); btn.disabled = true;
+  try {
+    const r = await W.api(`/api/demo/scenarios/${key}`, { method: "POST", body: {} });
+    document.getElementById("result").innerHTML = `<div class="card" style="background:#e8f5e9" role="status"><h4>Ready: case #${r.case_id} (${W.esc(r.state)})</h4>
+      <ol class="small">${r.next.map(n => `<li>${W.esc(n)}</li>`).join("")}</ol>
+      <a role="button" href="/cases/${r.case_id}">Open case #${r.case_id}</a>
+      <button class="secondary outline" style="width:auto" onclick="W.switchTo('${r.login}', '/cases/${r.case_id}')">Switch to ${W.esc(r.login)} and open</button></div>`;
+    document.getElementById("result").scrollIntoView({ behavior: "smooth" });
+  } catch (e) { W.toast(e.message, "err"); }
+  btn.removeAttribute("aria-busy"); btn.disabled = false;
+};
+document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return; load(); });
+</script>
+{% endblock %}

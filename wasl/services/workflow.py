@@ -1,0 +1,749 @@
+"""Case workflow: creation, guarded transitions, ownership, referrals, appointments, closure.
+
+Every write goes through these functions so that guards, ownership and audit are always applied.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timedelta
+
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from .. import audit
+from ..config import get_settings
+from ..models import (
+    Appointment,
+    CallTask,
+    CarePlan,
+    Case,
+    Communication,
+    Consent,
+    ConsultRequest,
+    DiagnosticReport,
+    Lesson,
+    Observation,
+    OwnershipEvent,
+    Patient,
+    Practitioner,
+    QuestionnaireResponse,
+    ServiceRequest,
+    StepTask,
+    utcnow,
+)
+from ..programmes import CLINICIAN_CONFIRMED_TIERS, PROGRAMMES, is_actionable, needs_confirmation, triage_tier
+from ..security import SYSTEM, Actor
+from ..sla import SlaLookup, due_at
+from ..statemachine import S, TransitionError, check_closure, check_transition
+from .access import consent_status
+from .errors import DomainError, Forbidden, Invalid, NotFound
+
+REJECT_REASONS = {
+    "wrong_service": "Wrong service / specialty",
+    "capacity": "No capacity in the requested timeframe",
+    "incomplete_info": "Incomplete referral information",
+    "out_of_network": "Out of network / not covered",
+    "not_clinically_indicated": "Not clinically indicated (rationale required)",
+}
+NO_SHOW_BARRIERS = ("transport", "work", "fear_anxiety", "cost", "language", "forgot", "childcare", "ramadan_hours", "unknown")
+DELAY_REASONS = (
+    "patient_not_responding", "contact_details_wrong", "language_barrier", "capacity", "referral_incomplete",
+    "awaiting_result", "patient_travel", "patient_anxiety", "staff_absence", "system_issue", "other",
+)
+CONSULT_SLA_HOURS = {"critical": 1, "urgent": 4, "high": 24, "routine": 72}
+
+# Which permission a human needs to move a case INTO a state.
+TARGET_PERMISSION: dict[S, str] = {
+    S.TRIAGED: "case:triage", S.PATIENT_NOTIFIED: "call:record", S.ACKNOWLEDGED: "case:write",
+    S.CONFIRMATORY_TEST: "confirm:order", S.CONSULTATION: "case:write", S.REFERRAL_SENT: "referral:create",
+    S.REFERRAL_ACCEPTED: "referral:decide", S.REFERRAL_REJECTED: "referral:decide",
+    S.APPOINTMENT_BOOKED: "appointment:write", S.APPOINTMENT_ATTENDED: "appointment:write",
+    S.NO_SHOW: "appointment:write", S.TREATMENT_STARTED: "careplan:write", S.UNREACHABLE: "call:record",
+    S.DECLINED_REVIEW: "case:write",
+}
+# States the rules engine (system actor) may enter automatically, based on recorded events.
+SYSTEM_ALLOWED = {S.TRIAGED, S.PATIENT_NOTIFIED, S.ACKNOWLEDGED}
+# States a patient may move their own case into, via their own actions.
+PATIENT_ALLOWED = {S.ACKNOWLEDGED, S.DECLINED_REVIEW}
+
+
+def _now(now: datetime | None) -> datetime:
+    return now or utcnow()
+
+
+def get_case(db: Session, case_id: int) -> Case:
+    c = db.get(Case, case_id)
+    if c is None:
+        raise NotFound(f"case {case_id} not found")
+    return c
+
+
+def current_step(db: Session, case: Case) -> StepTask | None:
+    return db.scalar(select(StepTask).where(StepTask.case_id == case.id, StepTask.status == "in-progress"))
+
+
+# ------------------------------------------------------------------ owners
+def programme_coordinator(db: Session, programme: str) -> Practitioner:
+    p = db.scalar(select(Practitioner).where(Practitioner.role == "coordinator", Practitioner.programme == programme,
+                                             Practitioner.active.is_(True), Practitioner.is_pool.is_(False))
+                  .order_by(Practitioner.id).limit(1))
+    return p or programme_pool(db, programme)
+
+
+def programme_pool(db: Session, programme: str) -> Practitioner:
+    p = db.scalar(select(Practitioner).where(Practitioner.is_pool.is_(True), Practitioner.programme == programme))
+    if p is None:
+        raise DomainError(f"no team pool configured for programme {programme}")
+    return p
+
+
+def programme_clinical_lead(db: Session, programme: str) -> Practitioner:
+    p = db.scalar(select(Practitioner).where(Practitioner.role == "clinical_lead", Practitioner.active.is_(True),
+                                             Practitioner.programme.in_([programme, None])).order_by(Practitioner.programme.desc()))
+    if p is None:
+        raise DomainError("no clinical lead configured")
+    return p
+
+
+def programme_director(db: Session) -> Practitioner:
+    """Cross-programme medical director (L4 / duty clinician)."""
+    p = db.scalar(select(Practitioner).where(Practitioner.role == "clinical_lead", Practitioner.active.is_(True),
+                                             Practitioner.programme.is_(None)).limit(1))
+    return p or programme_clinical_lead(db, "colorectal_fit")
+
+
+def _latest(db: Session, model, case_id: int, **filters):
+    q = select(model).where(model.case_id == case_id)
+    for k, v in filters.items():
+        q = q.where(getattr(model, k) == v)
+    return db.scalar(q.order_by(model.id.desc()).limit(1))
+
+
+def default_owner(db: Session, case: Case, state: S) -> Practitioner:
+    patient = case.patient
+    gp = db.get(Practitioner, patient.gp_id) if patient.gp_id else None
+    if state in (S.ISSUED, S.TRIAGED, S.PATIENT_NOTIFIED, S.UNREACHABLE, S.NO_SHOW):
+        owner = programme_coordinator(db, case.programme)
+    elif state in (S.REFERRAL_ACCEPTED, S.APPOINTMENT_BOOKED, S.APPOINTMENT_ATTENDED, S.TREATMENT_STARTED) and \
+            (ref := _latest(db, ServiceRequest, case.id, kind="referral", status="accepted")):
+        owner = db.get(Practitioner, ref.performer_id) if ref.performer_id else None
+        owner = owner or db.scalar(select(Practitioner).where(Practitioner.org_id == ref.performer_org_id,
+                                                              Practitioner.role == "specialist", Practitioner.active.is_(True)))
+        owner = owner or gp or programme_pool(db, case.programme)
+    elif state == S.REFERRAL_REJECTED and (ref := _latest(db, ServiceRequest, case.id, kind="referral")):
+        owner = db.get(Practitioner, ref.requester_id)
+    else:
+        owner = gp
+    if owner is None or not owner.active:
+        owner = programme_pool(db, case.programme)
+    return owner
+
+
+# ------------------------------------------------------------------ creation
+def ingest_result(db: Session, patient: Patient, programme: str, *, value: float | None, value_text: str | None,
+                  performer_org_id: int, actor: Actor = SYSTEM, now: datetime | None = None) -> tuple[DiagnosticReport, Case | None]:
+    """Receive a screening DiagnosticReport; create a case if actionable (or link to an open duplicate)."""
+    now = _now(now)
+    prog = PROGRAMMES.get(programme)
+    if prog is None:
+        raise Invalid(f"unknown programme {programme}")
+    actionable = is_actionable(programme, value, value_text)
+    rep = DiagnosticReport(patient_id=patient.id, programme=programme, category="screening", code=prog.screening_code,
+                           display=prog.screening_display, conclusion="actionable" if actionable else "negative",
+                           issued_at=now, performer_org_id=performer_org_id)
+    rep.observations.append(Observation(code=prog.screening_code, display=prog.screening_display, value=value,
+                                        value_text=value_text, unit=prog.unit, interpretation="A" if actionable else "N"))
+    db.add(rep)
+    db.flush()
+    audit.record(db, actor, "C", "result.received", entity_type="DiagnosticReport", entity_id=rep.id, ts=now,
+                 detail={"programme": programme, "actionable": actionable})
+    if not actionable:
+        return rep, None
+    dup = db.scalar(select(Case).where(Case.patient_id == patient.id, Case.programme == programme, Case.state != S.CLOSED))
+    if dup:
+        rep.case_id = dup.id
+        audit.record(db, actor, "U", "case.linked_result", entity_type="Task", entity_id=dup.id, case_id=dup.id, ts=now,
+                     detail={"report_id": rep.id})
+        return rep, dup
+    tier = triage_tier(programme, value, value_text)
+    case = Case(patient_id=patient.id, report_id=rep.id, programme=programme, tier=tier, state=S.ISSUED,
+                owner_id=programme_coordinator(db, programme).id, managing_org_id=patient.managing_org_id,
+                needs_confirmation=needs_confirmation(programme, value, value_text), created_at=now, state_entered_at=now)
+    case.patient = patient
+    db.add(case)
+    db.flush()
+    rep.case_id = case.id
+    _open_step(db, case, S.ISSUED, case.owner_id, actor, now)
+    audit.record(db, actor, "C", "case.created", entity_type="Task", entity_id=case.id, case_id=case.id, ts=now,
+                 detail={"programme": programme, "tier": tier, "owner_id": case.owner_id})
+    return rep, case
+
+
+def _open_step(db: Session, case: Case, state: S, owner_id: int, actor: Actor, now: datetime, note: str | None = None) -> StepTask:
+    sla = SlaLookup.load(db)
+    hours = sla.hours(state, case.tier) if state != S.CLOSED else None
+    step = StepTask(case_id=case.id, state=state, owner_id=owner_id, status="in-progress", started_at=now,
+                    due_at=due_at(now, hours, case.tier), sla_hours=hours, actor_user_id=actor.user_id, note=note)
+    db.add(step)
+    case.state = state
+    case.state_entered_at = now
+    case.due_at = step.due_at
+    case.owner_id = owner_id
+    case.escalation_level = 0
+    db.flush()
+    return step
+
+
+def _close_step(db: Session, case: Case, now: datetime) -> None:
+    step = current_step(db, case)
+    if step:
+        step.status = "completed"
+        step.ended_at = now
+        if step.due_at and now > step.due_at and not step.breached:
+            step.breached = True
+            from .escalation import BREACH_REASON
+
+            add_lesson(db, case, "overdue", BREACH_REASON.get(step.state, "sla_breach"), SYSTEM,
+                       detail=f"step '{step.state}' completed after its SLA ({step.sla_hours}h)", now=now)
+        db.flush()
+
+
+# ------------------------------------------------------------------ guards
+def _guard(db: Session, case: Case, dst: S) -> None:
+    cfg = get_settings()
+    src = S(case.state)
+
+    def need(cond: bool, msg: str) -> None:
+        if not cond:
+            raise TransitionError(msg)
+
+    if dst == S.PATIENT_NOTIFIED:
+        need(db.scalar(select(func.count()).select_from(Communication).where(
+            Communication.case_id == case.id, Communication.category == "result_notification",
+            Communication.status == "completed")) > 0,
+            "patient_notified requires a delivered result notification (delivery receipt or completed call)")
+    elif dst == S.ACKNOWLEDGED:
+        need(db.scalar(select(func.count()).select_from(QuestionnaireResponse).where(
+            QuestionnaireResponse.case_id == case.id, QuestionnaireResponse.passed.is_(True))) > 0,
+            "acknowledged requires a passed teach-back check")
+    elif dst == S.CONFIRMATORY_TEST:
+        need(bool(_latest(db, ServiceRequest, case.id, kind="confirmatory_test", status="requested")),
+             "confirmatory_test requires an ordered confirmatory test (ServiceRequest)")
+    elif dst == S.CONSULTATION:
+        if src == S.ACKNOWLEDGED:
+            need(not case.needs_confirmation, "this pathway requires a confirmatory test before consultation")
+        if src == S.CONFIRMATORY_TEST:
+            sr = _latest(db, ServiceRequest, case.id, kind="confirmatory_test")
+            need(bool(sr and sr.result == "positive"), "consultation requires a positive confirmatory result")
+    elif dst == S.REFERRAL_SENT:
+        need(bool(_latest(db, ServiceRequest, case.id, kind="referral", status="requested")),
+             "referral_sent requires an active referral (ServiceRequest)")
+    elif dst in (S.REFERRAL_ACCEPTED, S.REFERRAL_REJECTED):
+        want = "accepted" if dst == S.REFERRAL_ACCEPTED else "rejected"
+        ref = _latest(db, ServiceRequest, case.id, kind="referral")
+        need(bool(ref and ref.status == want), f"{dst.value} requires the referral to be {want}")
+    elif dst == S.APPOINTMENT_BOOKED:
+        need(bool(_latest(db, Appointment, case.id, status="booked")), "appointment_booked requires a booked appointment")
+    elif dst == S.APPOINTMENT_ATTENDED:
+        need(bool(_latest(db, Appointment, case.id, status="fulfilled")), "appointment_attended requires a fulfilled appointment")
+    elif dst == S.NO_SHOW:
+        need(bool(_latest(db, Appointment, case.id, status="noshow")), "no_show requires an appointment marked no-show")
+    elif dst == S.TREATMENT_STARTED:
+        need(bool(_latest(db, CarePlan, case.id, status="active")), "treatment/surveillance requires a recorded care plan")
+    elif dst == S.UNREACHABLE:
+        failed_calls = db.scalar(select(func.count()).select_from(CallTask).where(
+            CallTask.case_id == case.id, CallTask.status == "completed", CallTask.outcome != "reached"))
+        need(failed_calls >= cfg.phone_attempts_before_unreachable,
+             f"unreachable requires the contact ladder: >= {cfg.phone_attempts_before_unreachable} failed phone attempts")
+    elif dst == S.DECLINED_REVIEW:
+        need(consent_status(db, case.patient_id, "care_followup", case.id) == "deny",
+             "declined_pending_review requires a recorded decline (Consent)")
+
+
+def transition(db: Session, case: Case, dst: S | str, actor: Actor, *, owner_id: int | None = None,
+               note: str | None = None, now: datetime | None = None) -> Case:
+    now = _now(now)
+    dst = S(dst)
+    src = S(case.state)
+    check_transition(src, dst)
+    # authorisation
+    if src == S.CLOSED:
+        if not actor.can("case:reopen"):
+            raise Forbidden("re-opening a closed case requires case:reopen")
+        if not note or len(note.strip()) < 10:
+            raise Invalid("a reason (>= 10 characters) is required to re-open a case")
+    elif not actor.is_human:
+        if dst not in SYSTEM_ALLOWED:
+            raise Forbidden(f"automated actors may not move a case to {dst.value}")
+        if dst == S.TRIAGED and case.tier in CLINICIAN_CONFIRMED_TIERS:
+            raise Forbidden("urgent cases must be triaged by a clinician")
+    elif actor.role == "patient":
+        if actor.patient_id != case.patient_id or dst not in PATIENT_ALLOWED:
+            raise Forbidden("patients may only acknowledge or decline their own case")
+    else:
+        perm = TARGET_PERMISSION[dst]
+        if not actor.can(perm):
+            raise Forbidden(f"role {actor.role} lacks permission {perm}")
+        if dst == S.TRIAGED and case.tier in CLINICIAN_CONFIRMED_TIERS and not actor.can("case:triage_urgent"):
+            raise Forbidden("urgent cases must be triaged (confirmed) by a clinician")
+    if src != S.CLOSED:
+        _guard(db, case, dst)
+    if owner_id is not None:
+        owner = db.get(Practitioner, owner_id)
+        if owner is None or not owner.active:
+            raise Invalid("owner must be an active practitioner")
+    else:
+        owner = default_owner(db, case, dst)
+    _close_step(db, case, now)
+    if src == S.CLOSED:
+        for f in ("closed_at", "closure_type", "closure_reason", "closure_note", "closure_evidence_type",
+                  "closure_evidence_id", "closed_by_user_id"):
+            setattr(case, f, None)
+    _open_step(db, case, dst, owner.id, actor, now, note)
+    if dst == S.TREATMENT_STARTED and case.care_reached_at is None:
+        case.care_reached_at = now
+    audit.record(db, actor, "U", "case.transition", entity_type="Task", entity_id=case.id, case_id=case.id, ts=now,
+                 detail={"from": src.value, "to": dst.value, "owner_id": owner.id, "note": note})
+    return case
+
+
+# ------------------------------------------------------------------ closure guard
+def close_case(db: Session, case: Case, actor: Actor, closure_type: str, *, evidence_type: str | None = None,
+               evidence_id: int | None = None, reason: str | None = None, note: str | None = None,
+               now: datetime | None = None) -> Case:
+    """Close ONLY with linked evidence or an authorised human decision with reason (enforced here)."""
+    now = _now(now)
+    if actor.is_human and actor.role not in ("patient",) and not actor.can("case:write"):
+        raise Forbidden("role may not close cases")
+    if actor.role == "patient":
+        raise Forbidden("patients cannot close cases")
+    try:
+        check_closure(case.state, closure_type, evidence_type=evidence_type, reason=reason, note=note,
+                      actor_is_human=actor.is_human, actor_can_authorise=actor.can("closure:authorise"))
+    except TransitionError:
+        raise  # the request-level audit middleware records the denied attempt
+    if closure_type == "evidence":
+        evidence_id = _verify_evidence(db, case, evidence_type, evidence_id)  # type: ignore[arg-type]
+    else:
+        if reason == "informed_decline" and consent_status(db, case.patient_id, "care_followup", case.id) != "deny":
+            raise TransitionError("informed_decline requires a documented decline (Consent) for this case")
+        if reason == "unable_to_contact":
+            failed = db.scalar(select(func.count()).select_from(CallTask).where(
+                CallTask.case_id == case.id, CallTask.status == "completed", CallTask.outcome != "reached"))
+            if failed < get_settings().phone_attempts_before_unreachable:
+                raise TransitionError("unable_to_contact requires the full contact ladder to be exhausted")
+    src = case.state
+    _close_step(db, case, now)
+    case.state = S.CLOSED
+    case.state_entered_at = now
+    case.due_at = None
+    case.closed_at = now
+    case.closure_type = closure_type
+    case.closure_reason = reason if closure_type == "authorised_decision" else evidence_type
+    case.closure_note = note
+    case.closure_evidence_type = evidence_type if closure_type == "evidence" else None
+    case.closure_evidence_id = evidence_id if closure_type == "evidence" else None
+    case.closed_by_user_id = actor.user_id
+    if closure_type == "evidence" and case.care_reached_at is None:
+        case.care_reached_at = now
+    # closed record keeps a completed terminal step for the timeline
+    db.add(StepTask(case_id=case.id, state=S.CLOSED, owner_id=case.owner_id, status="completed", started_at=now,
+                    ended_at=now, actor_user_id=actor.user_id, note=note))
+    db.flush()
+    audit.record(db, actor, "U", "case.closed", entity_type="Task", entity_id=case.id, case_id=case.id, ts=now,
+                 detail={"from": src, "closure_type": closure_type, "reason": case.closure_reason,
+                         "evidence_id": evidence_id})
+    return case
+
+
+def _verify_evidence(db: Session, case: Case, evidence_type: str, evidence_id: int | None) -> int:
+    if evidence_type == "appointment_fulfilled":
+        q = select(Appointment).where(Appointment.case_id == case.id, Appointment.status == "fulfilled")
+        model = Appointment
+    elif evidence_type == "care_plan":
+        q = select(CarePlan).where(CarePlan.case_id == case.id, CarePlan.status == "active")
+        model = CarePlan
+    elif evidence_type == "negative_confirmatory_result":
+        q = select(ServiceRequest).where(ServiceRequest.case_id == case.id, ServiceRequest.kind == "confirmatory_test",
+                                         ServiceRequest.result == "negative")
+        model = ServiceRequest
+    else:
+        raise TransitionError("unknown evidence type")
+    if evidence_id is not None:
+        q = q.where(model.id == evidence_id)
+    row = db.scalar(q.order_by(model.id.desc()).limit(1))
+    if row is None:
+        raise TransitionError(f"no valid '{evidence_type}' evidence is linked to this case")
+    return row.id
+
+
+# ------------------------------------------------------------------ ownership
+def assign(db: Session, case: Case, new_owner_id: int, actor: Actor, reason: str, now: datetime | None = None) -> Case:
+    now = _now(now)
+    if not actor.can("case:assign"):
+        raise Forbidden("role lacks case:assign")
+    if case.state == S.CLOSED:
+        raise DomainError("cannot reassign a closed case")
+    new = db.get(Practitioner, new_owner_id)
+    if new is None or not new.active:
+        raise Invalid("new owner must be an active practitioner")
+    old = case.owner_id
+    case.owner_id = new.id
+    step = current_step(db, case)
+    if step:
+        step.owner_id = new.id
+    db.add(OwnershipEvent(case_id=case.id, from_owner_id=old, to_owner_id=new.id, kind="reassign", reason=reason,
+                          at=now, by_user_id=actor.user_id))
+    audit.record(db, actor, "U", "case.reassigned", entity_type="Task", entity_id=case.id, case_id=case.id, ts=now,
+                 detail={"from_owner": old, "to_owner": new.id, "reason": reason})
+    return case
+
+
+def request_transfer(db: Session, case: Case, to_owner_id: int, actor: Actor, note: str, now: datetime | None = None) -> Case:
+    """Two-key transfer: the current owner stays accountable until the receiver accepts."""
+    now = _now(now)
+    if not actor.can("case:transfer"):
+        raise Forbidden("role lacks case:transfer")
+    if case.state == S.CLOSED:
+        raise DomainError("cannot transfer a closed case")
+    if case.transfer_pending_owner_id:
+        raise DomainError("a transfer is already pending")
+    to = db.get(Practitioner, to_owner_id)
+    if to is None or not to.active:
+        raise Invalid("receiver must be an active practitioner")
+    if to.org_id != case.patient.managing_org_id and consent_status(db, case.patient_id, "share_external") == "deny":
+        raise Forbidden("patient has not consented to sharing with other organisations")
+    case.transfer_pending_owner_id = to.id
+    case.transfer_note = note
+    db.add(OwnershipEvent(case_id=case.id, from_owner_id=case.owner_id, to_owner_id=to.id, kind="transfer_requested",
+                          reason=note, at=now, by_user_id=actor.user_id))
+    audit.record(db, actor, "U", "case.transfer_requested", entity_type="Task", entity_id=case.id, case_id=case.id,
+                 ts=now, detail={"to_owner": to.id, "to_org": to.org_id})
+    return case
+
+
+def decide_transfer(db: Session, case: Case, actor: Actor, accept: bool, note: str | None = None,
+                    now: datetime | None = None) -> Case:
+    now = _now(now)
+    pend = case.transfer_pending_owner_id
+    if not pend:
+        raise DomainError("no transfer pending")
+    to = db.get(Practitioner, pend)
+    assert to is not None
+    if not (actor.practitioner_id == pend or (actor.org_id == to.org_id and actor.can("case:assign"))
+            or actor.role == "clinical_lead"):
+        raise Forbidden("only the receiving organisation can accept or decline a transfer")
+    old = case.owner_id
+    if accept:
+        case.owner_id = to.id
+        case.managing_org_id = to.org_id if to.org.kind == "primary_care" else case.managing_org_id
+        if to.org.kind == "primary_care" and to.role == "gp":
+            case.patient.managing_org_id = to.org_id
+            case.patient.gp_id = to.id
+        step = current_step(db, case)
+        if step:
+            step.owner_id = to.id
+    case.transfer_pending_owner_id = None
+    db.add(OwnershipEvent(case_id=case.id, from_owner_id=old, to_owner_id=to.id,
+                          kind="transfer_accepted" if accept else "transfer_declined", reason=note, at=now,
+                          by_user_id=actor.user_id))
+    audit.record(db, actor, "U", "case.transfer_" + ("accepted" if accept else "declined"), entity_type="Task",
+                 entity_id=case.id, case_id=case.id, ts=now, detail={"from_owner": old, "to_owner": to.id})
+    return case
+
+
+# ------------------------------------------------------------------ clinical steps
+def order_confirmatory(db: Session, case: Case, actor: Actor, performer_org_id: int, now: datetime | None = None) -> ServiceRequest:
+    now = _now(now)
+    if not actor.can("confirm:order"):
+        raise Forbidden("role lacks confirm:order")
+    prog = PROGRAMMES[case.programme]
+    if not case.needs_confirmation:
+        raise DomainError("this result's pathway has no confirmatory test step (direct referral/consultation)")
+    if S(case.state) != S.ACKNOWLEDGED:
+        raise TransitionError("confirmatory test can be ordered once the patient has acknowledged")
+    sr = ServiceRequest(case_id=case.id, kind="confirmatory_test", code=prog.confirmatory_test or "confirmatory",
+                        requester_id=actor.practitioner_id or case.owner_id, performer_org_id=performer_org_id,
+                        priority=case.tier, status="requested", created_at=now)
+    db.add(sr)
+    db.flush()
+    audit.record(db, actor, "C", "servicerequest.created", entity_type="ServiceRequest", entity_id=sr.id,
+                 case_id=case.id, ts=now, detail={"kind": "confirmatory_test"})
+    transition(db, case, S.CONFIRMATORY_TEST, actor, now=now)
+    return sr
+
+
+def record_confirmatory_result(db: Session, case: Case, actor: Actor, result: str, now: datetime | None = None) -> ServiceRequest:
+    now = _now(now)
+    if not actor.can("confirm:result"):
+        raise Forbidden("role lacks confirm:result")
+    if result not in ("positive", "negative"):
+        raise Invalid("result must be positive or negative")
+    sr = _latest(db, ServiceRequest, case.id, kind="confirmatory_test", status="requested")
+    if sr is None or S(case.state) != S.CONFIRMATORY_TEST:
+        raise DomainError("no confirmatory test awaiting a result")
+    sr.status = "completed"
+    sr.result = result
+    sr.decided_at = now
+    rep = DiagnosticReport(patient_id=case.patient_id, case_id=case.id, programme=case.programme, category="confirmatory",
+                           code="confirmatory", display=sr.code, conclusion=result, issued_at=now,
+                           performer_org_id=sr.performer_org_id)
+    db.add(rep)
+    db.flush()
+    audit.record(db, actor, "C", "confirmatory.resulted", entity_type="DiagnosticReport", entity_id=rep.id,
+                 case_id=case.id, ts=now, detail={"result": result})
+    if result == "positive":
+        transition(db, case, S.CONSULTATION, actor, now=now)
+    return sr
+
+
+def create_referral(db: Session, case: Case, actor: Actor, performer_org_id: int, *, performer_id: int | None = None,
+                    summary: str = "", now: datetime | None = None) -> ServiceRequest:
+    now = _now(now)
+    if not actor.can("referral:create"):
+        raise Forbidden("role lacks referral:create")
+    if S(case.state) not in (S.CONSULTATION, S.REFERRAL_REJECTED):
+        raise TransitionError("a referral can be sent from consultation or after a rejected referral")
+    if performer_org_id != case.patient.managing_org_id and \
+            consent_status(db, case.patient_id, "share_external") == "deny":
+        raise Forbidden("patient has not consented to sharing with other organisations; record consent first")
+    from .configstore import get_config
+
+    checklist = get_config(db, f"referral_checklist:{performer_org_id}")
+    if checklist and len((summary or "").strip()) < int(checklist.get("min_summary_chars", 40)):
+        raise Invalid(f"this provider requires a structured clinical summary (>= {checklist.get('min_summary_chars', 40)} "
+                      "characters) - approved referral-checklist rule")
+    prog = PROGRAMMES[case.programme]
+    sr = ServiceRequest(case_id=case.id, kind="referral", code=prog.referral_service or "specialist",
+                        requester_id=actor.practitioner_id or case.owner_id, performer_org_id=performer_org_id,
+                        performer_id=performer_id, priority=case.tier, status="requested",
+                        clinical_summary=summary, created_at=now)
+    db.add(sr)
+    db.flush()
+    audit.record(db, actor, "C", "referral.sent", entity_type="ServiceRequest", entity_id=sr.id, case_id=case.id,
+                 ts=now, detail={"performer_org_id": performer_org_id})
+    transition(db, case, S.REFERRAL_SENT, actor, now=now)
+    return sr
+
+
+def decide_referral(db: Session, case: Case, actor: Actor, accept: bool, *, reason_code: str | None = None,
+                    note: str | None = None, performer_id: int | None = None, now: datetime | None = None) -> ServiceRequest:
+    now = _now(now)
+    if not actor.can("referral:decide"):
+        raise Forbidden("role lacks referral:decide")
+    sr = _latest(db, ServiceRequest, case.id, kind="referral", status="requested")
+    if sr is None or S(case.state) != S.REFERRAL_SENT:
+        raise DomainError("no referral awaiting a decision")
+    if actor.role == "specialist" and actor.org_id != sr.performer_org_id:
+        raise Forbidden("only the receiving organisation can decide this referral")
+    if not accept:
+        if reason_code not in REJECT_REASONS:
+            raise Invalid(f"reject reason_code must be one of {sorted(REJECT_REASONS)}")
+        if not note or len(note.strip()) < 5:
+            raise Invalid("a note explaining the rejection is required")
+    sr.status = "accepted" if accept else "rejected"
+    sr.reason_code = reason_code
+    sr.reason_note = note
+    sr.decided_at = now
+    if accept:
+        sr.performer_id = performer_id or sr.performer_id or actor.practitioner_id
+    audit.record(db, actor, "U", "referral." + sr.status, entity_type="ServiceRequest", entity_id=sr.id,
+                 case_id=case.id, ts=now, detail={"reason_code": reason_code})
+    if not accept:
+        add_lesson(db, case, "rejected_referral", reason_code or "unknown", actor, detail=note,
+                   target_org_id=sr.performer_org_id, now=now)
+    transition(db, case, S.REFERRAL_ACCEPTED if accept else S.REFERRAL_REJECTED, actor, now=now)
+    return sr
+
+
+def book_appointment(db: Session, case: Case, actor: Actor, start: datetime, *, org_id: int | None = None,
+                     practitioner_id: int | None = None, now: datetime | None = None) -> Appointment:
+    now = _now(now)
+    if not actor.can("appointment:write"):
+        raise Forbidden("role lacks appointment:write")
+    if S(case.state) not in (S.REFERRAL_ACCEPTED, S.NO_SHOW):
+        raise TransitionError("an appointment can be booked after referral acceptance or a no-show")
+    ref = _latest(db, ServiceRequest, case.id, kind="referral", status="accepted")
+    if ref is None:
+        raise DomainError("no accepted referral")
+    if start < now - timedelta(days=1):
+        raise Invalid("appointment start must not be in the past")
+    appt = Appointment(case_id=case.id, service_request_id=ref.id, org_id=org_id or ref.performer_org_id,
+                       practitioner_id=practitioner_id or ref.performer_id, start=start, status="booked", created_at=now)
+    db.add(appt)
+    db.flush()
+    audit.record(db, actor, "C", "appointment.booked", entity_type="Appointment", entity_id=appt.id, case_id=case.id,
+                 ts=now, detail={"start": start.isoformat()})
+    transition(db, case, S.APPOINTMENT_BOOKED, actor, now=now)
+    return appt
+
+
+def record_attendance(db: Session, case: Case, actor: Actor, attended: bool, *, barrier_code: str | None = None,
+                      now: datetime | None = None) -> Appointment:
+    now = _now(now)
+    if not actor.can("appointment:write"):
+        raise Forbidden("role lacks appointment:write")
+    appt = _latest(db, Appointment, case.id, status="booked")
+    if appt is None or S(case.state) != S.APPOINTMENT_BOOKED:
+        raise DomainError("no booked appointment")
+    if barrier_code is not None and barrier_code not in NO_SHOW_BARRIERS:
+        raise Invalid(f"barrier_code must be one of {NO_SHOW_BARRIERS}")
+    appt.status = "fulfilled" if attended else "noshow"
+    appt.barrier_code = None if attended else (barrier_code or "unknown")
+    appt.updated_at = now
+    audit.record(db, actor, "U", "appointment." + appt.status, entity_type="Appointment", entity_id=appt.id,
+                 case_id=case.id, ts=now, detail={"barrier": appt.barrier_code})
+    if attended:
+        transition(db, case, S.APPOINTMENT_ATTENDED, actor, now=now)
+    else:
+        add_lesson(db, case, "no_show", appt.barrier_code or "unknown", actor, now=now)
+        transition(db, case, S.NO_SHOW, actor, now=now)
+    return appt
+
+
+def start_care(db: Session, case: Case, actor: Actor, kind: str, description: str, now: datetime | None = None) -> CarePlan:
+    now = _now(now)
+    if not actor.can("careplan:write"):
+        raise Forbidden("role lacks careplan:write")
+    if kind not in ("treatment", "surveillance"):
+        raise Invalid("kind must be treatment or surveillance")
+    if S(case.state) not in (S.APPOINTMENT_ATTENDED, S.CONSULTATION):
+        raise TransitionError("care can start after an attended appointment or a primary-care consultation")
+    if not description or len(description.strip()) < 5:
+        raise Invalid("a care plan description is required")
+    cp = CarePlan(case_id=case.id, kind=kind, description=description,
+                  recorded_by_id=actor.practitioner_id or case.owner_id, created_at=now)
+    db.add(cp)
+    db.flush()
+    audit.record(db, actor, "C", "careplan.created", entity_type="CarePlan", entity_id=cp.id, case_id=case.id, ts=now,
+                 detail={"kind": kind})
+    transition(db, case, S.TREATMENT_STARTED, actor, now=now)
+    return cp
+
+
+def record_decline(db: Session, case: Case, actor: Actor, note: str, now: datetime | None = None) -> Consent:
+    now = _now(now)
+    if actor.role == "patient" and actor.patient_id != case.patient_id:
+        raise Forbidden("not your case")
+    if actor.role != "patient" and not actor.can("consent:write"):
+        raise Forbidden("role lacks consent:write")
+    if S(case.state) not in (S.PATIENT_NOTIFIED, S.ACKNOWLEDGED, S.CONFIRMATORY_TEST, S.CONSULTATION, S.NO_SHOW):
+        raise TransitionError(f"decline cannot be recorded in state {case.state}")
+    c = Consent(patient_id=case.patient_id, case_id=case.id, scope="care_followup", decision="deny",
+                recorded_by_user_id=actor.user_id, recorded_at=now, note=note)
+    db.add(c)
+    db.flush()
+    audit.record(db, actor, "C", "consent.decline_recorded", entity_type="Consent", entity_id=c.id, case_id=case.id,
+                 ts=now)
+    add_lesson(db, case, "declined", "patient_declined", actor, detail=note, now=now)
+    transition(db, case, S.DECLINED_REVIEW, actor, now=now)
+    return c
+
+
+def reconsider(db: Session, case: Case, actor: Actor, note: str, now: datetime | None = None) -> Case:
+    """Patient changed their mind after a decline: withdraw the decline and resume at consultation."""
+    now = _now(now)
+    if S(case.state) != S.DECLINED_REVIEW:
+        raise TransitionError("case is not in declined review")
+    for c in db.scalars(select(Consent).where(Consent.case_id == case.id, Consent.scope == "care_followup",
+                                              Consent.status == "active")):
+        c.status = "inactive"
+    passed = db.scalar(select(func.count()).select_from(QuestionnaireResponse).where(
+        QuestionnaireResponse.case_id == case.id, QuestionnaireResponse.passed.is_(True)))
+    dst = S.CONSULTATION if passed else S.ACKNOWLEDGED
+    if dst == S.ACKNOWLEDGED:
+        raise TransitionError("patient must pass the teach-back check before resuming")
+    return transition(db, case, dst, actor, note=note, now=now)
+
+
+def record_consent(db: Session, patient: Patient, actor: Actor, scope: str, decision: str, note: str | None = None,
+                   now: datetime | None = None) -> Consent:
+    now = _now(now)
+    if actor.role == "patient":
+        if actor.patient_id != patient.id:
+            raise Forbidden("not your record")
+    elif not actor.can("consent:write"):
+        raise Forbidden("role lacks consent:write")
+    if decision not in ("permit", "deny"):
+        raise Invalid("decision must be permit or deny")
+    allowed = {"care_coordination", "share_external", "comm_app", "comm_sms", "comm_whatsapp", "comm_phone",
+               "analytics", "alt_contact"}
+    if scope not in allowed:
+        raise Invalid(f"scope must be one of {sorted(allowed)}")
+    for c in db.scalars(select(Consent).where(Consent.patient_id == patient.id, Consent.scope == scope,
+                                              Consent.status == "active", Consent.case_id.is_(None))):
+        c.status = "inactive"
+    c = Consent(patient_id=patient.id, scope=scope, decision=decision, recorded_by_user_id=actor.user_id,
+                recorded_at=now, note=note)
+    db.add(c)
+    db.flush()
+    audit.record(db, actor, "C", "consent.recorded", entity_type="Consent", entity_id=c.id, ts=now,
+                 detail={"scope": scope, "decision": decision, "patient_id": patient.id})
+    return c
+
+
+# ------------------------------------------------------------------ consultation requests
+def create_consult(db: Session, case: Case, actor: Actor, question: str, *, target_practitioner_id: int | None = None,
+                   urgency: str | None = None, now: datetime | None = None) -> ConsultRequest:
+    now = _now(now)
+    if actor.role == "patient":
+        if actor.patient_id != case.patient_id:
+            raise Forbidden("not your case")
+        target_practitioner_id = case.patient.gp_id or case.owner_id
+        rtype = "patient"
+    else:
+        if not actor.can("consult:create"):
+            raise Forbidden("role lacks consult:create")
+        if target_practitioner_id is None:
+            raise Invalid("target_practitioner_id is required")
+        rtype = "practitioner"
+    tgt = db.get(Practitioner, target_practitioner_id)
+    if tgt is None or not tgt.active or tgt.role not in ("gp", "specialist", "clinical_lead"):
+        raise Invalid("target must be an active clinician")
+    if not question or len(question.strip()) < 5:
+        raise Invalid("question is required")
+    urgency = urgency or case.tier
+    if urgency not in CONSULT_SLA_HOURS:
+        raise Invalid("urgency must be urgent, high or routine")
+    cr = ConsultRequest(case_id=case.id, requester_type=rtype, requester_user_id=actor.user_id,
+                        target_practitioner_id=tgt.id, question=question.strip()[:4000], urgency=urgency,
+                        created_at=now, due_at=now + timedelta(hours=CONSULT_SLA_HOURS[urgency]))
+    db.add(cr)
+    db.flush()
+    audit.record(db, actor, "C", "consult.requested", entity_type="CommunicationRequest", entity_id=cr.id,
+                 case_id=case.id, ts=now, detail={"type": rtype, "target": tgt.id, "urgency": urgency})
+    return cr
+
+
+def respond_consult(db: Session, cr: ConsultRequest, actor: Actor, response: str, now: datetime | None = None) -> ConsultRequest:
+    now = _now(now)
+    if not actor.can("consult:respond"):
+        raise Forbidden("role lacks consult:respond")
+    if actor.practitioner_id != cr.target_practitioner_id and actor.role != "clinical_lead":
+        raise Forbidden("only the addressed clinician (or clinical lead) can respond")
+    if cr.status != "requested":
+        raise DomainError("consult already answered")
+    if not response or len(response.strip()) < 2:
+        raise Invalid("response is required")
+    cr.status = "answered"
+    cr.response = response.strip()[:4000]
+    cr.responded_by_user_id = actor.user_id
+    cr.responded_at = now
+    audit.record(db, actor, "U", "consult.answered", entity_type="CommunicationRequest", entity_id=cr.id,
+                 case_id=cr.case_id, ts=now)
+    return cr
+
+
+# ------------------------------------------------------------------ lessons
+def add_lesson(db: Session, case: Case | None, kind: str, reason_code: str, actor: Actor, *, detail: str | None = None,
+               channel: str | None = None, target_org_id: int | None = None, now: datetime | None = None) -> Lesson:
+    now = _now(now)
+    les = Lesson(case_id=case.id if case else None, kind=kind, reason_code=reason_code,
+                 state=case.state if case else None, programme=case.programme if case else None,
+                 tier=case.tier if case else None, language=case.patient.language if case else None,
+                 region=case.patient.region if case else None, channel=channel, target_org_id=target_org_id,
+                 detail=detail, created_at=now, created_by_user_id=actor.user_id)
+    db.add(les)
+    db.flush()
+    audit.record(db, actor, "C", "lesson.recorded", entity_type="Lesson", entity_id=les.id,
+                 case_id=case.id if case else None, ts=now, detail={"kind": kind, "reason_code": reason_code})
+    return les

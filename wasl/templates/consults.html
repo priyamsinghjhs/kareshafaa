@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<hgroup><h3 style="margin-bottom:.2rem">Consultation requests addressed to me</h3><p class="small muted">Clinician-to-clinician e-consults and patient-to-clinician questions, with response SLAs (T0 1h · T1 4h · T2 24h · T3 72h).</p></hgroup>
+<div id="ctable"><div class="empty">Loading…</div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function load() {
+  const d = await W.api("/api/consults");
+  document.getElementById("ctable").innerHTML = d.items.length ? `<table class="compact"><thead><tr><th>Case</th><th>From</th><th>Urgency</th><th>Question</th><th>Due</th><th>Status / answer</th></tr></thead><tbody>${d.items.map(c => `<tr>
+    <td><a href="/cases/${c.case_id}">#${c.case_id}</a></td><td>${c.type === "patient" ? "Patient" : "Clinician"}</td><td>${W.tier(c.urgency)}</td><td class="small">${W.esc(c.question)}</td><td class="small">${W.ago(c.due_at)}</td>
+    <td>${c.status === "answered" ? `<span class="small">${W.esc(c.response)}</span>` : `<input id="r${c.id}" placeholder="Answer…" style="margin:0 0 .3rem"><button style="width:auto;padding:.15rem .6rem" onclick="answer(${c.id})">Send</button>`}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">No consultation requests.</div>`;
+}
+window.answer = async id => { try { await W.api(`/api/consults/${id}/respond`, { method: "POST", body: { response: document.getElementById("r" + id).value } }); W.toast("Answer sent", "ok"); load(); } catch (e) { W.toast(e.message, "err"); } };
+document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return;
+  try { await load(); } catch (e) { document.getElementById("ctable").innerHTML = `<div class="empty">${W.esc(e.message)}</div>`; } });
+</script>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<hgroup><h3 style="margin-bottom:.2rem">Results inbox – HL7 v2 ORU^R01 / FHIR ingest</h3>
+<p class="small muted">Paste a lab message. Ingest is idempotent on MSH-10 / Bundle.identifier. Patients are matched deterministically
+(MRN + birth year); anything uncertain waits here for a human match decision – the system never guesses.</p></hgroup>
+<div class="grid-2"><div>
+<label for="msg">HL7 v2 message (segments on separate lines)</label>
+<textarea id="msg" rows="7" style="font-family:monospace;font-size:.8rem"></textarea>
+<div style="display:flex;gap:.5rem"><button onclick="send()">Ingest message</button><button class="secondary outline" onclick="sample()">Load sample (positive FIT)</button></div>
+<pre id="ack" class="small" aria-live="polite"></pre>
+</div><aside class="card"><h4>Awaiting human match review</h4><div id="review"><div class="empty">Loading…</div></div></aside></div>
+<h4>Recent messages</h4><div id="recent"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function sample() {
+  const t = await W.api("/api/ingest/sample");  // synthetic ORU^R01 for a real synthetic patient
+  document.getElementById("msg").value = t.split("\r").join("\n");
+}
+async function send() {
+  const raw = document.getElementById("msg").value.trim().split(/\r?\n/).join("\r");
+  try {
+    const r = await W.api("/api/ingest/hl7v2", { method: "POST", raw, headers: { "Content-Type": "text/plain" } });
+    document.getElementById("ack").textContent = r.ack.replaceAll("\r", "\n") + `\n\nstatus: ${r.status}` + (r.case ? ` · case #${r.case.id} (${r.case.state})` : "") + (r.reason ? ` · ${r.reason}` : "");
+    W.toast(r.case ? `Case #${r.case.id} created/linked` : r.status, r.ok ? "ok" : "err"); load();
+  } catch (e) { W.toast(e.message, "err"); }
+}
+async function load() {
+  const d = await W.api("/api/ingest/messages");
+  const pend = d.items.filter(m => m.status === "needs_match_review");
+  document.getElementById("review").innerHTML = pend.length ? pend.map(m => `<div class="small" style="margin-bottom:.5rem"><b>${W.esc(m.message_id)}</b> · ${W.esc(m.patient_identifier || "no id")} · ${W.prog(m.programme)}<br><span class="muted">${W.esc(m.reason)}</span>
+    <div style="display:flex;gap:.3rem"><input id="pid${m.id}" placeholder="Confirmed patient id" aria-label="Confirmed patient id" style="margin:0"><button style="width:auto" onclick="resolve(${m.id})">Confirm match</button></div></div>`).join("") : `<div class="empty">Nothing waiting – every message matched a patient.</div>`;
+  document.getElementById("recent").innerHTML = d.items.length ? `<table class="compact"><thead><tr><th>Received</th><th>Source</th><th>Message</th><th>Programme</th><th>Status</th><th>Case</th></tr></thead><tbody>${d.items.slice(0, 30).map(m => `<tr><td class="small">${W.dt(m.received_at)}</td><td>${m.source}</td><td class="small">${W.esc(m.message_id)}</td><td>${W.prog(m.programme)}</td><td><span class="chip ${m.status === "needs_match_review" ? "sla-amber" : "sla-green"}">${m.status}</span></td><td>${m.case_id ? `<a href="/cases/${m.case_id}">#${m.case_id}</a>` : "–"}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">No messages yet. Load the sample and ingest it to see a case appear with an owner and SLA clock.</div>`;
+}
+window.resolve = async id => { try { const r = await W.api(`/api/ingest/messages/${id}/resolve`, { method: "POST", body: { patient_id: +document.getElementById("pid" + id).value } }); W.toast("Matched – case " + (r.case ? "#" + r.case.id : "n/a"), "ok"); load(); } catch (e) { W.toast(e.message, "err"); } };
+document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return; load(); });
+</script>
+{% endblock %}

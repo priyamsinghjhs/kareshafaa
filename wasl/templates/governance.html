@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<hgroup><h3 style="margin-bottom:.2rem">Governance – the self-improving loop, with humans in charge</h3>
+<p class="small muted">Models and rule changes are only <b>proposed</b> by the system. A clinical lead approves, rejects or rolls back. Every action is audited.</p></hgroup>
+<div class="tabs"><button data-t="models">Model registry</button><button class="secondary outline" data-t="proposals">Proposed rule changes</button><button class="secondary outline" data-t="lessons">Lessons learned</button><button class="secondary outline" data-t="rules">Active SLA rules &amp; config</button></div>
+<div id="gov"><div class="empty">Loading…</div></div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/governance.js"></script>{% endblock %}

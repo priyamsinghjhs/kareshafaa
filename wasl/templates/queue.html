@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:.5rem">
+  <hgroup style="margin:0"><h3 style="margin-bottom:.2rem">Work queue</h3>
+    <p class="small muted" id="ordering"></p></hgroup>
+  <div style="display:flex;gap:.5rem;align-items:center">
+    <select id="prog" style="margin:0;width:auto"><option value="">All programmes</option><option value="colorectal_fit">Bowel (FIT)</option>
+      <option value="cervical">Cervical (HPV)</option><option value="breast">Breast</option><option value="diabetes_hba1c">Diabetes</option></select>
+    <input id="search" placeholder="Search name / MRN…" style="margin:0;width:200px">
+    <button id="sweep" class="secondary outline" style="margin:0;width:auto" title="Run the SLA timer / escalation sweep now">Run SLA sweep</button>
+  </div>
+</div>
+<div class="tabs" id="tabs"></div>
+<div id="qtable"><div class="empty">Loading…</div></div>
+<p class="small muted">ML “outreach priority” is a model estimate of delay / drop-off risk used <b>only</b> to order outreach within the same SLA band and urgency tier. It never changes a case, its urgency or its closure.</p>
+{% endblock %}
+{% block scripts %}
+<script>
+const VIEWS = [["all","All open"],["mine","Mine"],["overdue","Overdue"],["unassigned","Unassigned"],["rejected","Rejected referrals"],["escalated","Escalated"],["calls","Phone-call tasks"],["transfers","Transfers pending"],["consults","Open consults"]];
+let view = new URLSearchParams(location.search).get("view") || "all", data = null;
+async function load() {
+  const prog = document.getElementById("prog").value;
+  data = await W.api(`/api/queue?view=${view}&limit=400${prog ? "&programme=" + prog : ""}`);
+  document.getElementById("ordering").textContent = "Sorted by " + data.ordering + ".";
+  document.getElementById("tabs").innerHTML = VIEWS.map(([k, l]) => `<button class="${k === view ? "" : "secondary outline"}" data-v="${k}">${l} <b>${data.counts[k] ?? 0}</b></button>`).join("");
+  document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => { view = b.dataset.v; history.replaceState(null, "", "?view=" + view); load(); });
+  render();
+}
+function render() {
+  const q = document.getElementById("search").value.toLowerCase();
+  const rows = data.items.filter(r => !q || r.patient.toLowerCase().includes(q) || r.mrn.toLowerCase().includes(q) || String(r.id) === q);
+  if (!rows.length) { document.getElementById("qtable").innerHTML = `<div class="empty">Nothing in this view. 🎉</div>`; return; }
+  document.getElementById("qtable").innerHTML = `<table class="compact striped"><thead><tr><th>SLA</th><th>Case</th><th>Patient</th><th>Programme</th><th>Urgency</th><th>Step</th><th>Owner</th><th>Due</th><th title="Outreach priority (ML) - prioritisation only">Outreach priority</th><th>Flags</th></tr></thead><tbody>` +
+    rows.map(r => `<tr class="clickable" onclick="location.href='/cases/${r.id}'">
+      <td>${W.sla(r.sla_status, r.sla_fraction)}</td><td>#${r.id}</td>
+      <td>${W.esc(r.patient)}<div class="small muted">${W.esc(r.mrn)} · ${W.esc(r.language)}</div></td>
+      <td>${W.prog(r.programme)}</td><td>${W.tier(r.tier)}</td><td>${W.esc(r.state_label)}</td>
+      <td>${r.owner_is_pool ? '<span class="chip pool">team pool</span> ' : ""}<span class="small">${W.esc(r.owner)}</span></td>
+      <td class="small">${W.ago(r.due_at)}</td>
+      <td>${r.risk_score == null ? '<span class="muted small">–</span>' : `<span class="risk-bar" style="width:${Math.round(r.risk_score * 60) + 4}px"></span> <span class="small">${Math.round(r.risk_score * 100)}%</span>`}</td>
+      <td>${r.escalation_level ? `<span class="chip sla-red">L${r.escalation_level}</span> ` : ""}${r.call_task ? '<span class="chip flag">call</span> ' : ""}${r.open_consult ? '<span class="chip flag">consult</span> ' : ""}${r.transfer_pending ? '<span class="chip flag">transfer</span>' : ""}</td></tr>`).join("") + `</tbody></table><p class="small muted">${rows.length} of ${data.total} shown</p>`;
+}
+document.addEventListener("DOMContentLoaded", async () => {
+  await W.ready; if (!W.requireLogin()) return;
+  if (!W.me.permissions.includes("sweep:run")) document.getElementById("sweep").style.display = "none";
+  document.getElementById("search").oninput = render;
+  document.getElementById("prog").onchange = load;
+  document.getElementById("sweep").onclick = async () => { try { const r = await W.api("/api/sla/sweep", { method: "POST", body: {} });
+    W.toast(`Sweep: ${r.checked} checked · ${r.reminders} reminders · ${r.supervisor} supervisor · ${r.clinical_lead} clinical-lead escalations`, "ok"); load(); } catch (e) { W.toast(e.message, "err"); } };
+  try { await load(); } catch (e) { document.getElementById("qtable").innerHTML = `<div class="empty">${W.esc(e.message)}</div>`; }
+});
+</script>
+{% endblock %}
