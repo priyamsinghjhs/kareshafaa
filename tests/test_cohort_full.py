@@ -28,3 +28,18 @@ def test_full_cohort_zero_violations():
     lost = rep["violations"].get("report.rules_reapplied_no_lost_actionable", {}).get("count", 0)
     assert lost == 0, "lost actionable results"
     assert rep["violations_total"] == 0, json.dumps(rep["violations"], indent=1, default=str)[:3000]
+
+
+@pytest.mark.cohort
+def test_full_cohort_alerts_zero_missed_breaches():
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    db = root / "data" / "wasl_large.db"
+    if not db.exists():
+        pytest.skip("run `make seed-large` first")
+    r = subprocess.run([sys.executable, "scripts/alert_eval.py", "--db", f"sqlite:///{db}", "--out", ""], cwd=root,
+                       capture_output=True, text=True, timeout=600)
+    assert r.returncode == 0, r.stdout[-2000:]

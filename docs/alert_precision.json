@@ -1,20 +1,20 @@
 {
  "legacy": {
-  "alerts_l2plus": 6393,
-  "true_positive": 4928,
-  "false_positive": 1465,
+  "alerts_l2plus": 6313,
+  "true_positive": 4877,
+  "false_positive": 1436,
   "fp_kinds": {
-   "repeat_for_same_breach": 1465
+   "repeat_for_same_breach": 1436
   },
-  "precision": 0.770843109651181,
-  "true_breaches_alertable": 3216,
-  "detected_within_one_sweep": 2889,
-  "missed": 327,
-  "recall": 0.898320895522388,
-  "resolved_within_one_sweep": 5,
-  "l1_reminders": 7786,
-  "ladder_escalations_expected": 881,
-  "ladder_escalations_reached": 485,
+  "precision": 0.7725328686836687,
+  "true_breaches_alertable": 3204,
+  "detected_within_one_sweep": 2880,
+  "missed": 324,
+  "recall": 0.898876404494382,
+  "resolved_within_one_sweep": 2,
+  "l1_reminders": 7895,
+  "ladder_escalations_expected": 851,
+  "ladder_escalations_reached": 482,
   "missed_examples": [
    {
     "case": 7,
@@ -22,8 +22,8 @@
      "target",
      7
     ],
-    "at": "2026-10-11 05:41:45.300834",
-    "until": "2026-10-20 20:24:22.825423",
+    "at": "2026-10-11 06:09:00.821659",
+    "until": "2026-10-20 20:51:32.696067",
     "first_alert": "None"
    },
    {
@@ -32,8 +32,8 @@
      "target",
      12
     ],
-    "at": "2026-08-27 14:50:08.576270",
-    "until": "2026-10-20 20:24:22.825423",
+    "at": "2026-08-27 15:17:24.097095",
+    "until": "2026-10-20 20:51:32.696067",
     "first_alert": "None"
    },
    {
@@ -43,7 +43,7 @@
      15
     ],
     "at": "2026-04-13 23:39:36.044907",
-    "until": "2026-10-20 20:24:22.825423",
+    "until": "2026-10-20 20:51:32.696067",
     "first_alert": "None"
    },
    {
@@ -52,8 +52,8 @@
      "target",
      33
     ],
-    "at": "2026-06-20 13:25:06.043461",
-    "until": "2026-07-09 03:14:06.727273",
+    "at": "2026-06-20 13:52:21.564286",
+    "until": "2026-07-09 03:41:22.248098",
     "first_alert": "None"
    },
    {
@@ -62,26 +62,26 @@
      "target",
      38
     ],
-    "at": "2026-01-27 08:32:19.906183",
-    "until": "2026-10-20 20:24:22.825423",
+    "at": "2026-01-27 08:59:35.427008",
+    "until": "2026-10-20 20:51:32.696067",
     "first_alert": "None"
    }
   ]
  },
  "current": {
-  "alerts_l2plus": 5297,
-  "true_positive": 5297,
+  "alerts_l2plus": 5209,
+  "true_positive": 5209,
   "false_positive": 0,
   "fp_kinds": {},
   "precision": 1.0,
-  "true_breaches_alertable": 3216,
-  "detected_within_one_sweep": 3216,
+  "true_breaches_alertable": 3204,
+  "detected_within_one_sweep": 3204,
   "missed": 0,
   "recall": 1.0,
-  "resolved_within_one_sweep": 5,
-  "l1_reminders": 6464,
-  "ladder_escalations_expected": 881,
-  "ladder_escalations_reached": 881,
+  "resolved_within_one_sweep": 2,
+  "l1_reminders": 6566,
+  "ladder_escalations_expected": 851,
+  "ladder_escalations_reached": 851,
   "missed_examples": []
  }
 }

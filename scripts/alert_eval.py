@@ -120,6 +120,40 @@ def key_of(alert, case, steps_by_id):
     return ("step", sid)
 
 
+NARRATIVE = """
+## Policy evaluated (adopted 21 Oct 2026)
+
+* **Step clock.** Each workflow step has its own SLA. One L2 alert when it breaches (L3 for critical tier), then
+  L3 at 1.5x and L4 at 2x the step window (L4 for critical/urgent only). L1 is a pre-breach reminder at 50 %.
+* **Pathway clock.** When the clinical pathway target date (e.g. colonoscopy within 4 weeks of a positive FIT) is
+  missed before care is reached, the case gets **one consolidated alert per escalation level**, attributed to the
+  upstream breach. A step that opens after the target was missed is born breached (`inherited_breach`), does
+  not raise its own repeat alert and does not record a second lesson; the ladder still escalates L2 -> L3 -> L4 on
+  the pathway clock while the breach persists.
+* **Never suppressed.** The first alert on a true breach is never deduplicated away: deduplication keys are per
+  step (step clock) and per case (pathway clock) and only suppress *repeats at the same level*.
+
+## How truth is labelled
+
+The truth labelling in this script is written independently of `wasl/alert_policy.py`. From each stored case
+timeline it derives the breach events a human auditor would count: a pathway-target breach (target passed before
+care was reached) and step breaches for steps whose own deadline came before the target (or after care). A
+true breach is **detected** if an L2+ alert for it is raised within one sweep (5 min) of the breach. Precision
+counts an alert as a true positive only if it is the first alert at that level for a distinct true breach;
+repeats for the same breach are false positives.
+
+## Limits
+
+* Precision here means "every L2+ alert corresponds to a distinct, real breach at a new level". It does not
+  measure whether the team found the alert clinically useful; that needs pilot feedback (alert-fatigue survey).
+* The labelling uses the same stored timestamps as the system, so data-capture errors would affect both.
+* Breaches that resolve within one sweep (counted under `resolved_within_one_sweep`) are recorded at step close
+  but cannot be alerted in time; with a 5-minute sweep this was 2 events in this cohort.
+* `scripts/alert_eval.py` exits with status 1 if any true breach is missed; `tests/test_cohort_full.py` runs it on
+  the 20k cohort.
+"""
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default=os.environ.get("WASL_DATABASE_URL", "sqlite:///./data/wasl_large.db"))
@@ -211,6 +245,7 @@ def main():
                 fmt = (lambda v: f"{v:.2%}") if k in ("precision", "recall") else (lambda v: f"{v:,}")
                 f.write(f"| {k} | {fmt(res['legacy'][k])} | {fmt(res['current'][k])} |\n")
             f.write(f"\nFalse-positive kinds - legacy: {res['legacy']['fp_kinds']}; current: {res['current']['fp_kinds']}\n")
+            f.write(NARRATIVE)
         with open(a.out.replace(".md", ".json"), "w") as f:
             json.dump(res, f, indent=1)
     return 1 if res["current"]["missed"] else 0
