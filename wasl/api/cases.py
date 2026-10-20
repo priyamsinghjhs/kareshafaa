@@ -306,11 +306,22 @@ def ingest_result(body: sch.ResultIn, actor: Actor = Depends(require("case:creat
         raise NotFound("patient not found")
     from ..models import Organization
 
+    from sqlalchemy.exc import IntegrityError
+
     lab = db.scalar(select(Organization).where(Organization.kind == "lab"))
-    rep, c = wf.ingest_result(db, p, body.programme, value=body.value, value_text=body.value_text, unit=body.unit,
-                              test=body.test, status=body.status, cytology=body.cytology,
-                              performer_org_id=lab.id if lab else p.managing_org_id, actor=actor)
-    if c is not None and c.tier not in CLINICIAN_CONFIRMED_TIERS and S(c.state) == S.ISSUED and not c.review_required:
-        wf.transition(db, c, S.TRIAGED, wf.SYSTEM, note="auto-triaged by deterministic programme rule")
-    db.commit()
+    pid, org = p.id, (lab.id if lab else p.managing_org_id)
+    for attempt in range(3):  # a concurrent result for the same patient/programme: re-run and link, never duplicate
+        try:
+            rep, c = wf.ingest_result(db, db.get(Patient, pid), body.programme, value=body.value,
+                                      value_text=body.value_text, unit=body.unit, test=body.test, status=body.status,
+                                      cytology=body.cytology, performer_org_id=org, actor=actor)
+            if c is not None and c.tier not in CLINICIAN_CONFIRMED_TIERS and S(c.state) == S.ISSUED \
+                    and not c.review_required:
+                wf.transition(db, c, S.TRIAGED, wf.SYSTEM, note="auto-triaged by deterministic programme rule")
+            db.commit()
+            break
+        except IntegrityError:
+            db.rollback()
+            if attempt == 2:
+                raise
     return {"ok": True, "report_id": rep.id, "actionable": c is not None, "case": case_summary(db, c) if c else None}

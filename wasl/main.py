@@ -10,6 +10,8 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.exc import StaleDataError
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -36,8 +38,17 @@ METHOD_ACTION = {"GET": "R", "HEAD": "R", "POST": "E", "PUT": "U", "PATCH": "U",
 
 
 def _sweep_once() -> dict:
-    with session_scope() as db:
-        return run_sweep(db)
+    # a person acting on a case while the sweep runs makes the sweep's UPDATE stale (row_version): re-run the
+    # whole sweep on fresh data rather than skip escalations until the next interval
+    for attempt in range(3):
+        try:
+            with session_scope() as db:
+                return run_sweep(db)
+        except StaleDataError:
+            if attempt == 2:
+                raise
+            log.warning("SLA sweep met a concurrent case change; re-running")
+    return {}
 
 
 def _elect_sweeper() -> bool:
@@ -136,6 +147,16 @@ def create_app() -> FastAPI:
     @app.exception_handler(TransitionError)
     async def _transition(_req: Request, exc: TransitionError):
         return JSONResponse({"detail": str(exc)}, status_code=409)
+
+    @app.exception_handler(StaleDataError)
+    async def _stale(_req: Request, exc: StaleDataError):
+        return JSONResponse({"detail": "this case was changed by someone else at the same time - reload it and try "
+                                       "again (nothing was saved)"}, status_code=409)
+
+    @app.exception_handler(IntegrityError)
+    async def _integrity(_req: Request, exc: IntegrityError):
+        return JSONResponse({"detail": "a concurrent change conflicted with this request - reload and try again "
+                                       "(nothing was saved)"}, status_code=409)
 
     @app.exception_handler(PermissionError)
     async def _perm(_req: Request, exc: PermissionError):

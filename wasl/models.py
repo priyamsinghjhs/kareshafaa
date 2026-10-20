@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    text,
     JSON,
     Boolean,
     DateTime,
@@ -172,6 +173,13 @@ class Case(Base):  # FHIR Task (code=loop-case); focus = DiagnosticReport
     risk_model_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     risk_rationale: Mapped[list | None] = mapped_column(JSON, nullable=True)  # top factors behind the outreach priority
     synthetic: Mapped[bool] = mapped_column(Boolean, default=True)
+    row_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # optimistic concurrency
+    __mapper_args__ = {"version_id_col": row_version}
+    __table_args__ = (
+        # DB-level guarantee: never two open cases for one patient and programme, even for concurrent results
+        Index("uq_one_open_case", "patient_id", "programme", unique=True,
+              sqlite_where=text("state != 'closed'"), postgresql_where=text("state != 'closed'")),
+    )
     patient: Mapped[Patient] = relationship()
     owner: Mapped[Practitioner] = relationship(foreign_keys=[owner_id])
     report: Mapped[DiagnosticReport] = relationship(foreign_keys=[report_id])

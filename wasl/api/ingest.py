@@ -1,11 +1,14 @@
 """Integration endpoints: HL7 v2 ORU^R01 and FHIR R4 Bundle result ingestion + match-review queue."""
 from __future__ import annotations
 
+import copy
+
 from fastapi.concurrency import run_in_threadpool
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -34,6 +37,22 @@ def _out(db: Session, msg: IngestMessage, ack: str | None = None) -> dict:
     return out
 
 
+def _ingest_retrying(db: Session, source: str, parsed: ing.ParsedResult, actor: Actor) -> IngestMessage:
+    """Concurrent deliveries of the same message (or two results for one patient at once) collide on a unique
+    index; the loser rolls back and re-runs, then sees the winner's row (idempotent replay / linked to the open
+    case) instead of failing with a 500 or creating a duplicate."""
+    for attempt in range(3):
+        try:
+            msg = ing.ingest(db, source, copy.deepcopy(parsed), actor)
+            db.commit()
+            return msg
+        except IntegrityError:
+            db.rollback()
+            if attempt == 2:
+                raise
+    raise AssertionError("unreachable")
+
+
 @router.post("/hl7v2")
 async def hl7v2(request: Request, actor: Actor = Depends(require("case:create")), db: Session = Depends(get_db)) -> dict:
     raw = await request.body()
@@ -44,8 +63,7 @@ async def hl7v2(request: Request, actor: Actor = Depends(require("case:create"))
     except UnicodeDecodeError as e:
         raise Invalid("message must be UTF-8") from e
     def work() -> dict:  # sync DB work off the event loop
-        msg = ing.ingest(db, "hl7v2", parsed, actor)
-        db.commit()
+        msg = _ingest_retrying(db, "hl7v2", parsed, actor)
         return _out(db, msg, ing.ack_hl7(msg, parsed.message_id))
     return await run_in_threadpool(work)
 
@@ -64,8 +82,7 @@ async def fhir_bundle(request: Request, actor: Actor = Depends(require("case:cre
     if not isinstance(bundle, dict):
         raise Invalid("body must be a FHIR Bundle object")
     def work() -> dict:
-        msg = ing.ingest(db, "fhir", ing.parse_fhir_bundle(bundle), actor)
-        db.commit()
+        msg = _ingest_retrying(db, "fhir", ing.parse_fhir_bundle(bundle), actor)
         return _out(db, msg)
     return await run_in_threadpool(work)
 

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -68,6 +69,15 @@ TARGET_PERMISSION: dict[S, str] = {
 SYSTEM_ALLOWED = {S.TRIAGED, S.PATIENT_NOTIFIED, S.ACKNOWLEDGED}
 # States a patient may move their own case into, via their own actions.
 PATIENT_ALLOWED = {S.ACKNOWLEDGED, S.DECLINED_REVIEW}
+
+
+def _claim(case: Case) -> None:
+    """Mark the case row as changed so the UPDATE carries the row-version check (models.Case.row_version).
+
+    Two people acting on the same case at once: the second commit fails (StaleDataError -> HTTP 409) instead of
+    silently applying an action decided on a stale view (e.g. a referral sent on a case that was just closed)."""
+    if isinstance(case, Case) and case.id is not None:
+        flag_modified(case, "state")
 
 
 def _now(now: datetime | None) -> datetime:
@@ -272,6 +282,7 @@ def ingest_result(db: Session, patient: Patient, programme: str, *, value: float
 def resolve_review(db: Session, case: Case, actor: Actor, *, note: str, tier: str | None = None,
                    now: datetime | None = None) -> Case:
     """An authorised clinician clears the human-review flag. Lowering the tier needs a rationale and is audited."""
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     if not actor.is_human or not actor.can("case:triage_urgent"):
         raise Forbidden("only a clinician (GP, specialist or clinical lead) may resolve a clinical review")
@@ -395,6 +406,7 @@ def _guard(db: Session, case: Case, dst: S) -> None:
 
 def transition(db: Session, case: Case, dst: S | str, actor: Actor, *, owner_id: int | None = None,
                note: str | None = None, now: datetime | None = None) -> Case:
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     dst = S(dst)
     src = S(case.state)
@@ -448,6 +460,7 @@ def close_case(db: Session, case: Case, actor: Actor, closure_type: str, *, evid
                evidence_id: int | None = None, reason: str | None = None, note: str | None = None,
                now: datetime | None = None) -> Case:
     """Close ONLY with linked evidence or an authorised human decision with reason (enforced here)."""
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     if actor.is_human and actor.role not in ("patient",) and not actor.can("case:write"):
         raise Forbidden("role may not close cases")
@@ -527,6 +540,7 @@ def _verify_evidence(db: Session, case: Case, evidence_type: str, evidence_id: i
 
 # ------------------------------------------------------------------ ownership
 def assign(db: Session, case: Case, new_owner_id: int, actor: Actor, reason: str, now: datetime | None = None) -> Case:
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     require_signoff(actor, "case.assign", reason)
     if case.state == S.CLOSED:
@@ -548,6 +562,7 @@ def assign(db: Session, case: Case, new_owner_id: int, actor: Actor, reason: str
 
 def request_transfer(db: Session, case: Case, to_owner_id: int, actor: Actor, note: str, now: datetime | None = None) -> Case:
     """Two-key transfer: the current owner stays accountable until the receiver accepts."""
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     require_signoff(actor, "case.transfer.request", note)
     if case.state == S.CLOSED:
@@ -570,6 +585,7 @@ def request_transfer(db: Session, case: Case, to_owner_id: int, actor: Actor, no
 
 def decide_transfer(db: Session, case: Case, actor: Actor, accept: bool, note: str | None = None,
                     now: datetime | None = None) -> Case:
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     require_signoff(actor, "case.transfer.decide", note)
     if not accept and (not note or len(note.strip()) < 5):
@@ -603,6 +619,7 @@ def decide_transfer(db: Session, case: Case, actor: Actor, accept: bool, note: s
 
 # ------------------------------------------------------------------ clinical steps
 def order_confirmatory(db: Session, case: Case, actor: Actor, performer_org_id: int, now: datetime | None = None) -> ServiceRequest:
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     if not actor.can("confirm:order"):
         raise Forbidden("role lacks confirm:order")
@@ -623,6 +640,7 @@ def order_confirmatory(db: Session, case: Case, actor: Actor, performer_org_id: 
 
 
 def record_confirmatory_result(db: Session, case: Case, actor: Actor, result: str, now: datetime | None = None) -> ServiceRequest:
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     require_signoff(actor, "confirmatory.result")
     if result not in ("positive", "negative"):
@@ -647,6 +665,7 @@ def record_confirmatory_result(db: Session, case: Case, actor: Actor, result: st
 
 def create_referral(db: Session, case: Case, actor: Actor, performer_org_id: int, *, performer_id: int | None = None,
                     summary: str = "", now: datetime | None = None) -> ServiceRequest:
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     if not actor.can("referral:create"):
         raise Forbidden("role lacks referral:create")
@@ -676,6 +695,7 @@ def create_referral(db: Session, case: Case, actor: Actor, performer_org_id: int
 
 def decide_referral(db: Session, case: Case, actor: Actor, accept: bool, *, reason_code: str | None = None,
                     note: str | None = None, performer_id: int | None = None, now: datetime | None = None) -> ServiceRequest:
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     require_signoff(actor, "referral.decide", note)
     sr = _latest(db, ServiceRequest, case.id, kind="referral", status="requested")
@@ -705,6 +725,7 @@ def decide_referral(db: Session, case: Case, actor: Actor, accept: bool, *, reas
 
 def book_appointment(db: Session, case: Case, actor: Actor, start: datetime, *, org_id: int | None = None,
                      practitioner_id: int | None = None, now: datetime | None = None) -> Appointment:
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     if not actor.can("appointment:write"):
         raise Forbidden("role lacks appointment:write")
@@ -727,6 +748,7 @@ def book_appointment(db: Session, case: Case, actor: Actor, start: datetime, *, 
 
 def record_attendance(db: Session, case: Case, actor: Actor, attended: bool, *, barrier_code: str | None = None,
                       now: datetime | None = None) -> Appointment:
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     if not actor.can("appointment:write"):
         raise Forbidden("role lacks appointment:write")
@@ -749,6 +771,7 @@ def record_attendance(db: Session, case: Case, actor: Actor, attended: bool, *, 
 
 
 def start_care(db: Session, case: Case, actor: Actor, kind: str, description: str, now: datetime | None = None) -> CarePlan:
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     require_signoff(actor, "careplan.start", description)
     if kind not in ("treatment", "surveillance"):
@@ -772,6 +795,7 @@ def start_care(db: Session, case: Case, actor: Actor, kind: str, description: st
 
 
 def record_decline(db: Session, case: Case, actor: Actor, note: str, now: datetime | None = None) -> Consent:
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     if actor.role == "patient" and actor.patient_id != case.patient_id:
         raise Forbidden("not your case")
@@ -792,6 +816,7 @@ def record_decline(db: Session, case: Case, actor: Actor, note: str, now: dateti
 
 def reconsider(db: Session, case: Case, actor: Actor, note: str, now: datetime | None = None) -> Case:
     """Patient changed their mind after a decline: withdraw the decline and resume at consultation."""
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     if S(case.state) != S.DECLINED_REVIEW:
         raise TransitionError("case is not in declined review")
@@ -835,6 +860,7 @@ def record_consent(db: Session, patient: Patient, actor: Actor, scope: str, deci
 # ------------------------------------------------------------------ consultation requests
 def create_consult(db: Session, case: Case, actor: Actor, question: str, *, target_practitioner_id: int | None = None,
                    urgency: str | None = None, now: datetime | None = None) -> ConsultRequest:
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     if actor.role == "patient":
         if actor.patient_id != case.patient_id:
@@ -896,6 +922,7 @@ def respond_consult(db: Session, cr: ConsultRequest, actor: Actor, response: str
 # ------------------------------------------------------------------ lessons
 def add_lesson(db: Session, case: Case | None, kind: str, reason_code: str, actor: Actor, *, detail: str | None = None,
                channel: str | None = None, target_org_id: int | None = None, now: datetime | None = None) -> Lesson:
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     les = Lesson(case_id=case.id if case else None, kind=kind, reason_code=reason_code,
                  state=case.state if case else None, programme=case.programme if case else None,
