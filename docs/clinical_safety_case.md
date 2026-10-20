@@ -62,6 +62,7 @@ clinical leads, directors, analysts, patients (portal).
 | H-28 | Two people act on one case at once | concurrent clinicians / workers / SLA sweep | action applied on a stale view (e.g. after closure), duplicate open case | 3 | 3 | optimistic row-version (409, nothing saved), DB unique index one open case per patient+programme, retry-on-conflict ingest, sweep re-run | `tests/test_concurrency.py`; F38 killed; invariant `case.at_most_one_open_case_per_patient_programme` | 1 | 3 |
 | H-29 | Time-zone / clock errors | UTC vs UAE local day, offsets dropped, skewed client clock | SLA clocks 4 h off at weekend/holiday edges; wrong appointment time to patient; no-show recorded before the appointment | 3 | 3 | calendar in Asia/Dubai, offsets converted, patient times local, attendance not before start (4 h early allowance) | `tests/test_time_handling.py`; F39, F41 killed; invariant `dates.attendance_not_before_appointment` | 1 | 3 |
 | H-30 | One person under two records | duplicate MRNs in the registry | conflicting results never compared, two coordinators for one person | 3 | 3 | Emirates ID cross-check: open-case / recent-closure checks span the identity group, `possible_duplicate_identity` review; ambiguous EID -> match review | `tests/test_duplicate_identity.py`; F40 killed; invariant `identity.one_open_case_per_emirates_id_programme` | 1 | 3; real EMPI still required (residual 3) |
+| H-31 | Automated message reaches a patient at night | SLA reminder fired by the 5-minute sweep at 02:00 local | distress, loss of trust, opt-out of the channel | 2 | 4 | reminders only 08:00-21:00 UAE; queued (on-hold) otherwise, sent once in-window or cancelled | `test_patient_reminders_respect_uae_message_window`; invariant `comms.reminders_inside_patient_window` (94 found pre-fix, 0 now) | 1 | 2 |
 
 ## 4. Verification summary (Iteration 6, updated Iteration 7)
 
@@ -73,7 +74,7 @@ clinical leads, directors, analysts, patients (portal).
   time travel, unauthorised tier writes) checking invariants after every step.
 * Exhaustive state machine: all 256 transition pairs, 400 evidence-closure and 768 authorised-closure
   combinations, system-actor closure for every state.
-* Full-cohort: 20,000 realistic synthetic people, 50 invariants, 0 violations, 0 lost actionable results; alert
+* Full-cohort: 20,000 realistic synthetic people, 51 invariants, 0 violations, 0 lost actionable results; alert
   precision 100 % and recall 100 % against an independent breach labelling (`docs/alert_precision.md`).
 * Fault injection: 42 deliberate faults in rules, state machine, workflow, messaging, ingest, concurrency, time and identity handling; see
   (`docs/fault_injection_results.md` for the kill count). Mutation testing with mutmut on `clinical_rules.py` and `statemachine.py`: see ITERATIONS.md (Iteration 7).
