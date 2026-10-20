@@ -264,12 +264,14 @@ def _cervical(r: ResultInput) -> Decision:
             return _act("routine", "surveillance_1y", "Repeat HPV test in 12 months (surveillance plan required)",
                         "CX-HPVOTHER-NILM", target="Surveillance plan documented; recall at 12 months")
         if cyto == "UNSAT":
-            return _act("routine", "repeat_sample", "Repeat cervical sample", "CX-UNSAT", target="Repeat in 2-4 months (ASCCP)")
+            return _act("routine", "repeat_sample", "Repeat cervical sample", "CX-UNSAT",
+                        target="Repeat as soon as convenient, no later than 4 months (ASCCP 2023)")
     if hpv == "invalid" and cyto in ("ASC-US", "LSIL"):
         return _rev("malformed_value", "CX-HPVINV-LG", tier="high",
                     step="Clinician review: low-grade cytology with an invalid HPV test (repeat HPV vs colposcopy)")
     if hpv == "invalid" or (hpv is None and cyto == "UNSAT"):
-        return _act("routine", "repeat_sample", "Repeat cervical sample", "CX-UNSAT", target="Repeat in 2-4 months (ASCCP)")
+        return _act("routine", "repeat_sample", "Repeat cervical sample", "CX-UNSAT",
+                    target="Repeat as soon as convenient, no later than 4 months (ASCCP 2023)")
     if hpv == "neg":
         if cyto in (None, "NILM"):
             return _neg("CX-NEG", "Return to 5-yearly HPV screening (DoH)")
@@ -471,6 +473,35 @@ def evaluate(r: ResultInput, ctx: PatientContext | None = None) -> Decision:
     return Decision("review", max_tier(d.tier, floor), "human_review" if d.disposition == "negative" else d.pathway,
                     d.next_step if d.disposition != "negative" else "Clinician review of the result and patient context",
                     d.needs_confirmation, d.target, d.rule_id, d.reasons + reasons, d.clinical_tier, d.normalised)
+
+
+# End-to-end pathway targets in CALENDAR days from the result (docs/clinical_rules.md). Measured from the
+# result rather than from the referral, i.e. stricter than the source where the source counts from referral.
+PATHWAY_TARGET_DAYS = {
+    "colonoscopy": 31,          # DoH CRC spec: colonoscopy within 31 days of referral
+    "assessment_imaging": 7,    # DoH breast 2025: assessment within 5 working days
+    "biopsy": 7,                # DoH breast 2025: assessment within 5 working days
+    "colposcopy_urgent": 14,    # NHS: high-grade within 2 weeks
+    "colposcopy": 42,           # NHS: low-grade within 6 weeks
+    "reflex_cytology": 14, "reflex_hpv": 14,  # CONFIRM
+    "surveillance_1y": 28,      # CONFIRM: plan documented
+    "repeat_sample": 120,       # ASCCP 2023: as soon as convenient, no later than 4 months
+    "repeat_fit": 28,           # CONFIRM
+    "same_day_review": 1,       # CONFIRM (local rule)
+    "confirm_then_gp": 28,      # CONFIRM
+    "prediabetes_gp": 90,       # CONFIRM
+}
+RULE_TARGET_DAYS = {"CRC-FIT-URGENT": 14, "DM-A1C-HIGH": 14, "DM-FPG-HIGH": 14}  # CONFIRM (local rules)
+TIER_TARGET_DAYS = {"critical": 1, "urgent": 14, "high": 31, "routine": 90}     # CONFIRM (fallback)
+
+
+def target_days(pathway: str | None, rule_id: str | None, tier: str, clinical_tier: str | None) -> int:
+    """Pathway target; the tier default applies when there is no pathway target or the case was escalated
+    above its clinical tier (review floors, more urgent results). Always the MORE urgent of the candidates."""
+    days = RULE_TARGET_DAYS.get(rule_id or "") or PATHWAY_TARGET_DAYS.get(pathway or "")
+    if days is None or clinical_tier is None or TIER_RANK[tier] < TIER_RANK[clinical_tier]:
+        days = min(days or 10**6, TIER_TARGET_DAYS[tier])
+    return days
 
 
 def review_min_tier(reasons: list[str]) -> str | None:

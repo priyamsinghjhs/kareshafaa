@@ -40,7 +40,8 @@ def case_summary(db: Session, c: Case) -> dict:
             "patient": {"id": p.id, "name": f"{p.given_name} {p.family_name}", "mrn": p.mrn, "language": p.language},
             "closed_at": iso(c.closed_at), "closure_type": c.closure_type, "closure_reason": c.closure_reason,
             "review_required": bool(c.review_required), "review_reasons": c.review_reasons or [],
-            "rule_id": c.rule_id, "pathway": c.pathway, "target": c.target_text}
+            "rule_id": c.rule_id, "pathway": c.pathway, "target": c.target_text,
+            "target_due_at": iso(c.target_due_at)}
 
 
 def journey(db: Session, c: Case) -> list[dict]:

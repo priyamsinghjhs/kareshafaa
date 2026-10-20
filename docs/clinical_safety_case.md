@@ -1,0 +1,80 @@
+# Wasl clinical safety case and hazard log (prototype)
+
+> **This is an alignment exercise, not a certification.** It follows the *structure* of NHS DCB0129
+> (manufacturer clinical risk management) and DCB0160 (deployment), and the risk-management process of
+> ISO 14971 (hazard identification → risk estimation → controls → verification → residual risk). Wasl has
+> **not** been assessed against these standards, has **no** Clinical Safety Officer sign-off, and has only been
+> tested on **synthetic** data. **Real deployment requires** (1) a named Clinical Safety Officer and clinical-lead
+> sign-off of every rule in `docs/clinical_rules.md`, especially the items marked CONFIRM; (2) clinical
+> validation on real, de-identified historical results (concordance of every rule against clinician
+> decisions, unit/assay mapping per lab); (3) a deployment-side (DCB0160-style) assessment by the provider,
+> including integration testing with the real LIS/RIS and identity services; (4) post-deployment monitoring.
+
+## 1. Scope and intended use
+
+Wasl tracks abnormal results from four Abu Dhabi screening programmes (FIT, HPV/cytology, mammography,
+HbA1c/FPG) until the person reaches diagnostic care, treatment or a documented, authorised closure. It
+**does not diagnose**. Urgency tiers come from deterministic rules (`wasl/clinical_rules.py`) or a clinician;
+the ML score only orders outreach within a tier. Users: programme coordinators, navigators, GPs, specialists,
+clinical leads, directors, analysts, patients (portal).
+
+## 2. Risk matrix (ISO 14971 style, prototype scales)
+
+* **Severity:** 1 minor (inconvenience) · 2 significant (delay without harm likely) · 3 serious (delayed
+  diagnosis, possible harm) · 4 major (delayed cancer diagnosis / missed critical hyperglycaemia) ·
+  5 catastrophic (death attributable).
+* **Likelihood (per 10,000 results, before controls):** 1 very low (< 0.1) · 2 low (0.1–1) · 3 medium (1–10)
+  · 4 high (10–100) · 5 very high (> 100).
+* **Risk = severity × likelihood:** ≤ 4 acceptable · 5–9 tolerable with controls (ALARP) · ≥ 10 unacceptable.
+* Likelihoods below are engineering estimates for a prototype on synthetic data, not measured rates.
+
+## 3. Hazard log
+
+| ID | Hazard | Cause | Effect | Sev | Lik (pre) | Controls | Verification (tests) | Lik (post) | Residual risk |
+|---|---|---|---|---|---|---|---|---|---|
+| H-01 | Actionable result silently dropped | malformed/missing value, unknown unit, unknown test code, parser rejection | no follow-up of a positive screen | 4 | 3 | fail-safe review decision for any uninterpretable input; unknown LOINC kept in ingest review queue (ACK AE); missing MSH-10 → content-hash ID; validator re-applies rules to every stored result | `test_failsafe.py::test_bad_data_goes_to_review`, `::test_hl7_unknown_code_is_kept_for_review`, `::test_hl7_missing_control_id_is_not_dropped`; golden CRC-09..18, DM-15/16/32–35, BR-09/10/12, CX-19..22; `test_properties.py::test_rules_total_and_fail_safe`; validator `report.rules_reapplied_no_lost_actionable` = 0 on 20k | 1 | 4 acceptable; depends on the lab sending every result (outside Wasl) |
+| H-02 | Wrong threshold / unit interpretation | HbA1c mmol/mol read as %, FIT ng/mL vs µg/g, mis-set constant | under- or over-triage | 4 | 3 | native-unit thresholds; missing unit → most urgent plausible interpretation; ng/mL → review; boundary tests at/below/above; fault injection | golden (130 rows incl. every boundary), `test_hba1c_units_agree_on_category` (171 points), `test_hba1c_conversion_ngsp_ifcc`, `test_fit_monotone`, `test_diabetes_monotone_above_low_range`, `scripts/fault_injection.py` F01–F12 killed | 1 | 4; thresholds still need clinical-lead sign-off (CONFIRM items) |
+| H-03 | Case auto-downgraded | later negative/amended result, ML, bulk update | delayed care | 4 | 3 | `max_tier` only escalates; ORM interlock `TierDowngradeError`; clinician-only `resolve_review` with rationale and audited `downgrade` flag; ML writes only `risk_score` | `test_tier_downgrade_interlock`, `test_conflicting_negative_flags_and_never_lowers`, `test_amended_lower_value_does_not_downgrade`, `test_clinician_downgrade_is_explicit_and_audited`, property sequences, validator `tier.never_lowered_without_audited_clinician_decision`; F22, F29 killed | 1 | 4; bulk SQL updates bypass the ORM interlock - mitigated by static test `test_ml_code_never_writes_tier` and the validator |
+| H-04 | ML changes clinical priority | model outputs used as triage | wrong order of urgency | 3 | 3 | queue sort = SLA status → tier → review flag → ML → due; ML gated, approval, rollback (Iteration 2) | `test_queue_ml_orders_only_within_tier`, `test_ml_scoring_never_changes_tiers`, `test_ml_code_never_writes_tier` | 1 | 3 |
+| H-05 | Duplicate / conflicting results create parallel or stale pathways | lab re-sends, amended report, new screen while open | confusion, missed escalation | 3 | 4 | one open case per patient+programme; linked result flags review (duplicate / conflicting / more urgent); tier and clock only tightened | `test_duplicate_never_creates_second_case`, `test_more_urgent_result_escalates_and_retimes_clock`, `test_escalation_tightens_target`; validator `case.at_most_one_open_case_per_patient_programme`; F30 killed | 1 | 3 |
+| H-06 | Result arrives after the case closed | late report, re-screen | result ignored as "already handled" | 4 | 2 | new case with `result_after_closure` (high floor) within 180 days | `test_result_after_closure_opens_review_case` | 1 | 4; 180-day window CONFIRM |
+| H-07 | Failed patient match | identifier/birth-year mismatch | result attached to wrong person or lost | 5 | 3 | deterministic match only; mismatches → human match-review queue; never auto-merge | `test_failed_patient_match_goes_to_match_review`, `test_ingest.py::test_unmatched_goes_to_human_review` | 1 | 5 tolerable; real deployment needs EMPI integration testing |
+| H-08 | Ineligible or exceptional patient handled automatically | male cervical/breast record, out-of-age, pregnancy, deceased, under specialist care, haemoglobin variant | wrong pathway, distressing contact, duplicate care | 3 | 4 | context reasons → review at safe floor; deceased → messaging blocked, review cannot resume pathway, authorised closure only | `test_context_goes_to_review` (11 cases), `test_out_of_age_negative_is_not_silently_filed`, `test_deceased_patient_never_messaged_and_needs_authorised_closure`; golden CRC-19..27, CX-23..29, BR-13..16, DM-36..39; F18–F20, F33 killed | 1 | 3; flags depend on upstream data quality |
+| H-09 | Patient contacted before clinical review | system auto-notifies a review case | wrong/alarming message | 3 | 3 | review gate: no system triage, no messaging, no evidence closure until reviewed | `test_review_case_cannot_progress_or_message_or_close_with_evidence`; validator `safety.no_patient_contact_before_clinician_review`; F31, F32 killed | 1 | 3 |
+| H-10 | Case closed without care | "negative" repeat closes cervical/diabetes; system closure; closure without rationale | lost surveillance / follow-up | 4 | 3 | closure guard (evidence that exists for this case or authorised decision with reason and note); human only; surveillance plan required after negative repeat for cervical/diabetes | `test_statemachine_exhaustive.py` (evidence and authorised closure matrices, 1,500+ combinations), `test_negative_confirmatory_needs_surveillance_plan`; validator closure invariants; F26–F28 killed | 1 | 4 |
+| H-11 | Workflow step skipped or illegal transition | coding error, API misuse | step omitted (e.g. triage) | 3 | 2 | explicit transition table + permission per target state | `test_statemachine_exhaustive.py::test_transition_pair` (all 256 pairs); F25 killed | 1 | 3 |
+| H-12 | Guideline timeframe missed while every step is "in SLA" | per-step SLAs add up to more than the guideline target | e.g. colonoscopy later than 31 days | 4 | 4 | end-to-end pathway target (`Case.target_due_at`); every step clock capped at it; tightened on escalation | `test_pathway_target_caps_step_clocks` (9 pathways), `test_escalation_tightens_target`; validator `sla.step_clock_within_pathway_target` | 2 | 8 tolerable: capacity, not software, may still miss targets; escalation makes it visible |
+| H-13 | Case without accountable owner | owner leaves, no clinical lead configured | nobody acts | 4 | 3 | NOT NULL owner; inactive owners auto-pooled by the sweep; missing lead → team pool; patient questions routed to an active clinician | `test_every_open_case_has_an_owner_even_without_a_clinical_lead`, `test_patient_question_reaches_a_clinician_when_gp_has_left`; validator `case.open_has_owner` | 1 | 4 |
+| H-14 | SLA clock runs backwards / never escalates | timezone or data errors | overdue case looks fine | 3 | 2 | due never before start; re-timing only earlier; working-day calendar tests | validator `sla.due_not_before_start`; property sequences; `test_sla_escalation.py` | 1 | 3 |
+| H-15 | Audit trail tampered or broken | concurrent writers, edits | loss of accountability | 3 | 3 | hash chain with writer lock (Iteration 4) | `test_security_audit.py` concurrency tests; validator `audit.hash_chain_valid` on 20k | 1 | 3 |
+| H-16 | Wrong patient-facing explanation | text keyed by programme, not result | e.g. "HPV 16/18" text for other HPV; "found blood" for a spoilt kit | 3 | 4 | pathway-specific wording (repeat kit, repeat sample, prediabetes, HPV surveillance, high-grade cytology); untranslated pathway text → English + interpreter call | `test_analytics_fhir_comms.py` wording tests; manual review | 2 | 6 tolerable; translations of new texts pending native-speaker review |
+| H-17 | Synthetic data unrepresentative → false confidence | mis-specified distributions | tests pass on unrealistic data | 3 | 4 | calibrated tables with sources; tables must sum to 1; calibration tests | `test_synthetic_data.py` (found the HbA1c band bug) | 3 | 9 tolerable - **real-data validation required** |
+| H-18 | Rules wrong for local practice | guideline differences (UK/US vs DoH) | systematic under/over-referral | 4 | 3 | CONFIRM list; safer defaults; rule IDs shown on every case | clinical-lead review (not done) | 3 | **12 unacceptable until signed off** |
+| H-19 | Alert fatigue from safer defaults | prediabetes cases, review floors | real urgent cases lost in volume | 3 | 3 | tiers + review flag ordering; separate review queue; analytics | load test; queue views | 3 | 9 tolerable - workload decision for the programme |
+| H-20 | Age at eligibility boundary misjudged | only birth year stored | review flag missing or spurious within ±1 year | 2 | 3 | result is actioned regardless; boundary flag only routes to review | golden CRC-19..22, CX-24..27, BR-13/14 | 3 | 6 tolerable; real deployment should use date of birth |
+
+## 4. Verification summary (Iteration 6)
+
+* Golden clinical cases: 130 hand-written rows (+ 22 end-to-end through the database, 6 conversion points,
+  171 unit-agreement points).
+* Fail-safe tests: `tests/test_failsafe.py`.
+* Property-based tests (Hypothesis): 3,000 random results × contexts; 1,500 monotonicity pairs per
+  programme; 150 random event sequences (ingest, duplicate, transition, closure, review, sweep, ML scoring,
+  time travel, unauthorised tier writes) checking invariants after every step.
+* Exhaustive state machine: all 256 transition pairs, 400 evidence-closure and 768 authorised-closure
+  combinations, system-actor closure for every state.
+* Full-cohort: 20,000 realistic synthetic people, 44 invariants, 0 violations, 0 lost actionable results.
+* Fault injection: 33 deliberate faults in rules, state machine, workflow and messaging; all 33 detected
+  (`docs/fault_injection_results.md`). Mutation testing with mutmut on `clinical_rules.py`: see ITERATIONS.md.
+
+## 5. Residual risks requiring action before any real use
+
+1. **Clinical sign-off** of all rules and CONFIRM items (H-18) - currently unacceptable.
+2. **Clinical validation on real data**: rule concordance with clinician decisions, lab-specific units and
+   assays, FIT device threshold, BI-RADS report text variants, HL7/FHIR message variants (H-01, H-02, H-17).
+3. **Identity**: EMPI/Emirates ID matching and date of birth instead of birth year (H-07, H-20).
+4. **Capacity**: guideline targets can still be missed for capacity reasons; Wasl only makes this visible (H-12).
+5. **Workload** of safer defaults (prediabetes cases, review floors) must be agreed (H-19).
+6. **Translations** of new patient texts (H-16).
+7. Bulk database updates outside the application bypass the ORM tier interlock (H-03) - production should add
+   a database trigger or row-level constraint.

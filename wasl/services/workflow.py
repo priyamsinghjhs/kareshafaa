@@ -31,6 +31,7 @@ from ..models import (
     StepTask,
     utcnow,
 )
+from ..clinical_rules import TIER_TARGET_DAYS, target_days
 from ..clinical_rules import TIER_RANK, PatientContext, ResultInput, evaluate, is_downgrade, max_tier, review_min_tier
 from ..programmes import CLINICIAN_CONFIRMED_TIERS, PROGRAMMES
 from ..security import SYSTEM, Actor
@@ -163,11 +164,14 @@ def flag_review(db: Session, case: Case, reasons: list[str], actor: Actor, now: 
         case.tier = target
         audit.record(db, actor, "U", "case.tier_escalated", entity_type="Task", entity_id=case.id, case_id=case.id,
                      ts=now, detail={"from": old, "to": target, "reasons": reasons})
+        tgt = case.created_at + timedelta(days=TIER_TARGET_DAYS[target])
+        if case.target_due_at is None or tgt < case.target_due_at:
+            case.target_due_at = tgt  # end-to-end target tightened for the more urgent tier, never relaxed
         step = current_step(db, case)
         if step is not None:  # re-time the running clock for the more urgent tier (never later than before)
             hours = SlaLookup.load(db).hours(S(case.state), target)
             if hours is not None:
-                due = due_at(step.started_at, hours, target)
+                due = _capped_due(case, due_at(step.started_at, hours, target), step.started_at)
                 if step.due_at is None or due < step.due_at:
                     step.due_at = case.due_at = due
                     step.sla_hours = hours
@@ -235,7 +239,8 @@ def ingest_result(db: Session, patient: Patient, programme: str, *, value: float
     case = Case(patient_id=patient.id, report_id=rep.id, programme=programme, tier=tier, state=S.ISSUED,
                 owner_id=owner.id, managing_org_id=patient.managing_org_id, needs_confirmation=dec.needs_confirmation,
                 created_at=now, state_entered_at=now, rule_id=dec.rule_id, pathway=dec.pathway,
-                target_text=(dec.target or "")[:200] or None, review_required=review, review_reasons=reasons or None)
+                target_text=(dec.target or "")[:200] or None, review_required=review, review_reasons=reasons or None,
+                target_due_at=now + timedelta(days=target_days(dec.pathway, dec.rule_id, tier, dec.clinical_tier)))
     case.patient = patient
     db.add(case)
     db.flush()
@@ -277,11 +282,20 @@ def resolve_review(db: Session, case: Case, actor: Actor, *, note: str, tier: st
     return case
 
 
+def _capped_due(case: Case, due: datetime | None, start: datetime) -> datetime | None:
+    """No step clock may run past the end-to-end pathway target (never earlier than the step start)."""
+    if case.target_due_at is None or case.state == S.CLOSED or getattr(case, "care_reached_at", None) is not None:
+        return due
+    cap = max(case.target_due_at, start)
+    return cap if due is None or due > cap else due
+
+
 def _open_step(db: Session, case: Case, state: S, owner_id: int, actor: Actor, now: datetime, note: str | None = None) -> StepTask:
     sla = SlaLookup.load(db)
     hours = sla.hours(state, case.tier) if state != S.CLOSED else None
     step = StepTask(case_id=case.id, state=state, owner_id=owner_id, status="in-progress", started_at=now,
-                    due_at=due_at(now, hours, case.tier), sla_hours=hours, actor_user_id=actor.user_id, note=note)
+                    due_at=_capped_due(case, due_at(now, hours, case.tier), now), sla_hours=hours,
+                    actor_user_id=actor.user_id, note=note)
     db.add(step)
     case.state = state
     case.state_entered_at = now

@@ -359,3 +359,30 @@ def test_every_open_case_has_an_owner_even_without_a_clinical_lead(sdb):
     finally:
         for x in leads:
             x.active = True
+
+
+# H-09 guideline timeframes: no step clock may run past the pathway target ---------------------------------
+@pytest.mark.parametrize("prog,value,text,unit,days", [
+    ("colorectal_fit", 250, None, "ug/g", 31), ("colorectal_fit", 500, None, "ug/g", 14),
+    ("breast", None, "BI-RADS 0", None, 7), ("breast", None, "BI-RADS 4", None, 7),
+    ("cervical", None, "HPV16", None, 42), ("cervical", None, "HPV other hr|HSIL", None, 14),
+    ("diabetes_hba1c", 16.0, None, "%", 1), ("diabetes_hba1c", 6.0, None, "%", 90),
+    ("colorectal_fit", 250, None, None, 14),  # review case (missing unit -> urgent): tier default
+])
+def test_pathway_target_caps_step_clocks(sdb, prog, value, text, unit, days):
+    from wasl.services.workflow import _capped_due
+
+    now = utcnow()
+    _, c = _ingest(sdb, _patient(sdb), prog, value, text, unit, now=now)
+    assert abs((c.target_due_at - now).total_seconds() - days * 86400) < 5, (c.target_due_at - now)
+    assert c.due_at <= c.target_due_at
+    far = now + timedelta(days=400)  # any later step SLA is capped at the target
+    assert _capped_due(c, far, now + timedelta(days=2)) <= max(c.target_due_at, now + timedelta(days=2))
+
+
+def test_escalation_tightens_target(sdb):
+    p = _patient(sdb)
+    _, c = _ingest(sdb, p, value=100)  # high, 31 days
+    t1 = c.target_due_at
+    _ingest(sdb, p, value=900)         # more urgent -> urgent, 14 days from creation
+    assert c.target_due_at < t1

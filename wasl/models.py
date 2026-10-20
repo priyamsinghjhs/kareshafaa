@@ -164,6 +164,7 @@ class Case(Base):  # FHIR Task (code=loop-case); focus = DiagnosticReport
     rule_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
     pathway: Mapped[str | None] = mapped_column(String(40), nullable=True)
     target_text: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    target_due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # end-to-end pathway target
     review_required: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     review_reasons: Mapped[list | None] = mapped_column(JSON, nullable=True)
     risk_score: Mapped[float | None] = mapped_column(Float, nullable=True)
