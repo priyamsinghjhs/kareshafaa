@@ -37,7 +37,21 @@ ANON = Actor(user_id=None, role="anonymous", display="anonymous", is_human=True)
 METHOD_ACTION = {"GET": "R", "HEAD": "R", "POST": "E", "PUT": "U", "PATCH": "U", "DELETE": "D"}
 
 
+_LAST_SWEEP_AT = None  # process-local wall-clock guard
+
+
 def _sweep_once() -> dict:
+    global _LAST_SWEEP_AT
+    from datetime import timedelta
+
+    from .models import utcnow
+
+    now = utcnow()
+    if _LAST_SWEEP_AT is not None and now < _LAST_SWEEP_AT - timedelta(minutes=1):
+        # the server clock went backwards (NTP step, VM restore): never escalate or stamp events on a rewound clock
+        log.error("SLA sweep skipped: system clock moved backwards from %s to %s", _LAST_SWEEP_AT, now)
+        return {"skipped": "clock_moved_backwards"}
+    _LAST_SWEEP_AT = max(now, _LAST_SWEEP_AT or now)
     # a person acting on a case while the sweep runs makes the sweep's UPDATE stale (row_version): re-run the
     # whole sweep on fresh data rather than skip escalations until the next interval
     for attempt in range(3):

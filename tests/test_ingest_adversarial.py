@@ -261,3 +261,21 @@ def test_fuzz_fhir_only_raises_invalid(junk):
         parse_fhir_bundle(b)
     except Invalid:
         pass
+
+
+def test_bom_and_mllp_framing_tolerated():
+    base = msg("M", FIT.format(v="300"))
+    for raw in ("\ufeff" + base, "\x0b" + base + "\x1c\r", "\n\n" + base + "\n"):
+        r = parse_hl7v2(raw)
+        assert r.value == 300 and r.patient_identifier == "M"
+
+
+def test_sweep_skips_when_clock_moves_backwards(monkeypatch):
+    from datetime import datetime
+
+    import wasl.main as m
+
+    calls = []
+    monkeypatch.setattr(m, "run_sweep", lambda db: calls.append(1) or {"ok": 1})
+    monkeypatch.setattr(m, "_LAST_SWEEP_AT", datetime(2030, 1, 1))
+    assert m._sweep_once() == {"skipped": "clock_moved_backwards"} and not calls

@@ -141,7 +141,8 @@ _COMPARATORS = ("<", ">", "<=", ">=", "<>")
 
 
 def parse_hl7v2(raw: str) -> ParsedResult:
-    text = raw.replace("\r\n", "\r").replace("\n", "\r").strip()
+    # tolerate a UTF-8 byte-order mark and MLLP framing (VT ... FS CR) pasted from an interface engine
+    text = raw.lstrip("\ufeff").strip().strip("\x0b\x1c").replace("\r\n", "\r").replace("\n", "\r").strip()
     if not text.startswith("MSH") or len(text) < 8:
         raise Invalid("not an HL7 v2 message (missing MSH)")
     # delimiters are declared by the message itself (MSH-1 and MSH-2); never assume '|' and '^'
