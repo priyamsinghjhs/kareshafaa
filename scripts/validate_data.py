@@ -234,6 +234,13 @@ def run(max_examples: int = 5) -> dict:
         for k, ids in open_by_pp.items():
             if len(ids) > 1:
                 bad("case.at_most_one_open_case_per_patient_programme", (k, ids))
+        from collections import Counter as _C
+
+        from wasl.models import Escalation as _E
+        pw = _C((e.case_id, e.level) for e in db.query(_E).filter(_E.kind == "pathway"))
+        for k, n in pw.items():
+            if n > 1:
+                bad("alert.one_pathway_alert_per_case_per_level", (k, n))
         checked["audit_events"] = 0
         chain = audit.verify_chain(db)
         checked["audit_events"] = chain.get("checked", 0)
@@ -261,7 +268,7 @@ INVARIANTS = [
     "dates.careplan_after_case", "dates.care_reached_after_case", "audit.case_created_event",
     "tier.never_lowered_without_audited_clinician_decision", "safety.no_patient_contact_before_clinician_review",
     "safety.deceased_never_contacted", "safety.pregnancy_flagged_for_review", "safety.review_case_has_owner",
-    "case.at_most_one_open_case_per_patient_programme", "audit.hash_chain_valid",
+    "case.at_most_one_open_case_per_patient_programme", "alert.one_pathway_alert_per_case_per_level", "audit.hash_chain_valid",
 ]
 
 

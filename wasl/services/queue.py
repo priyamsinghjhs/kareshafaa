@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime
 
-from sqlalchemy import or_, select
+from sqlalchemy import case as sa_case, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from ..models import (Appointment, CallTask, Case, ConsultRequest, Escalation, Patient, Practitioner, ServiceRequest,
@@ -59,7 +59,7 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
     now = now or utcnow()
     sla = SlaLookup.load(db)
     owner = aliased(Practitioner)
-    q = (select(Case.id, Case.programme, Case.tier, Case.state, Case.owner_id, Case.due_at, Case.escalation_level,
+    q = (select(Case.id, Case.programme, Case.tier, Case.state, Case.owner_id, Case.due_at, sa_case((Case.target_alert_level > Case.escalation_level, Case.target_alert_level), else_=Case.escalation_level),
                 Case.risk_score, Case.risk_model_version, Case.transfer_pending_owner_id, Case.review_required,
                 Case.review_reasons,
                 Patient.given_name, Patient.family_name, Patient.mrn, Patient.language,

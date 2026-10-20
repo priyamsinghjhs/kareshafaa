@@ -18,7 +18,8 @@ from .. import audit
 from ..config import get_settings
 from ..models import Case, Communication, Escalation, OwnershipEvent, Practitioner, StepTask, utcnow
 from ..security import SYSTEM, Actor
-from ..sla import SlaLookup, rag_status
+from ..alert_policy import AlertDecision, Ladder, decide
+from ..sla import SlaLookup
 from ..statemachine import S
 from .workflow import add_lesson, programme_clinical_lead, programme_director, programme_pool
 
@@ -45,30 +46,32 @@ def _supervisor(db: Session, owner: Practitioner) -> Practitioner:
     return sup or owner
 
 
-def required_level(case: Case, step: StepTask, now: datetime, sla: SlaLookup) -> tuple[int, str, float]:
+def _decision(case: Case, step: StepTask, now: datetime, sla: SlaLookup) -> AlertDecision:
     cfg = get_settings()
-    rag, frac = rag_status(step.started_at, step.due_at, now, sla.reminder_fraction(step.state, case.tier))
-    if rag == "none":
-        return 0, rag, frac
-    level = 0
-    if rag in ("amber", "red"):
-        level = 1
-    if frac >= 1:
-        level = 3 if case.tier == "critical" else 2
-    if frac >= 1 + cfg.clinical_lead_after_breach_fraction:
-        level = 3
-    if frac >= cfg.director_after_fraction and case.tier in ("critical", "urgent"):
-        level = 4
-    return level, rag, frac
+    lad = Ladder(sla.reminder_fraction(step.state, case.tier), cfg.clinical_lead_after_breach_fraction,
+                 cfg.director_after_fraction)
+    return decide(tier=case.tier, step_started=step.started_at, step_due=step.due_at, case_created=case.created_at,
+                  target_due=case.target_due_at, care_reached=case.care_reached_at, now=now,
+                  step_level_alerted=case.escalation_level or 0, target_level_alerted=case.target_alert_level or 0,
+                  lad=lad)
+
+
+def required_level(case: Case, step: StepTask, now: datetime, sla: SlaLookup) -> tuple[int, str, float]:
+    d = _decision(case, step, now, sla)
+    rag = "none" if d.clock == "none" else ("red" if d.breached else ("amber" if d.level >= 1 else "green"))
+    return d.level, rag, d.frac
 
 
 def run_sweep(db: Session, now: datetime | None = None, actor: Actor = SYSTEM, case_ids: list[int] | None = None) -> dict:
+    """Raise escalations per wasl/alert_policy.py: step-clock alerts deduplicated per step; once the pathway
+    target is missed, ONE consolidated alert per case per level (attributed to the upstream breach)."""
     now = now or utcnow()
     sla = SlaLookup.load(db)
     q = select(Case).where(Case.state != S.CLOSED)
     if case_ids:
         q = q.where(Case.id.in_(case_ids))
-    out = {"checked": 0, "reminders": 0, "supervisor": 0, "clinical_lead": 0, "director": 0, "auto_pooled": 0, "breaches": 0}
+    out = {"checked": 0, "reminders": 0, "supervisor": 0, "clinical_lead": 0, "director": 0, "auto_pooled": 0,
+           "breaches": 0, "target_breach_alerts": 0}
     cases = db.scalars(q).all()
     # bulk-load (no per-case queries): in-progress steps for the open cases and the small practitioner table
     sq = select(StepTask).where(StepTask.status == "in-progress")
@@ -83,8 +86,8 @@ def run_sweep(db: Session, now: datetime | None = None, actor: Actor = SYSTEM, c
             continue
         owner = pracs.get(case.owner_id)
         if owner is not None and owner.active:
-            level, _rag, _frac = required_level(case, step, now, sla)
-            if level <= case.escalation_level and (level < 2 or step.breached):
+            d = _decision(case, step, now, sla)
+            if not d.new_levels and (not d.breached or step.breached):
                 continue  # fast path: nothing new for this case
         if owner is None or not owner.active:
             pool = programme_pool(db, case.programme)
@@ -96,13 +99,16 @@ def run_sweep(db: Session, now: datetime | None = None, actor: Actor = SYSTEM, c
             step.owner_id = pool.id
             owner = pool
             out["auto_pooled"] += 1
-        level, rag, frac = required_level(case, step, now, sla)
-        if level >= 2 and not step.breached:
+        d = _decision(case, step, now, sla)
+        if d.breached and not step.breached:
             step.breached = True
             out["breaches"] += 1
-            add_lesson(db, case, "overdue", BREACH_REASON.get(step.state, "sla_breach"), actor,
-                       detail=f"SLA breached in {step.state} ({frac:.0%} of {step.sla_hours}h)", now=now)
-        for lvl in range(case.escalation_level + 1, level + 1):
+            if not step.inherited_breach:  # an inherited breach was already recorded once for the case
+                reason = "pathway_target_missed" if d.clock == "pathway" else BREACH_REASON.get(step.state, "sla_breach")
+                add_lesson(db, case, "overdue", reason, actor, now=now,
+                           detail=f"{'pathway target' if d.clock == 'pathway' else 'SLA'} breached in {step.state} "
+                                  f"({d.frac:.0%})")
+        for lvl in d.new_levels:
             if lvl == 1:
                 target = owner
             elif lvl == 2:
@@ -111,22 +117,28 @@ def run_sweep(db: Session, now: datetime | None = None, actor: Actor = SYSTEM, c
                 target = programme_clinical_lead(db, case.programme)
             if lvl == 4:
                 target = programme_director(db)
+            what = ("pathway target missed (consolidated case alert)" if d.clock == "pathway"
+                    else f"{step.state} at {d.frac:.0%} of SLA")
             esc = Escalation(case_id=case.id, step_task_id=step.id, level=lvl, target_practitioner_id=target.id,
-                             created_at=now, note=f"{LEVEL_NAMES[lvl]}: {step.state} at {frac:.0%} of SLA")
+                             created_at=now, kind=d.clock, note=f"{LEVEL_NAMES[lvl]}: {what}")
             db.add(esc)
             db.add(Communication(case_id=case.id, recipient_practitioner_id=target.id, category="escalation",
                                  channel="internal", content=f"[SIMULATED internal alert] {esc.note} - case #{case.id}",
                                  status="completed", simulated=True, sent_at=now))
             db.flush()
             audit.record(db, actor, "C", f"escalation.level{lvl}", entity_type="Escalation", entity_id=esc.id,
-                         case_id=case.id, ts=now, detail={"target": target.id, "state": step.state,
-                                                          "fraction": round(frac, 3)})
+                         case_id=case.id, ts=now, detail={"target": target.id, "state": step.state, "clock": d.clock,
+                                                          "fraction": round(d.frac, 3)})
             out[{1: "reminders", 2: "supervisor", 3: "clinical_lead", 4: "director"}[lvl]] += 1
+            out["target_breach_alerts"] += int(d.clock == "pathway")
             if lvl == 1 and S(case.state) in PATIENT_FACING and not case.patient.deceased:
                 from ..comms.service import send_with_ladder
 
                 send_with_ladder(db, case, "reminder", actor, now=now, max_channels=3)
-        case.escalation_level = max(case.escalation_level, level)
+        if d.clock == "pathway":
+            case.target_alert_level = max(case.target_alert_level or 0, d.level)
+        else:
+            case.escalation_level = max(case.escalation_level or 0, d.level)
     db.flush()
     audit.record(db, actor, "E", "sla.sweep", ts=now, detail=out)
     return out

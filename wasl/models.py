@@ -148,7 +148,8 @@ class Case(Base):  # FHIR Task (code=loop-case); focus = DiagnosticReport
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     state_entered_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    escalation_level: Mapped[int] = mapped_column(Integer, default=0)
+    escalation_level: Mapped[int] = mapped_column(Integer, default=0)       # step-clock alerts (reset per step)
+    target_alert_level: Mapped[int] = mapped_column(Integer, default=0)     # pathway-target alerts (once per case)
     care_reached_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     closure_type: Mapped[str | None] = mapped_column(String(30), nullable=True)  # evidence | authorised_decision
@@ -188,6 +189,7 @@ class StepTask(Base):  # FHIR Task (partOf = case), one per lifecycle step, carr
     due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     sla_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
     breached: Mapped[bool] = mapped_column(Boolean, default=False)
+    inherited_breach: Mapped[bool] = mapped_column(Boolean, default=False)  # opened after the pathway target was missed
     actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     case: Mapped[Case] = relationship(back_populates="steps")
@@ -322,7 +324,8 @@ class Escalation(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
     step_task_id: Mapped[int] = mapped_column(ForeignKey("step_tasks.id"))
-    level: Mapped[int] = mapped_column(Integer)  # 1 reminder | 2 supervisor | 3 clinical lead
+    level: Mapped[int] = mapped_column(Integer)  # 1 reminder | 2 supervisor | 3 clinical lead | 4 director
+    kind: Mapped[str] = mapped_column(String(10), default="step")  # step | pathway (consolidated target breach)
     target_practitioner_id: Mapped[int] = mapped_column(ForeignKey("practitioners.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

@@ -293,9 +293,12 @@ def _capped_due(case: Case, due: datetime | None, start: datetime) -> datetime |
 def _open_step(db: Session, case: Case, state: S, owner_id: int, actor: Actor, now: datetime, note: str | None = None) -> StepTask:
     sla = SlaLookup.load(db)
     hours = sla.hours(state, case.tier) if state != S.CLOSED else None
+    from ..alert_policy import opened_already_breached
+
+    inherited = state != S.CLOSED and opened_already_breached(case.target_due_at, case.care_reached_at, now)
     step = StepTask(case_id=case.id, state=state, owner_id=owner_id, status="in-progress", started_at=now,
                     due_at=_capped_due(case, due_at(now, hours, case.tier), now), sla_hours=hours,
-                    actor_user_id=actor.user_id, note=note)
+                    actor_user_id=actor.user_id, note=note, inherited_breach=inherited, breached=inherited)
     db.add(step)
     case.state = state
     case.state_entered_at = now
@@ -311,7 +314,7 @@ def _close_step(db: Session, case: Case, now: datetime) -> None:
     if step:
         step.status = "completed"
         step.ended_at = now
-        if step.due_at and now > step.due_at and not step.breached:
+        if step.due_at and now > step.due_at and not step.breached and not step.inherited_breach:
             step.breached = True
             from .escalation import BREACH_REASON
 
