@@ -170,6 +170,7 @@ class Case(Base):  # FHIR Task (code=loop-case); focus = DiagnosticReport
     review_reasons: Mapped[list | None] = mapped_column(JSON, nullable=True)
     risk_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     risk_model_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    risk_rationale: Mapped[list | None] = mapped_column(JSON, nullable=True)  # top factors behind the outreach priority
     synthetic: Mapped[bool] = mapped_column(Boolean, default=True)
     patient: Mapped[Patient] = relationship()
     owner: Mapped[Practitioner] = relationship(foreign_keys=[owner_id])

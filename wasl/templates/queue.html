@@ -42,7 +42,7 @@ function render() {
       <td>${W.prog(r.programme)}</td><td>${W.tier(r.tier)}</td><td>${W.esc(r.state_label)}</td>
       <td>${r.owner_is_pool ? '<span class="chip pool">team pool</span> ' : ""}<span class="small">${W.esc(r.owner)}</span></td>
       <td class="small">${W.ago(r.due_at)}</td>
-      <td>${r.risk_score == null ? '<span class="muted small">–</span>' : `<span class="risk-bar" style="width:${Math.round(r.risk_score * 60) + 4}px"></span> <span class="small">${Math.round(r.risk_score * 100)}%</span>`}</td>
+      <td>${r.risk_score == null ? '<span class="muted small">–</span>' : `<span title="${W.esc('Why: ' + (r.risk_rationale || 'close to the typical case') + ' - orders within tier only')}"><span class="risk-bar" style="width:${Math.round(r.risk_score * 60) + 4}px"></span> <span class="small">${Math.round(r.risk_score * 100)}%</span></span>`}</td>
       <td>${r.review_required ? `<span class="chip sla-red" title="${W.esc((r.review_reasons || []).join(', '))}">review</span> ` : ""}${r.escalation_level ? `<span class="chip sla-red">L${r.escalation_level}</span> ` : ""}${r.call_task ? '<span class="chip flag">call</span> ' : ""}${r.open_consult ? '<span class="chip flag">consult</span> ' : ""}${r.transfer_pending ? '<span class="chip flag">transfer</span>' : ""}</td></tr>`).join("") +
     `</tbody></table><nav class="pager" aria-label="Queue pages"><span class="small muted">${from}–${to} of ${data.total}</span>
      <button class="secondary outline" ${data.offset ? "" : "disabled"} onclick="page(-1)">‹ Previous</button>

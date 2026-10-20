@@ -84,6 +84,8 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
         "sla": {"status": cur["sla_status"] if cur else "none", "fraction": cur["sla_fraction"] if cur else None,
                 "due_at": cur["due_at"] if cur else None, "escalation_level": max(c.escalation_level or 0, c.target_alert_level or 0)},
         "risk": {"score": None if c.risk_score is None else round(c.risk_score, 3), "model_version": c.risk_model_version,
+                 "rationale": c.risk_rationale or [],
+                 "ordering": "Orders cases WITHIN the same clinical urgency tier only; it never changes the tier",
                  "use": "Outreach prioritisation only - never used for clinical decisions, state changes or closure"},
         "patient": {"id": p.id, "name": f"{p.given_name} {p.family_name}", "mrn": p.mrn, "gender": p.gender,
                     "age_band": p.age_band, "language": p.language, "region": p.region,

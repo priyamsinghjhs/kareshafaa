@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     min_auc_floor: float = 0.60
     promotion_min_auc_delta: float = 0.0  # candidate AUC must exceed current by more than this
     max_ece: float = 0.10
+    calibration_slope_range: tuple[float, float] = (0.7, 1.3)  # held-out calibration slope gate
+    max_citl: float = 0.05  # |mean predicted - observed| on the held-out set
+    # 'none' (default): log-loss-fitted models are used as-is; 'auto': Platt recalibration chosen on a temporal tuning
+    # slice of the training data. At demo/pilot volumes (<5k labelled cases) 'auto' over-corrected on the hold-out.
+    ml_recalibration: str = "none"
     fairness_auc_tolerance: float = 0.05  # group AUC CI must not lie wholly below overall - tol
     fairness_tpr_tolerance: float = 0.15  # group recall-at-top CI must not lie wholly below overall - tol
     fairness_cal_tolerance: float = 0.10  # group calibration-in-the-large CI must not lie wholly outside +/- tol

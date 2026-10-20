@@ -24,6 +24,7 @@ from ..config import get_settings
 from ..models import Case, ModelVersion, utcnow
 from ..security import ML_SERVICE, Actor
 from ..services.errors import DomainError, Forbidden, Invalid, NotFound
+from .calibration import CalibratedModel, calibration_stats, explain, reference_profile
 from .features import (CAT_FEATURES, EXCLUDED_FROM_INPUTS, FAIRNESS_ATTRS, FEATURES, LABEL_DEFINITION, NUM_FEATURES,
                        case_frame, training_frame)
 
@@ -166,6 +167,12 @@ def gate_results(metrics: dict, fairness: dict, current_auc_on_same_holdout: flo
         "auc_floor": {"value": metrics["auc"], "threshold": cfg.min_auc_floor, "passed": metrics["auc"] >= cfg.min_auc_floor},
         "calibration_ece": {"value": metrics["ece"], "threshold": cfg.max_ece, "passed": metrics["ece"] <= cfg.max_ece},
     }
+    cal = metrics.get("calibration", {}).get("calibrated")
+    if cal and cal.get("slope") is not None:
+        lo, hi = cfg.calibration_slope_range
+        gates["calibration_slope"] = {"value": cal["slope"], "threshold": f"{lo}-{hi}", "passed": lo <= cal["slope"] <= hi}
+        gates["calibration_in_the_large"] = {"value": cal["citl"], "threshold": f"+/-{cfg.max_citl}",
+                                             "passed": abs(cal["citl"]) <= cfg.max_citl}
     if current_auc_on_same_holdout is None:
         gates["beats_current"] = {"value": metrics["auc"], "threshold": None, "passed": True,
                                   "note": "no production model yet"}
@@ -219,13 +226,20 @@ def train_candidate(db: Session, actor: Actor, algorithm: str = "gbm", now: date
     df = training_frame(db, now)
     if len(df) < 200 or df.label.nunique() < 2:
         raise DomainError("not enough labelled case outcomes to train (need >= 200 with both outcomes)")
-    cut = int(len(df) * 0.75)  # temporal split: train on older cases, validate on the most recent 25%
+    # temporal split: train (and cross-fit the probability calibrator) on the older 75 %, validate on the most
+    # recent 25 %, which neither the model nor the calibrator has seen
+    cut = int(len(df) * 0.75)
     tr, va = df.iloc[:cut], df.iloc[cut:].reset_index(drop=True)
     pipe = _pipeline(algorithm, cfg.seed)
-    pipe.fit(tr[FEATURES], tr.label)
-    p = pipe.predict_proba(va[FEATURES])[:, 1]
+    model = CalibratedModel(pipe, method=cfg.ml_recalibration).fit(tr[FEATURES], tr.label.to_numpy())
+    method = model.method
     y = va.label.to_numpy()
+    raw = model.raw_proba(va[FEATURES])
+    p = model.predict_proba(va[FEATURES])[:, 1]
     metrics, fairness = evaluate(y, p, va[FAIRNESS_ATTRS])
+    metrics["calibration"] = {"method": method, "n_calibration": len(tr), "tuning": model.tuning,
+                              "raw": calibration_stats(y, raw),
+                              "calibrated": calibration_stats(y, p)}
     cur = production(db)
     cur_auc = None
     if cur is not None:
@@ -237,12 +251,13 @@ def train_candidate(db: Session, actor: Actor, algorithm: str = "gbm", now: date
     gates = gate_results(metrics, fairness, cur_auc)
     version = (db.scalar(select(func.max(ModelVersion.version))) or 0) + 1
     path = cfg.model_dir / f"outreach_priority_v{version}.joblib"
-    joblib.dump(pipe, path)
+    joblib.dump(model, path)
     mv = ModelVersion(version=version, algorithm=algorithm,
                       status="awaiting_approval" if gates["all_passed"] else "failed_gates", created_at=now,
                       trained_on_n=len(tr), validated_on_n=len(va), features=FEATURES, metrics=metrics,
                       fairness=fairness, gates=gates,
-                      reference_stats=_reference_stats(tr, pipe.predict_proba(tr[FEATURES])[:, 1]),
+                      reference_stats=_reference_stats(tr, model.predict_proba(tr[FEATURES])[:, 1]) |
+                      {"profile": reference_profile(tr)},
                       artifact_path=str(path), artifact_sha256=_sha256(path),
                       compared_to_version=cur.version if cur else None)
     db.add(mv)
@@ -331,12 +346,15 @@ def score_open_cases(db: Session, now: datetime | None = None) -> int:
     if df.empty:
         return 0
     if mv is None:
-        db.query(Case).filter(Case.state != "closed").update({Case.risk_score: None, Case.risk_model_version: None})
+        db.query(Case).filter(Case.state != "closed").update({Case.risk_score: None, Case.risk_model_version: None, Case.risk_rationale: None})
         return 0
-    p = load_artifact(mv).predict_proba(df[FEATURES])[:, 1]
-    for cid, score in zip(df.case_id.tolist(), p.tolist()):
-        db.query(Case).filter(Case.id == cid).update({Case.risk_score: float(score), Case.risk_model_version: mv.version},
-                                                     synchronize_session=False)
+    model = load_artifact(mv)
+    p = model.predict_proba(df[FEATURES])[:, 1]
+    profile = (mv.reference_stats or {}).get("profile")
+    why = explain(model, df, profile) if profile else [[] for _ in range(len(df))]
+    for cid, score, w in zip(df.case_id.tolist(), p.tolist(), why):
+        db.query(Case).filter(Case.id == cid).update({Case.risk_score: float(score), Case.risk_model_version: mv.version,
+                                                      Case.risk_rationale: w}, synchronize_session=False)
     audit.record(db, ML_SERVICE, "E", "ml.scored_open_cases", entity_type="ModelVersion", entity_id=mv.version,
                  ts=now or utcnow(), detail={"n": len(df), "use": "outreach prioritisation only"})
     return len(df)
@@ -400,8 +418,16 @@ def model_card(mv: ModelVersion) -> str:
         f"- Training cases: {mv.trained_on_n}; temporal hold-out validation cases: {mv.validated_on_n}",
         f"- Artifact SHA-256: `{mv.artifact_sha256}`",
         "",
-        "## Validation (held-out, most recent 25% of cases)",
+        "## Validation (held-out, most recent 25% of cases; recalibration chosen on a temporal tuning slice of the training cases)",
         f"- AUC {m['auc']}, Brier {m['brier']}, expected calibration error {m['ece']}, prevalence {m['prevalence']}",
+        *([f"- Calibration ({m['calibration']['method']}, chosen on a temporal tuning slice of the {m['calibration']['n_calibration']} training cases): "
+           f"ECE {m['calibration']['raw']['ece']} -> {m['calibration']['calibrated']['ece']}, slope "
+           f"{m['calibration']['raw']['slope']} -> {m['calibration']['calibrated']['slope']}, calibration-in-the-large "
+           f"{m['calibration']['raw']['citl']} -> {m['calibration']['calibrated']['citl']}; reliability bins within "
+           f"95 % CI: {m['calibration']['calibrated']['bins_within_ci']}/{m['calibration']['calibrated']['bins']}"]
+          if "calibration" in m else []),
+        "- Each score is shown with its top factors (one-at-a-time substitution against the training reference "
+        "profile) so coordinators can see why a case is prioritised for outreach.",
         f"- Top {int(m['top_fraction'] * 100)}% flagged: recall {m['recall_at_top']}, precision {m['precision_at_top']}",
     ]
     if "current_production_auc_same_holdout" in m:
