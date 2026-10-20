@@ -461,7 +461,7 @@ def evaluate(r: ResultInput, ctx: PatientContext | None = None) -> Decision:
         return d
     # context makes the result a human-review item; tier never lower than the clinical tier
     floor = max_tier(*(REVIEW_MIN_TIER[x] for x in reasons))
-    return Decision("review", max_tier(d.tier, floor), "human_review" if d.disposition != "review" else d.pathway,
+    return Decision("review", max_tier(d.tier, floor), "human_review" if d.disposition == "negative" else d.pathway,
                     d.next_step if d.disposition != "negative" else "Clinician review of the result and patient context",
                     d.needs_confirmation, d.target, d.rule_id, d.reasons + reasons, d.clinical_tier, d.normalised)
 

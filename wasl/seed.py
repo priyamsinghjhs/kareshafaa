@@ -33,14 +33,19 @@ from .synth.simulator import run_simulation
 SEED_ACTOR = Actor(user_id=None, role="system", display="Synthetic data seeder", is_human=False)
 
 
-def seed(n_patients: int | None = None, seed_value: int | None = None, *, train: bool = True, verbose: bool = True) -> dict:
+def seed(n_patients: int | None = None, seed_value: int | None = None, *, train: bool = True, verbose: bool = True,
+         realistic: bool = False, simulate: bool = True) -> dict:
+    """realistic=False (demo default): every synthetic result is actionable so the queue is full of work.
+    realistic=True (seed-large): population positivity rates, negatives, data defects, duplicates and late
+    results at the calibrated rates in docs/synthetic_data.md."""
     cfg = get_settings()
     n = n_patients or cfg.n_patients
     sv = seed_value or cfg.seed
     t_start = time.time()
     init_db(drop=True)
-    for f in cfg.model_dir.glob("*.joblib"):
-        f.unlink()
+    if train:  # never touch model files when seeding a separate (e.g. large) database without training
+        for f in cfg.model_dir.glob("*.joblib"):
+            f.unlink()
     rng = random.Random(sv)
     now = utcnow()
     stats: dict = {}
@@ -51,11 +56,11 @@ def seed(n_patients: int | None = None, seed_value: int | None = None, *, train:
         users = build_users(db, d)
         users_by_pid = {u.practitioner_id: u for u in users if u.practitioner_id}
         audit.record(db, SEED_ACTOR, "C", "seed.started", detail={"n_patients": n, "seed": sv, "synthetic": True})
-        rep = Replayer(db, rng, d, users_by_pid, now)
-        cohort = make_cohort(n, sv)
+        rep = Replayer(db, rng, d, users_by_pid, now, enriched=not realistic)
+        cohort = make_cohort(n, sv, min_age=18 if realistic else 25)
         for i, sp in enumerate(cohort):
-            p = add_patient(db, sp, d, rng, now)
             t0 = now - timedelta(days=rng.uniform(0.5, 300))
+            p = add_patient(db, sp, d, rng, now, age_at=t0)  # sp.age is the age when screened
             rep.run(p, sp, t0)
             if i % 100 == 99:
                 db.commit()
@@ -85,8 +90,10 @@ def seed(n_patients: int | None = None, seed_value: int | None = None, *, train:
             db.commit()
             director = actor_from_user(users_by_pid[d["director"].id])
             stats["proposals"] = len(generate_proposals(db, director))
-        sim = run_simulation(n=n, seed=sv)
-        db.add(SimulationRun(params={"n": n, "seed": sv, "replications": sim["replications"]}, results=sim))
+        stats["replay"] = rep.stats
+        if simulate:
+            sim = run_simulation(n=n, seed=sv)
+            db.add(SimulationRun(params={"n": n, "seed": sv, "replications": sim["replications"]}, results=sim))
         audit.record(db, SEED_ACTOR, "C", "seed.finished", detail={"seconds": round(time.time() - t_start, 1)})
         stats["cases"] = db.query(Case).count()
         stats["open"] = db.query(Case).filter(Case.state != S.CLOSED).count()
@@ -174,8 +181,10 @@ def main() -> None:
     ap.add_argument("--patients", type=int, default=None)
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--no-train", action="store_true")
+    ap.add_argument("--realistic", action="store_true", help="population-calibrated mix incl. negatives and defects")
+    ap.add_argument("--no-sim", action="store_true", help="skip the discrete-event simulation")
     args = ap.parse_args()
-    stats = seed(args.patients, args.seed, train=not args.no_train)
+    stats = seed(args.patients, args.seed, train=not args.no_train, realistic=args.realistic, simulate=not args.no_sim)
     import json
 
     print(json.dumps(stats, indent=2, default=str))

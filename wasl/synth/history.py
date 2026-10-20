@@ -118,19 +118,44 @@ class Replayer:
             return None
         self.stats["cases"] = self.stats.get("cases", 0) + 1
         try:
-            if r.status == "preliminary":  # the final report follows; the lab re-sends it (exercises duplicate handling)
-                self.adv(self.ln(24))
-                wf.ingest_result(self.db, patient, sp.programme, value=r.value, value_text=r.value_text, unit=r.unit or (
-                    "%" if sp.programme == "diabetes_hba1c" else "ug/g" if sp.programme == "colorectal_fit" else None),
-                    test=r.test, status="final", cytology=r.cytology, performer_org_id=self.d["lab"].id, now=self.t)
-            if case.review_required and not self._review(case, patient):
-                return case
-            self._journey(case, patient, sp)
-            if S(case.state) != S.CLOSED:
-                self._resolve(case)
+            self._journey_with_followups(case, patient, sp, r)
         except Stop:
             pass
         return case
+
+    # Realistic-mode data events (rates are ASSUMPTIONS; docs/synthetic_data.md)
+    DUPLICATE_RESEND = 0.004
+    LATE_RESULT_AFTER_CLOSURE = 0.003
+
+    def _journey_with_followups(self, case: Case, patient: Patient, sp: SynthPatient, r) -> None:
+        self._journey_core(case, patient, sp, r)
+        if not self.enriched:
+            if self.rng.random() < self.DUPLICATE_RESEND:  # interface engine re-sends the same report
+                self.adv(self.ln(12))
+                wf.ingest_result(self.db, patient, sp.programme, value=r.value, value_text=r.value_text, unit=r.unit,
+                                 test=r.test, status="final", cytology=r.cytology, performer_org_id=self.d["lab"].id,
+                                 now=self.t)
+                self.stats["duplicates_sent"] = self.stats.get("duplicates_sent", 0) + 1
+            if S(case.state) == S.CLOSED and self.rng.random() < self.LATE_RESULT_AFTER_CLOSURE:
+                self.adv(self.ln(24 * 7))
+                late = draw_result(self.rng, sp.programme, wf.patient_context(patient, sp.programme, self.t),
+                                   enriched=True)
+                wf.ingest_result(self.db, patient, sp.programme, value=late.value, value_text=late.value_text,
+                                 unit=late.unit, test=late.test, status="final", cytology=late.cytology,
+                                 performer_org_id=self.d["lab"].id, now=self.t)
+                self.stats["late_results_sent"] = self.stats.get("late_results_sent", 0) + 1
+
+    def _journey_core(self, case: Case, patient: Patient, sp: SynthPatient, r) -> None:
+        if r.status == "preliminary":  # the final report follows (exercises duplicate/supersede handling)
+            self.adv(self.ln(24))
+            wf.ingest_result(self.db, patient, sp.programme, value=r.value, value_text=r.value_text, unit=r.unit,
+                             test=r.test, status="final", cytology=r.cytology, performer_org_id=self.d["lab"].id,
+                             now=self.t)
+        if case.review_required and not self._review(case, patient):
+            return
+        self._journey(case, patient, sp)
+        if S(case.state) != S.CLOSED:
+            self._resolve(case)
 
     def _review(self, case: Case, patient: Patient) -> bool:
         """Clinical lead works the human-review queue. Returns True if the normal pathway should continue."""
@@ -382,12 +407,12 @@ class Replayer:
         return self.rng.choice(["forgot", "childcare", "cost", "unknown", "work", "transport"])
 
 
-def add_patient(db: Session, sp: SynthPatient, d: dict, rng: random.Random, now: datetime) -> Patient:
+def add_patient(db: Session, sp: SynthPatient, d: dict, rng: random.Random, now: datetime, *, age_at: datetime | None = None) -> Patient:
     phcs = [o for o in d["phc"] if o.region == sp.region] or d["phc"]
     org = rng.choice(phcs)
     gp = rng.choice(d["gps"][org.id])
     p = Patient(mrn=f"SYN-{100000 + sp.idx}", given_name=sp.given, family_name=sp.family, gender=sp.gender,
-                birth_year=now.year - sp.age, age_band=sp.age_band, nationality_group=sp.nationality, language=sp.language,
+                birth_year=(age_at or now).year - sp.age, age_band=sp.age_band, nationality_group=sp.nationality, language=sp.language,
                 region=sp.region, phone_valid=sp.phone_valid, has_smartphone=sp.has_smartphone, whatsapp=sp.whatsapp,
                 alt_contact=sp.alt_contact, prior_no_shows=sp.prior_no_shows, prior_screens=sp.prior_screens,
                 responsiveness=sp.responsiveness, managing_org_id=org.id, gp_id=gp.id, pregnant=sp.pregnant,
