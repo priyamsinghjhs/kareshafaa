@@ -236,3 +236,69 @@ def test_hba1c_units_agree_on_category(pct):
     rank = lambda d: 9 if d.tier is None else TIER_RANK[d.tier]  # noqa: E731
     assert rank(b) <= rank(a) or b.disposition == "review" or a.disposition == "review", (pct, a.rule_id, b.rule_id)
     assert a.creates_case == b.creates_case or b.disposition == "review" or a.disposition == "review", pct
+
+
+# ---- strengthening added after mutation testing (mutmut survivors) -----------------------------------------
+def test_is_downgrade_strict():
+    from wasl.clinical_rules import is_downgrade
+
+    assert not is_downgrade("high", "high") and not is_downgrade("high", "urgent")
+    assert is_downgrade("urgent", "high") and not is_downgrade(None, "high") and not is_downgrade("high", None)
+
+
+@pytest.mark.parametrize("row", G, ids=IDS)
+def test_every_decision_explains_itself(row):
+    """Clinicians see next step and target: they must never be empty for a case-creating decision."""
+    d = _decide(row)
+    assert d.next_step and d.next_step.strip()
+    if d.disposition == "actionable":
+        assert d.target and d.target.strip() and d.pathway != "human_review"
+
+
+REASONS = {"CRC-09": "missing_unit", "CRC-10": "unit_needs_assay_conversion", "CRC-11": "unknown_unit",
+           "CRC-12": "implausible_value", "CRC-13": "implausible_value", "CRC-17": "malformed_value",
+           "CRC-18": "missing_value", "CRC-28": "unknown_test", "CX-20": "malformed_value", "CX-21": "malformed_value",
+           "CX-22": "malformed_value", "CX-19": "unknown_test", "CX-14": "hpv_negative_abnormal_cytology",
+           "BR-04": "screening_category_unexpected", "BR-08": "known_malignancy", "BR-09": "malformed_value",
+           "BR-10": "malformed_value", "BR-12": "missing_value", "DM-13": "unexpectedly_low", "DM-15": "implausible_value",
+           "DM-32": "implausible_value", "DM-33": "missing_unit", "DM-35": "unknown_unit", "DM-36": "haemoglobinopathy",
+           "FPG-10": "hypoglycaemia", "FPG-20": "implausible_value", "FPG-21": "unknown_test",
+           "CRC-19": "age_below_programme", "CRC-22": "age_above_programme", "CRC-24": "amended_result",
+           "CRC-25": "preliminary_result", "CRC-26": "under_specialist_care", "CRC-27": "age_unknown",
+           "CX-23": "sex_mismatch", "CX-28": "pregnant", "CX-29": "deceased", "BR-17": "result_retracted"}
+
+
+@pytest.mark.parametrize("gid,reason", sorted(REASONS.items()))
+def test_review_reason_codes(gid, reason):
+    row = next(g for g in G if g[0] == gid)
+    assert reason in _decide(row).reasons
+
+
+@pytest.mark.parametrize("val,expect", [(4.0, "BR-4"), (0.0, "BR-0"), (1.0, "BR-1"), (4.5, "BR-ERR"), (" ", "BR-ERR")])
+def test_birads_numeric_values(val, expect):
+    r = ResultInput(BR, None if isinstance(val, str) else val, val if isinstance(val, str) else None)
+    assert evaluate(r, PatientContext(**F50)).rule_id == expect
+
+
+@pytest.mark.parametrize("pathway,rule,tier,clin,days", [
+    ("colonoscopy", "CRC-FIT-POS", "high", "high", 31), ("colonoscopy", "CRC-FIT-URGENT", "urgent", "urgent", 14),
+    ("colonoscopy", "CRC-FIT-POS", "urgent", "high", 14),  # escalated by a review floor -> tier default applies
+    ("biopsy", "BR-4", "urgent", "urgent", 7), ("assessment_imaging", "BR-0", "high", "high", 7),
+    ("colposcopy", "CX-HPV1618", "high", "high", 42), ("colposcopy_urgent", "CX-HIGH-GRADE", "urgent", "urgent", 14),
+    ("same_day_review", "DM-A1C-CRIT", "critical", "critical", 1), ("prediabetes_gp", "DM-A1C-PRE", "routine", "routine", 90),
+    ("confirm_then_gp", "DM-A1C-HIGH", "high", "high", 14), ("human_review", "CRC-ERR", "urgent", None, 14),
+    ("human_review", "DM-ERR", "critical", "critical", 1), ("repeat_sample", "CX-UNSAT", "routine", "routine", 120),
+])
+def test_target_days(pathway, rule, tier, clin, days):
+    from wasl.clinical_rules import target_days
+
+    assert target_days(pathway, rule, tier, clin) == days
+
+
+@pytest.mark.parametrize("reasons,tier", [(["duplicate_result"], "routine"), (["conflicting_result"], "high"),
+                                          (["duplicate_result", "more_urgent_result"], "urgent"),
+                                          (["not_a_known_reason"], "urgent"), ([], None)])
+def test_review_min_tier(reasons, tier):
+    from wasl.clinical_rules import review_min_tier
+
+    assert review_min_tier(reasons) == tier
