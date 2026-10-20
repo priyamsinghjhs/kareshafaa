@@ -53,9 +53,12 @@ clinical leads, directors, analysts, patients (portal).
 | H-19 | Alert fatigue from safer defaults | prediabetes cases, review floors | real urgent cases lost in volume | 3 | 3 | tiers + review flag ordering; separate review queue; analytics | load test; queue views | 3 | 9 tolerable - workload decision for the programme |
 | H-20 | Age at eligibility boundary misjudged | only birth year stored | review flag missing or spurious within ±1 year | 2 | 3 | result is actioned regardless; boundary flag only routes to review | golden CRC-19..22, CX-24..27, BR-13/14 | 3 | 6 tolerable; real deployment should use date of birth |
 | H-21 | Rules engine disagrees with the rules document | coding error the hand-written tests do not reach (input combinations, parsing) | missed or under-triaged result | 4 | 3 | independent reference implementation written from the document (`wasl_reference/rules.py`); differential testing on millions of randomised, boundary-weighted results; full-output snapshot of golden decisions | `scripts/differential_test.py` (10,000,000 results: 0 safety-critical disagreements, 95 % upper bound 3.0e-7); `tests/test_differential.py` (60k in the normal suite + regression tests); `test_golden_full_output_snapshot` | 1 | 4; a misunderstanding written into the document itself is not detectable this way (H-18) |
-| H-22 | Spurious "breach" alerts | step clocks capped by a pathway target that has already passed, including after care started | alert fatigue, real breaches lost in noise (H-19) | 2 | 4 | care reached before the post-care step opens → no target cap; validator invariant | `test_post_care_step_is_not_capped_by_a_passed_pathway_target`; validator `sla.post_care_step_not_instantly_overdue` = 0 | 2 | 4; full alert precision/recall study is the next iteration |
+| H-22 | Spurious "breach" alerts | step clocks capped by a pathway target that has already passed, including after care started | alert fatigue, real breaches lost in noise (H-19) | 2 | 4 | care reached before the post-care step opens → no target cap; validator invariant | `test_post_care_step_is_not_capped_by_a_passed_pathway_target`; validator `sla.post_care_step_not_instantly_overdue` = 0; `scripts/alert_eval.py` on the 20k cohort: precision 100 %, recall 100 % (legacy 77.2 % / 90.0 %), exits non-zero on any missed breach; one consolidated pathway alert per case per level (validator `alert.one_pathway_alert_per_case_per_level`) | 1 | 2 |
+| H-23 | Patient receives an unreviewed or outdated translation / wording | machine-drafted translation or edited text reaches patients without review | misunderstanding, false reassurance or alarm | 3 | 3 | content sign-off bound to the sha256 of the exact wording; non-English needs a translator AND a different clinician; unsigned pathway text falls back to English + interpreter call or a neutral "your team will call you" message; reading-level and tone checks block clinical sign-off | `tests/test_patient_messages.py`; validator `content.no_unapproved_translation_sent`, `content.signoffs_by_different_people` = 0 | 1 | 3; older prototype content is listed but not yet gated |
+| H-24 | Automated job takes a high-impact decision | integration or script runs with a privileged role | case closed, re-opened, reassigned or model promoted without a human | 4 | 2 | single sign-off registry (`wasl/signoff.py`, 17 actions): named human + permission + rationale, audited | `tests/test_human_signoff.py` (static + behavioural, bots carrying a lead's role refused) | 1 | 4 |
+| H-25 | Mis-calibrated or unfair outreach-priority model | small or shifted training data | over-/under-confident ordering, under-served groups contacted later (never a tier/clinical change) | 2 | 3 | promotion gates: AUC floor, ECE, calibration slope 0.7-1.3, abs(CITL) <= 0.05, beats-current, subgroup AUC/recall/calibration CIs; clinical lead approval; per-case rationale shown; ML orders only within tier | `tests/test_ml_calibration.py`, `docs/ml_calibration.md` (20k: slope 1.04, CITL 0.037, ECE 0.047) | 1 | 3; subgroup tests have low power at these sizes |
 
-## 4. Verification summary (Iteration 6)
+## 4. Verification summary (Iteration 6, updated Iteration 7)
 
 * Golden clinical cases: 130 hand-written rows (+ 22 end-to-end through the database, 6 conversion points,
   171 unit-agreement points).
@@ -65,7 +68,8 @@ clinical leads, directors, analysts, patients (portal).
   time travel, unauthorised tier writes) checking invariants after every step.
 * Exhaustive state machine: all 256 transition pairs, 400 evidence-closure and 768 authorised-closure
   combinations, system-actor closure for every state.
-* Full-cohort: 20,000 realistic synthetic people, 44 invariants, 0 violations, 0 lost actionable results.
+* Full-cohort: 20,000 realistic synthetic people, 48 invariants, 0 violations, 0 lost actionable results; alert
+  precision 100 % and recall 100 % against an independent breach labelling (`docs/alert_precision.md`).
 * Fault injection: 33 deliberate faults in rules, state machine, workflow and messaging; all 33 detected
   (`docs/fault_injection_results.md`). Mutation testing with mutmut on `clinical_rules.py` and `statemachine.py`: see ITERATIONS.md (Iteration 7).
 * Differential testing against an independent reference implementation: 10,000,000 randomised results, 0
@@ -80,6 +84,7 @@ clinical leads, directors, analysts, patients (portal).
 3. **Identity**: EMPI/Emirates ID matching and date of birth instead of birth year (H-07, H-20).
 4. **Capacity**: guideline targets can still be missed for capacity reasons; Wasl only makes this visible (H-12).
 5. **Workload** of safer defaults (prediabetes cases, review floors) must be agreed (H-19).
-6. **Translations** of new patient texts (H-16).
+6. **Translations** of new patient texts (H-16, H-23): Arabic/Hindi/Urdu drafts exist but need a professional
+   medical translator and clinician sign-off; the older prototype content must also be signed off.
 7. Bulk database updates outside the application bypass the ORM tier interlock (H-03) - production should add
    a database trigger or row-level constraint.
