@@ -165,3 +165,81 @@ Load-test DB: 10,000 synthetic patients → 10,005 cases (1,509 open), 80k step 
 * **Self-assessment:** R1 5 · R2 5 · R3 5 · R4 5 · R5 5 · R6 4 | J1 5 · J2 5 · J3 5 · J4 5 · J5 5 · J6 4.
   R3 (patient communication) 4→5 with result-specific wording; J6 (usability) 3→4. Remaining: real translations for
   tl/ml, production auth (UAE PASS / SSO), SQL-side queue ordering beyond ~10k open cases, Docker untested here.
+
+## Iteration 6 – clinical safety: grounded rules, fail-safe review, realistic 20k data, clinical test suite (21 Oct 2026, ~00:35–01:50 IST)
+
+**Request:** make the clinical logic and synthetic data close to real practice and keep functional error negligible,
+with patient safety as the top priority. Committed in checkpoints 912451d → (final).
+
+### Rounds
+1. **Rules engine** (`wasl/clinical_rules.py`, pure, no ML). Covers FIT, HPV + cytology, BI-RADS, and HbA1c (% and
+   mmol/mol)/FPG (mg/dL and mmol/L). Thresholds, ages, pathways, tiers and targets are taken from published guidelines
+   (`docs/clinical_rules.md`, sources S1–S15). Units (OBX-6) and result status (OBX-11) are carried through HL7, FHIR and the API.
+2. **Fail-safe human review.** These go to a clinical-lead review queue at a minimum tier with reason codes and are never
+   dropped or downgraded: unknown, malformed, missing, out-of-range, conflicting, amended or preliminary, retracted or
+   duplicate results; missing or unknown units; failed matches; out-of-age, sex mismatch, pregnancy, deceased,
+   under-specialist-care, haemoglobinopathy; results after closure. Supporting controls:
+   - an ORM interlock (`TierDowngradeError`), so the tier is lowered only by an audited clinician review;
+   - while a review is open, no patient contact and no system transitions, and closure is clinician-only;
+   - ML orders cases only within a tier.
+3. **Realistic cohort mode.** `make seed-large` builds 20,000 people calibrated to cited sources
+   (`docs/synthetic_data.md`). `scripts/validate_data.py` checks 44 invariants, including re-applying the rules to
+   every report to detect lost actionable results.
+4. **Tests.** Golden cases, fail-safe tests, Hypothesis properties, the exhaustive state machine and synthetic-data tests.
+5. **Full cohort.** Cohort test, fault injection (33/33 killed), documentation.
+6. **Pathway target clocks.** Step SLAs are capped at the guideline end-to-end target. ASCCP 2023 repeat timing.
+   Clinical safety case (`docs/clinical_safety_case.md`, H-01…H-20).
+7. **Simulator.** Now classifies with the same rules engine. The colorectal baseline is calibrated to the
+   Abu Dhabi 2015–16 study. Tests were strengthened after mutation testing.
+
+### Bugs found and fixed (clinical logic first)
+- A missing FIT/HbA1c value was treated as 0 → **silently negative**. Now: review at T1.
+- BI-RADS 3 and 6 were treated as negative on a screening report. Now: review (high or urgent).
+- HbA1c in mmol/mol was read as % (40 mmol/mol → "critical"). Now: unit-aware, using exact NGSP/IFCC conversion
+  cut-offs rounded down (38.7 / 47.5 / 85.7 / 139.9).
+- The HbA1c critical cut-off of 140.4 mmol/mol missed 15.0 % reported by a lab as "140". Found by the 171-point unit-agreement test.
+- A new, more urgent or conflicting result was linked to an open case without re-triage. Now: re-triage, escalate only, flag for review.
+- Prediabetes was not actionable. Now: a routine GP surveillance case (safer default, CONFIRM).
+- Pathway errors:
+  - prediabetes and HPV-other/NILM were routed to specialist referral;
+  - a negative confirmatory test closed cervical/diabetes cases without a surveillance plan;
+  - the diabetes text said "metformin" for prediabetes.
+- Patient wording errors:
+  - "blood found" was shown for a spoilt FIT kit;
+  - "HPV 16/18" text was shown for other types;
+  - "see a doctor today" was shown for prediabetes.
+- Per-step SLAs added up beyond guideline targets (e.g. colonoscopy beyond 31 days, breast assessment beyond 5 working days).
+  Now: `target_due_at` caps every step.
+- Ingest and robustness:
+  - unknown LOINC codes or malformed values were rejected rather than reviewed;
+  - OBX-6 and OBX-11 were ignored;
+  - a message without MSH-10 was rejected;
+  - a missing clinical lead raised an error (result at risk);
+  - a patient consult failed when the GP was inactive.
+- Synthetic data:
+  - the HbA1c band table summed to 0.88, so the picker put 12 % into the ≥ 15 % band (about 1,800 false "critical" cases in 20k);
+  - age was computed against "now" instead of the screening date;
+  - the FHIR bundle had an unresolved Practitioner reference.
+
+### Results
+- Tests: **2,281 collected, 2,281 passed (100 %)**, including the original 105. By type:
+  - golden clinical: 525
+  - fail-safe: 60
+  - Hypothesis property tests: 6 (thousands of generated examples)
+  - exhaustive state machine: 1,558
+  - synthetic data: 26
+  - full cohort: 1
+  - original: 105
+- 20k cohort (20,005 patients; 21,400 reports; 5,471 cases; 91,438 audit events): **0 violations across 44 invariants,
+  0 lost actionable results**, audit chain valid. The 2k demo also has 0 violations.
+- Fault injection: 33/33 deliberate faults detected (`docs/fault_injection_results.md`).
+- Mutation testing (mutmut 3.8, `clinical_rules.py` + `statemachine.py`, pure test subset): MUTMUT_RESULT
+- Simulated KPIs (20,000 × 5 replications, **simulated**): `docs/simulation_20k_results.json`, summarised in the README.
+- Performance (fresh 10k DB, 10 clients, 4 workers, warm; mutmut paused): p50/p95 for the coordinator queue went from 29/448 to 28/258 ms, the GP queue from 32/599 to 32/304 ms, and HL7 ingest from 77/182 to 73/195 ms; detail 39/78 ms, FHIR 35/126 ms, KPIs 7.7/14 ms. **No regression.** The first cold pass gave a queue p50 of 145 ms. The 20k simulation (×5) takes 2.8 s and the 20k realistic seed about 2.5–3 min.
+
+### Honest limits
+- No clinical sign-off and no validation on real data; 16 CONFIRM items are listed in `docs/clinical_rules.md` §9.
+- Some sources were verified only partially. The DoH colorectal specification (S7) was seen only as a search excerpt,
+  and ADA §9 (S2) and ASCCP 2023 (S10) only through search summaries. No DoH FIT threshold was found.
+- Hypothesis event sequences reach successful transitions in only about 1–5 % of examples, because the review gate blocks
+  most of them. Transitions are covered exhaustively by the state-machine tests instead.

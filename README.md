@@ -116,17 +116,32 @@ lead at 1.5× (T0 goes straight to L3), L4 medical director at 2× (T0/T1 only).
 
 ## Performance (10,005 cases, 1,509 open; 160k audit events; 10 concurrent clients)
 
-| Endpoint | p50 / p95 before (iteration 3) | p50 / p95 now (4 workers) |
-|---|---|---|
-| Work queue, page of 50 (coordinator) | 4,297 / 4,527 ms | **29 / 448 ms** |
-| Work queue, GP (org-scoped) | 14,553 / 15,109 ms | **32 / 599 ms** |
-| Case detail | 153 / 200 ms | **51 / 88 ms** |
-| Case FHIR export | 110 / 181 ms | **43 / 79 ms** |
-| KPIs (cached) | 32,770 / 33,795 ms | **3.5 / 29 ms** |
-| HL7 ingest (write) | – | **77 / 182 ms** |
+| Endpoint | p50 / p95 before (iteration 3) | iteration 4 (4 workers) | iteration 6 (rules engine, review gate; warm) |
+|---|---|---|---|
+| Work queue, page of 50 (coordinator) | 4,297 / 4,527 ms | **29 / 448 ms** | 28 / 258 ms |
+| Work queue, GP (org-scoped) | 14,553 / 15,109 ms | **32 / 599 ms** | 32 / 304 ms |
+| Case detail | 153 / 200 ms | **51 / 88 ms** | 39 / 78 ms |
+| Case FHIR export | 110 / 181 ms | **43 / 79 ms** | 35 / 126 ms |
+| KPIs (cached) | 32,770 / 33,795 ms | **3.5 / 29 ms** | 7.7 / 14 ms |
+| HL7 ingest (write) | – | **77 / 182 ms** | 73 / 195 ms |
 
-Audit chain verified intact after the load test. Reproduce with `scripts/loadtest.py` (see ITERATIONS.md, iteration 4).
+Iteration 6 run: a fresh 10k DB (10,155 cases, 1,250 open, 160k audit events). Detail, FHIR and KPI figures come from the first, cold pass; the cold-pass queue p50 was 145 ms. Audit chain verified intact after the load test. Reproduce with `scripts/loadtest.py` (see ITERATIONS.md, iteration 4).
 Background sweep over 1,705 open clocks: 35–76 ms.
+
+## Simulated KPIs (SIMULATED – 20,000 synthetic people × 5 replications, same rules engine)
+
+| KPI | Baseline (no Wasl) | With Wasl |
+|---|---|---|
+| Median days result → patient notified | 8.0 | 1.3 |
+| Median days result → care | 48.6 | 24.8 |
+| Patient understood result (teach-back) | 44.3 % | 95.1 % |
+| Care reached or resolved | 35.0 % | 82.3 % |
+| Documented closure | 20.6 % | 85.3 % |
+| FIT-positive reaching colonoscopy | 28.9 % (Abu Dhabi 2015–16 reference: 30.5 %) | 88.3 % |
+| Median days FIT+ → colonoscopy | 71.3 (reference 72) | 28.4 |
+| Review-queue results actioned | 80.2 % | 100 % |
+
+These numbers come from model assumptions (`docs/synthetic_data.md`, `docs/simulation_20k_results.json`). They are not evidence of real-world effect.
 
 ## Governance – alignment, not certification
 
