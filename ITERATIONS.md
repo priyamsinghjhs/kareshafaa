@@ -482,3 +482,10 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
   a reason (>= 10 characters, e.g. earliest slot, patient's choice), recorded in the audit event (`beyond_target`).
   UI form updated. Synthetic history records the capacity reason (data distribution unchanged).
 - 1 new test; full suite 3,109 tests, all passing.
+
+### Round 15: multi-value tie-break (21 Oct 2026, ~04:52-04:56 IST)
+- **Finding.** With several values in one message, ties within the same tier went to the first value: a bilateral
+  mammogram BI-RADS 4 (left) + BI-RADS 5 (right) showed "BI-RADS 4" as the case's primary value (both were kept and
+  the case was reviewed, but the headline understated the finding). Same for 4A vs 4C and FIT 150 vs 400.
+- **Fix.** Last tie-breaker = magnitude (normalised value, or BI-RADS category with 4A < 4B < 4C).
+- 6 new tests; full suite 3,115 tests, all passing. Ingest parsing of a maximum-size (64 KB, 1,362 OBX) message: 10 ms.

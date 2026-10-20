@@ -338,3 +338,16 @@ def test_recent_or_slightly_ahead_specimen_is_normal(client, as_user, db, make_p
     p = db.get(Patient, make_patient())
     body = _post(client, as_user, msg(p.mrn, FIT.format(v="300") + f"|||{_ts(days)}", ctrl=f"ADV-OK{days}"))
     assert not (body["case"].get("review_reasons") or [])
+
+
+@pytest.mark.parametrize("vals,primary", [(("BI-RADS 4", "BI-RADS 5"), "BI-RADS 5"), (("BI-RADS 5", "BI-RADS 4"), "BI-RADS 5"),
+                                          (("BI-RADS 4C", "BI-RADS 4A"), "BI-RADS 4C"), (("BI-RADS 4A", "BI-RADS 4C"), "BI-RADS 4C")])
+def test_same_tier_bilateral_shows_most_suspicious_category(vals, primary):
+    r = parse_hl7v2(msg("M", MAMMO.format(side="L", v=vals[0]), MAMMO.format(side="R", v=vals[1])))
+    assert r.value_text == primary and "multiple_results" in r.flags
+
+
+@pytest.mark.parametrize("vals", [("150", "400"), ("400", "150")])
+def test_two_positive_fit_values_show_the_higher(vals):
+    r = parse_hl7v2(msg("M", FIT.format(v=vals[0]), FIT.format(v=vals[1])))
+    assert r.value == 400 and "multiple_results" in r.flags

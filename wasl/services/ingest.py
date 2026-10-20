@@ -109,6 +109,9 @@ def _num_or_none(v: str) -> float | None:
     return f if f == f and f not in (float("inf"), float("-inf")) else None
 
 
+_BIRADS_CAT = re.compile(r"([0-6])\s*([abc])?(?![0-9])", re.I)
+
+
 def _severity(prog: str, test: str, raw: str, unit: str | None, cyto: str | None) -> tuple:
     """Severity of one observation by the clinical rules alone (lower = more severe)."""
     from ..clinical_rules import TIER_RANK, PatientContext, ResultInput, evaluate  # noqa: PLC0415
@@ -117,8 +120,16 @@ def _severity(prog: str, test: str, raw: str, unit: str | None, cyto: str | None
     d = evaluate(ResultInput(programme=prog, value=v, value_text=None if v is not None else (raw.strip() or None),
                              unit=unit, test=test, cytology=cyto), PatientContext(age=50))  # in-range context
     # ties (e.g. prediabetes HbA1c vs diabetic-range FPG, both routine) -> the diagnostic-range result
+    # last tie-breaker: magnitude within the same tier (BI-RADS 5 over 4, 4C over 4A; FIT 400 over 150) so the
+    # primary value shown on the case is the most suspicious one (all values are kept either way)
+    mag: tuple = ("", 0.0)
+    if d.normalised:
+        k, x = next(iter(d.normalised.items()))
+        mag = (k, -float(x))
+    elif prog == "breast" and (m := _BIRADS_CAT.search(raw or "")):
+        mag = ("birads", -(int(m.group(1)) * 10 + " abc".index((m.group(2) or " ").lower())))
     return (0 if d.disposition != "negative" else 1, TIER_RANK.get(d.clinical_tier or d.tier or "", 9),
-            0 if d.needs_confirmation else 1)
+            0 if d.needs_confirmation else 1, mag)
 
 
 def _combine(control_id: str, ident: str | None, birth_year: int | None,
