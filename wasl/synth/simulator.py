@@ -11,14 +11,23 @@ import random
 import statistics as st
 from collections import Counter, defaultdict
 
+from ..clinical_rules import PatientContext, ResultInput, evaluate
 from .cohort import SynthPatient, make_cohort, risk_multiplier
+from .history import CONFIRM_POSITIVE
+from .results import draw_result
 
 HORIZON_DAYS = 120
 TIER_SPEED = {"critical": 0.2, "urgent": 0.4, "high": 0.8, "routine": 1.3}
-TIER_W = {"colorectal_fit": [("urgent", .3), ("high", .7)], "cervical": [("high", .45), ("routine", .55)],
-          "breast": [("urgent", .3), ("high", .7)], "diabetes_hba1c": [("critical", .02), ("high", .14), ("routine", .84)]}
-NEEDS_CONF = {"colorectal_fit": False, "cervical": True, "breast": True, "diabetes_hba1c": True}
-CONF_POS = {"cervical": 0.45, "breast": 0.30, "diabetes_hba1c": 0.75}
+# Iteration 6: tier, confirmation step and pathway come from the clinical rules engine applied to a synthetic
+# actionable result (same distributions as the seed), not from a fixed table.
+REFERRAL_PATHWAYS = {"colonoscopy", "colposcopy", "colposcopy_urgent", "biopsy"}
+CONFIRM_THEN_REFER = {"assessment_imaging": "biopsy", "reflex_cytology": "colposcopy", "reflex_hpv": "colposcopy",
+                      "repeat_fit": "colonoscopy", "repeat_sample": "colposcopy"}
+GP_LED = {"prediabetes_gp", "surveillance_1y", "confirm_then_gp", "same_day_review"}
+# Colorectal baseline calibration: Abu Dhabi 2015-16 (BMC Cancer 2021) - 30.5 % of positive screens completed
+# colonoscopy, median 72 days. Extra baseline losses on the colonoscopy pathway reproduce that order of magnitude.
+CRC_BASELINE_EXTRA_DROP = 0.30  # A (calibrated)
+CRC_BASELINE_WAIT_FACTOR = 2.6  # A (calibrated)
 
 BASELINE = dict(
     name="baseline (no system)", notify_median=6.0, never_notified=0.08, unsupported_lang_penalty=0.15,
@@ -49,17 +58,32 @@ def _pick(rng, pairs):
     return pairs[-1][0]
 
 
-def journey(sp: SynthPatient, p: dict, rng: random.Random, top_risk: bool) -> dict:
-    tier = _pick(rng, TIER_W[sp.programme])
+def _decision(sp: SynthPatient, rng: random.Random):
+    ctx = PatientContext(age=sp.age, sex=sp.gender, pregnant=sp.pregnant, deceased=False,
+                         under_specialist_care=False, haemoglobinopathy=sp.haemoglobinopathy)
+    r = draw_result(rng, sp.programme, ctx, enriched=True)
+    return evaluate(ResultInput(sp.programme, r.value, r.value_text, r.unit, r.test, r.status, r.cytology), ctx)
+
+
+def journey(sp: SynthPatient, p: dict, rng: random.Random, top_risk: bool, dec=None) -> dict:
+    dec = dec or _decision(sp, rng)
+    tier = dec.tier or "routine"
     sp_f = TIER_SPEED[tier]
+    baseline = not p["escalation"]
+    crc = dec.pathway in ("colonoscopy", "repeat_fit")
     rm = risk_multiplier(sp)
     unsupported = sp.language in ("tl", "ml")
     support = 0.7 if (p["priority_outreach"] and top_risk) else 1.0  # navigator outreach for top-risk cases
     r = dict(programme=sp.programme, tier=tier, language=sp.language, region=sp.region, gender=sp.gender,
              age_band=sp.age_band, nationality=sp.nationality, t_notify=None, understood=False, t_ack=None,
              t_confirm=None, t_consult=None, needs_referral=False, referral_done=False, appt_attended=False,
-             t_care=None, closed=False, closure="open", reason=None, confidence=None)
+             t_care=None, closed=False, closure="open", reason=None, confidence=None, pathway=dec.pathway,
+             review=dec.disposition == "review")
     t = 0.0
+    if dec.disposition == "review":  # uncertain result: human review first
+        if baseline and rng.random() < 0.20:  # A: no review queue -> ambiguous results often sit unactioned
+            return {**r, "reason": "uncertain_result_not_actioned"}
+        t += _ln(rng, 1.0 if not baseline else 7.0)
 
     def done(reason: str) -> dict:
         r["reason"] = reason
@@ -91,18 +115,24 @@ def journey(sp: SynthPatient, p: dict, rng: random.Random, top_risk: bool) -> di
         if rng.random() < p["decline_documented"]:
             r.update(closed=True, closure="authorised_informed_decline")
         return done("patient_declined")
-    if NEEDS_CONF[sp.programme]:
+    pathway = dec.pathway
+    if dec.needs_confirmation:
         if rng.random() < p["confirm_drop"] * rm * support:
             return done("confirmatory_test_not_done")
         t += _ln(rng, p["confirm_median"] * sp_f)
         r["t_confirm"] = t
-        if rng.random() >= CONF_POS[sp.programme]:
+        if rng.random() >= CONFIRM_POSITIVE.get(pathway, CONFIRM_POSITIVE.get(sp.programme, 0.5)):
             if rng.random() < p["closure_documented"]:
-                r.update(closed=True, closure="evidence_negative_confirmation", t_care=t)
+                # breast/FIT return to routine screening; cervical/diabetes need a surveillance plan (v1.1)
+                kind = "negative_confirmation" if sp.programme in ("breast", "colorectal_fit") else "surveillance_plan"
+                r.update(closed=True, closure=f"evidence_{kind}", t_care=t)
             return done("negative_confirmation")
+        pathway = CONFIRM_THEN_REFER.get(pathway, pathway)
     t += _ln(rng, p["consult_median"] * sp_f)
     r["t_consult"] = t
-    if sp.programme != "diabetes_hba1c":
+    if crc and baseline and rng.random() < CRC_BASELINE_EXTRA_DROP:
+        return done("colonoscopy_not_arranged")
+    if pathway in REFERRAL_PATHWAYS or (pathway == "human_review" and sp.programme != "diabetes_hba1c"):
         r["needs_referral"] = True
         if rng.random() < p["referral_lost"]:
             return done("referral_lost")
@@ -112,7 +142,7 @@ def journey(sp: SynthPatient, p: dict, rng: random.Random, top_risk: bool) -> di
             t += _ln(rng, 5.0)
         t += _ln(rng, p["accept_median"] * sp_f)
         r["referral_done"] = True
-        t += _ln(rng, p["appt_wait_median"] * sp_f)
+        t += _ln(rng, p["appt_wait_median"] * sp_f * (CRC_BASELINE_WAIT_FACTOR if crc and baseline else 1.0))
         if rng.random() < p["no_show"] * rm * support:
             if rng.random() >= p["rebook"]:
                 return done("no_show_not_rebooked")
@@ -159,6 +189,11 @@ def summarise(rows: list[dict]) -> dict:
         "pct_open_unresolved_at_horizon": _pct(sum(not r["closed"] for r in rows), n),
         "mean_confidence_1to5": round(st.mean([r["confidence"] for r in rows if r["confidence"]]), 2),
     }
+    crc = [r for r in rows if r["pathway"] in ("colonoscopy",)]
+    out["pct_fit_positive_reaching_colonoscopy"] = _pct(sum(r["appt_attended"] for r in crc), len(crc))
+    out["median_days_fit_positive_to_colonoscopy"] = _median([r["t_care"] for r in crc if r["appt_attended"]])
+    out["pct_review_results_actioned"] = _pct(sum(r["reason"] != "uncertain_result_not_actioned" for r in rows
+                                                  if r["review"]), sum(r["review"] for r in rows))
     reasons = Counter(r["reason"] for r in rows if r["reason"] and not r["closed"])
     out["open_reasons"] = dict(reasons.most_common())
     by_lang: dict[str, list] = defaultdict(list)
@@ -170,16 +205,19 @@ def summarise(rows: list[dict]) -> dict:
     return out
 
 
-def run_simulation(n: int = 2000, seed: int = 20261120, replications: int = 5) -> dict:
-    """Common random numbers: both scenarios see the same cohort and random stream per replication."""
-    cohort = make_cohort(n, seed)
+def run_simulation(n: int = 2000, seed: int = 20261120, replications: int = 5, min_age: int = 25) -> dict:
+    """Common random numbers: both scenarios see the same cohort, the same results and random stream."""
+    cohort = make_cohort(n, seed, min_age=min_age)
+    drng = random.Random(seed)
+    decisions = [_decision(sp, drng) for sp in cohort]  # identical clinical results in both scenarios
     risks = sorted(risk_multiplier(sp) for sp in cohort)
     top_cut = risks[int(len(risks) * 0.7)]
     reps: dict[str, list[dict]] = {"baseline": [], "with_system": []}
     for k in range(replications):
         for key, params in (("baseline", BASELINE), ("with_system", WITH_SYSTEM)):
             rng = random.Random(seed * 31 + k)
-            rows = [journey(sp, params, rng, risk_multiplier(sp) >= top_cut) for sp in cohort]
+            rows = [journey(sp, params, rng, risk_multiplier(sp) >= top_cut, dec)
+                    for sp, dec in zip(cohort, decisions)]
             reps[key].append(summarise(rows))
     scalar_keys = [k for k, v in reps["baseline"][0].items() if isinstance(v, (int, float)) and k != "n"]
     kpis = []

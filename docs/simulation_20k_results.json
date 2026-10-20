@@ -1,0 +1,405 @@
+{
+ "label": "SIMULATED - synthetic cohort and assumed parameters; not real-world evidence",
+ "n_patients": 20000,
+ "replications": 5,
+ "horizon_days": 120,
+ "seed": 20261120,
+ "kpis": [
+  {
+   "kpi": "median_days_to_notification",
+   "baseline": 8.0,
+   "baseline_range": [
+    8.0,
+    8.1
+   ],
+   "with_system": 1.3,
+   "with_system_range": [
+    1.3,
+    1.3
+   ]
+  },
+  {
+   "kpi": "median_days_to_acknowledgement",
+   "baseline": 12.1,
+   "baseline_range": [
+    12.0,
+    12.2
+   ],
+   "with_system": 4.9,
+   "with_system_range": [
+    4.9,
+    4.9
+   ]
+  },
+  {
+   "kpi": "median_days_to_confirmation",
+   "baseline": 34.0,
+   "baseline_range": [
+    33.3,
+    34.8
+   ],
+   "with_system": 17.8,
+   "with_system_range": [
+    17.5,
+    18.0
+   ]
+  },
+  {
+   "kpi": "median_days_to_consultation",
+   "baseline": 26.3,
+   "baseline_range": [
+    26.1,
+    26.4
+   ],
+   "with_system": 12.2,
+   "with_system_range": [
+    12.1,
+    12.2
+   ]
+  },
+  {
+   "kpi": "median_days_to_care",
+   "baseline": 48.6,
+   "baseline_range": [
+    48.3,
+    49.0
+   ],
+   "with_system": 24.8,
+   "with_system_range": [
+    24.7,
+    24.9
+   ]
+  },
+  {
+   "kpi": "pct_notified",
+   "baseline": 82.3,
+   "baseline_range": [
+    82.2,
+    82.7
+   ],
+   "with_system": 98.5,
+   "with_system_range": [
+    98.4,
+    98.7
+   ]
+  },
+  {
+   "kpi": "pct_understood",
+   "baseline": 44.3,
+   "baseline_range": [
+    44.1,
+    44.7
+   ],
+   "with_system": 95.1,
+   "with_system_range": [
+    95.0,
+    95.3
+   ]
+  },
+  {
+   "kpi": "pct_referral_completed",
+   "baseline": 87.2,
+   "baseline_range": [
+    86.6,
+    88.0
+   ],
+   "with_system": 98.1,
+   "with_system_range": [
+    97.9,
+    98.4
+   ]
+  },
+  {
+   "kpi": "pct_appointment_attended",
+   "baseline": 72.4,
+   "baseline_range": [
+    70.7,
+    73.9
+   ],
+   "with_system": 95.9,
+   "with_system_range": [
+    95.6,
+    96.0
+   ]
+  },
+  {
+   "kpi": "pct_care_reached_or_resolved",
+   "baseline": 35.0,
+   "baseline_range": [
+    34.6,
+    35.4
+   ],
+   "with_system": 82.3,
+   "with_system_range": [
+    82.2,
+    82.4
+   ]
+  },
+  {
+   "kpi": "pct_documented_closure",
+   "baseline": 20.6,
+   "baseline_range": [
+    20.2,
+    21.0
+   ],
+   "with_system": 85.3,
+   "with_system_range": [
+    85.1,
+    85.7
+   ]
+  },
+  {
+   "kpi": "pct_open_unresolved_at_horizon",
+   "baseline": 79.4,
+   "baseline_range": [
+    79.0,
+    79.8
+   ],
+   "with_system": 14.7,
+   "with_system_range": [
+    14.3,
+    14.9
+   ]
+  },
+  {
+   "kpi": "mean_confidence_1to5",
+   "baseline": 2.8,
+   "baseline_range": [
+    2.78,
+    2.8
+   ],
+   "with_system": 4.1,
+   "with_system_range": [
+    4.06,
+    4.07
+   ]
+  },
+  {
+   "kpi": "pct_fit_positive_reaching_colonoscopy",
+   "baseline": 28.9,
+   "baseline_range": [
+    26.9,
+    30.0
+   ],
+   "with_system": 88.3,
+   "with_system_range": [
+    86.3,
+    89.8
+   ]
+  },
+  {
+   "kpi": "median_days_fit_positive_to_colonoscopy",
+   "baseline": 71.3,
+   "baseline_range": [
+    68.5,
+    73.4
+   ],
+   "with_system": 28.4,
+   "with_system_range": [
+    27.8,
+    29.0
+   ]
+  },
+  {
+   "kpi": "pct_review_results_actioned",
+   "baseline": 80.2,
+   "baseline_range": [
+    79.8,
+    80.8
+   ],
+   "with_system": 100.0,
+   "with_system_range": [
+    100.0,
+    100.0
+   ]
+  }
+ ],
+ "baseline_detail": {
+  "n": 20000,
+  "median_days_to_notification": 8.0,
+  "median_days_to_acknowledgement": 12.2,
+  "median_days_to_confirmation": 34.8,
+  "median_days_to_consultation": 26.4,
+  "median_days_to_care": 49.0,
+  "pct_notified": 82.3,
+  "pct_understood": 44.1,
+  "pct_referral_completed": 86.6,
+  "pct_appointment_attended": 70.7,
+  "pct_care_reached_or_resolved": 35.0,
+  "pct_documented_closure": 20.4,
+  "pct_open_unresolved_at_horizon": 79.6,
+  "mean_confidence_1to5": 2.78,
+  "pct_fit_positive_reaching_colonoscopy": 29.0,
+  "median_days_fit_positive_to_colonoscopy": 71.8,
+  "pct_review_results_actioned": 80.4,
+  "open_reasons": {
+   "did_not_understand": 6187,
+   "care_started_closure_not_documented": 3020,
+   "never_notified_or_unreachable": 2661,
+   "treatment_not_started": 1013,
+   "uncertain_result_not_actioned": 881,
+   "confirmatory_test_not_done": 708,
+   "no_show_not_rebooked": 273,
+   "colonoscopy_not_arranged": 268,
+   "patient_declined": 267,
+   "negative_confirmation": 204,
+   "still_in_progress_at_horizon": 197,
+   "referral_rejected_not_rerouted": 126,
+   "referral_lost": 106
+  },
+  "by_language": {
+   "ar": {
+    "n": 6476,
+    "pct_care_reached": 38.4,
+    "pct_documented_closure": 22.5
+   },
+   "en": {
+    "n": 5695,
+    "pct_care_reached": 37.1,
+    "pct_documented_closure": 21.8
+   },
+   "hi": {
+    "n": 2297,
+    "pct_care_reached": 38.5,
+    "pct_documented_closure": 22.2
+   },
+   "ml": {
+    "n": 1878,
+    "pct_care_reached": 19.3,
+    "pct_documented_closure": 11.3
+   },
+   "tl": {
+    "n": 1225,
+    "pct_care_reached": 21.8,
+    "pct_documented_closure": 13.5
+   },
+   "ur": {
+    "n": 2429,
+    "pct_care_reached": 36.7,
+    "pct_documented_closure": 20.7
+   }
+  }
+ },
+ "with_system_detail": {
+  "n": 20000,
+  "median_days_to_notification": 1.3,
+  "median_days_to_acknowledgement": 4.9,
+  "median_days_to_confirmation": 17.8,
+  "median_days_to_consultation": 12.1,
+  "median_days_to_care": 24.8,
+  "pct_notified": 98.5,
+  "pct_understood": 95.2,
+  "pct_referral_completed": 97.9,
+  "pct_appointment_attended": 95.6,
+  "pct_care_reached_or_resolved": 82.4,
+  "pct_documented_closure": 85.1,
+  "pct_open_unresolved_at_horizon": 14.9,
+  "mean_confidence_1to5": 4.07,
+  "pct_fit_positive_reaching_colonoscopy": 89.8,
+  "median_days_fit_positive_to_colonoscopy": 28.1,
+  "pct_review_results_actioned": 100.0,
+  "open_reasons": {
+   "treatment_not_started": 1105,
+   "did_not_understand": 674,
+   "confirmatory_test_not_done": 506,
+   "care_started_closure_not_documented": 488,
+   "no_show_not_rebooked": 85,
+   "referral_rejected_not_rerouted": 57,
+   "negative_confirmation": 31,
+   "referral_lost": 19,
+   "patient_declined": 15,
+   "still_in_progress_at_horizon": 9
+  },
+  "by_language": {
+   "ar": {
+    "n": 6476,
+    "pct_care_reached": 83.0,
+    "pct_documented_closure": 85.7
+   },
+   "en": {
+    "n": 5695,
+    "pct_care_reached": 83.2,
+    "pct_documented_closure": 86.2
+   },
+   "hi": {
+    "n": 2297,
+    "pct_care_reached": 82.9,
+    "pct_documented_closure": 85.7
+   },
+   "ml": {
+    "n": 1878,
+    "pct_care_reached": 78.6,
+    "pct_documented_closure": 81.5
+   },
+   "tl": {
+    "n": 1225,
+    "pct_care_reached": 78.0,
+    "pct_documented_closure": 80.6
+   },
+   "ur": {
+    "n": 2429,
+    "pct_care_reached": 83.5,
+    "pct_documented_closure": 85.0
+   }
+  }
+ },
+ "assumptions": {
+  "baseline": {
+   "name": "baseline (no system)",
+   "notify_median": 6.0,
+   "never_notified": 0.08,
+   "unsupported_lang_penalty": 0.15,
+   "understood": 0.62,
+   "understood_lang_penalty": 0.2,
+   "teach_back": false,
+   "confirm_median": 18.0,
+   "confirm_drop": 0.15,
+   "consult_median": 10.0,
+   "referral_reject": 0.15,
+   "reroute_after_reject": 0.5,
+   "referral_lost": 0.06,
+   "accept_median": 6.0,
+   "appt_wait_median": 24.0,
+   "no_show": 0.18,
+   "rebook": 0.4,
+   "treat_median": 14.0,
+   "treat_drop": 0.08,
+   "closure_documented": 0.55,
+   "decline": 0.04,
+   "decline_documented": 0.3,
+   "unreachable_ladder": false,
+   "priority_outreach": false,
+   "escalation": false,
+   "confidence_mean": 2.9
+  },
+  "with_system": {
+   "name": "with Wasl",
+   "notify_median": 1.0,
+   "never_notified": 0.01,
+   "unsupported_lang_penalty": 0.04,
+   "understood": 0.86,
+   "understood_lang_penalty": 0.06,
+   "teach_back": true,
+   "confirm_median": 10.0,
+   "confirm_drop": 0.06,
+   "consult_median": 5.0,
+   "referral_reject": 0.15,
+   "reroute_after_reject": 0.92,
+   "referral_lost": 0.005,
+   "accept_median": 2.5,
+   "appt_wait_median": 14.0,
+   "no_show": 0.11,
+   "rebook": 0.85,
+   "treat_median": 8.0,
+   "treat_drop": 0.04,
+   "closure_documented": 0.97,
+   "decline": 0.04,
+   "decline_documented": 0.97,
+   "unreachable_ladder": true,
+   "priority_outreach": true,
+   "escalation": true,
+   "confidence_mean": 4.1
+  },
+  "notes": "Priority outreach uses the latent synthetic risk as a stand-in for the model ranking (top 30%). Medians are of cases reaching that step within the horizon."
+ }
+}
