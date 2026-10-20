@@ -14,7 +14,10 @@ from sqlalchemy.orm import Session
 
 from ..models import Case, Patient, utcnow
 
-CAT_FEATURES = ["programme", "tier", "language", "region", "age_band"]
+# age_band is NOT a model input (Iteration 7): with it, both demo candidates ranked 40-49-year-olds last (recall at
+# top 30 % 0.05-0.10 vs 0.80-1.0 for 60-75) and failed the fairness gate; without it AUC and ECE improved and all
+# gates passed. Age band stays a fairness-monitoring attribute (FAIRNESS_ATTRS).
+CAT_FEATURES = ["programme", "tier", "language", "region"]
 NUM_FEATURES = ["has_smartphone", "whatsapp", "phone_valid", "alt_contact", "prior_no_shows", "prior_screens",
                 "early_failed_contacts", "early_notified", "early_teach_back_failed"]
 EARLY_WINDOW_HOURS = 72  # engagement signals observed only in the first 72h after the result (no label leakage)

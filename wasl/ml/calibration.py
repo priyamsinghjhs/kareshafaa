@@ -75,8 +75,15 @@ class CalibratedModel:
         self.pipe.fit(X, y)
         return self
 
+    @property
+    def input_columns(self) -> list[str]:
+        """The columns THIS model was trained on (a production model may predate a feature-set change)."""
+        names = getattr(self.pipe, "feature_names_in_", None)
+        return list(names) if names is not None else list(FEATURES)
+
     def raw_proba(self, X: pd.DataFrame) -> np.ndarray:
-        return self.pipe.predict_proba(X)[:, 1]
+        cols = self.input_columns
+        return self.pipe.predict_proba(X[cols] if set(cols) <= set(X.columns) else X)[:, 1]
 
     def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
         raw = self.raw_proba(X)
@@ -152,15 +159,16 @@ def _label(feat: str, value: Any) -> str:
 
 def explain(model: Any, rows: pd.DataFrame, profile: dict, top: int = 3, min_delta: float = 0.02) -> list[list[dict]]:
     """For each row: up to `top` factors that most change the predicted delay risk versus the reference profile."""
-    base = model.predict_proba(rows[FEATURES])[:, 1]
+    feats = [f for f in getattr(model, "input_columns", FEATURES) if f in profile and f in rows.columns]
+    base = model.predict_proba(rows)[:, 1]
     deltas = {}
-    for f in FEATURES:
-        alt = rows[FEATURES].copy()
-        alt[f] = profile[f] if f in CAT_FEATURES else float(profile[f])
+    for f in feats:
+        alt = rows.copy()
+        alt[f] = profile[f] if isinstance(profile[f], str) else float(profile[f])
         deltas[f] = base - model.predict_proba(alt)[:, 1]
     out = []
     for i in range(len(rows)):
-        items = sorted(((f, float(deltas[f][i])) for f in FEATURES), key=lambda t: -abs(t[1]))
+        items = sorted(((f, float(deltas[f][i])) for f in feats), key=lambda t: -abs(t[1]))
         why = []
         for f, d in items[:top]:
             if abs(d) < min_delta:

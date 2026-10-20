@@ -152,3 +152,32 @@ def test_rationale_exposed_and_never_changes_tier(client, as_user, db):
 def test_model_card_reports_calibration(db):
     mv = db.scalar(select(ModelVersion).order_by(ModelVersion.version))
     assert "alibrat" in registry.model_card(mv)
+
+
+def test_model_with_older_feature_set_still_scores_and_explains(monkeypatch):
+    """Iteration 7: age_band was removed as a model input. A production model trained WITH it must keep scoring,
+    explaining and being compared against new candidates (it crashed with 'columns are missing')."""
+    import numpy as np
+    import pandas as pd
+
+    import wasl.ml.registry as R
+    from wasl.ml.calibration import CalibratedModel, explain
+    from wasl.ml.features import CAT_FEATURES, FEATURES, NUM_FEATURES
+
+    rng = np.random.default_rng(0)
+    n = 300
+    df = pd.DataFrame({c: rng.choice(["a", "b", "c"], n) for c in CAT_FEATURES})
+    for c in NUM_FEATURES:
+        df[c] = rng.integers(0, 3, n).astype(float)
+    df["age_band"] = rng.choice(["40-49", "60-75"], n)
+    y = rng.integers(0, 2, n)
+    old_cat = CAT_FEATURES + ["age_band"]
+    monkeypatch.setattr(R, "CAT_FEATURES", old_cat)
+    old = CalibratedModel(R._pipeline("logreg", 0), method="none").fit(df[old_cat + NUM_FEATURES], y)
+    monkeypatch.setattr(R, "CAT_FEATURES", CAT_FEATURES)
+    assert "age_band" in old.input_columns and "age_band" not in FEATURES
+    p = old.predict_proba(df)[:, 1]  # full frame: the model selects its own columns
+    assert p.shape == (n,) and np.all((p > 0) & (p < 1))
+    profile = {c: (str(df[c].mode()[0]) if c in old_cat else float(df[c].mean())) for c in old.input_columns}
+    why = explain(old, df.head(5), profile)
+    assert len(why) == 5

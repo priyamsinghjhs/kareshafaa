@@ -245,7 +245,7 @@ def train_candidate(db: Session, actor: Actor, algorithm: str = "gbm", now: date
     cur_auc = None
     if cur is not None:
         try:
-            cur_auc = _safe_auc(y, load_artifact(cur).predict_proba(va[FEATURES])[:, 1])
+            cur_auc = _safe_auc(y, load_artifact(cur).predict_proba(va)[:, 1])  # model picks its own inputs
             metrics["current_production_auc_same_holdout"] = round(cur_auc or 0.0, 4)
         except DomainError:
             cur_auc = None
@@ -353,7 +353,7 @@ def score_open_cases(db: Session, now: datetime | None = None) -> int:
         db.query(Case).filter(Case.state != "closed").update({Case.risk_score: None, Case.risk_model_version: None, Case.risk_rationale: None})
         return 0
     model = load_artifact(mv)
-    p = model.predict_proba(df[FEATURES])[:, 1]
+    p = model.predict_proba(df)[:, 1]  # the model selects its own input columns (feature sets change)
     profile = (mv.reference_stats or {}).get("profile")
     why = explain(model, df, profile) if profile else [[] for _ in range(len(df))]
     for cid, score, w in zip(df.case_id.tolist(), p.tolist(), why):
@@ -386,7 +386,7 @@ def drift_report(db: Session) -> dict:
         cur = df[c].astype(str).value_counts(normalize=True).to_dict()
         v = _psi(ref, cur)
         feats[c] = {"psi": round(v, 4), "status": "alert" if v > cfg.drift_psi_alert else "warn" if v > cfg.drift_psi_warn else "ok"}
-    scores = load_artifact(mv).predict_proba(df[FEATURES])[:, 1]
+    scores = load_artifact(mv).predict_proba(df)[:, 1]
     ref_h = np.array(mv.reference_stats["score_hist"], dtype=float)
     cur_h = np.histogram(scores, bins=10, range=(0, 1))[0].astype(float)
     sp = _psi({str(i): v for i, v in enumerate(ref_h / ref_h.sum())}, {str(i): v for i, v in enumerate(cur_h / cur_h.sum())})
