@@ -55,7 +55,9 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
         "label": "SYNTHETIC DEMO - not a real result", "case_id": c.id, "language": lang, "rtl": lang in RTL_LANGUAGES,
         "languages": SUPPORTED_LANGUAGES, "ui": UI_TEXT[lang],
         "patient": {"given_name": p.given_name, "preferred_language": p.language},
-        "interpreter_notice": INTERPRETER_NOTICE.get(p.language),
+        "interpreter_notice": INTERPRETER_NOTICE.get(p.language) or (
+            "This explanation is not yet available in your language. A navigator will call you with an interpreter."
+            if prog.get("translation_pending") else None),
         "programme": prog["name"], "meaning": prog["meaning"], "next_step": prog["next_step"],
         "timeframe": TIMEFRAME[lang][c.tier], "urgency": URGENCY[lang][c.tier],
         "reassurance": TEMPLATES[lang]["reassurance"][variant],

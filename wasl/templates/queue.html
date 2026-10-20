@@ -16,13 +16,13 @@
 {% endblock %}
 {% block scripts %}
 <script>
-const VIEWS = [["all","All open"],["mine","Mine"],["overdue","Overdue"],["unassigned","Unassigned"],["rejected","Rejected referrals"],["escalated","Escalated"],["calls","Phone-call tasks"],["transfers","Transfers pending"],["consults","Open consults"]];
+const VIEWS = [["all","All open"],["review","Clinical review"],["mine","Mine"],["overdue","Overdue"],["unassigned","Unassigned"],["rejected","Rejected referrals"],["escalated","Escalated"],["calls","Phone-call tasks"],["transfers","Transfers pending"],["consults","Open consults"]];
 let view = new URLSearchParams(location.search).get("view") || "all", data = null, offset = 0, timer = null;
 const PAGE = 50;
 const EMPTY = { all: "No open cases – every result has reached care or a documented closure.", mine: "No cases owned by you right now.",
   overdue: "Nothing overdue. Every step is inside its SLA.", unassigned: "Every case has a named owner.",
   rejected: "No rejected referrals waiting for re-routing.", escalated: "No unacknowledged escalations.",
-  calls: "No phone-call tasks waiting.", transfers: "No two-key transfers pending.", consults: "No open consultation requests." };
+  review: "No results waiting for clinician review.", calls: "No phone-call tasks waiting.", transfers: "No two-key transfers pending.", consults: "No open consultation requests." };
 async function load() {
   const prog = document.getElementById("prog").value, q = document.getElementById("search").value.trim();
   data = await W.api(`/api/queue?view=${view}&limit=${PAGE}&offset=${offset}${prog ? "&programme=" + prog : ""}${q ? "&q=" + encodeURIComponent(q) : ""}`);
@@ -43,7 +43,7 @@ function render() {
       <td>${r.owner_is_pool ? '<span class="chip pool">team pool</span> ' : ""}<span class="small">${W.esc(r.owner)}</span></td>
       <td class="small">${W.ago(r.due_at)}</td>
       <td>${r.risk_score == null ? '<span class="muted small">–</span>' : `<span class="risk-bar" style="width:${Math.round(r.risk_score * 60) + 4}px"></span> <span class="small">${Math.round(r.risk_score * 100)}%</span>`}</td>
-      <td>${r.escalation_level ? `<span class="chip sla-red">L${r.escalation_level}</span> ` : ""}${r.call_task ? '<span class="chip flag">call</span> ' : ""}${r.open_consult ? '<span class="chip flag">consult</span> ' : ""}${r.transfer_pending ? '<span class="chip flag">transfer</span>' : ""}</td></tr>`).join("") +
+      <td>${r.review_required ? `<span class="chip sla-red" title="${W.esc((r.review_reasons || []).join(', '))}">review</span> ` : ""}${r.escalation_level ? `<span class="chip sla-red">L${r.escalation_level}</span> ` : ""}${r.call_task ? '<span class="chip flag">call</span> ' : ""}${r.open_consult ? '<span class="chip flag">consult</span> ' : ""}${r.transfer_pending ? '<span class="chip flag">transfer</span>' : ""}</td></tr>`).join("") +
     `</tbody></table><nav class="pager" aria-label="Queue pages"><span class="small muted">${from}–${to} of ${data.total}</span>
      <button class="secondary outline" ${data.offset ? "" : "disabled"} onclick="page(-1)">‹ Previous</button>
      <button class="secondary outline" ${to < data.total ? "" : "disabled"} onclick="page(1)">Next ›</button></nav>`;

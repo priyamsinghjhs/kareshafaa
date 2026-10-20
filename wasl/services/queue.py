@@ -15,7 +15,7 @@ from ..statemachine import LABELS, S
 
 RAG_RANK = {"red": 0, "amber": 1, "green": 2, "none": 3}
 TIER_RANK = {"critical": 0, "urgent": 1, "high": 2, "routine": 3}
-VIEWS = ("all", "overdue", "unassigned", "rejected", "escalated", "calls", "transfers", "consults", "mine")
+VIEWS = ("all", "review", "overdue", "unassigned", "rejected", "escalated", "calls", "transfers", "consults", "mine")
 
 
 def _org_scope(db: Session, case_ids: list[int]) -> dict[int, set[int]]:
@@ -45,7 +45,9 @@ def _org_scope(db: Session, case_ids: list[int]) -> dict[int, set[int]]:
 
 def sort_key(row: dict) -> tuple:
     # 1) SLA status (clinical safety first)  2) urgency tier  3) ML outreach priority  4) due time
-    return (RAG_RANK[row["sla_status"]], TIER_RANK.get(row["tier"], 9), -(row["risk_score"] or 0.0), row["due_at"] or "9")
+    # The ML score only orders cases WITHIN the same SLA status and tier; it can never move a case across tiers.
+    return (RAG_RANK[row["sla_status"]], TIER_RANK.get(row["tier"], 9), not row.get("review_required"),
+            -(row["risk_score"] or 0.0), row["due_at"] or "9")
 
 
 def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | None = None, limit: int = 200,
@@ -58,7 +60,8 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
     sla = SlaLookup.load(db)
     owner = aliased(Practitioner)
     q = (select(Case.id, Case.programme, Case.tier, Case.state, Case.owner_id, Case.due_at, Case.escalation_level,
-                Case.risk_score, Case.risk_model_version, Case.transfer_pending_owner_id,
+                Case.risk_score, Case.risk_model_version, Case.transfer_pending_owner_id, Case.review_required,
+                Case.review_reasons,
                 Patient.given_name, Patient.family_name, Patient.mrn, Patient.language,
                 owner.name, owner.is_pool, owner.active, StepTask.started_at, StepTask.due_at, StepTask.state)
          .join(Patient, Patient.id == Case.patient_id).join(owner, owner.id == Case.owner_id)
@@ -84,7 +87,7 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
     open_consults = set(db.scalars(select(ConsultRequest.case_id).where(ConsultRequest.status == "requested")))
     counts = {v: 0 for v in VIEWS}
     rows = []
-    for (cid, prog, tier, state, owner_id, due, esc, risk, risk_v, pending, given, family, mrn, lang,
+    for (cid, prog, tier, state, owner_id, due, esc, risk, risk_v, pending, review, reasons, given, family, mrn, lang,
          oname, opool, oactive, s_start, s_due, s_state) in rows_db:
         if scoped is not None and cid not in scoped:
             continue
@@ -100,9 +103,10 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
             "risk_score": None if risk is None else round(risk, 3), "risk_model_version": risk_v,
             "transfer_pending": pending is not None, "call_task": cid in open_calls,
             "open_escalation": cid in open_esc, "open_consult": cid in open_consults, "unassigned": unassigned,
+            "review_required": bool(review), "review_reasons": reasons or [],
         }
         member = {
-            "all": True, "overdue": rag == "red", "unassigned": unassigned, "rejected": state == S.REFERRAL_REJECTED,
+            "all": True, "review": bool(review), "overdue": rag == "red", "unassigned": unassigned, "rejected": state == S.REFERRAL_REJECTED,
             "escalated": row["open_escalation"], "calls": row["call_task"], "transfers": row["transfer_pending"],
             "consults": row["open_consult"], "mine": actor.practitioner_id == owner_id,
         }
@@ -113,4 +117,4 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
     rows.sort(key=sort_key)
     return {"view": view, "counts": counts, "total": len(rows), "offset": offset, "limit": limit,
             "items": rows[offset:offset + limit],
-            "ordering": "SLA status, then urgency tier, then ML outreach priority (prioritisation only), then due time"}
+            "ordering": "SLA status, then urgency tier, then clinical-review flag, then ML outreach priority (within tier only), then due time"}

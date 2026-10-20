@@ -334,10 +334,45 @@ INTERPRETER_NOTICE: dict[str, str] = {
 }
 
 
+# Result-specific wording keyed by clinical pathway (Iteration 6). English only so far: other languages get the
+# English text plus a navigator call with an interpreter (flagged translation_pending) - never a wrong message.
+PATHWAY_TEXT_EN: dict[str, dict[str, str]] = {
+    "repeat_fit": {"meaning": "Your bowel screening kit could not be tested (for example the sample was spoilt or "
+                              "unclear). This is NOT a result about your health. We need a new sample.",
+                   "next_step": "a new home test kit, which we will send you"},
+    "repeat_sample": {"meaning": "Your cervical screening sample could not be read by the lab. This is NOT a result "
+                                 "about your health. We need a new sample.",
+                      "next_step": "a repeat cervical screening sample at your clinic"},
+    "prediabetes_gp": {"meaning": "Your blood sugar test was a little higher than normal (called prediabetes). This is "
+                                  "NOT diabetes, but it means a higher chance of getting it. Small lifestyle changes "
+                                  "can lower that chance.",
+                       "next_step": "a visit with your family doctor for advice, and a repeat test within a year"},
+    "surveillance_1y": {"meaning": "Your cervical screening test found HPV, a very common virus, but your cells looked "
+                                   "normal. Most HPV infections clear on their own.",
+                        "next_step": "a repeat HPV test in 12 months (we will remind you)"},
+    "colposcopy_urgent": {"meaning": "Your cervical screening test found cell changes that need a closer look soon. "
+                                     "This does NOT mean you have cancer.",
+                          "next_step": "a closer look at the cervix (colposcopy) at a hospital clinic, within 2 weeks"},
+}
+
+
+def _direct_applies(case) -> bool:
+    rid = getattr(case, "rule_id", None)
+    if rid is None:  # legacy cases created before the rules engine
+        return True
+    return {"cervical": rid == "CX-HPV1618", "breast": rid.startswith(("BR-4", "BR-5")),
+            "diabetes_hba1c": rid.endswith("-CRIT")}.get(case.programme, False)
+
+
 def programme_text(lang: str, case) -> dict[str, str]:
     """Patient-facing wording for this case: programme text, overridden for result-specific direct pathways."""
     lang = lang if lang in PROGRAMME_TEXT else "en"
     base = dict(PROGRAMME_TEXT[lang][case.programme])
-    if case.needs_confirmation is False:
+    if case.needs_confirmation is False and _direct_applies(case):
         base.update(DIRECT_PATHWAY_TEXT[lang].get(case.programme, {}))
+    pw = getattr(case, "pathway", None)
+    if pw in PATHWAY_TEXT_EN:
+        base.update(PATHWAY_TEXT_EN[pw])
+        if lang != "en":
+            base["translation_pending"] = "true"
     return base

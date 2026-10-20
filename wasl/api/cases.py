@@ -104,6 +104,15 @@ def close(case_id: int, body: sch.CloseIn, actor: Actor = Depends(require("case:
     return _done(db, c, actor)
 
 
+@router.post("/cases/{case_id}/review")
+def review(case_id: int, body: sch.ReviewIn, actor: Actor = Depends(require("case:triage_urgent")),
+           db: Session = Depends(get_db)) -> dict:
+    """Clinician resolves the human-review flag (unknown/conflicting/amended result, context exception)."""
+    c = _load(db, actor, case_id)
+    wf.resolve_review(db, c, actor, note=body.note, tier=body.tier)
+    return _done(db, c, actor)
+
+
 @router.post("/cases/{case_id}/reopen")
 def reopen(case_id: int, body: sch.NoteIn, actor: Actor = Depends(require("case:reopen")), db: Session = Depends(get_db)) -> dict:
     c = _load(db, actor, case_id)

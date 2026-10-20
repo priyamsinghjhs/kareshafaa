@@ -22,7 +22,11 @@ def available_actions(db: Session, actor: Actor, c: Case) -> list[dict]:
             acts.append({"key": key, "label": label, "primary": primary, **extra})
 
     open_call = db.scalar(select(CallTask).where(CallTask.case_id == c.id, CallTask.status == "requested"))
-    if st == S.ISSUED:
+    if c.review_required and st != S.CLOSED:
+        add("review", "Resolve clinical review (reason shown above)", "case:triage_urgent", True)
+    if st == S.ISSUED and c.review_required:
+        pass  # nothing proceeds until a clinician has reviewed the result
+    elif st == S.ISSUED:
         clin = c.tier in CLINICIAN_CONFIRMED_TIERS
         add("triage", "Confirm triage" + (" (clinician)" if clin else ""),
             "case:triage_urgent" if clin else "case:triage", True)
@@ -46,8 +50,13 @@ def available_actions(db: Session, actor: Actor, c: Case) -> list[dict]:
         if sr and sr.status == "requested":
             add("confirm_result", "Record confirmatory result", "confirm:result", True)
         elif sr and sr.result == "negative":
-            add("close_evidence", "Close with evidence (negative result)", "case:write", True,
-                evidence_type="negative_confirmatory_result")
+            from ..statemachine import NEGATIVE_CONFIRMATION_CLOSES
+
+            if c.programme in NEGATIVE_CONFIRMATION_CLOSES:
+                add("close_evidence", "Close with evidence (negative result)", "case:write", True,
+                    evidence_type="negative_confirmatory_result")
+            else:
+                add("start_care", "Record surveillance plan (repeat test)", "careplan:write", True)
     if st in (S.CONSULTATION, S.REFERRAL_REJECTED):
         add("refer", "Send referral" if st == S.CONSULTATION else "Re-route referral", "referral:create", True,
             consent_blocked=consent_status(db, c.patient_id, "share_external") == "deny")

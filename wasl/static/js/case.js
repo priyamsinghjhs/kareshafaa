@@ -24,6 +24,7 @@ function header() {
    ${C.sla.due_at ? `<span class="small muted">due ${W.ago(C.sla.due_at)}</span>` : ""} ${C.sla.escalation_level ? `<span class="chip sla-red">escalation L${C.sla.escalation_level}</span>` : ""}</p></hgroup>
    <div class="small muted" style="text-align:right">Outreach priority (ML v${r.model_version ?? "–"}): <b>${r.score == null ? "–" : Math.round(r.score * 100) + "%"}</b><br><span title="${W.esc(r.use)}">prioritisation only ⓘ</span></div></div>
    <div class="stepper">${C.journey.map(j => `<div class="st ${j.status}">${W.esc(j.label)}</div>`).join("")}</div>
+   ${C.review_required ? `<div class="card" role="alert" style="background:#fdecea;border-left:4px solid #c62828"><b>Clinical review required</b> before this result can progress automatically: ${(C.review_reasons || []).map(x => `<span class="chip sla-red">${W.esc(x.replace(/_/g, " "))}</span>`).join(" ")}<div class="small">Rule ${W.esc(C.rule_id || "–")} · pathway <b>${W.esc((C.pathway || "–").replace(/_/g, " "))}</b>${C.target ? " · target " + W.esc(C.target) : ""}. Urgency was set to the safer tier; lowering it needs a clinician rationale (audited).</div></div>` : (C.rule_id ? `<p class="small muted">Rule ${W.esc(C.rule_id)} · pathway ${W.esc((C.pathway || "").replace(/_/g, " "))}${C.target ? " · target " + W.esc(C.target) : ""}</p>` : "")}
    ${C.transfer_pending ? `<div class="card" style="background:#fff8e1">Two-key transfer pending to <b>${W.esc(C.transfer_pending.to_owner)}</b> – current owner stays accountable until accepted. <span class="small muted">${W.esc(C.transfer_pending.note || "")}</span></div>` : ""}
    ${C.closure ? `<div class="card" style="background:#e8f5e9">Closed (${W.esc(C.closure.type)}: <b>${W.esc(C.closure.reason)}</b>) ${W.dt(C.closure.closed_at)} – ${W.esc(C.closure.note || "")} ${C.closure.evidence_id ? `· evidence #${C.closure.evidence_id}` : ""}</div>` : ""}`;
 }
@@ -151,6 +152,8 @@ async function openForm(key, evidenceType) {
       fd => post(`${u}/lessons`, { kind: fd.kind, reason_code: fd.reason_code, detail: fd.detail || null }, "Lesson recorded"));
     case "consent": return form(F.sel("scope", "Scope", ["share_external", "comm_app", "comm_sms", "comm_whatsapp", "comm_phone", "alt_contact", "analytics"].map(s => `<option>${s}</option>`).join("")) + F.sel("decision", "Decision", kv({ permit: "Permit", deny: "Deny" })) + F.note(),
       fd => post(`${u}/consent`, { scope: fd.scope, decision: fd.decision, note: fd.note || null }, "Consent recorded"));
+    case "review": return form(`<p class="small">Review the result and patient context. Keep or raise the urgency unless you are certain; lowering it is audited as a downgrade.</p>` + F.sel("tier", "Urgency after review", `<option value="">Keep ${W.esc(C.tier)}</option>` + kv({ critical: "Critical", urgent: "Urgent", high: "High", routine: "Routine" })) + F.note("Clinical review note (≥10 characters)", true),
+      fd => post(`${u}/review`, { note: fd.note, tier: fd.tier || null }, "Review recorded"));
     case "reopen": return form(F.note("Reason for re-opening", true), fd => post(`${u}/reopen`, { note: fd.note }, "Case re-opened"));
     case "fhir": return window.open(`${u}/fhir`, "_blank");
   }
