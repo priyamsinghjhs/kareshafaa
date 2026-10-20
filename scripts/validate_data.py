@@ -19,7 +19,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import select  # noqa: E402
 
 from wasl import audit  # noqa: E402
-from wasl.clinical_rules import ELIGIBLE_AGE, HBA1C_RANGE_MMOL, HBA1C_RANGE_PCT, TIER_RANK  # noqa: E402
+from wasl.clinical_rules import (ELIGIBLE_AGE, HBA1C_RANGE_MMOL, HBA1C_RANGE_PCT, TIER_RANK, ResultInput,  # noqa: E402
+                                 evaluate)
+from wasl.services.workflow import patient_context  # noqa: E402  # noqa: E402
 from wasl.db import session_scope  # noqa: E402
 from wasl.models import (Appointment, AuditEvent, CarePlan, Case, Communication, DiagnosticReport,  # noqa: E402
                          Observation, Patient, Practitioner, ServiceRequest, StepTask, User)
@@ -116,6 +118,13 @@ def run(max_examples: int = 5) -> dict:
             if r.programme in ("colorectal_fit", "diabetes_hba1c") and o.value is not None and not o.unit \
                     and r.conclusion != "needs_review":
                 bad("report.numeric_has_unit_or_review", r.id)
+            # independent re-application of the rules: no stored result may be "negative" if the rules say it
+            # needs a case (lost actionable result), and every case-creating result must be linked to a case
+            d = evaluate(ResultInput(r.programme, o.value, o.value_text, o.unit, None, r.status), patient_context(
+                p, r.programme, r.issued_at))
+            checked["rules_reapplied"] += 1
+            if d.creates_case and (r.case_id is None or r.conclusion == "negative"):
+                bad("report.rules_reapplied_no_lost_actionable", (r.id, d.rule_id, r.conclusion))
             if o.interpretation not in ("N", "A", "R"):
                 bad("observation.interpretation_valid", o.id)
             if (r.conclusion == "negative") != (o.interpretation == "N"):
@@ -232,7 +241,7 @@ INVARIANTS = [
     "patient.gender_valid", "patient.birth_year_plausible", "patient.pregnancy_only_female",
     "report.confirmatory_result_valid_and_linked", "report.exactly_one_observation", "report.actionable_or_review_linked_to_case (lost result)",
     "report.conclusion_valid", "report.sex_eligibility_or_flagged", "report.age_eligibility_or_flagged",
-    "report.hba1c_plausible_or_review", "report.numeric_has_unit_or_review", "observation.interpretation_valid",
+    "report.rules_reapplied_no_lost_actionable", "report.hba1c_plausible_or_review", "report.numeric_has_unit_or_review", "observation.interpretation_valid",
     "observation.interpretation_matches_conclusion", "case.tier_valid", "case.open_has_owner",
     "case.open_has_exactly_one_running_step", "case.closed_at_after_created", "case.closed_with_unresolved_review",
     "case.closed_by_human", "case.evidence_closure_has_evidence_id", "case.evidence_exists_and_belongs_to_case",
