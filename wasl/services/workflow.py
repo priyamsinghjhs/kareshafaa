@@ -27,10 +27,12 @@ from ..models import (
     Practitioner,
     QuestionnaireResponse,
     ServiceRequest,
+    TIER_CHANGE_AUTHORISED,
     StepTask,
     utcnow,
 )
-from ..programmes import CLINICIAN_CONFIRMED_TIERS, PROGRAMMES, is_actionable, needs_confirmation, triage_tier
+from ..clinical_rules import TIER_RANK, PatientContext, ResultInput, evaluate, is_downgrade, max_tier, review_min_tier
+from ..programmes import CLINICIAN_CONFIRMED_TIERS, PROGRAMMES
 from ..security import SYSTEM, Actor
 from ..sla import SlaLookup, due_at
 from ..statemachine import S, TransitionError, check_closure, check_transition
@@ -139,43 +141,140 @@ def default_owner(db: Session, case: Case, state: S) -> Practitioner:
 
 
 # ------------------------------------------------------------------ creation
+RECENT_CLOSURE_DAYS = 180  # a result for a programme closed within this window goes to human review
+
+
+def patient_context(patient: Patient, programme: str, at: datetime) -> PatientContext:
+    sc = {x.strip() for x in (patient.specialist_care or "").split(",") if x.strip()}
+    return PatientContext(age=(at.year - patient.birth_year) if patient.birth_year else None, sex=patient.gender,
+                          pregnant=bool(patient.pregnant), deceased=bool(patient.deceased),
+                          under_specialist_care=programme in sc, haemoglobinopathy=bool(patient.haemoglobinopathy))
+
+
+def flag_review(db: Session, case: Case, reasons: list[str], actor: Actor, now: datetime, *,
+                tier: str | None = None, detail: dict | None = None) -> None:
+    """Put a case into the human-review queue (idempotent per reason). The tier can only go UP here."""
+    new = [r for r in reasons if r not in (case.review_reasons or [])]
+    case.review_reasons = list(case.review_reasons or []) + new
+    case.review_required = True
+    target = max_tier(case.tier, tier, review_min_tier(reasons))
+    if target != case.tier:
+        old = case.tier
+        case.tier = target
+        audit.record(db, actor, "U", "case.tier_escalated", entity_type="Task", entity_id=case.id, case_id=case.id,
+                     ts=now, detail={"from": old, "to": target, "reasons": reasons})
+        step = current_step(db, case)
+        if step is not None:  # re-time the running clock for the more urgent tier (never later than before)
+            hours = SlaLookup.load(db).hours(S(case.state), target)
+            if hours is not None:
+                due = due_at(step.started_at, hours, target)
+                if step.due_at is None or due < step.due_at:
+                    step.due_at = case.due_at = due
+                    step.sla_hours = hours
+    audit.record(db, actor, "U", "case.review_flagged", entity_type="Task", entity_id=case.id, case_id=case.id, ts=now,
+                 detail={"reasons": reasons, **(detail or {})})
+
+
 def ingest_result(db: Session, patient: Patient, programme: str, *, value: float | None, value_text: str | None,
-                  performer_org_id: int, actor: Actor = SYSTEM, now: datetime | None = None) -> tuple[DiagnosticReport, Case | None]:
-    """Receive a screening DiagnosticReport; create a case if actionable (or link to an open duplicate)."""
+                  performer_org_id: int, unit: str | None = None, test: str | None = None, status: str = "final",
+                  cytology: str | None = None, actor: Actor = SYSTEM, now: datetime | None = None
+                  ) -> tuple[DiagnosticReport, Case | None]:
+    """Receive a screening result and apply the clinical rules (wasl/clinical_rules.py).
+
+    Fail-safe: nothing is dropped. Negative -> report only. Actionable -> one case. Anything uncertain (bad data,
+    patient context, amended/preliminary status, conflict with an open case, result after closure) -> a case in
+    the human-review queue at a tier no lower than the most urgent plausible interpretation."""
     now = _now(now)
     prog = PROGRAMMES.get(programme)
-    if prog is None:
+    ctx = patient_context(patient, programme, now)
+    dec = evaluate(ResultInput(programme=programme, value=value, value_text=value_text, unit=unit, test=test,
+                               status=status, cytology=cytology), ctx)
+    if prog is None:  # the API schema prevents this; message ingest routes unknown programmes to its review queue
         raise Invalid(f"unknown programme {programme}")
-    actionable = is_actionable(programme, value, value_text)
     rep = DiagnosticReport(patient_id=patient.id, programme=programme, category="screening", code=prog.screening_code,
-                           display=prog.screening_display, conclusion="actionable" if actionable else "negative",
-                           issued_at=now, performer_org_id=performer_org_id)
+                           display=prog.screening_display, conclusion={"negative": "negative", "actionable": "actionable",
+                                                                       "review": "needs_review"}[dec.disposition],
+                           issued_at=now, performer_org_id=performer_org_id, status=(status or "final")[:20])
     rep.observations.append(Observation(code=prog.screening_code, display=prog.screening_display, value=value,
-                                        value_text=value_text, unit=prog.unit, interpretation="A" if actionable else "N"))
+                                        value_text=(value_text if not cytology else f"{value_text or ''}|{cytology}")[:100]
+                                        if (value_text or cytology) else None,
+                                        unit=(unit or None) and str(unit)[:30], interpretation=dec.interpretation))
     db.add(rep)
     db.flush()
     audit.record(db, actor, "C", "result.received", entity_type="DiagnosticReport", entity_id=rep.id, ts=now,
-                 detail={"programme": programme, "actionable": actionable})
-    if not actionable:
+                 detail={"programme": programme, "disposition": dec.disposition, "tier": dec.tier,
+                         "rule": dec.rule_id, "reasons": dec.reasons})
+    open_case = db.scalar(select(Case).where(Case.patient_id == patient.id, Case.programme == programme,
+                                             Case.state != S.CLOSED).order_by(Case.id.desc()).limit(1))
+    if open_case is not None:
+        # never create a second open case; never silently absorb a new result either
+        rep.case_id = open_case.id
+        reasons = list(dec.reasons)
+        same = db.scalar(select(func.count()).select_from(Observation).join(DiagnosticReport).where(
+            DiagnosticReport.case_id == open_case.id, DiagnosticReport.id != rep.id,
+            Observation.value.is_(None) if value is None else Observation.value == value,
+            Observation.value_text.is_(None) if not value_text else Observation.value_text == value_text))
+        reasons.append("duplicate_result" if (same and dec.disposition != "negative") else "conflicting_result")
+        if dec.tier and max_tier(dec.tier, open_case.tier) == dec.tier and dec.tier != open_case.tier:
+            reasons.append("more_urgent_result")
+        flag_review(db, open_case, reasons, actor, now, tier=dec.tier, detail={"report_id": rep.id, "rule": dec.rule_id})
+        audit.record(db, actor, "U", "case.linked_result", entity_type="Task", entity_id=open_case.id,
+                     case_id=open_case.id, ts=now, detail={"report_id": rep.id, "disposition": dec.disposition})
+        return rep, open_case
+    if not dec.creates_case:
         return rep, None
-    dup = db.scalar(select(Case).where(Case.patient_id == patient.id, Case.programme == programme, Case.state != S.CLOSED))
-    if dup:
-        rep.case_id = dup.id
-        audit.record(db, actor, "U", "case.linked_result", entity_type="Task", entity_id=dup.id, case_id=dup.id, ts=now,
-                     detail={"report_id": rep.id})
-        return rep, dup
-    tier = triage_tier(programme, value, value_text)
+    reasons = list(dec.reasons)
+    recent = db.scalar(select(Case.id).where(Case.patient_id == patient.id, Case.programme == programme,
+                                             Case.state == S.CLOSED, Case.closed_at >= now - timedelta(days=RECENT_CLOSURE_DAYS))
+                       .order_by(Case.id.desc()).limit(1))
+    if recent:
+        reasons.append("result_after_closure")
+    tier = max_tier(dec.tier, review_min_tier(reasons) if reasons else None) or "urgent"
+    review = bool(reasons) or dec.disposition == "review"
+    owner = programme_clinical_lead(db, programme) if review else programme_coordinator(db, programme)
     case = Case(patient_id=patient.id, report_id=rep.id, programme=programme, tier=tier, state=S.ISSUED,
-                owner_id=programme_coordinator(db, programme).id, managing_org_id=patient.managing_org_id,
-                needs_confirmation=needs_confirmation(programme, value, value_text), created_at=now, state_entered_at=now)
+                owner_id=owner.id, managing_org_id=patient.managing_org_id, needs_confirmation=dec.needs_confirmation,
+                created_at=now, state_entered_at=now, rule_id=dec.rule_id, pathway=dec.pathway,
+                target_text=(dec.target or "")[:200] or None, review_required=review, review_reasons=reasons or None)
     case.patient = patient
     db.add(case)
     db.flush()
     rep.case_id = case.id
-    _open_step(db, case, S.ISSUED, case.owner_id, actor, now)
+    _open_step(db, case, S.ISSUED, case.owner_id, actor, now, note=("human review: " + ", ".join(reasons)) if review else None)
     audit.record(db, actor, "C", "case.created", entity_type="Task", entity_id=case.id, case_id=case.id, ts=now,
-                 detail={"programme": programme, "tier": tier, "owner_id": case.owner_id})
+                 detail={"programme": programme, "tier": tier, "owner_id": case.owner_id, "rule": dec.rule_id,
+                         "review": review, "reasons": reasons, "previous_closed_case": recent})
     return rep, case
+
+
+def resolve_review(db: Session, case: Case, actor: Actor, *, note: str, tier: str | None = None,
+                   now: datetime | None = None) -> Case:
+    """An authorised clinician clears the human-review flag. Lowering the tier needs a rationale and is audited."""
+    now = _now(now)
+    if not actor.is_human or not actor.can("case:triage_urgent"):
+        raise Forbidden("only a clinician (GP, specialist or clinical lead) may resolve a clinical review")
+    if not case.review_required:
+        raise Invalid("this case is not awaiting review")
+    if not note or len(note.strip()) < 10:
+        raise Invalid("a review note (>= 10 characters) is required")
+    if case.patient.deceased:
+        raise Invalid("patient is recorded as deceased: close the case with an authorised decision instead")
+    old = case.tier
+    if tier and tier != case.tier:
+        if tier not in TIER_RANK:
+            raise Invalid("unknown tier")
+        token = TIER_CHANGE_AUTHORISED.set(True)
+        try:
+            case.tier = tier
+        finally:
+            TIER_CHANGE_AUTHORISED.reset(token)
+    case.review_required = False
+    audit.record(db, actor, "U", "case.review_resolved", entity_type="Task", entity_id=case.id, case_id=case.id, ts=now,
+                 detail={"reasons": case.review_reasons, "tier_from": old, "tier_to": case.tier, "note": note,
+                         "downgrade": is_downgrade(old, case.tier)})
+    if S(case.state) == S.ISSUED:
+        transition(db, case, S.TRIAGED, actor, note=f"clinician review: {note}", now=now)
+    return case
 
 
 def _open_step(db: Session, case: Case, state: S, owner_id: int, actor: Actor, now: datetime, note: str | None = None) -> StepTask:
@@ -271,7 +370,13 @@ def transition(db: Session, case: Case, dst: S | str, actor: Actor, *, owner_id:
             raise Forbidden("re-opening a closed case requires case:reopen")
         if not note or len(note.strip()) < 10:
             raise Invalid("a reason (>= 10 characters) is required to re-open a case")
+    if case.review_required and src == S.ISSUED:
+        raise Forbidden("this result is awaiting clinician review (resolve_review) before any pathway step")
+    if src == S.CLOSED:
+        pass
     elif not actor.is_human:
+        if case.review_required:
+            raise Forbidden("automated actors may not progress a case awaiting clinician review")
         if dst not in SYSTEM_ALLOWED:
             raise Forbidden(f"automated actors may not move a case to {dst.value}")
         if dst == S.TRIAGED and case.tier in CLINICIAN_CONFIRMED_TIERS:
@@ -316,9 +421,14 @@ def close_case(db: Session, case: Case, actor: Actor, closure_type: str, *, evid
         raise Forbidden("role may not close cases")
     if actor.role == "patient":
         raise Forbidden("patients cannot close cases")
+    if case.review_required and not (closure_type == "authorised_decision" and actor.is_human
+                                     and actor.can("case:triage_urgent")):
+        raise Forbidden("this case has an unresolved clinical review flag: a clinician must resolve it "
+                        "(or close it with an authorised decision) first")
     try:
         check_closure(case.state, closure_type, evidence_type=evidence_type, reason=reason, note=note,
-                      actor_is_human=actor.is_human, actor_can_authorise=actor.can("closure:authorise"))
+                      actor_is_human=actor.is_human, actor_can_authorise=actor.can("closure:authorise"),
+                      programme=case.programme)
     except TransitionError:
         raise  # the request-level audit middleware records the denied attempt
     if closure_type == "evidence":
@@ -332,6 +442,10 @@ def close_case(db: Session, case: Case, actor: Actor, closure_type: str, *, evid
             if failed < get_settings().phone_attempts_before_unreachable:
                 raise TransitionError("unable_to_contact requires the full contact ladder to be exhausted")
     src = case.state
+    if case.review_required:  # closed by an authorised clinician decision: the review is resolved by that decision
+        case.review_required = False
+        audit.record(db, actor, "U", "case.review_resolved", entity_type="Task", entity_id=case.id, case_id=case.id,
+                     ts=now, detail={"reasons": case.review_reasons, "by_closure": reason, "note": note})
     _close_step(db, case, now)
     case.state = S.CLOSED
     case.state_entered_at = now
@@ -606,7 +720,11 @@ def start_care(db: Session, case: Case, actor: Actor, kind: str, description: st
         raise Forbidden("role lacks careplan:write")
     if kind not in ("treatment", "surveillance"):
         raise Invalid("kind must be treatment or surveillance")
-    if S(case.state) not in (S.APPOINTMENT_ATTENDED, S.CONSULTATION):
+    st = S(case.state)
+    if st == S.CONFIRMATORY_TEST:
+        if kind != "surveillance" or not _latest(db, ServiceRequest, case.id, kind="confirmatory_test", result="negative"):
+            raise TransitionError("from a confirmatory test only a surveillance plan after a negative result may start")
+    elif st not in (S.APPOINTMENT_ATTENDED, S.CONSULTATION):
         raise TransitionError("care can start after an attended appointment or a primary-care consultation")
     if not description or len(description.strip()) < 5:
         raise Invalid("a care plan description is required")

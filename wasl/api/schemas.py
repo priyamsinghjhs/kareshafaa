@@ -129,6 +129,15 @@ class ResultIn(_In):
     programme: Literal["colorectal_fit", "cervical", "breast", "diabetes_hba1c"]
     value: float | None = Field(default=None, ge=0, le=100000)
     value_text: str | None = Field(default=None, max_length=40)
+    unit: str | None = Field(default=None, max_length=30)  # required for numeric results, otherwise -> human review
+    test: Literal["FIT", "HPV", "CYTOLOGY", "MAMMO", "HBA1C", "FPG"] | None = None
+    status: Literal["final", "preliminary", "amended", "corrected", "entered-in-error", "cancelled"] = "final"
+    cytology: str | None = Field(default=None, max_length=30)
+
+
+class ReviewIn(_In):
+    note: str = Field(min_length=10, max_length=1000)
+    tier: Literal["critical", "urgent", "high", "routine"] | None = None
 
 
 class TrainIn(_In):

@@ -38,7 +38,9 @@ def case_summary(db: Session, c: Case) -> dict:
             "state": c.state, "state_label": LABELS.get(c.state, c.state), "owner_id": c.owner_id, "owner": c.owner.name,
             "owner_is_pool": c.owner.is_pool, "created_at": iso(c.created_at), "due_at": iso(c.due_at),
             "patient": {"id": p.id, "name": f"{p.given_name} {p.family_name}", "mrn": p.mrn, "language": p.language},
-            "closed_at": iso(c.closed_at), "closure_type": c.closure_type, "closure_reason": c.closure_reason}
+            "closed_at": iso(c.closed_at), "closure_type": c.closure_type, "closure_reason": c.closure_reason,
+            "review_required": bool(c.review_required), "review_reasons": c.review_reasons or [],
+            "rule_id": c.rule_id, "pathway": c.pathway, "target": c.target_text}
 
 
 def journey(db: Session, c: Case) -> list[dict]:

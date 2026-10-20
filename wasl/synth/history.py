@@ -22,6 +22,7 @@ from ..security import SYSTEM, Actor
 from ..services import workflow as wf
 from ..statemachine import S
 from .cohort import SynthPatient, risk_multiplier
+from .results import draw_result
 
 TIER_F = {"critical": 0.2, "urgent": 0.4, "high": 0.8, "routine": 1.3}
 TB_FAIL = {"en": 0.10, "ar": 0.12, "hi": 0.30, "ur": 0.32}
@@ -35,7 +36,18 @@ CARE_TEXT = {  # (treatment, surveillance) - illustrative pathway outcomes
     "diabetes_hba1c": ("Endocrinology: diabetes treatment intensified; education and retinal screening booked.",
                        "Endocrinology review: GP-led diabetes plan with 3-monthly HbA1c."),
 }
-CONFIRM_POSITIVE = {"cervical": 0.45, "breast": 0.30, "diabetes_hba1c": 0.75}
+# P(confirmatory step is positive) by pathway - ASSUMPTIONS (docs/synthetic_data.md)
+CONFIRM_POSITIVE = {"reflex_cytology": 0.34, "reflex_hpv": 0.45, "assessment_imaging": 0.25, "confirm_then_gp": 0.80,
+                    "repeat_fit": 0.10, "repeat_sample": 0.15, "cervical": 0.45, "breast": 0.30, "diabetes_hba1c": 0.75}
+NEGATIVE_CONFIRMATION_CLOSES = {"breast", "colorectal_fit"}
+SURVEILLANCE_TEXT = {
+    "cervical": "Reflex/repeat test negative after HPV-positive screen: repeat HPV test in 12 months (recall booked).",
+    "diabetes_hba1c": "Repeat test below the diabetes threshold: GP lifestyle advice and retest within 12 months.",
+}
+GP_LED_TEXT = {
+    "prediabetes_gp": "Prediabetes: lifestyle advice, diabetes-prevention programme referral offered; HbA1c in 12 months.",
+    "surveillance_1y": "HPV positive, cytology NILM: repeat HPV test in 12 months (recall booked).",
+}
 
 
 class Stop(Exception):
@@ -51,22 +63,11 @@ def patient_actor(p: Patient) -> Actor:
     return Actor(user_id=None, role="patient", display=f"Patient {p.mrn}", patient_id=p.id)
 
 
-def screening_value(rng: random.Random, programme: str) -> tuple[float | None, str | None]:
-    if programme == "colorectal_fit":
-        return round(rng.choice([rng.uniform(120, 399), rng.uniform(120, 399), rng.uniform(400, 1200)]), 0), None
-    if programme == "cervical":
-        return None, rng.choices(["HPV16", "HPV18", "HPV other hr"], weights=[30, 15, 55])[0]
-    if programme == "breast":
-        return None, rng.choices(["BI-RADS 0", "BI-RADS 4", "BI-RADS 5"], weights=[70, 24, 6])[0]
-    r = rng.random()
-    if r < 0.02:
-        return round(rng.uniform(15, 17.5), 1), None  # T0: very high HbA1c (hyperglycaemic crisis risk)
-    return round(rng.uniform(10, 13.5) if r < 0.16 else rng.uniform(6.5, 9.9), 1), None
-
-
 class Replayer:
-    def __init__(self, db: Session, rng: random.Random, d: dict, users_by_pid: dict[int, User], now: datetime):
-        self.db, self.rng, self.d, self.now = db, rng, d, now
+    def __init__(self, db: Session, rng: random.Random, d: dict, users_by_pid: dict[int, User], now: datetime,
+                 *, enriched: bool = True):
+        self.db, self.rng, self.d, self.now, self.enriched = db, rng, d, now, enriched
+        self.stats: dict[str, int] = {}
         self.ua = {pid: actor_from_user(u) for pid, u in users_by_pid.items()}
 
     # helpers --------------------------------------------------------------
@@ -105,18 +106,53 @@ class Replayer:
     # replay ---------------------------------------------------------------
     def run(self, patient: Patient, sp: SynthPatient, t0: datetime) -> Case | None:
         self.t = t0
-        value, text = screening_value(self.rng, sp.programme)
-        _, case = wf.ingest_result(self.db, patient, sp.programme, value=value, value_text=text,
-                                   performer_org_id=self.d["lab"].id, now=t0)
+        ctx = wf.patient_context(patient, sp.programme, t0)
+        r = draw_result(self.rng, sp.programme, ctx, enriched=self.enriched)
+        _, case = wf.ingest_result(self.db, patient, sp.programme, value=r.value, value_text=r.value_text, unit=r.unit,
+                                   test=r.test, status=r.status, cytology=r.cytology, performer_org_id=self.d["lab"].id,
+                                   now=t0)
+        self.stats["results"] = self.stats.get("results", 0) + 1
+        if r.defect:
+            self.stats["defect_" + r.defect] = self.stats.get("defect_" + r.defect, 0) + 1
         if case is None:
             return None
+        self.stats["cases"] = self.stats.get("cases", 0) + 1
         try:
+            if r.status == "preliminary":  # the final report follows; the lab re-sends it (exercises duplicate handling)
+                self.adv(self.ln(24))
+                wf.ingest_result(self.db, patient, sp.programme, value=r.value, value_text=r.value_text, unit=r.unit or (
+                    "%" if sp.programme == "diabetes_hba1c" else "ug/g" if sp.programme == "colorectal_fit" else None),
+                    test=r.test, status="final", cytology=r.cytology, performer_org_id=self.d["lab"].id, now=self.t)
+            if case.review_required and not self._review(case, patient):
+                return case
             self._journey(case, patient, sp)
             if S(case.state) != S.CLOSED:
                 self._resolve(case)
         except Stop:
             pass
         return case
+
+    def _review(self, case: Case, patient: Patient) -> bool:
+        """Clinical lead works the human-review queue. Returns True if the normal pathway should continue."""
+        lead = self.a(self.d["leads"][case.programme])
+        self.adv(self.ln({"critical": 0.5, "urgent": 2, "high": 8, "routine": 24}[case.tier]))
+        reasons = case.review_reasons or []
+        self.stats["reviews"] = self.stats.get("reviews", 0) + 1
+        if patient.deceased:
+            wf.close_case(self.db, case, lead, "authorised_decision", reason="deceased",
+                          note="Reviewed: patient deceased before result handling; GP and registry informed.", now=self.t)
+            return False
+        if "under_specialist_care" in reasons:
+            wf.close_case(self.db, case, lead, "authorised_decision", reason="care_elsewhere_verified",
+                          note="Reviewed: patient already under the specialist team; result forwarded and acknowledged.",
+                          now=self.t)
+            return False
+        if case.rule_id and case.rule_id.endswith("-ERR"):
+            note = "Reviewed: lab contacted; corrected result confirmed actionable; proceed on the standard pathway."
+        else:
+            note = "Reviewed result and patient context (" + ", ".join(reasons) + "); proceed with adapted plan."
+        wf.resolve_review(self.db, case, lead, note=note, now=self.t)
+        return True
 
     def _resolve(self, case: Case) -> None:
         """A stalled case is escalated; most are later resolved by a human (simulated follow-up)."""
@@ -130,8 +166,13 @@ class Replayer:
             wf.close_case(db, case, lead, "evidence", evidence_type="care_plan", note="Late closure documentation.", now=self.t)
         elif st == S.CONFIRMATORY_TEST and wf._latest(db, wf.ServiceRequest, case.id, kind="confirmatory_test",
                                                         result="negative"):
-            wf.close_case(db, case, self.gp(case), "evidence", evidence_type="negative_confirmatory_result",
-                          note="Negative result documented after escalation.", now=self.t)
+            if case.programme in NEGATIVE_CONFIRMATION_CLOSES:
+                wf.close_case(db, case, self.gp(case), "evidence", evidence_type="negative_confirmatory_result",
+                              note="Negative result documented after escalation.", now=self.t)
+            else:
+                wf.start_care(db, case, self.gp(case), "surveillance", SURVEILLANCE_TEXT[case.programme], now=self.t)
+                wf.close_case(db, case, self.gp(case), "evidence", evidence_type="care_plan",
+                              note="Surveillance plan documented after escalation.", now=self.t)
         elif st == S.DECLINED_REVIEW:
             wf.close_case(db, case, self.gp(case), "authorised_decision", reason="informed_decline",
                           note="Informed decline confirmed by phone after escalation.", now=self.t)
@@ -151,8 +192,9 @@ class Replayer:
         lead = self.a(self.d["leads"][case.programme])
         # triage: rules engine for high/routine, clinician confirmation for urgent
         clin = case.tier in CLINICIAN_CONFIRMED_TIERS
-        self.adv(self.ln(0.5 if case.tier == "critical" else 2.0 if clin else 0.3))
-        wf.transition(db, case, S.TRIAGED, self.gp(case) if clin else SYSTEM, now=self.t)
+        if S(case.state) == S.ISSUED:
+            self.adv(self.ln(0.5 if case.tier == "critical" else 2.0 if clin else 0.3))
+            wf.transition(db, case, S.TRIAGED, self.gp(case) if clin else SYSTEM, now=self.t)
         # notification via channel ladder, then phone-call tasks
         self.adv(self.ln(3))
         send_with_ladder(db, case, "result_notification", SYSTEM, now=self.t)
@@ -208,7 +250,6 @@ class Replayer:
                     return
         if S(case.state) != S.ACKNOWLEDGED:
             return
-        prog = PROGRAMMES[case.programme]
         gp = self.gp(case)
         if case.needs_confirmation:
             self.adv(self.ln(48 * tf))
@@ -218,18 +259,34 @@ class Replayer:
             if rng.random() < 0.05 * rm:
                 return  # did not attend confirmatory test -> open
             self.staff(case)
-            pos = rng.random() < CONFIRM_POSITIVE[case.programme]
+            pos = rng.random() < CONFIRM_POSITIVE.get(case.pathway or "", CONFIRM_POSITIVE.get(case.programme, 0.5))
             wf.record_confirmatory_result(db, case, gp, "positive" if pos else "negative", now=self.t)
             if not pos:
                 self.adv(self.ln(48))
                 if rng.random() < 0.9:
-                    wf.close_case(db, case, gp, "evidence", evidence_type="negative_confirmatory_result",
-                                  note="Negative confirmatory result; return to routine screening.", now=self.t)
+                    if case.programme in NEGATIVE_CONFIRMATION_CLOSES:
+                        wf.close_case(db, case, gp, "evidence", evidence_type="negative_confirmatory_result",
+                                      note="Negative confirmatory result; return to routine screening.", now=self.t)
+                    else:  # cervical / diabetes: a negative repeat still needs a surveillance plan (no silent discharge)
+                        wf.start_care(db, case, gp, "surveillance", SURVEILLANCE_TEXT[case.programme], now=self.t)
+                        self.adv(self.ln(48))
+                        wf.close_case(db, case, gp, "evidence", evidence_type="care_plan", note="Surveillance plan active.",
+                                      now=self.t)
                 return
         else:
             self.adv(self.ln(48 * tf))
             self.staff(case)
             wf.transition(db, case, S.CONSULTATION, gp, note="GP consultation completed", now=self.t)
+        if case.pathway in GP_LED_TEXT:  # prediabetes advice / 12-month HPV surveillance: GP care plan, no referral
+            self.adv(self.ln(24 * 5 * tf))
+            self.staff(case)
+            if S(case.state) == S.CONFIRMATORY_TEST:
+                wf.transition(db, case, S.CONSULTATION, gp, note="GP consultation completed", now=self.t)
+            wf.start_care(db, case, gp, "surveillance", GP_LED_TEXT[case.pathway], now=self.t)
+            self.adv(self.ln(72))
+            if rng.random() < 0.92:
+                wf.close_case(db, case, gp, "evidence", evidence_type="care_plan", note="Care plan active.", now=self.t)
+            return
         if case.programme == "diabetes_hba1c" and not (case.tier in ("critical", "high") and rng.random() < 0.5):
             self.adv(self.ln(24 * 5 * tf))
             self.staff(case)
@@ -333,7 +390,9 @@ def add_patient(db: Session, sp: SynthPatient, d: dict, rng: random.Random, now:
                 birth_year=now.year - sp.age, age_band=sp.age_band, nationality_group=sp.nationality, language=sp.language,
                 region=sp.region, phone_valid=sp.phone_valid, has_smartphone=sp.has_smartphone, whatsapp=sp.whatsapp,
                 alt_contact=sp.alt_contact, prior_no_shows=sp.prior_no_shows, prior_screens=sp.prior_screens,
-                responsiveness=sp.responsiveness, managing_org_id=org.id, gp_id=gp.id)
+                responsiveness=sp.responsiveness, managing_org_id=org.id, gp_id=gp.id, pregnant=sp.pregnant,
+                haemoglobinopathy=sp.haemoglobinopathy, deceased=sp.deceased,
+                specialist_care=sp.programme if sp.specialist_care else None)
     p.managing_org = org
     db.add(p)
     db.flush()

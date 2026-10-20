@@ -115,7 +115,8 @@ def _demo_patients(db, d, rng, now, users_by_pid) -> list[str]:
                           analytics_consent=True)
         p = add_patient(db, sp, d, rng, now)
         t = now - timedelta(hours=20)
-        _, case = wf.ingest_result(db, p, prog, value=value, value_text=text, performer_org_id=d["lab"].id, now=t)
+        _, case = wf.ingest_result(db, p, prog, value=value, value_text=text, performer_org_id=d["lab"].id, now=t,
+                                   unit={"colorectal_fit": "ug/g", "diabetes_hba1c": "%"}.get(prog))
         coord = actor_from_user(users_by_pid[d["coordinators"][prog][0].id])
         triager = actor_from_user(users_by_pid[p.gp_id]) if case.tier in ("critical", "urgent") else SYSTEM
         wf.transition(db, case, S.TRIAGED, triager, now=t + timedelta(minutes=10),

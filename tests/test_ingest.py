@@ -27,10 +27,12 @@ def test_parse_errors():
         parse_hl7v2("PID|1")
     with pytest.raises(Invalid):
         parse_hl7v2(hl7("X", "250", "c1").replace("ORU^R01", "ADT^A01"))
-    with pytest.raises(Invalid):
-        parse_hl7v2(hl7("X", "abc", "c1"))
-    with pytest.raises(Invalid):
-        parse_hl7v2(hl7("X", "250", "c1", code="9999-9"))
+    # Iteration 6 (fail-safe): malformed values and unknown codes are no longer rejected (a rejected ACK can be
+    # lost at the sender); they are kept and routed to human review.
+    bad = parse_hl7v2(hl7("X", "abc", "c1"))
+    assert bad.programme == "colorectal_fit" and bad.value is None and bad.value_text == "abc"
+    unk = parse_hl7v2(hl7("X", "250", "c1", code="9999-9"))
+    assert unk.programme is None and "9999-9" in unk.problem
     with pytest.raises(Invalid):
         parse_fhir_bundle({"resourceType": "Patient"})
 
@@ -48,9 +50,14 @@ def test_hl7_ingest_idempotent_and_match(client, as_user, db, make_patient):
     assert body["status"] == "processed" and body["case"]["state"] == "triaged" and "MSA|AA|T-CTRL-1" in body["ack"]
     again = client.post("/api/ingest/hl7v2", headers=h, content=msg).json()
     assert again["case"]["id"] == body["case"]["id"]  # replay never creates a second case
-    # negative result: report stored, no case
+    # a negative while a case is open is a CONFLICT: linked to the open case and sent to human review
     neg = client.post("/api/ingest/hl7v2", headers=h, content=hl7(p.mrn, "40", "T-CTRL-NEG")).json()
-    assert neg["status"] == "processed" and neg["case"] is None
+    assert neg["status"] == "processed" and neg["case"]["id"] == body["case"]["id"]
+    assert neg["case"]["review_required"] and "conflicting_result" in neg["case"]["review_reasons"]
+    # negative result for a patient with no open case: report stored, no case
+    p2 = db.get(Patient, make_patient())
+    neg2 = client.post("/api/ingest/hl7v2", headers=h, content=hl7(p2.mrn, "40", "T-CTRL-NEG2")).json()
+    assert neg2["status"] == "processed" and neg2["case"] is None
 
 
 def test_unmatched_goes_to_human_review(client, as_user, db, make_patient):

@@ -83,6 +83,9 @@ class Patient(Base):  # FHIR Patient (synthetic only)
     managing_org_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"))
     gp_id: Mapped[int | None] = mapped_column(ForeignKey("practitioners.id"), nullable=True)
     deceased: Mapped[bool] = mapped_column(Boolean, default=False)
+    pregnant: Mapped[bool] = mapped_column(Boolean, default=False)
+    haemoglobinopathy: Mapped[bool] = mapped_column(Boolean, default=False)  # e.g. thalassaemia trait / Hb variant
+    specialist_care: Mapped[str | None] = mapped_column(String(200), nullable=True)  # csv of programmes under specialist care
     synthetic: Mapped[bool] = mapped_column(Boolean, default=True)
     managing_org: Mapped[Organization] = relationship(foreign_keys=[managing_org_id])
 
@@ -157,6 +160,12 @@ class Case(Base):  # FHIR Task (code=loop-case); focus = DiagnosticReport
     transfer_pending_owner_id: Mapped[int | None] = mapped_column(ForeignKey("practitioners.id"), nullable=True)
     transfer_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     # ML outreach-priority score: used ONLY for queue ordering, never for state changes/closure.
+    # clinical rules engine output (wasl/clinical_rules.py) and the fail-safe human-review flag
+    rule_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    pathway: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    target_text: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    review_required: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    review_reasons: Mapped[list | None] = mapped_column(JSON, nullable=True)
     risk_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     risk_model_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     synthetic: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -450,6 +459,10 @@ class IngestMessage(Base):  # inbound HL7 v2 / FHIR message log (idempotency + h
     programme: Mapped[str | None] = mapped_column(String(40), nullable=True)
     value: Mapped[float | None] = mapped_column(Float, nullable=True)
     value_text: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    unit: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    test: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    result_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    cytology: Mapped[str | None] = mapped_column(String(30), nullable=True)
     report_id: Mapped[int | None] = mapped_column(ForeignKey("diagnostic_reports.id"), nullable=True)
     case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -468,3 +481,26 @@ Index("ix_comms_case_cat_status", Communication.case_id, Communication.category,
 Index("ix_consents_patient_scope", Consent.patient_id, Consent.scope, Consent.status)
 Index("ix_audit_actor_role", AuditEvent.actor_role)
 Index("ix_audit_event", AuditEvent.event)
+
+
+# --------------------------------------------------------------------------- safety interlock: no silent downgrade
+import contextvars  # noqa: E402
+
+from sqlalchemy import event as _event  # noqa: E402
+
+TIER_CHANGE_AUTHORISED: contextvars.ContextVar[bool] = contextvars.ContextVar("tier_change_authorised", default=False)
+
+
+class TierDowngradeError(ValueError):
+    """A case's clinical urgency tier may only be lowered by an authorised clinician with a reason."""
+
+
+@_event.listens_for(Case.tier, "set")
+def _no_silent_tier_downgrade(target, value, oldvalue, initiator):  # pragma: no branch - tiny guard
+    from .clinical_rules import is_downgrade
+
+    if isinstance(oldvalue, str) and isinstance(value, str) and is_downgrade(oldvalue, value) \
+            and not TIER_CHANGE_AUTHORISED.get():
+        raise TierDowngradeError(f"case {target.id}: tier {oldvalue} -> {value} is a downgrade and needs an "
+                                 "authorised clinician decision (workflow.resolve_review)")
+    return value

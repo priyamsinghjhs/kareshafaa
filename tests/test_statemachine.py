@@ -39,7 +39,12 @@ KW = dict(evidence_type=None, reason=None, note=None, actor_is_human=True, actor
 
 def test_closure_evidence_must_match_state():
     check_closure("appointment_attended", "evidence", **{**KW, "evidence_type": "appointment_fulfilled"})
-    check_closure("confirmatory_test", "evidence", **{**KW, "evidence_type": "negative_confirmatory_result"})
+    check_closure("confirmatory_test", "evidence", **{**KW, "evidence_type": "negative_confirmatory_result"},
+                  programme="breast")
+    for prog in ("cervical", "diabetes_hba1c", None):  # surveillance plan required; unknown programme fails closed
+        with pytest.raises(TransitionError, match="surveillance"):
+            check_closure("confirmatory_test", "evidence", **{**KW, "evidence_type": "negative_confirmatory_result"},
+                          programme=prog)
     with pytest.raises(TransitionError):
         check_closure("referral_sent", "evidence", **{**KW, "evidence_type": "care_plan"})
     with pytest.raises(TransitionError):

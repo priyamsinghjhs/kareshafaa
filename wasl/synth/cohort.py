@@ -1,5 +1,6 @@
-"""Synthetic patient cohort. Distributions are ASSUMPTIONS chosen to exercise the workflow;
-they are not statistics about any real population."""
+"""Synthetic patient cohort. Sex ratio follows the Abu Dhabi Census 2023; eligibility ages follow the
+Department of Health Abu Dhabi standards; other shares are labelled ASSUMPTIONS in docs/synthetic_data.md.
+Nothing here describes a real person."""
 from __future__ import annotations
 
 import random
@@ -66,32 +67,49 @@ class SynthPatient:
     programme: str
     share_consent: bool
     analytics_consent: bool
+    pregnant: bool = False
+    haemoglobinopathy: bool = False
+    specialist_care: bool = False
+    deceased: bool = False
+    out_of_age: bool = False
 
     @property
     def age_band(self) -> str:
         return age_band(self.age)
 
 
+FEMALE_SHARE = 0.33  # Abu Dhabi Census 2023: 1,248,395 of 3,789,860 residents are female
+AGE_BANDS = [((18, 24), .10), ((25, 34), .30), ((35, 44), .28), ((45, 54), .17), ((55, 64), .10), ((65, 74), .04),
+             ((75, 84), .01)]  # ASSUMPTION: adult residents, shaped by the census median age of 33
+ELIGIBLE = {"colorectal_fit": (40, 75), "cervical": (25, 65), "breast": (40, 84), "diabetes_hba1c": (18, 120)}  # DoH
+PROGRAMME_WEIGHT = {"diabetes_hba1c": .40, "colorectal_fit": .25, "cervical": .20, "breast": .15}  # ASSUMPTION
+OUT_OF_AGE = 0.01  # ASSUMPTION: opportunistic screening outside the programme age range
+
+
 def eligible_programmes(gender: str, age: int) -> list[tuple[str, float]]:
-    out = [("diabetes_hba1c", .30)]
-    if age >= 40:
-        out.append(("colorectal_fit", .30))
-    if gender == "female" and 25 <= age <= 65:
-        out.append(("cervical", .25))
-    if gender == "female" and 40 <= age <= 69:
-        out.append(("breast", .25))
+    out = []
+    for k, (lo, hi) in ELIGIBLE.items():
+        if k in ("cervical", "breast") and gender != "female":
+            continue
+        if lo <= age <= hi:
+            out.append((k, PROGRAMME_WEIGHT[k]))
     tot = sum(w for _, w in out)
     return [(k, w / tot) for k, w in out]
 
 
-def make_cohort(n: int, seed: int) -> list[SynthPatient]:
+def make_cohort(n: int, seed: int, *, min_age: int = 25) -> list[SynthPatient]:
+    """min_age=25 keeps the historical demo/simulator cohort; seed-large uses 18 (all adults)."""
     rng = random.Random(seed)
     out = []
     for i in range(n):
         nat = pick(rng, NATIONALITY)
         lang = pick(rng, LANG_BY_NAT[nat])
-        gender = "female" if rng.random() < 0.52 else "male"
-        age = int(min(75, max(25, rng.gauss(48, 12))))
+        gender = "female" if rng.random() < FEMALE_SHARE else "male"
+        while True:
+            lo, hi = pick(rng, AGE_BANDS)
+            age = rng.randint(lo, hi)
+            if age >= min_age:
+                break
         region = pick(rng, REGIONS)
         worker = nat in ("Indian", "Pakistani", "Filipino") and rng.random() < 0.6  # lower-income worker profile
         has_smart = rng.random() < (0.55 if worker else 0.9) - (0.15 if age >= 60 else 0)
@@ -100,14 +118,27 @@ def make_cohort(n: int, seed: int) -> list[SynthPatient]:
         resp = min(1.0, max(0.05, rng.betavariate(5, 2) - (0.12 if age < 40 else 0) - (0.08 if region == "Al Dhafra" else 0)))
         prior_ns = rng.choices([0, 1, 2, 3], weights=[70, 18, 8, 4])[0]
         prior_scr = rng.choices([0, 1, 2, 3, 4], weights=[25, 25, 20, 15, 15])[0]
-        programme = pick(rng, eligible_programmes(gender, age))
+        out_of_age = rng.random() < OUT_OF_AGE
+        if out_of_age:  # screened outside the programme age range (must go to human review, never be dropped)
+            cands = [k for k, (lo_, hi_) in ELIGIBLE.items() if not (lo_ <= age <= hi_)
+                     and not (k in ("cervical", "breast") and gender != "female")]
+            programme = rng.choice(cands) if cands else pick(rng, eligible_programmes(gender, age))
+            out_of_age = bool(cands)
+        else:
+            programme = pick(rng, eligible_programmes(gender, age))
         m, f = FIRST[nat]
         out.append(SynthPatient(
             idx=i, given=rng.choice(f if gender == "female" else m), family=rng.choice(LAST[nat]), gender=gender, age=age,
             nationality=nat, language=lang, region=region, phone_valid=phone_valid, has_smartphone=has_smart,
             whatsapp=whatsapp, alt_contact=rng.random() < 0.35, prior_no_shows=prior_ns, prior_screens=prior_scr,
             responsiveness=round(resp, 3), programme=programme, share_consent=rng.random() > 0.04,
-            analytics_consent=rng.random() > 0.02))
+            analytics_consent=rng.random() > 0.02,
+            pregnant=gender == "female" and 18 <= age <= 45 and programme in ("diabetes_hba1c", "cervical")
+            and rng.random() < 0.015,                                        # ASSUMPTION
+            haemoglobinopathy=rng.random() < 0.05,                           # ASSUMPTION (carrier states common in the Gulf)
+            specialist_care=rng.random() < 0.003,                            # ASSUMPTION
+            deceased=rng.random() < 0.0005,                                  # ASSUMPTION (death before result handling)
+            out_of_age=out_of_age))
     return out
 
 

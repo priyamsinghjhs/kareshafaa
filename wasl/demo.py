@@ -139,7 +139,7 @@ def run_scenario(db: Session, key: str, actor: Actor) -> dict:
         run_sweep(db, now=now, case_ids=[case.id])  # 59 h in 'triaged' vs a 24 h T1 clock -> L1..L4
     elif key == "ramesh_transfer":
         p = _patient(db, rng, "Ramesh", "Kumar", "Indian", "hi", "male", 58, "diabetes_hba1c", "Abu Dhabi", "Corniche")
-        _, case = wf.ingest_result(db, p, "diabetes_hba1c", value=8.1, value_text=None, performer_org_id=lab.id, now=t)
+        _, case = wf.ingest_result(db, p, "diabetes_hba1c", value=8.1, value_text=None, unit="%", performer_org_id=lab.id, now=t)
         wf.transition(db, case, S.TRIAGED, SYSTEM, now=t + timedelta(minutes=5))
         send_with_ladder(db, case, "result_notification", SYSTEM, now=t + timedelta(minutes=30))
         if S(case.state) != S.PATIENT_NOTIFIED:
@@ -154,7 +154,7 @@ def run_scenario(db: Session, key: str, actor: Actor) -> dict:
     elif key == "unreachable_ladder":
         p = _patient(db, rng, "Suresh", "Nair", "Indian", "ml", "male", 47, "colorectal_fit", "Abu Dhabi", "Corniche",
                      smart=False, phone=True)
-        _, case = wf.ingest_result(db, p, "colorectal_fit", value=180, value_text=None, performer_org_id=lab.id,
+        _, case = wf.ingest_result(db, p, "colorectal_fit", value=180, value_text=None, unit="ug/g", performer_org_id=lab.id,
                                    now=now - timedelta(days=4))
         wf.transition(db, case, S.TRIAGED, SYSTEM, now=now - timedelta(days=4))
         p.whatsapp = False
@@ -168,7 +168,7 @@ def run_scenario(db: Session, key: str, actor: Actor) -> dict:
     else:  # ramadan_no_show
         p = _patient(db, rng, "Bilal", "Hussain", "Pakistani", "ur", "male", 55, "colorectal_fit", "Abu Dhabi", "Khalifa City")
         t0 = now - timedelta(days=12)
-        _, case = wf.ingest_result(db, p, "colorectal_fit", value=310, value_text=None, performer_org_id=lab.id, now=t0)
+        _, case = wf.ingest_result(db, p, "colorectal_fit", value=310, value_text=None, unit="ug/g", performer_org_id=lab.id, now=t0)
         wf.transition(db, case, S.TRIAGED, SYSTEM, now=t0)
         send_with_ladder(db, case, "result_notification", SYSTEM, now=t0 + timedelta(hours=1))
         if S(case.state) != S.PATIENT_NOTIFIED:

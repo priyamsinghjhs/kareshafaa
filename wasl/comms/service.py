@@ -73,6 +73,8 @@ def send_with_ladder(db: Session, case: Case, category: str, actor: Actor = SYST
     p = case.patient
     if p.deceased:
         raise DomainError("patient is recorded as deceased: all patient messaging is stopped")
+    if case.review_required and case.state == "issued":
+        raise DomainError("result is awaiting clinician review: no patient messaging until it is reviewed")
     if actor.is_human and not actor.can("comm:send"):
         raise Forbidden("role lacks comm:send")
     lang = comm_language(p)

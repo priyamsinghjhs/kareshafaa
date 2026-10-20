@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-STATE_MACHINE_VERSION = "1.0.0"
+STATE_MACHINE_VERSION = "1.1.0"  # 1.1: surveillance plan after a negative confirmatory test
 
 
 class S(StrEnum):
@@ -53,7 +53,7 @@ TRANSITIONS: dict[S, frozenset[S]] = {
     S.PATIENT_NOTIFIED: frozenset({S.ACKNOWLEDGED, S.UNREACHABLE, S.DECLINED_REVIEW}),
     S.UNREACHABLE: frozenset({S.PATIENT_NOTIFIED}),
     S.ACKNOWLEDGED: frozenset({S.CONFIRMATORY_TEST, S.CONSULTATION, S.DECLINED_REVIEW}),
-    S.CONFIRMATORY_TEST: frozenset({S.CONSULTATION, S.DECLINED_REVIEW}),
+    S.CONFIRMATORY_TEST: frozenset({S.CONSULTATION, S.TREATMENT_STARTED, S.DECLINED_REVIEW}),
     S.CONSULTATION: frozenset({S.REFERRAL_SENT, S.TREATMENT_STARTED, S.DECLINED_REVIEW}),
     S.REFERRAL_SENT: frozenset({S.REFERRAL_ACCEPTED, S.REFERRAL_REJECTED}),
     S.REFERRAL_REJECTED: frozenset({S.REFERRAL_SENT, S.CONSULTATION}),
@@ -73,6 +73,11 @@ CLOSABLE_WITH_EVIDENCE: dict[S, frozenset[str]] = {
     S.TREATMENT_STARTED: frozenset({"care_plan", "appointment_fulfilled"}),
     S.CONFIRMATORY_TEST: frozenset({"negative_confirmatory_result"}),
 }
+
+# A negative confirmatory test may close the case only where the guideline returns the person to routine
+# screening (FIT repeat negative; breast assessment normal). Cervical (HPV+ with negative triage -> 1-year
+# repeat, ASCCP) and diabetes (repeat below threshold -> retest/lifestyle, ADA) need a surveillance care plan.
+NEGATIVE_CONFIRMATION_CLOSES = frozenset({"colorectal_fit", "breast"})
 
 AUTHORISED_CLOSURE_REASONS: dict[str, str] = {
     "informed_decline": "Patient made an informed decision to decline care (documented)",
@@ -105,7 +110,8 @@ def check_transition(src: str, dst: str) -> None:
 
 
 def check_closure(state: str, closure_type: str, *, evidence_type: str | None, reason: str | None,
-                  note: str | None, actor_is_human: bool, actor_can_authorise: bool) -> None:
+                  note: str | None, actor_is_human: bool, actor_can_authorise: bool,
+                  programme: str | None = None) -> None:
     """Closure guard. A case may close ONLY with recorded evidence or an authorised human decision."""
     s = S(state)
     if s == S.CLOSED:
@@ -118,6 +124,8 @@ def check_closure(state: str, closure_type: str, *, evidence_type: str | None, r
             raise TransitionError(f"no closure evidence is acceptable in state {s.value}")
         if evidence_type not in allowed:
             raise TransitionError(f"evidence '{evidence_type}' is not acceptable in state {s.value}")
+        if evidence_type == "negative_confirmatory_result" and programme not in NEGATIVE_CONFIRMATION_CLOSES:
+            raise TransitionError("this programme needs a surveillance care plan after a negative confirmatory test")
         return
     if closure_type == "authorised_decision":
         if not actor_can_authorise:

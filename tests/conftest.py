@@ -116,10 +116,14 @@ def make_patient(db) -> Callable[..., int]:
 def new_case(client, as_user, make_patient) -> Callable[..., dict]:
     """Ingest an actionable screening result through the API and return the case summary."""
 
-    def _nc(programme: str = "colorectal_fit", value: float | None = 250, value_text: str | None = None, **pkw) -> dict:
+    def _nc(programme: str = "colorectal_fit", value: float | None = 250, value_text: str | None = None,
+            unit: str | None = None, **pkw) -> dict:
         pid = make_patient(**pkw)
+        if unit is None and value is not None:
+            unit = {"colorectal_fit": "ug/g", "diabetes_hba1c": "%"}.get(programme)
         r = client.post("/api/results", headers=as_user("aisha.rahman"),
-                        json={"patient_id": pid, "programme": programme, "value": value, "value_text": value_text})
+                        json={"patient_id": pid, "programme": programme, "value": value, "value_text": value_text,
+                              "unit": unit})
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["actionable"], body
