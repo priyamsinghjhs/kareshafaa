@@ -489,3 +489,9 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
   the case was reviewed, but the headline understated the finding). Same for 4A vs 4C and FIT 150 vs 400.
 - **Fix.** Last tie-breaker = magnitude (normalised value, or BI-RADS category with 4A < 4B < 4C).
 - 6 new tests; full suite 3,115 tests, all passing. Ingest parsing of a maximum-size (64 KB, 1,362 OBX) message: 10 ms.
+
+### Re-verification after rounds 11-15 (21 Oct 2026, ~05:10 IST)
+- Full suite 3,115 tests, all passing. 10M differential (seed 20261122): 0 disagreements, upper bound 3.0e-7.
+- Fault injection 50/50 killed (F43-F50 added for rounds 11-15). Validator: 52 invariants, 0 violations on demo, 10k
+  and 20k. Alert precision/recall (20k) 100 % / 100 %, 0 missed. Sign-off registry: 19 high-impact actions.
+- Rules engine, ML and alert policy unchanged since round 10, so ML calibration and load-test figures stand.
