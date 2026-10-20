@@ -74,12 +74,29 @@ FAULTS = [
      "Clock: no-show accepted before the appointment time"),
     ("F42", IN, "    if not isinstance(v, str) or not _NUMERIC.match(v):", "    if not isinstance(v, str):",
      "HL7: float() quirks accepted ('1_000' read as 1000)"),
+    ("F43", CM, '    if not actor.is_human and consent_status(db, p.id, "care_coordination") == "deny":', "    if False:",
+     "Consent: automated messages sent after care-coordination consent was withdrawn"),
+    ("F44", WF, '    if scope == "care_coordination" and decision == "deny":', "    if False:",
+     "Consent: withdrawal does not send open cases to clinician review"),
+    ("F45", IN, "        elif now - r.collected_at > timedelta(days=STALE_RESULT_DAYS):", "        elif False:",
+     "Specimen: a months-old specimen is handled as a fresh result"),
+    ("F46", IN, "        if r.collected_at > now + FUTURE_TOLERANCE:", "        if False:",
+     "Specimen: a future-dated specimen is not reviewed"),
+    ("F47", WF, '        if reason == "deceased" and not case.patient.deceased:', "        if False:",
+     "Death: a living patient's case can be closed as 'deceased'"),
+    ("F48", WF, '        flag_review(db, c, ["deceased"], actor, now, detail={"note": note})', "        pass",
+     "Death: open cases are not sent to clinician review"),
+    ("F49", WF, "    if beyond and (not beyond_target_reason or len(beyond_target_reason.strip()) < 10):", "    if False:",
+     "Booking: appointment after the pathway target accepted without a reason"),
+    ("F50", IN, '        mag = ("birads", -(int(m.group(1)) * 10 + " abc".index((m.group(2) or " ").lower())))', "        pass",
+     "HL7: bilateral BI-RADS 4 + 5 headlined as BI-RADS 4"),
 ]
 
 TESTS = ["tests/test_clinical_golden.py", "tests/test_failsafe.py", "tests/test_properties.py",
          "tests/test_statemachine_exhaustive.py", "tests/test_statemachine.py", "tests/test_workflow.py",
          "tests/test_ingest_adversarial.py", "tests/test_concurrency.py", "tests/test_time_handling.py",
-         "tests/test_duplicate_identity.py"]
+         "tests/test_duplicate_identity.py", "tests/test_consent_withdrawal.py", "tests/test_deceased.py",
+         "tests/test_journey_api.py"]
 
 
 def run_tests() -> tuple[bool, str]:
