@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     director_after_fraction: float = 2.0  # L4 (T0/T1 only) fires at this multiple of the SLA
     phone_attempts_before_unreachable: int = 2
     sweep_interval_seconds: int = 300  # background SLA/escalation job; 0 disables (tests, multi-replica: run one)
+    # automated patient messages (SLA reminders) only inside this UAE-local window; deferred otherwise
+    patient_message_window: tuple[int, int] = (8, 21)
 
     cors_origins: list[str] = Field(default_factory=list)
 

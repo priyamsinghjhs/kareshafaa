@@ -137,3 +137,47 @@ def test_pathway_specific_confirmation():
     assert not needs_confirmation("breast", None, "BI-RADS 4") and needs_confirmation("breast", None, "BI-RADS 0")
     assert not needs_confirmation("colorectal_fit", 300, None)
     assert triage_tier("diabetes_hba1c", 15.2, None) == "critical" and triage_tier("breast", None, "BI-RADS 5") == "urgent"
+
+
+def test_patient_reminders_respect_uae_message_window(db, new_case):
+    """Automated L1 patient reminders are never sent between 21:00 and 08:00 UAE time: they are queued and sent
+    once by the first sweep inside the window (failure mode found in Iteration 7: 2 a.m. SMS from the SLA job)."""
+    from datetime import datetime
+
+    from wasl.calendar_uae import to_utc
+    from wasl.models import Communication
+    from wasl.services.escalation import in_patient_window
+
+    assert not in_patient_window(to_utc(datetime(2026, 10, 21, 2, 0)))
+    assert in_patient_window(to_utc(datetime(2026, 10, 21, 8, 0)))
+    assert not in_patient_window(to_utc(datetime(2026, 10, 21, 21, 0)))
+    cid = new_case("diabetes_hba1c", 7.5)["id"]
+    db.expire_all()
+    case, step = db.get(Case, cid), _step(db, cid)
+    case.state = "patient_notified"  # a patient-facing step (test shortcut)
+    step.state = "patient_notified"
+    t0 = step.started_at
+    sla_h = (step.due_at - t0).total_seconds() / 3600
+    # choose an L1 moment (50-95 % of the SLA) at 02:00 UAE time
+    from wasl.calendar_uae import to_local
+    cands = [t0 + timedelta(minutes=m) for m in range(int(sla_h * 30), int(sla_h * 57), 10)]
+    night = next(t for t in cands if to_local(t).hour == 2)
+    assert night < step.due_at
+
+    def reminders(status=None):
+        q = select(Communication).where(Communication.case_id == cid, Communication.category == "reminder")
+        return [c for c in db.scalars(q) if status is None or c.status == status]
+
+    out = run_sweep(db, now=night, case_ids=[cid])
+    assert out["reminders"] == 1 and out.get("reminders_deferred") == 1
+    assert [c.channel for c in reminders()] == ["scheduled"]
+    out = run_sweep(db, now=night + timedelta(hours=1), case_ids=[cid])  # still night: nothing sent
+    assert len(reminders()) == 1
+    morning = to_utc(to_local(night).replace(hour=8, minute=5))
+    out = run_sweep(db, now=morning, case_ids=[cid])
+    assert out["reminders_sent_after_deferral"] == 1
+    sent = [c for c in reminders() if c.channel != "scheduled"]
+    assert sent and all(c.sent_at == morning for c in sent)
+    run_sweep(db, now=morning + timedelta(minutes=5), case_ids=[cid])  # sent exactly once
+    assert len([c for c in reminders() if c.channel != "scheduled"]) == len(sent)
+    db.rollback()

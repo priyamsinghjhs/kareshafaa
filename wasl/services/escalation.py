@@ -132,16 +132,54 @@ def run_sweep(db: Session, now: datetime | None = None, actor: Actor = SYSTEM, c
             out[{1: "reminders", 2: "supervisor", 3: "clinical_lead", 4: "director"}[lvl]] += 1
             out["target_breach_alerts"] += int(d.clock == "pathway")
             if lvl == 1 and S(case.state) in PATIENT_FACING and not case.patient.deceased:
-                from ..comms.service import send_with_ladder
+                if in_patient_window(now):
+                    from ..comms.service import send_with_ladder
 
-                send_with_ladder(db, case, "reminder", actor, now=now, max_channels=3)
+                    send_with_ladder(db, case, "reminder", actor, now=now, max_channels=3)
+                else:  # queued, sent by the first sweep inside the window (FHIR Communication status on-hold)
+                    db.add(Communication(case_id=case.id, patient_id=case.patient_id, category="reminder",
+                                         channel="scheduled", content="[SIMULATED] reminder deferred: outside the "
+                                         "08:00-21:00 UAE patient message window", status="on-hold",
+                                         simulated=True, sent_at=now))
+                    out["reminders_deferred"] = out.get("reminders_deferred", 0) + 1
         if d.clock == "pathway":
             case.target_alert_level = max(case.target_alert_level or 0, d.level)
         else:
             case.escalation_level = max(case.escalation_level or 0, d.level)
     db.flush()
+    if in_patient_window(now):
+        out["reminders_sent_after_deferral"] = _send_deferred_reminders(db, now, actor, case_ids)
     audit.record(db, actor, "E", "sla.sweep", ts=now, detail=out)
     return out
+
+
+def in_patient_window(now_utc: datetime) -> bool:
+    """Automated patient messages only between 08:00 and 21:00 UAE time (no 2 a.m. SMS from an SLA job)."""
+    from ..calendar_uae import to_local
+
+    start, end = get_settings().patient_message_window
+    return start <= to_local(now_utc).hour < end
+
+
+def _send_deferred_reminders(db: Session, now: datetime, actor: Actor, case_ids: list[int] | None) -> int:
+    """Dispatch reminders queued outside the message window (once each); drop them if no longer relevant."""
+    from ..comms.service import send_with_ladder
+
+    q = select(Communication).where(Communication.category == "reminder", Communication.status == "on-hold",
+                                    Communication.channel == "scheduled")
+    if case_ids:
+        q = q.where(Communication.case_id.in_(case_ids))
+    sent = 0
+    for held in db.scalars(q).all():
+        case = db.get(Case, held.case_id)
+        held.status = "stopped"  # the placeholder itself is never a delivery
+        if case is None or S(case.state) not in PATIENT_FACING or case.patient.deceased:
+            held.content += " - cancelled (case moved on)"
+            continue
+        held.content += f" - dispatched {now.isoformat(timespec='minutes')} UTC"
+        send_with_ladder(db, case, "reminder", actor, now=now, max_channels=3)
+        sent += 1
+    return sent
 
 
 def acknowledge_escalation(db: Session, esc: Escalation, actor: Actor, note: str, now: datetime | None = None) -> Escalation:
