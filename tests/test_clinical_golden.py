@@ -63,7 +63,7 @@ G = [
     ("CX-14", CX, None, "HPV negative", None, None, "final", "HSIL", F50, "review", "urgent", "human_review", "CX-HPVNEG-HG", "lead"),
     ("CX-15", CX, None, "HPV negative", None, None, "final", "ASC-US", F50, "review", "high", "human_review", "CX-HPVNEG-LG", "lead"),
     ("CX-16", CX, None, "HPV invalid", None, None, "final", None, F50, "actionable", "routine", "repeat_sample", "CX-UNSAT", "coord"),
-    ("CX-17", CX, None, "HPV invalid", None, None, "final", "LSIL", F50, "review", "urgent", "human_review", "CX-HPVINV-LG", "lead"),
+    ("CX-17", CX, None, "HPV invalid", None, None, "final", "LSIL", F50, "review", "high", "human_review", "CX-HPVINV-LG", "lead"),
     ("CX-18", CX, None, "LSIL", None, None, "final", None, F50, "actionable", "routine", "reflex_hpv", "CX-CYTO-LG-NOHPV", "coord"),
     ("CX-19", CX, None, "NILM", None, None, "final", None, F50, "review", "urgent", "human_review", "CX-CYTO-ONLY", "lead"),
     ("CX-20", CX, None, "HPV16|HPV other hr", None, None, "final", None, F50, "review", "urgent", "human_review", "CX-ERR", "lead"),

@@ -68,7 +68,7 @@ REVIEW_MIN_TIER = {
     "sex_mismatch": "urgent", "amended_result": "urgent", "corrected_result": "urgent", "result_retracted": "urgent",
     "preliminary_result": "high", "hypoglycaemia": "urgent", "suspected_invasive": "urgent", "known_malignancy": "urgent",
     "pregnant": "high", "deceased": "high", "under_specialist_care": "high", "haemoglobinopathy": "high",
-    "screening_category_unexpected": "high", "hpv_negative_abnormal_cytology": "high", "unexpectedly_low": "routine",
+    "screening_category_unexpected": "high", "hpv_negative_abnormal_cytology": "high", "hpv_invalid_low_grade": "high", "unexpectedly_low": "routine",
     "age_below_programme": "routine", "age_above_programme": "routine", "age_unknown": "high",
     "duplicate_result": "routine", "conflicting_result": "high", "result_after_closure": "high", "more_urgent_result": "urgent",
 }
@@ -217,7 +217,7 @@ HIGH_GRADE = {"ASC-H", "HSIL", "AGC", "AIS"}
 def _parse_cervical(r: ResultInput) -> tuple[str | None, str | None, bool]:
     """Returns (hpv, cytology, ok). value_text may be 'HPV16', 'HPV other hr|ASC-US', 'HSIL' etc."""
     parts = [p.strip().lower() for p in re.split(r"[|;,]", r.value_text or "") if p.strip()]
-    if r.cytology:
+    if r.cytology and r.cytology.strip():  # a blank cytology field means "not reported"
         parts.append(r.cytology.strip().lower())
     hpv = cyto = None
     for p in parts:
@@ -267,7 +267,7 @@ def _cervical(r: ResultInput) -> Decision:
             return _act("routine", "repeat_sample", "Repeat cervical sample", "CX-UNSAT",
                         target="Repeat as soon as convenient, no later than 4 months (ASCCP 2023)")
     if hpv == "invalid" and cyto in ("ASC-US", "LSIL"):
-        return _rev("malformed_value", "CX-HPVINV-LG", tier="high",
+        return _rev("hpv_invalid_low_grade", "CX-HPVINV-LG", tier="high",
                     step="Clinician review: low-grade cytology with an invalid HPV test (repeat HPV vs colposcopy)")
     if hpv == "invalid" or (hpv is None and cyto == "UNSAT"):
         return _act("routine", "repeat_sample", "Repeat cervical sample", "CX-UNSAT",
@@ -286,15 +286,24 @@ def _cervical(r: ResultInput) -> Decision:
 
 
 # ----------------------------------------------------------------- breast (BI-RADS)
-BIRADS_RE = re.compile(r"^\s*(?:bi-?rads|birads|category|cat)?\s*[:\-]?\s*([0-6])\s*([abc])?\s*$", re.I)
+# A separator (":" / "-") is only allowed after a prefix, so "-1" is NOT read as BI-RADS 1 (found by differential test).
+BIRADS_RE = re.compile(r"^\s*(?:(?:bi-?rads|birads|category|cat)\s*[:\-]?\s*)?([0-6])\s*([abc])?\s*$", re.I)
 
 
 def _breast(r: ResultInput) -> Decision:
-    text = r.value_text if r.value_text is not None else (None if r.value is None else str(r.value))
-    if text is None or not str(text).strip():
+    if r.value_text is None:
+        if r.value is None:
+            return _rev("missing_value", "BR-ERR")
+        n = _num(r.value)  # numeric category must be an integer 0-6 (e.g. -1 or 4.5 is malformed, never BI-RADS 1/4)
+        if n is None or n != int(n) or not 0 <= n <= 6:
+            return _rev("malformed_value", "BR-ERR")
+        text = str(int(n))
+    else:
+        text = r.value_text
+    if not str(text).strip():
         return _rev("missing_value", "BR-ERR")
     t = str(text).strip()
-    if re.fullmatch(r"[0-6](\.0)?", t):
+    if re.fullmatch(r"[0-6]\.0", t):
         t = t[0]
     m = BIRADS_RE.match(t)
     if not m:
@@ -408,19 +417,25 @@ def _diabetes(r: ResultInput, ctx: PatientContext) -> Decision:
         norm = {"hba1c_pct": round(pct, 2), "hba1c_mmol_mol": round(v if u == "mmol/mol" else hba1c_pct_to_mmol(v), 1)}
         low = HBA1C_LOW_PCT if u == "%" else HBA1C_LOW_MMOL
         if v < low:
-            return _rev("unexpectedly_low", "DM-A1C-LOW", norm=norm,
-                        step="Clinician review: unexpectedly low HbA1c (haemoglobin variant / haemolysis?)")
+            d = _rev("unexpectedly_low", "DM-A1C-LOW", norm=norm,
+                     step="Clinician review: unexpectedly low HbA1c (haemoglobin variant / haemolysis?)")
+            if ctx.haemoglobinopathy:
+                d.reasons.append("haemoglobinopathy")
+                d.tier = max_tier(d.tier, REVIEW_MIN_TIER["haemoglobinopathy"])
+            return d
+        if ctx.haemoglobinopathy:
+            # HbA1c is unreliable with a haemoglobin variant: EVERY HbA1c result (normal ones too - a falsely
+            # normal value is the dangerous case) is reviewed; use glucose criteria (found by differential test).
+            t, rid = tier_fn(v, u)
+            return _rev("haemoglobinopathy", rid, tier=t, norm=norm,
+                        step="Clinician review: HbA1c may be unreliable with a haemoglobin variant - use glucose criteria")
     t, rid = tier_fn(v, u)
     if t == "hypo":
         return _rev("hypoglycaemia", "DM-FPG-HYPO", tier="urgent", step="Clinician review: fasting glucose in hypoglycaemic range")
     if t is None:
         return _neg(rid, "Rescreen at the routine interval (ADA: every 3 years if normal)")
     pw, step, confirm, target = DIAB_PATHWAYS[rid]
-    d = _act(t, pw, step, rid, confirm=confirm, target=target, norm=norm)
-    if test == "HBA1C" and ctx.haemoglobinopathy:
-        return _rev("haemoglobinopathy", rid, tier=t, norm=norm,
-                    step="Clinician review: HbA1c may be unreliable with a haemoglobin variant - use glucose criteria")
-    return d
+    return _act(t, pw, step, rid, confirm=confirm, target=target, norm=norm)
 
 
 # ----------------------------------------------------------------- entry point
