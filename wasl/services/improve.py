@@ -167,6 +167,9 @@ def decide_proposal(db: Session, proposal_id: int, actor: Actor, approve: bool, 
     now = now or utcnow()
     if not actor.can("proposal:decide"):
         raise Forbidden("only a clinical lead can approve or reject proposed rule changes")
+    from ..signoff import require_signoff
+
+    require_signoff(actor, "proposal.decide", note)
     p = db.get(RuleProposal, proposal_id)
     if p is None:
         raise NotFound("proposal not found")

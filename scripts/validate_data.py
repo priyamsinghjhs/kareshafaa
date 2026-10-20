@@ -241,6 +241,22 @@ def run(max_examples: int = 5) -> dict:
         for k, n in pw.items():
             if n > 1:
                 bad("alert.one_pathway_alert_per_case_per_level", (k, n))
+        # patient content: only signed-off wording reaches patients; sign-offs respect separation of duties
+        from wasl.comms import governance as _G
+        from wasl.comms.content import PATHWAY_TEXT as _PT
+        from wasl.models import Communication as _Cm, ContentApproval as _CA
+        live = _G.live_ids(db)
+        drafts = {(lang, t["meaning"]) for lang, d in _PT.items() if lang != "en" for pw, t in d.items()
+                  if f"pathway:{pw}:{lang}" not in live}
+        for cm in db.query(_Cm).filter(_Cm.language.in_(["ar", "hi", "ur"])):
+            if any(lang == cm.language and frag in (cm.content or "") for lang, frag in drafts):
+                bad("content.no_unapproved_translation_sent", cm.id)
+        by = _C()
+        for a in db.query(_CA):
+            by[(a.content_id, a.sha256, a.user_id)] += 1
+        for k, n in by.items():
+            if n > 1:
+                bad("content.signoffs_by_different_people", k)
         checked["audit_events"] = 0
         chain = audit.verify_chain(db)
         checked["audit_events"] = chain.get("checked", 0)
@@ -268,7 +284,8 @@ INVARIANTS = [
     "dates.careplan_after_case", "dates.care_reached_after_case", "audit.case_created_event",
     "tier.never_lowered_without_audited_clinician_decision", "safety.no_patient_contact_before_clinician_review",
     "safety.deceased_never_contacted", "safety.pregnancy_flagged_for_review", "safety.review_case_has_owner",
-    "case.at_most_one_open_case_per_patient_programme", "alert.one_pathway_alert_per_case_per_level", "audit.hash_chain_valid",
+    "case.at_most_one_open_case_per_patient_programme", "alert.one_pathway_alert_per_case_per_level",
+    "content.no_unapproved_translation_sent", "content.signoffs_by_different_people", "audit.hash_chain_valid",
 ]
 
 

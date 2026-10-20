@@ -89,6 +89,8 @@ def build_users(db: Session, d: dict) -> list[User]:
         users.append(User(username=uname, display_name=p.name, role=p.role, practitioner_id=p.id))
     users.append(User(username="analyst", display_name="Dana Analyst (Programme Analytics)", role="analyst"))
     users.append(User(username="admin", display_name="Sam Admin (System Administrator)", role="admin"))
+    users.append(User(username="translator", display_name="Layla Haddad (Medical translation reviewer, DEMO)",
+                      role="translator"))
     db.add_all(users)
     db.flush()
     return users

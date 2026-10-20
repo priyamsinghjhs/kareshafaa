@@ -334,26 +334,76 @@ INTERPRETER_NOTICE: dict[str, str] = {
 }
 
 
-# Result-specific wording keyed by clinical pathway (Iteration 6). English only so far: other languages get the
-# English text plus a navigator call with an interpreter (flagged translation_pending) - never a wrong message.
-PATHWAY_TEXT_EN: dict[str, dict[str, str]] = {
-    "repeat_fit": {"meaning": "Your bowel screening kit could not be tested (for example the sample was spoilt or "
-                              "unclear). This is NOT a result about your health. We need a new sample.",
-                   "next_step": "a new home test kit, which we will send you"},
-    "repeat_sample": {"meaning": "Your cervical screening sample could not be read by the lab. This is NOT a result "
-                                 "about your health. We need a new sample.",
-                      "next_step": "a repeat cervical screening sample at your clinic"},
-    "prediabetes_gp": {"meaning": "Your blood sugar test was a little higher than normal (called prediabetes). This is "
-                                  "NOT diabetes, but it means a higher chance of getting it. Small lifestyle changes "
-                                  "can lower that chance.",
-                       "next_step": "a visit with your family doctor for advice, and a repeat test within a year"},
-    "surveillance_1y": {"meaning": "Your cervical screening test found HPV, a very common virus, but your cells looked "
-                                   "normal. Most HPV infections clear on their own.",
-                        "next_step": "a repeat HPV test in 12 months (we will remind you)"},
-    "colposcopy_urgent": {"meaning": "Your cervical screening test found cell changes that need a closer look soon. "
-                                     "This does NOT mean you have cancer.",
-                          "next_step": "a closer look at the cervix (colposcopy) at a hospital clinic, within 2 weeks"},
+# Result-specific wording keyed by clinical pathway (Iteration 6; translations Iteration 7).
+# GOVERNED CONTENT: a pathway text is used for a patient only when its exact current wording (sha256) has a
+# clinical sign-off and - for Arabic, Hindi and Urdu - also a professional translator's sign-off, by two different
+# people (see wasl/comms/governance.py). Until then: English text + navigator call with an interpreter for other
+# languages, or a neutral "your team will call you" message if even the English wording is not signed off.
+PATHWAY_TEXT: dict[str, dict[str, dict[str, str]]] = {
+    "en": {
+        "repeat_fit": {"meaning": "Your bowel screening kit could not be tested (for example the sample was spoilt or "
+                                  "unclear). This is NOT a result about your health. We need a new sample.",
+                       "next_step": "a new home test kit, which we will send you"},
+        "repeat_sample": {"meaning": "Your cervical screening sample could not be read by the lab. This is NOT a result "
+                                     "about your health. We need a new sample.",
+                          "next_step": "a repeat cervical screening sample at your clinic"},
+        "prediabetes_gp": {"meaning": "Your blood sugar test was a little higher than normal (called prediabetes). This is "
+                                      "NOT diabetes, but it means a higher chance of getting it. Small lifestyle changes "
+                                      "can lower that chance.",
+                           "next_step": "a visit with your family doctor for advice, and a repeat test within a year"},
+        "surveillance_1y": {"meaning": "Your cervical screening test found HPV, a very common virus, but your cells looked "
+                                       "normal. Most HPV infections clear on their own.",
+                            "next_step": "a repeat HPV test in 12 months (we will remind you)"},
+        "colposcopy_urgent": {"meaning": "Your cervical screening test found cell changes that need a closer look soon. "
+                                         "This does NOT mean you have cancer.",
+                              "next_step": "a closer look at the cervix (colposcopy) at a hospital clinic, within 2 weeks"},
+    },
+    # DRAFT translations (Iteration 7): NOT reviewed by a professional medical translator. They stay unused until a
+    # translator and a clinician have both signed off the exact wording.
+    "ar": {
+        "repeat_fit": {"meaning": "لم نتمكن من فحص عينة اختبار القولون (مثلاً لأن العينة تلفت أو لم تكن واضحة). هذه ليست نتيجة عن صحتك. نحتاج إلى عينة جديدة.",
+                       "next_step": "مجموعة اختبار منزلية جديدة سنرسلها إليك"},
+        "repeat_sample": {"meaning": "لم يتمكن المختبر من قراءة عينة فحص عنق الرحم. هذه ليست نتيجة عن صحتك. نحتاج إلى عينة جديدة.",
+                          "next_step": "أخذ عينة جديدة لفحص عنق الرحم في عيادتك"},
+        "prediabetes_gp": {"meaning": "كانت نتيجة فحص السكر في الدم أعلى قليلاً من الطبيعي (تُسمى مرحلة ما قبل السكري). هذا ليس مرض السكري، لكنه يعني احتمالاً أكبر للإصابة به. تغييرات بسيطة في نمط الحياة يمكن أن تقلل هذا الاحتمال.",
+                           "next_step": "زيارة طبيب الأسرة للحصول على النصيحة، وإعادة الفحص خلال سنة"},
+        "surveillance_1y": {"meaning": "وجد فحص عنق الرحم فيروس الورم الحليمي البشري (HPV)، وهو فيروس شائع جداً، لكن خلاياك بدت طبيعية. معظم هذه العدوى تزول من تلقاء نفسها.",
+                            "next_step": "إعادة فحص فيروس الورم الحليمي (HPV) بعد 12 شهراً (سنذكّرك بذلك)"},
+        "colposcopy_urgent": {"meaning": "وجد فحص عنق الرحم تغيرات في الخلايا تحتاج إلى فحص أدق قريباً. هذا لا يعني أنك مصابة بالسرطان.",
+                              "next_step": "فحص عنق الرحم بالمنظار المكبّر في عيادة المستشفى، خلال أسبوعين"},
+    },
+    "hi": {
+        "repeat_fit": {"meaning": "आपकी आंत की जांच की किट की जांच नहीं हो सकी (जैसे नमूना ख़राब हो गया या साफ़ नहीं था)। यह आपकी सेहत के बारे में कोई नतीजा नहीं है। हमें एक नया नमूना चाहिए।",
+                       "next_step": "घर पर जांच की एक नई किट, जो हम आपको भेजेंगे"},
+        "repeat_sample": {"meaning": "लैब आपकी गर्भाशय ग्रीवा की जांच का नमूना नहीं पढ़ पाई। यह आपकी सेहत के बारे में कोई नतीजा नहीं है। हमें एक नया नमूना चाहिए।",
+                          "next_step": "आपके क्लिनिक में गर्भाशय ग्रीवा की जांच का नया नमूना"},
+        "prediabetes_gp": {"meaning": "आपकी ब्लड शुगर जांच सामान्य से थोड़ी ज़्यादा आई है (इसे प्रीडायबिटीज़ कहते हैं)। यह मधुमेह नहीं है, लेकिन इससे मधुमेह होने की संभावना बढ़ जाती है। रोज़मर्रा की आदतों में छोटे बदलाव इस संभावना को कम कर सकते हैं।",
+                           "next_step": "सलाह के लिए अपने फ़ैमिली डॉक्टर से मुलाक़ात, और एक साल के अंदर दोबारा जांच"},
+        "surveillance_1y": {"meaning": "आपकी जांच में HPV मिला है, जो एक बहुत आम वायरस है, लेकिन आपकी कोशिकाएं सामान्य दिखीं। ज़्यादातर HPV संक्रमण अपने आप ठीक हो जाते हैं।",
+                            "next_step": "12 महीने बाद दोबारा HPV जांच (हम आपको याद दिलाएंगे)"},
+        "colposcopy_urgent": {"meaning": "आपकी जांच में कोशिकाओं में कुछ बदलाव मिले हैं, जिनकी जल्द नज़दीकी जांच ज़रूरी है। इसका मतलब यह नहीं कि आपको कैंसर है।",
+                              "next_step": "अस्पताल क्लिनिक में गर्भाशय ग्रीवा की नज़दीकी जांच (कोल्पोस्कोपी), 2 हफ़्तों के अंदर"},
+    },
+    "ur": {
+        "repeat_fit": {"meaning": "آپ کی آنت کی اسکریننگ کٹ کا ٹیسٹ نہیں ہو سکا (مثلاً نمونہ خراب ہو گیا یا واضح نہیں تھا)۔ یہ آپ کی صحت کے بارے میں کوئی نتیجہ نہیں ہے۔ ہمیں ایک نیا نمونہ چاہیے۔",
+                       "next_step": "گھر پر ٹیسٹ کی ایک نئی کٹ، جو ہم آپ کو بھیجیں گے"},
+        "repeat_sample": {"meaning": "لیب آپ کی سروائیکل اسکریننگ کا نمونہ نہیں پڑھ سکی۔ یہ آپ کی صحت کے بارے میں کوئی نتیجہ نہیں ہے۔ ہمیں ایک نیا نمونہ چاہیے۔",
+                          "next_step": "آپ کے کلینک میں سروائیکل اسکریننگ کا نیا نمونہ"},
+        "prediabetes_gp": {"meaning": "آپ کے خون میں شوگر کا ٹیسٹ معمول سے تھوڑا زیادہ آیا ہے (اسے پری ذیابیطس کہتے ہیں)۔ یہ ذیابیطس نہیں ہے، لیکن اس سے ذیابیطس ہونے کا امکان بڑھ جاتا ہے۔ روزمرہ کی عادتوں میں چھوٹی تبدیلیاں اس امکان کو کم کر سکتی ہیں۔",
+                           "next_step": "مشورے کے لیے اپنے فیملی ڈاکٹر سے ملاقات، اور ایک سال کے اندر دوبارہ ٹیسٹ"},
+        "surveillance_1y": {"meaning": "آپ کے ٹیسٹ میں HPV پایا گیا ہے، جو ایک بہت عام وائرس ہے، لیکن آپ کے خلیے نارمل نظر آئے۔ زیادہ تر HPV انفیکشن خود ہی ختم ہو جاتے ہیں۔",
+                            "next_step": "12 مہینے بعد دوبارہ HPV ٹیسٹ (ہم آپ کو یاد دلائیں گے)"},
+        "colposcopy_urgent": {"meaning": "آپ کے ٹیسٹ میں خلیوں میں کچھ تبدیلیاں ملی ہیں، جن کا جلد قریبی معائنہ ضروری ہے۔ اس کا مطلب یہ نہیں کہ آپ کو کینسر ہے۔",
+                              "next_step": "ہسپتال کلینک میں سروکس کا قریبی معائنہ (کولپوسکوپی)، 2 ہفتوں کے اندر"},
+    },
 }
+PATHWAY_TEXT_EN = PATHWAY_TEXT["en"]
+TRANSLATION_STATUS = {lang: "draft - needs professional medical translator review" for lang in ("ar", "hi", "ur")}
+
+# Used when the pathway wording itself has no current clinical sign-off: never guess, ask the team to call.
+NEUTRAL_PATHWAY_TEXT = {"meaning": "Your screening result is ready. Your care team will call you to explain what it "
+                                   "means for you and to answer your questions.",
+                        "next_step": "a call from your care team to explain your result and the next step"}
 
 
 def _direct_applies(case) -> bool:
@@ -364,15 +414,28 @@ def _direct_applies(case) -> bool:
             "diabetes_hba1c": rid.endswith("-CRIT")}.get(case.programme, False)
 
 
-def programme_text(lang: str, case) -> dict[str, str]:
-    """Patient-facing wording for this case: programme text, overridden for result-specific direct pathways."""
+def programme_text(lang: str, case, live: set[str] | None = None) -> dict[str, str]:
+    """Patient-facing wording for this case: programme text, overridden for result-specific direct pathways and
+    for governed pathway wording (only versions with the required human sign-offs are used; see governance.py)."""
     lang = lang if lang in PROGRAMME_TEXT else "en"
     base = dict(PROGRAMME_TEXT[lang][case.programme])
     if case.needs_confirmation is False and _direct_applies(case):
         base.update(DIRECT_PATHWAY_TEXT[lang].get(case.programme, {}))
     pw = getattr(case, "pathway", None)
     if pw in PATHWAY_TEXT_EN:
-        base.update(PATHWAY_TEXT_EN[pw])
-        if lang != "en":
-            base["translation_pending"] = "true"
+        if live is None:
+            from .governance import live_content  # noqa: PLC0415 - avoid an import cycle
+
+            live = live_content(case)
+        if lang != "en" and f"pathway:{pw}:{lang}" in live:
+            base.update(PATHWAY_TEXT[lang][pw])
+        elif f"pathway:{pw}:en" in live:
+            base.update(PATHWAY_TEXT_EN[pw])
+            if lang != "en":
+                base["translation_pending"] = "true"
+        else:
+            base.update(NEUTRAL_PATHWAY_TEXT)
+            base["content_pending_approval"] = "true"
+            if lang != "en":
+                base["translation_pending"] = "true"
     return base

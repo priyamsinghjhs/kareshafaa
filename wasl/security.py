@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 from .config import get_settings
 
-ROLES = ("patient", "coordinator", "gp", "specialist", "clinical_lead", "analyst", "admin")
+ROLES = ("patient", "coordinator", "gp", "specialist", "clinical_lead", "analyst", "admin", "translator")
 
 _CLINICAL = {
     "case:read", "case:write", "queue:read", "comm:send", "consult:create", "consult:respond",
@@ -31,8 +31,10 @@ PERMISSIONS: dict[str, frozenset[str]] = {
                                             "confirm:result", "analytics:read", "audit:read", "model:read",
                                             "model:train", "model:approve", "model:rollback", "proposal:decide",
                                             "proposal:generate", "lesson:read", "sweep:run", "case:create",
-                                            "simulation:run"}),
-    "analyst": frozenset({"analytics:read", "model:read", "lesson:read"}),
+                                            "simulation:run", "content:read", "content:approve"}),
+    "analyst": frozenset({"analytics:read", "model:read", "lesson:read", "content:read"}),
+    # professional medical translator: attests that a translation says the same as the signed-off English
+    "translator": frozenset({"content:read", "content:translation_review"}),
     "admin": frozenset({"audit:read", "model:read", "model:train", "sweep:run", "proposal:generate",
                         "lesson:read", "config:read", "simulation:run", "analytics:read"}),
 }

@@ -147,8 +147,9 @@ def run_sweep(db: Session, now: datetime | None = None, actor: Actor = SYSTEM, c
 def acknowledge_escalation(db: Session, esc: Escalation, actor: Actor, note: str, now: datetime | None = None) -> Escalation:
     from .errors import DomainError, Forbidden
 
-    if not actor.can("escalation:ack"):
-        raise Forbidden("role lacks escalation:ack")
+    from ..signoff import require_signoff
+
+    require_signoff(actor, "escalation.ack", note)
     if esc.acknowledged_at:
         raise DomainError("already acknowledged")
     esc.acknowledged_at = now or utcnow()

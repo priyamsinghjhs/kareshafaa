@@ -35,6 +35,7 @@ from ..clinical_rules import TIER_TARGET_DAYS, target_days
 from ..clinical_rules import TIER_RANK, PatientContext, ResultInput, evaluate, is_downgrade, max_tier, review_min_tier
 from ..programmes import CLINICIAN_CONFIRMED_TIERS, PROGRAMMES
 from ..security import SYSTEM, Actor
+from ..signoff import require_signoff
 from ..sla import SlaLookup, due_at
 from ..statemachine import S, TransitionError, check_closure, check_transition
 from .access import consent_status
@@ -258,6 +259,7 @@ def resolve_review(db: Session, case: Case, actor: Actor, *, note: str, tier: st
     now = _now(now)
     if not actor.is_human or not actor.can("case:triage_urgent"):
         raise Forbidden("only a clinician (GP, specialist or clinical lead) may resolve a clinical review")
+    require_signoff(actor, "case.review.resolve", note)
     if not case.review_required:
         raise Invalid("this case is not awaiting review")
     if not note or len(note.strip()) < 10:
@@ -383,10 +385,7 @@ def transition(db: Session, case: Case, dst: S | str, actor: Actor, *, owner_id:
     check_transition(src, dst)
     # authorisation
     if src == S.CLOSED:
-        if not actor.can("case:reopen"):
-            raise Forbidden("re-opening a closed case requires case:reopen")
-        if not note or len(note.strip()) < 10:
-            raise Invalid("a reason (>= 10 characters) is required to re-open a case")
+        require_signoff(actor, "case.reopen", note)
     if case.review_required and src == S.ISSUED:
         raise Forbidden("this result is awaiting clinician review (resolve_review) before any pathway step")
     if src == S.CLOSED:
@@ -438,6 +437,9 @@ def close_case(db: Session, case: Case, actor: Actor, closure_type: str, *, evid
         raise Forbidden("role may not close cases")
     if actor.role == "patient":
         raise Forbidden("patients cannot close cases")
+    if actor.role != "patient":
+        require_signoff(actor, "case.close.authorised" if closure_type == "authorised_decision" else "case.close.evidence",
+                        note)
     if case.review_required and not (closure_type == "authorised_decision" and actor.is_human
                                      and actor.can("case:triage_urgent")):
         raise Forbidden("this case has an unresolved clinical review flag: a clinician must resolve it "
@@ -510,8 +512,7 @@ def _verify_evidence(db: Session, case: Case, evidence_type: str, evidence_id: i
 # ------------------------------------------------------------------ ownership
 def assign(db: Session, case: Case, new_owner_id: int, actor: Actor, reason: str, now: datetime | None = None) -> Case:
     now = _now(now)
-    if not actor.can("case:assign"):
-        raise Forbidden("role lacks case:assign")
+    require_signoff(actor, "case.assign", reason)
     if case.state == S.CLOSED:
         raise DomainError("cannot reassign a closed case")
     new = db.get(Practitioner, new_owner_id)
@@ -532,8 +533,7 @@ def assign(db: Session, case: Case, new_owner_id: int, actor: Actor, reason: str
 def request_transfer(db: Session, case: Case, to_owner_id: int, actor: Actor, note: str, now: datetime | None = None) -> Case:
     """Two-key transfer: the current owner stays accountable until the receiver accepts."""
     now = _now(now)
-    if not actor.can("case:transfer"):
-        raise Forbidden("role lacks case:transfer")
+    require_signoff(actor, "case.transfer.request", note)
     if case.state == S.CLOSED:
         raise DomainError("cannot transfer a closed case")
     if case.transfer_pending_owner_id:
@@ -555,6 +555,9 @@ def request_transfer(db: Session, case: Case, to_owner_id: int, actor: Actor, no
 def decide_transfer(db: Session, case: Case, actor: Actor, accept: bool, note: str | None = None,
                     now: datetime | None = None) -> Case:
     now = _now(now)
+    require_signoff(actor, "case.transfer.decide", note)
+    if not accept and (not note or len(note.strip()) < 5):
+        raise Invalid("declining a transfer needs a reason (>= 5 characters)")
     pend = case.transfer_pending_owner_id
     if not pend:
         raise DomainError("no transfer pending")
@@ -605,8 +608,7 @@ def order_confirmatory(db: Session, case: Case, actor: Actor, performer_org_id: 
 
 def record_confirmatory_result(db: Session, case: Case, actor: Actor, result: str, now: datetime | None = None) -> ServiceRequest:
     now = _now(now)
-    if not actor.can("confirm:result"):
-        raise Forbidden("role lacks confirm:result")
+    require_signoff(actor, "confirmatory.result")
     if result not in ("positive", "negative"):
         raise Invalid("result must be positive or negative")
     sr = _latest(db, ServiceRequest, case.id, kind="confirmatory_test", status="requested")
@@ -659,8 +661,7 @@ def create_referral(db: Session, case: Case, actor: Actor, performer_org_id: int
 def decide_referral(db: Session, case: Case, actor: Actor, accept: bool, *, reason_code: str | None = None,
                     note: str | None = None, performer_id: int | None = None, now: datetime | None = None) -> ServiceRequest:
     now = _now(now)
-    if not actor.can("referral:decide"):
-        raise Forbidden("role lacks referral:decide")
+    require_signoff(actor, "referral.decide", note)
     sr = _latest(db, ServiceRequest, case.id, kind="referral", status="requested")
     if sr is None or S(case.state) != S.REFERRAL_SENT:
         raise DomainError("no referral awaiting a decision")
@@ -733,8 +734,7 @@ def record_attendance(db: Session, case: Case, actor: Actor, attended: bool, *, 
 
 def start_care(db: Session, case: Case, actor: Actor, kind: str, description: str, now: datetime | None = None) -> CarePlan:
     now = _now(now)
-    if not actor.can("careplan:write"):
-        raise Forbidden("role lacks careplan:write")
+    require_signoff(actor, "careplan.start", description)
     if kind not in ("treatment", "surveillance"):
         raise Invalid("kind must be treatment or surveillance")
     st = S(case.state)

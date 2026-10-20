@@ -7,6 +7,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..comms import governance as content_gov
 from ..config import get_settings
 from ..db import get_db
 from ..ml import registry
@@ -141,3 +142,19 @@ def sla_rules(actor: Actor = Depends(require("lesson:read")), db: Session = Depe
 def config(actor: Actor = Depends(require("lesson:read")), db: Session = Depends(get_db)) -> dict:
     return {"items": [{"key": c.key, "value": c.value, "version": c.version, "source": c.source,
                        "updated_at": c.updated_at.isoformat()} for c in all_active(db)]}
+
+
+@router.get("/content")
+def content_status(actor: Actor = Depends(require("content:read")), db: Session = Depends(get_db)) -> dict:
+    rows = content_gov.status(db)
+    return {"items": rows, "summary": {"items": len(rows), "readability_ok": sum(r["readability"]["ok"] for r in rows),
+                                       "gated": sum(r["gated"] for r in rows),
+                                       "gated_live": sum(r["gated"] and r["live"] for r in rows)}}
+
+
+@router.post("/content/signoff")
+def content_signoff(body: sch.ContentSignoffIn, actor: Actor = Depends(require("content:read")),
+                    db: Session = Depends(get_db)) -> dict:
+    a = content_gov.approve(db, actor, body.content_id, body.kind, body.note)
+    db.commit()
+    return {"id": a.id, "content_id": a.content_id, "kind": a.kind, "by": a.display, "sha256": a.sha256[:12]}

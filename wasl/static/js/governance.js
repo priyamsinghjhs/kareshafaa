@@ -7,6 +7,7 @@ window.rollback = () => { const n = prompt("Roll back the production model to th
 window.train = alg => act(`/api/governance/models/train`, { algorithm: alg }, `Candidate (${alg}) trained on accumulated outcomes – see gates`);
 window.decide = (id, ok) => { const n = prompt(`${ok ? "Approve" : "Reject"} proposal #${id}. Decision note:`); if (n) act(`/api/governance/proposals/${id}/decide`, { approve: ok, note: n }, ok ? "Approved and applied" : "Rejected"); };
 window.genProposals = () => act(`/api/governance/proposals/generate`, null, "Proposal engine run");
+window.signoff = (cid, kind) => { const n = prompt(`${kind === "clinical" ? "Clinical" : "Translation"} sign-off for ${cid}. What did you check?`); if (n) act(`/api/governance/content/signoff`, { content_id: cid, kind, note: n }, "Sign-off recorded (bound to this exact wording)"); };
 window.detail = async v => {
   const m = await W.api(`/api/governance/models/${v}`), el = document.getElementById("mdetail");
   const gate = (k, g) => `<tr><td class="${g.passed ? "gate-pass" : "gate-fail"}">${g.passed ? "PASS" : "FAIL"}</td><td>${W.esc(k)}</td><td>${W.esc(Array.isArray(g.value) ? g.value.join(", ") : g.value)}</td><td class="small muted">${W.esc(g.threshold ?? "")}${g.gap != null ? " · point gap " + g.gap : ""}</td></tr>`;
@@ -55,9 +56,17 @@ const tabsG = {
     const states = [...new Set(r.items.map(x => x.state))];
     const get = (s, t) => r.items.find(x => x.state === s && x.tier === t);
     el.innerHTML = `<div class="grid-2"><div class="card"><h4>SLA hours by step and urgency (reminder at % of SLA)</h4><table class="compact"><thead><tr><th>Step</th><th>urgent</th><th>high</th><th>routine</th></tr></thead><tbody>${states.map(s => `<tr><td>${W.esc(s)}</td>${["urgent", "high", "routine"].map(t => { const x = get(s, t); return `<td>${x.hours}h <span class="small muted">@${Math.round(x.reminder_fraction * 100)}%</span>${x.version > 1 ? ` <span class="chip flag" title="${W.esc(x.source)}">v${x.version}</span>` : ""}</td>`; }).join("")}</tr>`).join("")}</tbody></table>
-      <p class="small muted">Escalation ladder: L1 reminder to owner at the reminder point → L2 supervisor at breach (urgent cases go straight to L3) → L3 clinical lead at 150% of SLA. Escalations alert people; they never change the clinical plan.</p></div>
+      <p class="small muted">Escalation ladder: L1 reminder to owner at the reminder point → L2 supervisor at breach (critical cases go straight to L3) → L3 clinical lead at 150% of SLA → L4 director at 200% (critical/urgent). After a missed pathway target, one consolidated alert per case per level (no repeat per step). Escalations alert people; they never change the clinical plan.</p></div>
       <div class="card"><h4>Active configuration</h4><table class="compact">${c.items.map(x => `<tr><td class="small">${W.esc(x.key)}</td><td class="small">${W.esc(JSON.stringify(x.value))}</td><td class="small muted">v${x.version} · ${W.esc(x.source)}</td></tr>`).join("")}</table></div></div>`;
   },
+};
+tabsG.content = async el => {
+  const r = await W.api("/api/governance/content"), s = r.summary;
+  const rows = r.items.filter(x => x.gated || !x.readability.ok || x.lang !== "en" || x.group !== "template");
+  const rd = x => { const d = x.readability; return `${d.ok ? '<span class="gate-pass">OK</span>' : '<span class="gate-fail">FIX</span>'} <span class="small muted">${d.fk_grade != null ? "FK " + d.fk_grade + " · ease " + d.reading_ease + " · " : ""}${d.avg_words_per_sentence} w/sent · long ${Math.round(d.long_word_share * 100)}%</span>${d.problems.length ? `<div class="small">${d.problems.map(W.esc).join("; ")}</div>` : ""}`; };
+  const so = (x, k) => { const v = x[k + "_signoff"]; return v ? `<span class="chip sla-green" title="${W.esc(v.at)}">${W.esc(v.by)}</span>` : (k === "translation" && x.lang === "en" ? '<span class="small muted">n/a</span>' : (can(k === "clinical" ? "content:approve" : "content:translation_review") ? `<button class="secondary" style="width:auto;padding:.1rem .5rem" onclick="signoff('${x.content_id}','${k}')">Sign off</button>` : '<span class="chip sla-amber">pending</span>')); };
+  el.innerHTML = `<div class="card"><p class="small">${s.items} patient-facing texts · ${s.readability_ok} pass reading-level &amp; tone checks · ${s.gated_live}/${s.gated} governed pathway texts live. A sign-off is bound to the exact wording (sha256): any edit needs a new sign-off. Arabic, Hindi and Urdu need a <b>professional translator</b> and a <b>clinician</b> (two different people); until then patients get English plus an interpreter-supported call.</p>
+  <table class="compact"><thead><tr><th>Content</th><th>Lang</th><th>Text</th><th>Reading level / tone</th><th>Clinical</th><th>Translator</th><th>Live</th></tr></thead><tbody>${rows.map(x => `<tr><td class="small">${W.esc(x.group + ":" + x.key)}${x.gated ? "" : ' <span class="small muted">(not yet gated)</span>'}</td><td>${x.lang}</td><td class="small" dir="auto" style="max-width:28rem">${W.esc(x.text.replace(/[{}"]/g, " ").slice(0, 220))}${x.translation_status ? `<div><span class="chip sla-amber">${W.esc(x.translation_status)}</span></div>` : ""}</td><td>${rd(x)}</td><td>${so(x, "clinical")}</td><td>${so(x, "translation")}</td><td>${x.live ? '<span class="chip sla-green">live</span>' : (x.gated ? '<span class="chip sla-red">not used</span>' : '<span class="small muted">–</span>')}</td></tr>`).join("")}</tbody></table></div>`;
 };
 let current = "models";
 async function show(t) {
@@ -66,4 +75,4 @@ async function show(t) {
   try { await tabsG[t](el); } catch (e) { el.innerHTML = `<div class="empty">${W.esc(e.message)}</div>`; }
 }
 document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return;
-  document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => show(b.dataset.t)); show("models"); });
+  document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => show(b.dataset.t)); show(!can("model:read") && can("content:read") ? "content" : "models"); });

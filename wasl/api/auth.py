@@ -13,7 +13,7 @@ from .deps import COOKIE, actor_from_user, current_actor
 from .schemas import LoginIn
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-FEATURED = ["aisha.rahman", "omar.haddad", "vikram.mehta", "fatima.al.mansoori", "layla.al.hashimi", "analyst", "admin",
+FEATURED = ["aisha.rahman", "omar.haddad", "vikram.mehta", "fatima.al.mansoori", "layla.al.hashimi", "analyst", "admin", "translator",
             "patient.ar", "patient.en", "patient.hi", "patient.ur", "patient.tl"]
 
 

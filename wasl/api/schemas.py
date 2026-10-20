@@ -148,6 +148,12 @@ class ApprovalIn(_In):
     note: str = Field(min_length=5, max_length=2000)
 
 
+class ContentSignoffIn(_In):
+    content_id: str = Field(min_length=3, max_length=120)
+    kind: str = Field(pattern="^(clinical|translation)$")
+    note: str = Field(min_length=5, max_length=2000)
+
+
 class ProposalDecisionIn(_In):
     approve: bool
     note: str = Field(min_length=5, max_length=2000)

@@ -210,6 +210,9 @@ def resolve_match(db: Session, msg_id: int, patient_id: int, actor: Actor, now: 
         from .errors import Forbidden
 
         raise Forbidden("only authorised staff can resolve a patient match")
+    from ..signoff import require_signoff
+
+    require_signoff(actor, "ingest.match.resolve")
     msg = db.get(IngestMessage, msg_id)
     if msg is None:
         raise NotFound("message not found")

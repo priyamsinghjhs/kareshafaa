@@ -23,6 +23,7 @@ from .. import audit
 from ..config import get_settings
 from ..models import Case, ModelVersion, utcnow
 from ..security import ML_SERVICE, Actor
+from ..signoff import require_signoff
 from ..services.errors import DomainError, Forbidden, Invalid, NotFound
 from .calibration import CalibratedModel, calibration_stats, explain, reference_profile
 from .features import (CAT_FEATURES, EXCLUDED_FROM_INPUTS, FAIRNESS_ATTRS, FEATURES, LABEL_DEFINITION, NUM_FEATURES,
@@ -281,6 +282,7 @@ def approve(db: Session, version: int, actor: Actor, note: str, now: datetime | 
     now = now or utcnow()
     if not actor.can("model:approve") or not actor.is_human:
         raise Forbidden("only a clinical lead can approve a model for production")
+    require_signoff(actor, "model.approve", note)
     mv = get_version(db, version)
     if mv.status != "awaiting_approval":
         raise DomainError(f"v{version} is '{mv.status}': only candidates that passed all gates can be promoted")
@@ -306,6 +308,7 @@ def approve(db: Session, version: int, actor: Actor, note: str, now: datetime | 
 def reject(db: Session, version: int, actor: Actor, note: str, now: datetime | None = None) -> ModelVersion:
     if not actor.can("model:approve"):
         raise Forbidden("only a clinical lead can reject a candidate")
+    require_signoff(actor, "model.reject", note)
     mv = get_version(db, version)
     if mv.status not in ("awaiting_approval", "failed_gates"):
         raise DomainError("only candidates can be rejected")
@@ -320,6 +323,7 @@ def rollback(db: Session, actor: Actor, reason: str, now: datetime | None = None
     now = now or utcnow()
     if not actor.can("model:rollback"):
         raise Forbidden("only a clinical lead can roll back the production model")
+    require_signoff(actor, "model.rollback", reason)
     if not reason or len(reason.strip()) < 5:
         raise Invalid("a rollback reason is required")
     cur = production(db)

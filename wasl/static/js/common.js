@@ -31,13 +31,13 @@ const W = {
     return `<span class="chip tier-${t}" title="${L[0]} ${L[1]}">${L[0]} ${L[1]}</span>`; },
   prog(p) { return { colorectal_fit: "Bowel (FIT)", cervical: "Cervical (HPV)", breast: "Breast (mammo)", diabetes_hba1c: "Diabetes (HbA1c)" }[p] || p; },
   pct(v) { return v == null ? "–" : (typeof v === "string" ? v : (v * 100).toFixed(1) + "%"); },
-  homeFor(role) { return { patient: "/patient", analyst: "/dashboard", admin: "/governance" }[role] || "/queue"; },
+  homeFor(role) { return { patient: "/patient", analyst: "/dashboard", admin: "/governance", translator: "/governance" }[role] || "/queue"; },
   navFor(role) {
     const L = { queue: ["/queue", "Work queue"], consults: ["/consults", "Consultations"], dash: ["/dashboard", "KPIs & simulation"],
       gov: ["/governance", "Governance"], audit: ["/audit", "Audit"], patient: ["/patient", "My results"],
       ingest: ["/ingest", "Results inbox"], demo: ["/demo", "Demo scenarios"] };
     const m = { patient: ["patient"], coordinator: ["queue", "ingest", "demo"], gp: ["queue", "consults", "demo"], specialist: ["queue", "consults"],
-      clinical_lead: ["queue", "consults", "ingest", "dash", "gov", "audit", "demo"], analyst: ["dash", "gov"], admin: ["gov", "audit", "dash", "demo"] };
+      clinical_lead: ["queue", "consults", "ingest", "dash", "gov", "audit", "demo"], analyst: ["dash", "gov"], admin: ["gov", "audit", "dash", "demo"], translator: ["gov"] };
     return (m[role] || []).map(k => L[k]);
   },
   async init() {

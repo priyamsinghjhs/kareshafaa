@@ -361,6 +361,20 @@ def _audit_append_only(session: Session, _ctx, _instances) -> None:
             raise PermissionError("AuditEvent rows are append-only")
 
 
+class ContentApproval(Base):  # human sign-off on one exact version (sha256) of patient-facing content
+    __tablename__ = "content_approvals"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    content_id: Mapped[str] = mapped_column(String(120), index=True)  # e.g. pathway:repeat_fit:ar
+    sha256: Mapped[str] = mapped_column(String(64))
+    kind: Mapped[str] = mapped_column(String(20))  # clinical | translation
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    display: Mapped[str] = mapped_column(String(200))
+    role: Mapped[str] = mapped_column(String(40))
+    note: Mapped[str] = mapped_column(Text)
+    readability: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    approved_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class Lesson(Base):
     __tablename__ = "lessons"
     id: Mapped[int] = mapped_column(primary_key=True)

@@ -11,6 +11,7 @@ import time
 from datetime import timedelta
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from . import audit
 from .comms.service import record_call, send_with_ladder
@@ -55,6 +56,7 @@ def seed(n_patients: int | None = None, seed_value: int | None = None, *, train:
         d = build_directory(db)
         users = build_users(db, d)
         users_by_pid = {u.practitioner_id: u for u in users if u.practitioner_id}
+        _demo_content_signoffs(db, d, users_by_pid)
         audit.record(db, SEED_ACTOR, "C", "seed.started", detail={"n_patients": n, "seed": sv, "synthetic": True})
         rep = Replayer(db, rng, d, users_by_pid, now, enriched=not realistic)
         cohort = make_cohort(n, sv, min_age=18 if realistic else 25)
@@ -87,6 +89,11 @@ def seed(n_patients: int | None = None, seed_value: int | None = None, *, train:
             db.commit()
             v2 = registry.train_candidate(db, admin_actor, "gbm", now=now)
             stats["v2"] = {"status": v2.status, "auc": v2.metrics["auc"], "ece": v2.metrics["ece"]}
+            if v2.status == "awaiting_approval" and registry.production(db) is None:
+                # v1 failed a gate (e.g. calibration or fairness): the lead reviews the passing candidate instead
+                registry.approve(db, v2.version, lead, "Seed bootstrap: v1 failed a promotion gate; passing candidate "
+                                                       "reviewed (demo).", now=now)
+                stats["v2"]["status"] = v2.status
             db.commit()
             director = actor_from_user(users_by_pid[d["director"].id])
             stats["proposals"] = len(generate_proposals(db, director))
@@ -110,6 +117,26 @@ DEMO_PATIENTS = [  # named demo stories (synthetic people), aligned with the des
     ("ur", "Pakistani", "Ayesha", "Khan", "female", 41, "cervical", "Abu Dhabi", None, "HPV other hr", True),
     ("tl", "Filipino", "Maria", "Santos", "female", 46, "breast", "Abu Dhabi", None, "BI-RADS 4", False),
 ]
+
+
+PATHWAY_PROGRAMME = {"repeat_fit": "colorectal_fit", "repeat_sample": "cervical", "surveillance_1y": "cervical",
+                     "colposcopy_urgent": "cervical", "prediabetes_gp": "diabetes_hba1c"}
+
+
+def _demo_content_signoffs(db: Session, d: dict, users_by_pid: dict) -> None:
+    """SYNTHETIC DEMO: each programme's clinical lead signs off the ENGLISH pathway wording through the same
+    governed path a real lead would use. Arabic/Hindi/Urdu drafts are deliberately NOT signed off: they need a
+    professional translator first, so patients in those languages get English + an interpreter-supported call."""
+    from .comms import governance as cg  # noqa: PLC0415
+    from .comms.content import PATHWAY_TEXT_EN  # noqa: PLC0415
+
+    for pw in PATHWAY_TEXT_EN:
+        lead = actor_from_user(users_by_pid[d["leads"][PATHWAY_PROGRAMME[pw]].id])
+        cg.approve(db, lead, f"pathway:{pw}:en", "clinical",
+                   "SYNTHETIC DEMO sign-off of prototype wording (readability checks passed).")
+    lead = actor_from_user(users_by_pid[d["leads"]["colorectal_fit"].id])
+    cg.approve(db, lead, "pathway_fallback:neutral:en", "clinical", "SYNTHETIC DEMO sign-off of the neutral fallback.")
+    db.flush()
 
 
 def _demo_patients(db, d, rng, now, users_by_pid) -> list[str]:

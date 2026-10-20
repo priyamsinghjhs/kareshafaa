@@ -94,8 +94,8 @@ def test_authorised_closure_needs_permission_reason_and_note(client, as_user, ne
     cid = new_case("diabetes_hba1c", 7.2)["id"]
     co, gp = as_user("aisha.rahman"), as_user("omar.haddad")
     body = dict(closure_type="authorised_decision", reason="moved_abroad", note="Moved to Kerala; summary emailed.")
-    assert _post(client, co, f"/api/cases/{cid}/close", **body).status_code == 409  # coordinator can't authorise
-    assert _post(client, gp, f"/api/cases/{cid}/close", **{**body, "note": "moved"}).status_code == 409
+    assert _post(client, co, f"/api/cases/{cid}/close", **body).status_code == 403  # coordinator can't authorise
+    assert _post(client, gp, f"/api/cases/{cid}/close", **{**body, "note": "moved"}).status_code in (409, 422)
     assert _post(client, gp, f"/api/cases/{cid}/close", **{**body, "reason": "made_up"}).status_code == 409
     # informed_decline requires a documented decline Consent
     r = _post(client, gp, f"/api/cases/{cid}/close", closure_type="authorised_decision", reason="informed_decline",
@@ -114,13 +114,14 @@ def test_system_actor_cannot_close_and_risk_score_is_irrelevant(db, new_case):
 
     from wasl.security import ML_SERVICE, SYSTEM
     from wasl.services import workflow as wf
+    from wasl.services.errors import Forbidden
     from wasl.statemachine import TransitionError
 
     cid = new_case()["id"]
     case = db.get(Case, cid)
     case.risk_score = 0.0001  # a very low risk score must never close or skip a step
     for actor in (SYSTEM, ML_SERVICE):
-        with pytest.raises(TransitionError):
+        with pytest.raises((TransitionError, Forbidden)):  # refused by the human sign-off guard (Iteration 7)
             wf.close_case(db, case, actor, "authorised_decision", reason="clinically_not_indicated",
                           note="model says low risk, close it")
     with pytest.raises(Exception):
