@@ -8,7 +8,8 @@ import itertools
 
 import pytest
 
-from wasl.statemachine import (AUTHORISED_CLOSURE_REASONS, S, TransitionError, check_closure, check_transition)
+from wasl.statemachine import (AUTHORISED_CLOSURE_REASONS, S, TransitionError, allowed_targets, check_closure,
+                               check_transition)
 
 EXPECTED = {
     "issued": {"triaged"},
@@ -75,7 +76,7 @@ def test_evidence_closure_matrix(state, ev, prog):
 
 
 AUTH_CASES = list(itertools.product(ALL, list(AUTHORISED_CLOSURE_REASONS) + ["bogus", None], [True, False],
-                                    ["", "short", "a rationale of enough length"]))
+                                    ["", "short", "123456789", "1234567890", "a rationale of enough length"]))
 
 
 @pytest.mark.parametrize("state,reason,can_auth,note", AUTH_CASES)
@@ -102,3 +103,16 @@ def test_unknown_closure_type_rejected(ctype):
     with pytest.raises(TransitionError):
         check_closure("triaged", ctype, evidence_type=None, reason="deceased", note="long enough note",
                       actor_is_human=True, actor_can_authorise=True)
+
+
+@pytest.mark.parametrize("state", ALL)
+def test_allowed_targets_matches_check_transition(state):
+    """allowed_targets() drives the UI action list; it must agree exactly with the transition guard."""
+    ok = set()
+    for dst in ALL:
+        try:
+            check_transition(state, dst)
+            ok.add(dst)
+        except TransitionError:
+            pass
+    assert {S(x).value for x in allowed_targets(state)} == {S(x).value for x in ok}

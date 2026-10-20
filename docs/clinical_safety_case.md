@@ -52,6 +52,8 @@ clinical leads, directors, analysts, patients (portal).
 | H-18 | Rules wrong for local practice | guideline differences (UK/US vs DoH) | systematic under/over-referral | 4 | 3 | CONFIRM list; safer defaults; rule IDs shown on every case | clinical-lead review (not done) | 3 | **12 unacceptable until signed off** |
 | H-19 | Alert fatigue from safer defaults | prediabetes cases, review floors | real urgent cases lost in volume | 3 | 3 | tiers + review flag ordering; separate review queue; analytics | load test; queue views | 3 | 9 tolerable - workload decision for the programme |
 | H-20 | Age at eligibility boundary misjudged | only birth year stored | review flag missing or spurious within ±1 year | 2 | 3 | result is actioned regardless; boundary flag only routes to review | golden CRC-19..22, CX-24..27, BR-13/14 | 3 | 6 tolerable; real deployment should use date of birth |
+| H-21 | Rules engine disagrees with the rules document | coding error the hand-written tests do not reach (input combinations, parsing) | missed or under-triaged result | 4 | 3 | independent reference implementation written from the document (`wasl_reference/rules.py`); differential testing on millions of randomised, boundary-weighted results; full-output snapshot of golden decisions | `scripts/differential_test.py` (10,000,000 results: 0 safety-critical disagreements, 95 % upper bound 3.0e-7); `tests/test_differential.py` (60k in the normal suite + regression tests); `test_golden_full_output_snapshot` | 1 | 4; a misunderstanding written into the document itself is not detectable this way (H-18) |
+| H-22 | Spurious "breach" alerts | step clocks capped by a pathway target that has already passed, including after care started | alert fatigue, real breaches lost in noise (H-19) | 2 | 4 | care reached before the post-care step opens → no target cap; validator invariant | `test_post_care_step_is_not_capped_by_a_passed_pathway_target`; validator `sla.post_care_step_not_instantly_overdue` = 0 | 2 | 4; full alert precision/recall study is the next iteration |
 
 ## 4. Verification summary (Iteration 6)
 
@@ -65,7 +67,10 @@ clinical leads, directors, analysts, patients (portal).
   combinations, system-actor closure for every state.
 * Full-cohort: 20,000 realistic synthetic people, 44 invariants, 0 violations, 0 lost actionable results.
 * Fault injection: 33 deliberate faults in rules, state machine, workflow and messaging; all 33 detected
-  (`docs/fault_injection_results.md`). Mutation testing with mutmut on `clinical_rules.py`: see ITERATIONS.md.
+  (`docs/fault_injection_results.md`). Mutation testing with mutmut on `clinical_rules.py` and `statemachine.py`: see ITERATIONS.md (Iteration 7).
+* Differential testing against an independent reference implementation: 10,000,000 randomised results, 0
+  safety-critical disagreements (one-sided 95 % upper bound 3.0 × 10⁻⁷, rule of three); it found 2 safety bugs (H-21,
+  `docs/differential_results.md`).
 
 ## 5. Residual risks requiring action before any real use
 

@@ -39,18 +39,19 @@ Requires Python 3.11+ (tested on 3.13) and `make`. Everything is free and open s
 make setup          # venv + dependencies (~1 min)
 make seed           # 2,000 synthetic patients, 6 months of history, train + register models (~55 s)
 make run            # http://localhost:8000  (4 uvicorn workers; WORKERS=1 for a single process)
-make test           # 2,281 pytest tests (~40 s; the 20k cohort test is skipped until `make seed-large`)
+make test           # 2,925 pytest tests (~40 s; the 20k cohort test is skipped until `make seed-large`)
 ```
 
 Clinical-safety targets (Iteration 6):
 
 ```bash
 make seed-large      # 20,000 realistic synthetic people -> data/wasl_large.db (~3 min, no model training)
-make validate        # 44 data invariants on the demo DB (exit 1 on any violation)
+make validate        # 45 data invariants on the demo DB (exit 1 on any violation)
 make validate-large  # same on the 20k cohort
 make test-clinical   # golden cases, fail-safe, Hypothesis properties, exhaustive state machine
 make test-cohort     # full-cohort run on the 20k DB (needs seed-large)
 make fault-injection # 33 deliberate faults; writes docs/fault_injection_results.md
+make differential    # 2M randomised results: rules engine vs independent reference (docs/differential_results.md)
 ```
 
 Open http://localhost:8000. To start, click **“Open demo scenarios”** or pick a demo user in the role switcher.
@@ -187,5 +188,5 @@ deployment would need formal assessment.
 
 ## Repository map
 
-`wasl/` app · `tests/` pytest (2,281) · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
+`wasl/` app · `tests/` pytest (2,925) · `wasl_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
 `scripts/ui_smoke.py` (optional Playwright) · `ITERATIONS.md` build log with self-assessments · `Makefile` · `Dockerfile` · `.env.example`

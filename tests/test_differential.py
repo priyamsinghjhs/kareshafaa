@@ -61,3 +61,33 @@ def test_blank_cytology_field_means_not_reported():
 def test_hpv_invalid_low_grade_is_high_review():
     d = evaluate(ResultInput("cervical", value_text="HPV invalid", cytology="LSIL"), PatientContext(age=40, sex="female"))
     assert d.disposition == "review" and d.tier == "high" and d.reasons == ["hpv_invalid_low_grade"]
+
+
+# edge cases found by mutation testing (Iteration 7)
+@pytest.mark.parametrize("value,unit,test,expect", [
+    (3.0, "%", None, ("review", "routine", "unexpectedly_low")), (2.99, "%", None, ("review", "urgent", "implausible_value")),
+    (20.0, "%", None, ("actionable", "critical", None)), (20.01, "%", None, ("review", "urgent", "implausible_value")),
+    (9.0, "mmol/mol", None, ("review", "routine", "unexpectedly_low")), (195.0, "mmol/mol", None, ("actionable", "critical", None)),
+    (195.1, "mmol/mol", None, ("review", "urgent", "implausible_value")),
+    (10.0, "mg/dL", "FPG", ("review", "urgent", "hypoglycaemia")), (9.9, "mg/dL", "FPG", ("review", "urgent", "implausible_value")),
+    (1500.0, "mg/dL", "FPG", ("actionable", "critical", None)), (0.6, "mmol/L", "FPG", ("review", "urgent", "hypoglycaemia")),
+    (83.0, "mmol/L", "FPG", ("actionable", "critical", None)), (83.1, "mmol/L", "FPG", ("review", "urgent", "implausible_value")),
+])
+def test_diabetes_plausibility_range_edges(value, unit, test, expect):
+    d = evaluate(ResultInput("diabetes_hba1c", value, unit=unit, test=test), PatientContext(age=50, sex="male"))
+    assert (d.disposition, d.tier) == expect[:2] and (expect[2] is None or expect[2] in d.reasons)
+    r = reference("diabetes_hba1c", value, unit=unit, test=test, age=50, sex="male")
+    assert (r.kind, r.tier) == expect[:2]
+
+
+@pytest.mark.parametrize("value,expect", [(10000.0, ("actionable", "urgent")), (10000.1, ("review", "urgent")),
+                                          (0.0, ("negative", None)), (-0.1, ("review", "urgent"))])
+def test_fit_plausibility_edges(value, expect):
+    d = evaluate(ResultInput("colorectal_fit", value, unit="ug/g"), PatientContext(age=50, sex="male"))
+    assert (d.disposition, d.tier) == expect
+
+
+@pytest.mark.parametrize("prog,unit", [("colorectal_fit", "ug/g"), ("diabetes_hba1c", "%"), ("breast", None)])
+def test_boolean_value_is_malformed_not_one(prog, unit):
+    d = evaluate(ResultInput(prog, True, unit=unit), PatientContext(age=50, sex="female"))
+    assert d.disposition == "review" and d.tier == "urgent" and "malformed_value" in d.reasons

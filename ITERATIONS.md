@@ -233,7 +233,7 @@ with patient safety as the top priority. Committed in checkpoints 912451d → (f
 - 20k cohort (20,005 patients; 21,400 reports; 5,471 cases; 91,438 audit events): **0 violations across 44 invariants,
   0 lost actionable results**, audit chain valid. The 2k demo also has 0 violations.
 - Fault injection: 33/33 deliberate faults detected (`docs/fault_injection_results.md`).
-- Mutation testing (mutmut 3.8, `clinical_rules.py` + `statemachine.py`, pure test subset): MUTMUT_RESULT
+- Mutation testing (mutmut 3.8, pure test subset): the first run on `clinical_rules.py` killed 1,028 of 1,440 mutants (71.4 %). Survivors were mostly display strings plus some test gaps, and tests were strengthened. See Iteration 7 for the re-run.
 - Simulated KPIs (20,000 × 5 replications, **simulated**): `docs/simulation_20k_results.json`, summarised in the README.
 - Performance (fresh 10k DB, 10 clients, 4 workers, warm; mutmut paused): p50/p95 for the coordinator queue went from 29/448 to 28/258 ms, the GP queue from 32/599 to 32/304 ms, and HL7 ingest from 77/182 to 73/195 ms; detail 39/78 ms, FHIR 35/126 ms, KPIs 7.7/14 ms. **No regression.** The first cold pass gave a queue p50 of 145 ms. The 20k simulation (×5) takes 2.8 s and the 20k realistic seed about 2.5–3 min.
 
@@ -243,3 +243,70 @@ with patient safety as the top priority. Committed in checkpoints 912451d → (f
   and ADA §9 (S2) and ASCCP 2023 (S10) only through search summaries. No DoH FIT threshold was found.
 - Hypothesis event sequences reach successful transitions in only about 1–5 % of examples, because the review gate blocks
   most of them. Transitions are covered exhaustively by the state-machine tests instead.
+
+
+## Iteration 7 – differential testing, mutation re-run, alert-precision start (21 Oct 2026, ~01:30–02:45 IST)
+
+**Steering (user, via parent):** keep iterating for about 12 hours. Priorities:
+1. Safety-critical decision errors driven to zero, with an observed rate and its 95 % upper bound, using
+   differential testing on 1M+ cases.
+2. Alert precision with zero missed true breaches.
+3. ML calibration, fairness and rationale.
+4. Empathetic plain-language messages with reading-level checks.
+5. Explicit human sign-off.
+6. Efficiency.
+
+### Round 1: independent reference implementation and differential testing
+- `wasl_reference/rules.py` was written from `docs/clinical_rules.md` without importing `wasl`. It uses interval tables and
+  token sets. `scripts/differential_test.py` (`make differential`) generates boundary-weighted randomised results across all
+  programmes, units, statuses, malformed inputs and patient contexts. Every disagreement is classified as safety-critical
+  (missed, under-triaged, review bypassed, wrong pathway) or non-critical (more cautious).
+- **Run 1 (100k): 167 safety-critical disagreements, from two real engine bugs:**
+  1. A breast result with numeric value **-1**, or text "-1", was parsed as **BI-RADS 1, i.e. negative**, because the
+     regex allowed a bare separator before the digit.
+  2. **HbA1c with a haemoglobinopathy flag** went to review only when abnormal, so a falsely normal HbA1c was filed as
+     negative. The rules doc says every such HbA1c goes to review.
+
+  Both are fixed, with regression tests.
+- Non-critical alignments with the doc:
+  - a blank cytology field now means "not reported";
+  - HPV-invalid with low-grade cytology is reviewed at **high**, per the doc (it was urgent);
+  - co-reported HPV types (16 with other types, or "positive" with "other") are managed by the most significant type
+    (16/18 first), per ASCCP 2019. This is a new CONFIRM item (17). Previously they went to an urgent review.
+- **Later runs: 2M → 0 disagreements of any kind. 10M (new seed) → 0 safety-critical, 0 non-critical; one-sided 95 % upper
+  bound 3.0e-7 (rule of three).** See `docs/differential_results.md`.
+- The data validator re-applies the rules to every stored report. On the cohort seeded before the fix it flagged **423**
+  haemoglobinopathy HbA1c results that had been filed as negative. Both databases were re-seeded.
+
+### Round 2: mutation testing re-run
+- `statemachine.py` was added to the mutated modules. A full-output snapshot of all golden decisions now pins the
+  clinician-facing wording, and the differential test was added to the mutation test set.
+- Result: **1,419 of 1,560 killed (91.0 %)**, up from 71.4 %. Of the 141 not killed:
+  - 87 change only display strings;
+  - about 42 are equivalent or keep the same tier;
+  - 12 were real test gaps (range edges, boolean value, note-length boundary, `allowed_targets`), now covered by
+    tests added after the run.
+
+  See `docs/mutation_testing.md`.
+
+### Round 3 (alert precision, first fix)
+- **Bug:** `care_reached_at` was set *after* the treatment/surveillance step opened. The closure-documentation step was
+  therefore capped by the pathway target, and a target that had already passed made it breach instantly.
+- Impact on the 20k cohort: 1,122 spurious breached steps. Breached steps fell from 5,393 to 4,216 (−22 %) and
+  instantly-due steps from 2,443 to 1,322.
+- New validator invariant 45, `sla.post_care_step_not_instantly_overdue` (0 violations), and a regression test.
+- Next round: define true breaches (uncapped step SLA, or pathway target missed before care), measure escalation
+  precision and recall on the replay, and decide policy for steps opened after a missed target. Those steps currently
+  breach instantly, so each one repeats an L2 alert.
+
+### Results at the end of this session
+- Tests: **2,925 collected, 2,925 passed (100 %)**. By type:
+  - golden clinical: 532
+  - differential: 44
+  - fail-safe: 61
+  - Hypothesis properties: 6
+  - exhaustive state machine: 2,150
+  - synthetic data: 26
+  - full cohort: 1
+  - original: 105
+- 20k cohort: 0 violations across 45 invariants. 2k demo: 0. Server on :8000 with the 2k demo seed.
