@@ -266,6 +266,15 @@ def patient_deceased(case_id: int, body: sch.NoteIn, actor: Actor = Depends(requ
     return _done(db, c, actor, flagged_cases=flagged)
 
 
+@router.post("/cases/{case_id}/patient-deceased/revoke")
+def patient_deceased_revoke(case_id: int, body: sch.NoteIn, actor: Actor = Depends(require("case:reopen")),
+                            db: Session = Depends(get_db)) -> dict:
+    """Correct a death recorded in error (clinical lead). Open cases are re-reviewed; closed-as-deceased are listed."""
+    c = _load(db, actor, case_id)
+    out = wf.revoke_death(db, c.patient, actor, body.note)
+    return _done(db, c, actor, **out)
+
+
 @router.post("/cases/{case_id}/consults")
 def consult(case_id: int, body: sch.ConsultIn, actor: Actor = Depends(require("consult:create")),
             db: Session = Depends(get_db)) -> dict:

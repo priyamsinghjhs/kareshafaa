@@ -76,6 +76,7 @@ REVIEW_MIN_TIER = {
     "possible_duplicate_identity": "high",  # another patient record carries the same Emirates ID
     "consent_withdrawn": "routine",  # patient withdrew care-coordination consent: a clinician decides (tier unchanged)
     "stale_result": "routine",  # specimen collected > STALE_RESULT_DAYS before receipt: repeat or act? (tier unchanged)
+    "death_record_corrected": "routine",  # a death recorded in error was revoked: re-check the plan (tier unchanged)
     "collection_date_in_future": "high",  # collection date > 24 h ahead of receipt: wrong date, specimen or patient?
 }
 

@@ -887,6 +887,25 @@ def record_death(db: Session, patient: Patient, actor: Actor, note: str, now: da
     return ids
 
 
+def revoke_death(db: Session, patient: Patient, actor: Actor, note: str, now: datetime | None = None) -> dict:
+    """Correct a death recorded in error (clinical lead, rationale >= 20 chars, audited). Nothing restarts silently:
+    open cases are re-flagged for clinician review and cases closed as 'deceased' are listed for re-opening."""
+    require_signoff(actor, "patient.deceased.revoke", note)
+    now = _now(now)
+    if not patient.deceased:
+        raise Invalid("patient is not recorded as deceased")
+    patient.deceased = False
+    open_cases = list(db.scalars(select(Case).where(Case.patient_id == patient.id, Case.state != S.CLOSED)))
+    closed = list(db.scalars(select(Case.id).where(Case.patient_id == patient.id, Case.state == S.CLOSED,
+                                                   Case.closure_reason == "deceased")))
+    audit.record(db, actor, "U", "patient.deceased_revoked", entity_type="Patient", entity_id=patient.id, ts=now,
+                 detail={"note": note, "open_cases": [c.id for c in open_cases], "closed_as_deceased": closed})
+    for c in open_cases:
+        _claim(c)
+        flag_review(db, c, ["death_record_corrected"], actor, now, detail={"note": note})
+    return {"open_cases": [c.id for c in open_cases], "closed_as_deceased": closed}
+
+
 def record_consent(db: Session, patient: Patient, actor: Actor, scope: str, decision: str, note: str | None = None,
                    now: datetime | None = None) -> Consent:
     now = _now(now)

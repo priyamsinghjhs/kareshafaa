@@ -165,6 +165,7 @@ Glucose: mg/dL = mmol/L × 18.016 (display only; thresholds use the ADA-publishe
 | consent_withdrawn | patient withdrew care-coordination consent while a case is open | routine (tier never changes) | automated messaging stops; a clinician documents an informed decline or agrees another route |
 | stale_result | specimen collected more than 180 days (`STALE_RESULT_DAYS`, CONFIRM) before the result was received | routine (tier never lowered) | clinician decides: act on it, or repeat the test |
 | collection_date_in_future | collection date more than 24 h after receipt (wrong date, specimen or patient?) | high | clinician checks with the laboratory before acting |
+| death_record_corrected | a death recorded in error was revoked by a clinical lead | routine (tier never lowered) | clinician re-checks the plan; cases closed as deceased are listed for re-opening |
 | multiple_results | one message carries several different values for the same test (e.g. left/right mammogram, two FIT samples, HbA1c + FPG); the MOST severe value is evaluated and all values are kept on the report | high | review case at no lower than the clinical tier |
 | control_id_reused | an HL7 control ID arrives again with DIFFERENT content (possibly a correction) | high | processed as a new review case; a byte-identical replay stays idempotent |
 | screening_category_unexpected / known_malignancy / hpv_negative_abnormal_cytology / hypoglycaemia / unexpectedly_low | see programme tables | see tables | |

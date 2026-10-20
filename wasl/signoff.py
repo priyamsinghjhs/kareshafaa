@@ -59,6 +59,8 @@ HIGH_IMPACT: dict[str, HighImpact] = {
     "patient.deceased.record": HighImpact(("closure:authorise",), 10, "wasl.services.workflow:record_death",
                                           "Stops ALL patient messaging and outreach and sends every open case to clinical "
                                           "review; recording it against the wrong patient would silently stop their care."),
+    "patient.deceased.revoke": HighImpact(("case:reopen",), 20, "wasl.services.workflow:revoke_death",
+                                          "Corrects a death recorded in error (wrong patient): outreach may resume."),
     "content.signoff": HighImpact(("content:approve", "content:translation_review"), 5,
                                   "wasl.comms.governance:approve", "Makes patient-facing wording (or a translation) live."),
 }

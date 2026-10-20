@@ -55,3 +55,24 @@ def test_record_death_needs_authorised_named_clinician(client, as_user, new_case
                        json={"note": "someone said so on the phone"}).status_code == 403  # coordinator
     assert client.post(f"/api/cases/{cid}/patient-deceased", headers=as_user(LEAD),
                        json={"note": "short"}).status_code in (400, 422)  # rationale >= 10 chars
+
+
+def test_death_recorded_in_error_can_be_revoked_by_lead_only(client, as_user, db, new_case):
+    from wasl.models import Case, Patient
+
+    cid = new_case(value=250)["id"]
+    h = as_user(LEAD)
+    assert client.post(f"/api/cases/{cid}/patient-deceased", headers=h, json={"note": "death registry notice"}).status_code == 200
+    assert client.post(f"/api/cases/{cid}/close", headers=h, json={"closure_type": "authorised_decision", "reason": "deceased",
+                                                                   "note": "death registry notice"}).status_code == 200
+    bad = client.post(f"/api/cases/{cid}/patient-deceased/revoke", headers=as_user("aisha.rahman"),
+                      json={"note": "wrong patient selected, the registry entry was for another person"})
+    assert bad.status_code == 403
+    assert client.post(f"/api/cases/{cid}/patient-deceased/revoke", headers=h,
+                       json={"note": "too short"}).status_code in (400, 422)
+    r = client.post(f"/api/cases/{cid}/patient-deceased/revoke", headers=h,
+                    json={"note": "wrong patient selected, the registry entry was for another person"})
+    assert r.status_code == 200, r.text
+    assert r.json()["closed_as_deceased"] == [cid]
+    db.expire_all()
+    assert not db.get(Patient, db.get(Case, cid).patient_id).deceased

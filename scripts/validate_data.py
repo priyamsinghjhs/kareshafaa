@@ -74,6 +74,8 @@ def run(max_examples: int = 5) -> dict:
         # death recorded during the pathway (workflow.record_death): contact BEFORE that moment was legitimate
         died_at = {int(e.entity_id): e.ts for e in db.scalars(select(AuditEvent).where(
             AuditEvent.event == "patient.deceased_recorded"))}
+        death_revoked = {int(e.entity_id) for e in db.scalars(select(AuditEvent).where(
+            AuditEvent.event == "patient.deceased_revoked"))}  # listed for re-opening by the lead at revocation
 
         # --- patient-level -------------------------------------------------------------------------
         for p in patients.values():
@@ -231,7 +233,7 @@ def run(max_examples: int = 5) -> dict:
             if p.deceased and any(p.id not in died_at or (m.sent_at and m.sent_at >= died_at[p.id])
                                   for m in comms.get(c.id, [])):
                 bad("safety.deceased_never_contacted", c.id)
-            if c.closure_reason == "deceased" and not p.deceased:
+            if c.closure_reason == "deceased" and not p.deceased and p.id not in death_revoked:
                 bad("closure.deceased_reason_requires_deceased_patient", c.id)
             if p.pregnant and c.programme in ("cervical", "diabetes_hba1c", "breast") and \
                     "pregnant" not in (c.review_reasons or []):

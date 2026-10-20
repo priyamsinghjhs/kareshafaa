@@ -469,3 +469,8 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
 - Validator invariant 52 (`closure.deceased_reason_requires_deceased_patient`); `safety.deceased_never_contacted` now
   allows contact before the recorded death. 0 violations on demo, 10k and 20k. Sign-off registry: 18 actions.
 - 5 new tests; full suite 3,105 tests, all passing.
+- **Follow-up (same round):** a death recorded against the wrong patient could not be undone. New high-impact action
+  `patient.deceased.revoke` (clinical lead, `case:reopen`, rationale >= 20 chars, audited;
+  `POST /api/cases/{id}/patient-deceased/revoke`): open cases are re-flagged (`death_record_corrected`) and cases closed
+  as `deceased` are listed for re-opening - nothing restarts silently. UI action added. Sign-off registry: 19 actions.
+  Full suite 3,108 tests, all passing.

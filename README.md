@@ -193,7 +193,7 @@ deployment would need formal assessment.
   true breaches; the legacy policy scored 77.8 % / 89.8 %.
 * `ml_calibration.md`: discrimination, ECE, slope, CITL and reliability bins with Wilson CIs, plus the fairness gates.
 * `patient_messages.md`: reading-level and tone checks, and the translator plus clinician sign-off for ar/hi/ur.
-* `human_signoff.md`: 18 high-impact actions that need a named human, the permission and a rationale.
+* `human_signoff.md`: 19 high-impact actions that need a named human, the permission and a rationale.
 * `differential_results.md`: 10M results checked against the independent reference implementation.
 * `fault_injection_results.md`: the deliberately injected faults and which tests caught them.
 * `clinical_safety_case.md`: hazards H-01 to H-30.
