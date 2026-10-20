@@ -17,6 +17,12 @@ Challenge 05 and aligned with `../Challenge05_Solution_Design.md`.
 * **Patient communication** in English, Arabic (RTL), Hindi and Urdu, with result-specific wording, a teach-back
   check and a channel fallback ladder (app → SMS → WhatsApp → navigator phone call; order is governed config per language). Tagalog and Malayalam
   speakers get English plus an interpreter-supported call, and a notice in their own language says so.
+* **Clinically grounded rules engine** (`wasl/clinical_rules.py`, documented with sources in `docs/clinical_rules.md`):
+  FIT, HPV/cytology (ASCCP), BI-RADS (ACR) and HbA1c/FPG (ADA, % and mmol/mol). It is deterministic with no ML. Anything
+  unknown, malformed, out of range, conflicting, amended, duplicated, out of age range, pregnant, deceased, under specialist
+  care or arriving after closure goes to a **clinical review queue** at a safe minimum tier with a reason. It is never
+  dropped or downgraded. The ML can only reorder cases within a tier. An ORM interlock blocks any tier downgrade.
+  Safety case: `docs/clinical_safety_case.md`. Synthetic data calibration: `docs/synthetic_data.md`.
 * **Interoperability**: HL7 v2 ORU^R01 and FHIR R4 Bundle ingest (idempotent, ACK AA/AE, human match review) and FHIR R4
   export per case.
 * **Governed ML** (scikit-learn) used **only** for outreach priority and queue order. A model registry with AUC,
@@ -33,7 +39,18 @@ Requires Python 3.11+ (tested on 3.13) and `make`. Everything is free and open s
 make setup          # venv + dependencies (~1 min)
 make seed           # 2,000 synthetic patients, 6 months of history, train + register models (~55 s)
 make run            # http://localhost:8000  (4 uvicorn workers; WORKERS=1 for a single process)
-make test           # 105 pytest tests (~16 s)
+make test           # 2,281 pytest tests (~40 s; the 20k cohort test is skipped until `make seed-large`)
+```
+
+Clinical-safety targets (Iteration 6):
+
+```bash
+make seed-large      # 20,000 realistic synthetic people -> data/wasl_large.db (~3 min, no model training)
+make validate        # 44 data invariants on the demo DB (exit 1 on any violation)
+make validate-large  # same on the 20k cohort
+make test-clinical   # golden cases, fail-safe, Hypothesis properties, exhaustive state machine
+make test-cohort     # full-cohort run on the 20k DB (needs seed-large)
+make fault-injection # 33 deliberate faults; writes docs/fault_injection_results.md
 ```
 
 Open http://localhost:8000. To start, click **“Open demo scenarios”** or pick a demo user in the role switcher.
@@ -135,8 +152,8 @@ deployment would need formal assessment.
 
 * Population mix, channel availability, no-show and unreachable rates, Ramadan and holiday effects are **illustrative
   assumptions**, not official statistics. They are documented in `wasl/synth/cohort.py` and `history.py`.
-* SLA hours, tier thresholds and pathways follow common international practice. **Programme clinical leads must set the
-  real values**, which are configurable.
+* Thresholds, pathways and targets follow the published guidelines cited in `docs/clinical_rules.md`. Items marked
+  **clinical lead to confirm** default to the safer option. **Programme clinical leads must sign off every rule.**
 * All patient-facing text is prototype wording. It needs clinical review and professional translation and patient testing.
 * Organisations and practitioners are fictional. HL7/FHIR profiles are simplified (no national profile, no MPI).
 
@@ -155,5 +172,5 @@ deployment would need formal assessment.
 
 ## Repository map
 
-`wasl/` app · `tests/` pytest (105) · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
+`wasl/` app · `tests/` pytest (2,281) · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
 `scripts/ui_smoke.py` (optional Playwright) · `ITERATIONS.md` build log with self-assessments · `Makefile` · `Dockerfile` · `.env.example`
