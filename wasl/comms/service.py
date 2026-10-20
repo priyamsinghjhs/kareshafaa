@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from .. import audit
 from ..models import CallTask, Case, Communication, Patient, QuestionnaireResponse, utcnow
 from ..security import SYSTEM, Actor
-from ..services.access import has_consent
+from ..services.access import consent_status, has_consent
 from ..services.configstore import channel_order, template_variant
 from ..services.errors import DomainError, Forbidden, Invalid
 from ..statemachine import S
@@ -77,6 +77,9 @@ def send_with_ladder(db: Session, case: Case, category: str, actor: Actor = SYST
         raise DomainError("result is awaiting clinician review: no patient messaging until it is reviewed")
     if actor.is_human and not actor.can("comm:send"):
         raise Forbidden("role lacks comm:send")
+    if not actor.is_human and consent_status(db, p.id, "care_coordination") == "deny":
+        # automated outreach stops when the patient withdraws; a clinician decides (case flagged consent_withdrawn)
+        raise DomainError("patient withdrew consent for care coordination: automated messaging is stopped")
     lang = comm_language(p)
     variant = template_variant(db, category, lang)
     body = render(category, lang, case, variant=variant, date=date)
@@ -87,6 +90,9 @@ def send_with_ladder(db: Session, case: Case, category: str, actor: Actor = SYST
         order = order[:max_channels]
     for ch in order:
         if ch == "phone":
+            if consent_status(db, p.id, "comm_phone") == "deny":
+                attempts.append({"channel": "phone", "status": "not-done (no consent)"})
+                break
             task = _ensure_call_task(db, case, actor, now)
             attempts.append({"channel": "phone", "status": "call_task", "call_task_id": task.id})
             break
@@ -112,10 +118,14 @@ def send_with_ladder(db: Session, case: Case, category: str, actor: Actor = SYST
     audit.record(db, actor, "C", f"communication.{category}", entity_type="Communication", case_id=case.id, ts=now,
                  detail={"attempts": attempts, "delivered": delivered, "language": lang, "variant": variant,
                          "simulated": True})
-    if category == "result_notification" and delivered and S(case.state) in (S.TRIAGED, S.UNREACHABLE):
+    if category == "result_notification" and delivered and S(case.state) in (S.TRIAGED, S.UNREACHABLE) \
+            and (actor.is_human or not case.review_required):
         from ..services.workflow import transition
 
-        transition(db, case, S.PATIENT_NOTIFIED, SYSTEM, now=now, note=f"delivery confirmed via {delivered} (simulated)")
+        # a clinician-sent notification on a case under review records the step as that clinician (the system
+        # may not progress a flagged case; this used to fail the whole send with 403)
+        transition(db, case, S.PATIENT_NOTIFIED, actor if actor.is_human else SYSTEM, now=now,
+                   note=f"delivery confirmed via {delivered} (simulated)")
     return {"delivered_channel": delivered, "attempts": attempts, "language": lang, "variant": variant}
 
 

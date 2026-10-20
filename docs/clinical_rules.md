@@ -162,6 +162,7 @@ Glucose: mg/dL = mmol/L × 18.016 (display only; thresholds use the ADA-publishe
 | more_urgent_result | new result more urgent than the open case | urgent | case escalated, step clock re-timed earlier |
 | result_after_closure | actionable result within 180 days of a closed case (same programme) | high | new case, linked history |
 | possible_duplicate_identity | another patient record has the same Emirates ID (one person, two MRNs); open cases are checked across both records | high | review case or linked to the other record's open case |
+| consent_withdrawn | patient withdrew care-coordination consent while a case is open | routine (tier never changes) | automated messaging stops; a clinician documents an informed decline or agrees another route |
 | multiple_results | one message carries several different values for the same test (e.g. left/right mammogram, two FIT samples, HbA1c + FPG); the MOST severe value is evaluated and all values are kept on the report | high | review case at no lower than the clinical tier |
 | control_id_reused | an HL7 control ID arrives again with DIFFERENT content (possibly a correction) | high | processed as a new review case; a byte-identical replay stays idempotent |
 | screening_category_unexpected / known_malignancy / hpv_negative_abnormal_cytology / hypoglycaemia / unexpectedly_low | see programme tables | see tables | |

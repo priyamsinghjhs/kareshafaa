@@ -432,3 +432,17 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
   - fault injection: see `docs/fault_injection_results.md`.
 - **Load test** (10k, 4 processes, 10 clients), p50/p95: coordinator queue 62/154 ms, GP queue 77/163 ms, detail 25/58 ms,
   HL7 ingest 79/163 ms; 0 errors; audit chain intact.
+
+### Round 11: consent withdrawn mid-pathway (21 Oct 2026, ~04:40-05:15 IST)
+- **Failure mode found by probe.** After a patient withdrew `care_coordination` consent (and refused phone contact):
+  automated reminders kept going, no clinician was told, and phone call tasks were still created.
+- **Fix.**
+  - Automated (system) outreach now stops: `send_with_ladder` refuses system sends; the sweep skips L1 patient
+    reminders and cancels queued ones. Staff-facing escalation still fires.
+  - Every open case of the patient is flagged for clinician review (`consent_withdrawn`, routine; tier never changes),
+    so a withdrawal cannot silently strand a positive result. A named clinician can still make contact (audited).
+  - A `comm_phone` deny now ends the ladder with `not-done (no consent)` instead of creating a call task.
+- **Bug found on the way:** a clinician sending a result notification on a case already flagged for review got 403
+  (the system-actor step transition was refused). The step is now recorded as that clinician.
+- 4 new tests (`tests/test_consent_withdrawal.py`); full suite 3,086 tests, all passing. No rules-engine or schema
+  change, so the differential result and seeded data stand.

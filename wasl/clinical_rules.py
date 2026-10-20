@@ -73,7 +73,8 @@ REVIEW_MIN_TIER = {
     "duplicate_result": "routine", "conflicting_result": "high", "result_after_closure": "high", "more_urgent_result": "urgent",
     "multiple_results": "high",
     "control_id_reused": "high",
-    "possible_duplicate_identity": "high",  # another patient record carries the same Emirates ID  # same HL7 control ID, different content: possibly a correction  # one message carried several different values for the same test (e.g. left/right)
+    "possible_duplicate_identity": "high",
+    "consent_withdrawn": "routine",  # patient withdrew care-coordination consent: a clinician decides (tier unchanged)  # another patient record carries the same Emirates ID  # same HL7 control ID, different content: possibly a correction  # one message carried several different values for the same test (e.g. left/right)
 }
 
 

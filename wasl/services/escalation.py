@@ -21,6 +21,7 @@ from ..security import SYSTEM, Actor
 from ..alert_policy import AlertDecision, Ladder, decide
 from ..sla import SlaLookup
 from ..statemachine import S
+from .access import consent_status
 from .workflow import add_lesson, programme_clinical_lead, programme_director, programme_pool
 
 PATIENT_FACING = {S.PATIENT_NOTIFIED, S.NO_SHOW, S.APPOINTMENT_BOOKED, S.ACKNOWLEDGED}
@@ -131,7 +132,8 @@ def run_sweep(db: Session, now: datetime | None = None, actor: Actor = SYSTEM, c
                                                           "fraction": round(d.frac, 3)})
             out[{1: "reminders", 2: "supervisor", 3: "clinical_lead", 4: "director"}[lvl]] += 1
             out["target_breach_alerts"] += int(d.clock == "pathway")
-            if lvl == 1 and S(case.state) in PATIENT_FACING and not case.patient.deceased:
+            if lvl == 1 and S(case.state) in PATIENT_FACING and not case.patient.deceased \
+                    and consent_status(db, case.patient_id, "care_coordination") != "deny":
                 if in_patient_window(now):
                     from ..comms.service import send_with_ladder
 
@@ -173,7 +175,8 @@ def _send_deferred_reminders(db: Session, now: datetime, actor: Actor, case_ids:
     for held in db.scalars(q).all():
         case = db.get(Case, held.case_id)
         held.status = "stopped"  # the placeholder itself is never a delivery
-        if case is None or S(case.state) not in PATIENT_FACING or case.patient.deceased:
+        if case is None or S(case.state) not in PATIENT_FACING or case.patient.deceased \
+                or consent_status(db, case.patient_id, "care_coordination") == "deny":
             held.content += " - cancelled (case moved on)"
             continue
         held.content += f" - dispatched {now.isoformat(timespec='minutes')} UTC"

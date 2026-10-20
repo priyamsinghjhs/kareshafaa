@@ -878,6 +878,12 @@ def record_consent(db: Session, patient: Patient, actor: Actor, scope: str, deci
     db.flush()
     audit.record(db, actor, "C", "consent.recorded", entity_type="Consent", entity_id=c.id, ts=now,
                  detail={"scope": scope, "decision": decision, "patient_id": patient.id})
+    if scope == "care_coordination" and decision == "deny":
+        # automated outreach stops (comms.service); every open case goes to a clinician, who documents an informed
+        # decline or agrees another route - a withdrawal must never silently strand a positive result
+        for oc in db.scalars(select(Case).where(Case.patient_id == patient.id, Case.state != S.CLOSED)):
+            _claim(oc)
+            flag_review(db, oc, ["consent_withdrawn"], actor, now, detail={"consent_id": c.id})
     return c
 
 
