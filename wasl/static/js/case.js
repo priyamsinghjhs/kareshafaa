@@ -140,6 +140,8 @@ async function openForm(key, evidenceType) {
     case "close_authorised": return form(`<p class="small">Authorised human decision – needs a reason code and a rationale (≥10 characters). Some reasons need supporting records (e.g. informed decline, full contact ladder).</p>` +
       F.sel("reason", "Reason", kv(META.closure_reasons)) + F.note("Rationale", true), fd => post(`${u}/close`, { closure_type: "authorised_decision", reason: fd.reason, note: fd.note }, "Case closed (authorised decision)"), "Sign off closure");
     case "decline": return form(F.note("What did the patient say? (informed decline needs a clinician conversation)", true), fd => post(`${u}/decline`, { note: fd.note }, "Decline recorded – clinician review"));
+    case "patient_deceased": return form(`<p class="small" style="color:#c62828">Records the death for <b>this patient</b>: all messages and call tasks stop and every open case goes to clinical review for an authorised closure. Check the identity first.</p>` +
+      F.note("Source and date of the notification (≥10 characters)", true), fd => post(`${u}/patient-deceased`, { note: fd.note }, "Death recorded – outreach stopped, open cases sent to review"), "Sign off");
     case "reconsider": return form(F.note("Note", true), fd => post(`${u}/reconsider`, { note: fd.note }, "Resumed"));
     case "assign": return form(F.sel("owner", "New owner", opts(d.prac.filter(p => !p.is_pool && ["coordinator", "gp", "specialist", "clinical_lead"].includes(p.role)), p => p.id, p => p.name)) + `<label>Reason<input name="reason" required></label>`,
       fd => post(`${u}/assign`, { owner_id: +fd.owner, reason: fd.reason }, "Owner changed"));

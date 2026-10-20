@@ -86,6 +86,8 @@ def available_actions(db: Session, actor: Actor, c: Case) -> list[dict]:
         add("consult", "Request clinician consultation", "consult:create")
         add("lesson", "Record delay / incident reason", "lesson:write")
         add("consent", "Record consent", "consent:write")
+        if not c.patient.deceased:
+            add("patient_deceased", "Record patient death (stops all outreach)", "closure:authorise")
     if c.transfer_pending_owner_id and (actor.practitioner_id == c.transfer_pending_owner_id or actor.role == "clinical_lead"):
         add("decide_transfer", "Accept / decline incoming transfer", None, True)
     if st == S.CLOSED:
