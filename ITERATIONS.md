@@ -139,3 +139,29 @@ Load-test DB: 10,000 synthetic patients → 10,005 cases (1,509 open), 80k step 
   staleness). **103/103 passed.**
 * **Self-assessment:** R1 5 · R2 5 · R3 4 · R4 5 · R5 5 · R6 4 | J1 5 · J2 5 · J3 5 · J4 5 · J5 5 · J6 3.
   J5 (scalability) 4→5. Next: ease-of-use polish, README.
+
+## Iteration 5 – ease of use, realism bugs, fresh-install verification (20 Oct 2026, completed ~23:55 IST)
+* **UI smoke review (screenshots of every role page)** found:
+  - **Realism bug:** Maria Santos (BI-RADS 4 → direct biopsy) was told "your mammogram needs some more pictures" –
+    the BI-RADS 0 wording – because patient text was programme-level while pathways were result-specific. Fix:
+    `programme_text()` overrides meaning/next step for direct pathways (HPV16/18 → colposcopy, BI-RADS 4/5 → biopsy,
+    HbA1c ≥ 15 → doctor today/tomorrow) in en/ar/hi/ur; used by the patient page, simulated messages and teach-back.
+  - Tagalog/Malayalam speakers silently got English. Now a notice in their own language says an interpreter-supported
+    call will follow (`lang` attribute set for screen readers). Honest gap kept visible, not hidden.
+  - First-time visitors had to know where to start: home page now has "New here? Start with a story" (one click →
+    demo scenarios or the HL7 results inbox as the coordinator). Card list spacing fixed.
+  - Operational bug in my own environment: a leftover exported `WASL_DATABASE_URL` made `make run` serve the 10k
+    load-test DB – noted in README that env vars override `.env`.
+* **Fresh install check:** `git clone` → `make setup && make seed` (70 s total; seed 52 s) → `make test` **105 passed** →
+  `make run PORT=8001` (4 workers) → curl smoke: healthz, queue, HL7 sample ingest (ACK AA, case created), scenario
+  `maria_urgent_escalation`, all pages 200.
+* **Re-run of simulation (SIMULATED, 2,000 synthetic patients × 5 replications, 120 days):** median days to care
+  55.6 → 29.5; care reached/resolved 29.4 % → 79.6 %; documented closure 19.6 % → 83.3 %; open at day 120
+  80.4 % → 16.7 %; understood 46.5 % → 95.1 %; attended 72.9 % → 96.5 %.
+* **ML (fresh seed):** v1 logreg AUC 0.647, ECE 0.053, all gates passed → production (seed bootstrap approval recorded
+  as clinical lead, demo). v2 GBM AUC 0.629 → **failed "beats current"** → cannot be promoted; awaiting a human.
+* **Tests:** +2 (direct-pathway wording in 4 languages, Tagalog notice + Maria's biopsy wording). **105/105 passed.**
+  UI smoke: 23 pages + 4 flows (HL7 ingest, scenario, Arabic RTL, first-visit home → demo), 0 problems.
+* **Self-assessment:** R1 5 · R2 5 · R3 5 · R4 5 · R5 5 · R6 4 | J1 5 · J2 5 · J3 5 · J4 5 · J5 5 · J6 4.
+  R3 (patient communication) 4→5 with result-specific wording; J6 (usability) 3→4. Remaining: real translations for
+  tl/ml, production auth (UAE PASS / SSO), SQL-side queue ordering beyond ~10k open cases, Docker untested here.

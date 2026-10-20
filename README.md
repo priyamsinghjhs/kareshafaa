@@ -15,7 +15,7 @@ Challenge 05 and aligned with `../Challenge05_Solution_Design.md`.
 * **Closure guard**: a case closes only with evidence (care plan, procedure or negative confirmation) or an
   authorised human decision with a reason. Enforced in code and tested.
 * **Patient communication** in English, Arabic (RTL), Hindi and Urdu, with result-specific wording, a teach-back
-  check and a channel fallback ladder (app → WhatsApp → SMS → navigator call → letter). Tagalog and Malayalam
+  check and a channel fallback ladder (app → SMS → WhatsApp → navigator phone call; order is governed config per language). Tagalog and Malayalam
   speakers get English plus an interpreter-supported call, and a notice in their own language says so.
 * **Interoperability**: HL7 v2 ORU^R01 and FHIR R4 Bundle ingest (idempotent, ACK AA/AE, human match review) and FHIR R4
   export per case.
@@ -60,6 +60,8 @@ patient and runs through the real service layer, guards and audit:
 that builds an ORU for a real synthetic patient, because the deterministic matcher correctly refuses a birth-year
 mismatch.
 
+Configuration: environment variables (prefix `WASL_`) override `.env`; see `.env.example`.
+
 Docker: `docker build -t wasl . && docker run -p 8000:8000 wasl`. It runs as a non-root user and seeds on first start.
 
 ## Architecture
@@ -84,7 +86,7 @@ Background: one elected worker runs the SLA/escalation sweep every WASL_SWEEP_IN
 ConsultRequest, Escalation, AuditEvent, ModelVersion, Lesson / Proposal, IngestMessage.
 
 **Tiers and SLAs** (`wasl/sla.py`, overridable by JSON config). T0 Critical (HbA1c ≥ 15 %), T1 Urgent (BI-RADS 4/5,
-FIT ≥ 400, HPV16/18), T2 Soon and T3 Routine. T0/T1 clocks run 24/7 and need clinician-confirmed triage. T2/T3
+FIT ≥ 400), T2 Soon (e.g. FIT+, HPV16/18, BI-RADS 0, HbA1c ≥ 10 %) and T3 Routine. T0/T1 clocks run 24/7 and need clinician-confirmed triage. T2/T3
 clocks count UAE working days (Mon–Fri, public holidays, Ramadan windows; Islamic dates approximate).
 **Ladder:** L1 owner nudge plus patient reminder at 50 % of the SLA, L2 programme coordinator at breach, L3 clinical
 lead at 1.5× (T0 goes straight to L3), L4 medical director at 2× (T0/T1 only). Inactive owners are auto-pooled.
