@@ -67,6 +67,15 @@ def main() -> int:
             problems.append("flow: Arabic patient page is not RTL")
         page.screenshot(path=str(OUT / "flow_patient_ar.png"))
         ctx.close()
+        # first-time visitor: home page -> one-click "start with a story"
+        ctx = browser.new_context(viewport={"width": 1400, "height": 1000})
+        page = ctx.new_page()
+        page.on("pageerror", lambda e: problems.append(f"home: JS error {e}"))
+        page.goto(BASE + "/", wait_until="networkidle")
+        page.screenshot(path=str(OUT / "home.png"))
+        page.click("#go-demo")
+        page.wait_for_url("**/demo", timeout=5000)
+        ctx.close()
         browser.close()
     for p in problems:
         print("PROBLEM", p)
