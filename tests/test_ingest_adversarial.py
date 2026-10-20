@@ -204,3 +204,60 @@ def test_alternative_identifier_matches(client, as_user, db, make_patient):
     m = msg("X", FIT.format(v="300"), ctrl="ADV-ALT").replace("PID|1||X^^^WASL^MR", f"PID|1||UNKNOWN-1~{a.mrn}")
     body = _post(client, as_user, m)
     assert body["status"] == "processed" and body["case"]["patient"]["id"] == a.id
+
+
+# ------------------------------------------------------------------ FHIR structure / numeric syntax (round 9b)
+def _bundle():
+    return json.loads((SAMPLES / "fhir_bundle_hba1c.json").read_text())
+
+
+def _obs_index(b):
+    return next(i for i, e in enumerate(b["entry"]) if e["resource"]["resourceType"] == "Observation")
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda b: b.__setitem__("entry", "x"),
+    lambda b: b.__setitem__("entry", ["x", 1, None]),
+    lambda b: b.__setitem__("entry", [{"resource": [1]}]),
+    lambda b: b.__setitem__("identifier", [1]),
+    lambda b: b.__setitem__("identifier", "abc"),
+    lambda b: b["entry"][_obs_index(b)]["resource"].__setitem__("valueQuantity", "7"),
+    lambda b: b["entry"][_obs_index(b)]["resource"].__setitem__("code", {"coding": "abc"}),
+    lambda b: b["entry"][0]["resource"].__setitem__("identifier", "abc"),
+    lambda b: b["entry"][0]["resource"].__setitem__("birthDate", 1970),
+])
+def test_structurally_broken_fhir_is_invalid_not_a_crash(mutate):
+    b = _bundle()
+    mutate(b)
+    with pytest.raises(Invalid):
+        parse_fhir_bundle(b)
+
+
+def test_deeply_nested_json_is_rejected_cleanly(client, as_user):
+    r = client.post("/api/ingest/fhir", headers={**as_user("aisha.rahman"), "Content-Type": "application/json"},
+                    content="[" * 30000 + "]" * 30000)
+    assert r.status_code in (400, 422)
+
+
+@pytest.mark.parametrize("raw", ["1_000", "NaN", "inf", "1e400", "0x10", "8O", "--5"])
+def test_non_decimal_numbers_stay_text(raw):
+    r = parse_hl7v2(msg("M", FIT.format(v=raw)))
+    assert r.value is None and r.value_text == raw
+
+
+@pytest.mark.parametrize("raw,val", [("120", 120), (" 80 ", 80), ("1.5e2", 150), ("\u0661\u0662\u0660", 120)])
+def test_decimal_numbers_parse(raw, val):
+    assert parse_hl7v2(msg("M", FIT.format(v=raw))).value == val
+
+
+@settings(max_examples=200, deadline=None)
+@given(st.recursive(st.none() | st.booleans() | st.integers() | st.floats(allow_nan=True) | st.text(max_size=8),
+                    lambda ch: st.lists(ch, max_size=3) | st.dictionaries(st.text(max_size=8), ch, max_size=3),
+                    max_leaves=12))
+def test_fuzz_fhir_only_raises_invalid(junk):
+    b = _bundle()
+    b["entry"][_obs_index(b)]["resource"]["valueQuantity"] = junk
+    try:
+        parse_fhir_bundle(b)
+    except Invalid:
+        pass

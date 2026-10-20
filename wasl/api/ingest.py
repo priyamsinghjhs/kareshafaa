@@ -77,8 +77,8 @@ async def fhir_bundle(request: Request, actor: Actor = Depends(require("case:cre
 
     try:
         bundle = json.loads(raw)
-    except ValueError as e:
-        raise Invalid("body must be JSON") from e
+    except (ValueError, RecursionError) as e:  # RecursionError: deeply nested JSON (was a 500)
+        raise Invalid("body must be JSON (and not nested absurdly deep)") from e
     if not isinstance(bundle, dict):
         raise Invalid("body must be a FHIR Bundle object")
     def work() -> dict:

@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -61,7 +62,14 @@ def _field(seg: list[str], i: int) -> str:
     return seg[i] if len(seg) > i else ""
 
 
+_NUMERIC = re.compile(r"^\s*[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?\s*$")
+
+
 def _num_or_none(v: str) -> float | None:
+    # strict decimal syntax: Python's float() also accepts "1_000" (-> 1000), "nan" and "inf"; anything that is
+    # not a plain decimal number stays TEXT so the clinical rules send it to human review
+    if not isinstance(v, str) or not _NUMERIC.match(v):
+        return None
     try:
         f = float(v)
     except (TypeError, ValueError):
@@ -192,6 +200,20 @@ def parse_hl7v2(raw: str) -> ParsedResult:
 
 
 def parse_fhir_bundle(bundle: dict[str, Any]) -> ParsedResult:
+    """Structurally broken JSON (wrong types where objects/lists are required) is rejected with a clear 4xx error,
+    never a crash; a well-formed bundle with odd VALUES is kept and routed to human review."""
+    if not isinstance(bundle, dict):
+        raise Invalid("expected a FHIR Bundle object")
+    try:
+        return _parse_fhir_bundle(bundle)
+    except Invalid:
+        raise
+    except (AttributeError, TypeError, KeyError, IndexError, ValueError) as e:
+        raise Invalid(f"malformed FHIR Bundle structure ({type(e).__name__}): check entry/resource/identifier/"
+                      "code/valueQuantity types") from e
+
+
+def _parse_fhir_bundle(bundle: dict[str, Any]) -> ParsedResult:
     if bundle.get("resourceType") != "Bundle":
         raise Invalid("expected a FHIR Bundle")
     mid = (bundle.get("identifier") or {}).get("value") or bundle.get("id")
