@@ -446,3 +446,13 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
   (the system-actor step transition was refused). The step is now recorded as that clinician.
 - 4 new tests (`tests/test_consent_withdrawal.py`); full suite 3,086 tests, all passing. No rules-engine or schema
   change, so the differential result and seeded data stand.
+
+### Round 12: specimen collection time (21 Oct 2026, ~04:40-04:55 IST)
+- **Failure mode.** The collection date in a result (HL7 OBR-7 / OBX-14, FHIR `effectiveDateTime`) was ignored. A
+  backfilled message for a specimen collected a year ago, or one dated in the future by a lab clock or typo, was
+  handled as a fresh result (and a stale/future-dated negative was filed silently).
+- **Fix.** Collection time is parsed (HL7 TS with or without offset - no offset means UAE local; FHIR dateTime/date).
+  More than 180 days before receipt -> `stale_result` (routine floor); more than 24 h after receipt ->
+  `collection_date_in_future` (high floor). Both go to clinician review; the clinical tier is never lowered.
+  Unparseable dates are ignored (nothing is dropped).
+- 14 new tests; full suite 3,100 tests, all passing. Rules engine `evaluate` unchanged.

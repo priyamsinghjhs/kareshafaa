@@ -71,10 +71,12 @@ REVIEW_MIN_TIER = {
     "screening_category_unexpected": "high", "hpv_negative_abnormal_cytology": "high", "hpv_invalid_low_grade": "high", "unexpectedly_low": "routine",
     "age_below_programme": "routine", "age_above_programme": "routine", "age_unknown": "high",
     "duplicate_result": "routine", "conflicting_result": "high", "result_after_closure": "high", "more_urgent_result": "urgent",
-    "multiple_results": "high",
-    "control_id_reused": "high",
-    "possible_duplicate_identity": "high",
-    "consent_withdrawn": "routine",  # patient withdrew care-coordination consent: a clinician decides (tier unchanged)  # another patient record carries the same Emirates ID  # same HL7 control ID, different content: possibly a correction  # one message carried several different values for the same test (e.g. left/right)
+    "multiple_results": "high",  # one message carried several different values for the same test (e.g. left/right)
+    "control_id_reused": "high",  # same HL7 control ID, different content: possibly a correction
+    "possible_duplicate_identity": "high",  # another patient record carries the same Emirates ID
+    "consent_withdrawn": "routine",  # patient withdrew care-coordination consent: a clinician decides (tier unchanged)
+    "stale_result": "routine",  # specimen collected > STALE_RESULT_DAYS before receipt: repeat or act? (tier unchanged)
+    "collection_date_in_future": "high",  # collection date > 24 h ahead of receipt: wrong date, specimen or patient?
 }
 
 

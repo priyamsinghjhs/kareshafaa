@@ -14,13 +14,14 @@ import hashlib
 import re
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import audit
+from ..calendar_uae import as_utc_naive, to_utc
 from ..models import Case, IngestMessage, Organization, Patient, utcnow
 from ..programmes import CLINICIAN_CONFIRMED_TIERS
 from ..security import SYSTEM, Actor
@@ -56,6 +57,37 @@ class ParsedResult:
     alt_identifiers: list[str] = field(default_factory=list)  # further patient identifiers (PID-3 repetitions)
     other_observations: list[list] = field(default_factory=list)  # [loinc, test, raw value, unit] not chosen
     payload_sha256: str | None = None
+    collected_at: datetime | None = None  # specimen collection time (UTC, naive) if the message carries one
+
+
+# a result whose specimen is older than this at receipt is reviewed (repeat the test, or act on it?) - CONFIRM
+STALE_RESULT_DAYS = 180
+FUTURE_TOLERANCE = timedelta(hours=24)  # lab and server clocks / time zones may disagree by hours, not days
+_HL7_TS = re.compile(r"^(\d{4})(\d{2})(\d{2})(?:(\d{2})(\d{2})?(\d{2})?(?:\.\d+)?)?([+-]\d{4})?$")
+
+
+def parse_collection_time(v: Any, hl7: bool) -> datetime | None:
+    """HL7 TS (YYYYMMDD[HHMM[SS]][+ZZZZ]) or FHIR dateTime -> UTC naive. No offset = UAE local time. Bad -> None."""
+    if not isinstance(v, str) or not v.strip():
+        return None
+    v = v.strip()
+    try:
+        if hl7:
+            m = _HL7_TS.match(v)
+            if not m:
+                return None
+            y, mo, d, hh, mi, ss, off = m.groups()
+            dt = datetime(int(y), int(mo), int(d), int(hh or 0), int(mi or 0), int(ss or 0))
+            if off:
+                sign = 1 if off[0] == "+" else -1
+                return dt - sign * timedelta(hours=int(off[1:3]), minutes=int(off[3:5]))
+            return to_utc(dt)
+        dt = datetime.fromisoformat(v.replace("Z", "+00:00")) if "T" in v or len(v) == 10 else None
+        if dt is None:
+            return None
+        return as_utc_naive(dt) if dt.tzinfo is not None else to_utc(dt)
+    except (ValueError, OverflowError):
+        return None
 
 
 def _field(seg: list[str], i: int) -> str:
@@ -192,6 +224,9 @@ def parse_hl7v2(raw: str) -> ParsedResult:
         obs.append((code, val, unesc(_field(obx, 6).split(comp)[0]) or None, _field(obx, 11) or "F", val))
     r = _combine(control_id, ident, birth_year, obs)
     r.alt_identifiers, r.payload_sha256 = alt, digest
+    obr = next((s for s in segs if s[0] == "OBR"), None)
+    times = ([_field(obr, 7)] if obr is not None else []) + [_field(s, 14) for s in segs if s[0] == "OBX"]
+    r.collected_at = next((t for t in (parse_collection_time(x, True) for x in times) if t is not None), None)
     if len(pids) > 1:
         return ParsedResult(control_id, ident, birth_year, None, None, None, payload_sha256=digest,
                             problem="more than one patient (PID segment) in one message - split per patient")
@@ -240,6 +275,11 @@ def _parse_fhir_bundle(bundle: dict[str, Any]) -> ParsedResult:
             val, unit = o.get("valueString") or (o.get("valueCodeableConcept") or {}).get("text") or "", None
         obs.append((code, val, unit, fhir_status.get(o.get("status", "final"), "F"), val))
     r = _combine(str(mid), ident, birth_year, obs)
+    for o in (x for x in res if x.get("resourceType") == "Observation"):
+        eff = o.get("effectiveDateTime") or (o.get("effectivePeriod") or {}).get("start")
+        if (t := parse_collection_time(eff, False)) is not None:
+            r.collected_at = t
+            break
     r.payload_sha256 = hashlib.sha256(json.dumps(bundle, sort_keys=True, default=str).encode()).hexdigest()
     pats = [x for x in res if x.get("resourceType") == "Patient"]
     if len(pats) > 1:
@@ -299,6 +339,11 @@ def ingest(db: Session, source: str, r: ParsedResult, actor: Actor, now: datetim
         r.message_id = conflict_id
         # processed as a result (it may be a correction) but always reviewed by a clinician, never auto-actioned
         r.flags = sorted({*r.flags, "control_id_reused"})
+    if r.collected_at is not None:  # specimen timing: never silently act on a months-old or "future" specimen
+        if r.collected_at > now + FUTURE_TOLERANCE:
+            r.flags = sorted({*r.flags, "collection_date_in_future"})
+        elif now - r.collected_at > timedelta(days=STALE_RESULT_DAYS):
+            r.flags = sorted({*r.flags, "stale_result"})
     msg = IngestMessage(source=source, message_id=r.message_id, received_at=now, patient_identifier=r.patient_identifier,
                         birth_year=r.birth_year, programme=r.programme, value=r.value,
                         value_text=(r.value_text or "")[:60] or None, unit=(r.unit or "")[:30] or None, test=r.test,

@@ -279,3 +279,62 @@ def test_sweep_skips_when_clock_moves_backwards(monkeypatch):
     monkeypatch.setattr(m, "run_sweep", lambda db: calls.append(1) or {"ok": 1})
     monkeypatch.setattr(m, "_LAST_SWEEP_AT", datetime(2030, 1, 1))
     assert m._sweep_once() == {"skipped": "clock_moved_backwards"} and not calls
+
+
+# ------------------------------------------------------------------ specimen collection time (round 12)
+def _ts(delta_days: float) -> str:
+    from datetime import timedelta
+
+    from wasl.models import utcnow
+
+    return (utcnow() + timedelta(days=delta_days)).strftime("%Y%m%d%H%M") + "+0000"
+
+
+@pytest.mark.parametrize("v,expect", [("20261020", (2026, 10, 19, 20, 0)), ("202610201530+0400", (2026, 10, 20, 11, 30)),
+                                      ("20261020153000-0100", (2026, 10, 20, 16, 30)), ("2026-13-40", None),
+                                      ("garbage", None), ("", None)])
+def test_hl7_collection_time_parsing(v, expect):
+    from wasl.services.ingest import parse_collection_time
+
+    t = parse_collection_time(v, True)
+    assert (t.timetuple()[:5] if t else None) == expect  # no offset = UAE local (UTC+4)
+
+
+def test_fhir_collection_time_parsing():
+    from wasl.services.ingest import parse_collection_time
+
+    assert parse_collection_time("2026-10-20T08:00:00Z", False).hour == 8
+    assert parse_collection_time("2026-10-20T08:00:00", False).hour == 4  # naive = UAE local
+    assert parse_collection_time("2026-10-20", False).day == 19
+    assert parse_collection_time("not a date", False) is None and parse_collection_time(42, False) is None
+
+
+@pytest.mark.parametrize("days,reason", [(-400, "stale_result"), (5, "collection_date_in_future")])
+def test_specimen_timing_sends_positive_to_review_tier_kept(client, as_user, db, make_patient, days, reason):
+    from wasl.models import Patient
+
+    p = db.get(Patient, make_patient())
+    body = _post(client, as_user, msg(p.mrn, FIT.format(v="300") + f"|||{_ts(days)}", ctrl=f"ADV-T{days}"))
+    c = body["case"]
+    assert c is not None and c["review_required"] and reason in c["review_reasons"]
+    q = db.get(Patient, make_patient())
+    plain = _post(client, as_user, msg(q.mrn, FIT.format(v="300"), ctrl=f"ADV-TP{days}"))["case"]
+    assert c["tier"] == plain["tier"]  # never lowered (nor raised) by a timing flag
+
+
+@pytest.mark.parametrize("days,reason", [(-400, "stale_result"), (5, "collection_date_in_future")])
+def test_specimen_timing_negative_is_not_silently_filed(client, as_user, db, make_patient, days, reason):
+    from wasl.models import Patient
+
+    p = db.get(Patient, make_patient())
+    body = _post(client, as_user, msg(p.mrn, FIT.format(v="3") + f"|||{_ts(days)}", ctrl=f"ADV-TN{days}"))
+    assert body["case"] is not None and reason in body["case"]["review_reasons"]
+
+
+@pytest.mark.parametrize("days", [-30, 0.5, -0.01])
+def test_recent_or_slightly_ahead_specimen_is_normal(client, as_user, db, make_patient, days):
+    from wasl.models import Patient
+
+    p = db.get(Patient, make_patient())
+    body = _post(client, as_user, msg(p.mrn, FIT.format(v="300") + f"|||{_ts(days)}", ctrl=f"ADV-OK{days}"))
+    assert not (body["case"].get("review_reasons") or [])
