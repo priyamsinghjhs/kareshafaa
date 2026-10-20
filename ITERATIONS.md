@@ -407,3 +407,28 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
   `test_time_handling.py` and `test_duplicate_identity.py`.
 - Not changed: the demo seed's two candidate models both fail the fairness recall gate for age 40–49, so the demo has
   no production model. Outreach falls back to rule order, as designed. The gate was not relaxed.
+
+### Round 10: more failure modes, ML fairness fix, re-verification (21 Oct 2026, ~03:45-04:30 IST)
+- **Automated patient reminders were sent at any hour.** The SLA sweep runs every 5 minutes. The new validator invariant
+  51 found 94 reminders sent at about 01:53 UAE time in the existing 20k data. Reminders now go out only between 08:00
+  and 21:00 UAE time. Outside that window they are queued as an `on-hold` Communication, then sent once by the first
+  sweep inside the window, or cancelled if the case has moved on.
+- **ML fairness.** Both candidate models on the demo ranked 40-49-year-olds last (recall in the top 30 % was 0.05-0.10,
+  against 0.8-1.0 for ages 60-75) and failed the fairness gate. That left the demo with no production model.
+  - `age_band` has been removed as a model input; it is still monitored as a fairness attribute.
+  - On the demo, AUC rose from 0.640 to 0.656 and ECE fell from 0.041 to 0.034. All gates pass, and age-band recall is
+    now 0.42-0.51 on 10k.
+  - The gate was **not** relaxed.
+- **Feature-set change crashed the model.** A production model trained on the older feature set crashed both scoring
+  and comparison against new candidates ("columns are missing"). Models now pick their own input columns, with a
+  regression test.
+- **HL7 input:** a UTF-8 BOM and MLLP framing are now tolerated.
+- **Server clock:** the background SLA sweep now refuses to run if the server clock moves backwards.
+- **Re-verification:**
+  - full suite 3,082 tests, all passing;
+  - 10M differential (seed 20261121): 0 disagreements;
+  - 20k, 10k and demo: 51 invariants, 0 violations;
+  - alert precision/recall 100 % / 100 %;
+  - fault injection: see `docs/fault_injection_results.md`.
+- **Load test** (10k, 4 processes, 10 clients), p50/p95: coordinator queue 62/154 ms, GP queue 77/163 ms, detail 25/58 ms,
+  HL7 ingest 79/163 ms; 0 errors; audit chain intact.

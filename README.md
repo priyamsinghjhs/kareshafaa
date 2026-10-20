@@ -38,19 +38,19 @@ Requires Python 3.11+ (tested on 3.13) and `make`. Everything is free and open s
 ```bash
 make setup          # venv + dependencies (~1 min)
 make seed           # 2,000 synthetic patients, 6 months of history, train + register models (~55 s)
-make run            # http://localhost:8000  (4 uvicorn workers; WORKERS=1 for a single process)
-make test           # 2,925 pytest tests (~40 s; the 20k cohort test is skipped until `make seed-large`)
+make run            # http://localhost:8000  (python -m wasl.serve: 4 SO_REUSEPORT worker processes; WORKERS=1 for one)
+make test           # 3,082 pytest tests (~60 s; the 20k cohort test is skipped until `make seed-large`)
 ```
 
 Clinical-safety targets (Iteration 6):
 
 ```bash
 make seed-large      # 20,000 realistic synthetic people -> data/wasl_large.db (~3 min, no model training)
-make validate        # 45 data invariants on the demo DB (exit 1 on any violation)
+make validate        # 51 data invariants on the demo DB (exit 1 on any violation)
 make validate-large  # same on the 20k cohort
 make test-clinical   # golden cases, fail-safe, Hypothesis properties, exhaustive state machine
 make test-cohort     # full-cohort run on the 20k DB (needs seed-large)
-make fault-injection # 33 deliberate faults; writes docs/fault_injection_results.md
+make fault-injection # 42 deliberate faults; writes docs/fault_injection_results.md
 make differential    # 2M randomised results: rules engine vs independent reference (docs/differential_results.md)
 ```
 
@@ -117,17 +117,18 @@ lead at 1.5× (T0 goes straight to L3), L4 medical director at 2× (T0/T1 only).
 
 ## Performance (10,005 cases, 1,509 open; 160k audit events; 10 concurrent clients)
 
-| Endpoint | p50 / p95 before (iteration 3) | iteration 4 (4 workers) | iteration 6 (rules engine, review gate; warm) |
-|---|---|---|---|
-| Work queue, page of 50 (coordinator) | 4,297 / 4,527 ms | **29 / 448 ms** | 28 / 258 ms |
-| Work queue, GP (org-scoped) | 14,553 / 15,109 ms | **32 / 599 ms** | 32 / 304 ms |
-| Case detail | 153 / 200 ms | **51 / 88 ms** | 39 / 78 ms |
-| Case FHIR export | 110 / 181 ms | **43 / 79 ms** | 35 / 126 ms |
-| KPIs (cached) | 32,770 / 33,795 ms | **3.5 / 29 ms** | 7.7 / 14 ms |
-| HL7 ingest (write) | – | **77 / 182 ms** | 73 / 195 ms |
+| Endpoint | p50 / p95 before (iteration 3) | iteration 4 (4 workers) | iteration 6 (rules engine, review gate; warm) | iteration 7 (wasl.serve, row-version locks) |
+|---|---|---|---|---|
+| Work queue, page of 50 (coordinator) | 4,297 / 4,527 ms | **29 / 448 ms** | 28 / 258 ms | 62 / 154 ms |
+| Work queue, GP (org-scoped) | 14,553 / 15,109 ms | **32 / 599 ms** | 32 / 304 ms | 77 / 163 ms |
+| Case detail | 153 / 200 ms | **51 / 88 ms** | 39 / 78 ms | 25 / 58 ms |
+| Case FHIR export | 110 / 181 ms | **43 / 79 ms** | 35 / 126 ms | 27 / 52 ms |
+| KPIs (cached) | 32,770 / 33,795 ms | **3.5 / 29 ms** | 7.7 / 14 ms | 9.8 / 18 ms |
+| HL7 ingest (write) | – | **77 / 182 ms** | 73 / 195 ms | 79 / 163 ms |
 
 Iteration 6 run: a fresh 10k DB (10,155 cases, 1,250 open, 160k audit events). Detail, FHIR and KPI figures come from the first, cold pass; the cold-pass queue p50 was 145 ms. Audit chain verified intact after the load test. Reproduce with `scripts/loadtest.py` (see ITERATIONS.md, iteration 4).
 Background sweep over 1,705 open clocks: 35–76 ms.
+Iteration 7 run: fresh 10k DB (1,215 open cases, 155k audit events), 10 concurrent clients, 0 errors, audit chain intact. In an earlier Iteration 7 run the queue p95 had regressed to 1.3 s (sqlite per-row GIL convoy); the fixes are in ITERATIONS.md (round 8).
 
 ## Simulated KPIs (SIMULATED – 20,000 synthetic people × 5 replications, same rules engine)
 
@@ -175,7 +176,7 @@ deployment would need formal assessment.
 
 ## Known limitations
 
-* Synthetic data only. The ML model (AUC ≈ 0.65) and the simulator say nothing about real-world performance.
+* Synthetic data only. The ML model (AUC ≈ 0.66 on the 2k demo, 0.72 on the 20k cohort) and the simulator say nothing about real-world performance.
 * Fairness gates use bootstrap CIs on a ~445-case holdout, so small groups (e.g. hi, ur, tl, n < 50 positives) are
   *not eligible* for gating and are only monitored. A real deployment needs larger validation sets.
 * Channels are simulated. There is no SMS, WhatsApp or email integration, and no real telephony.
@@ -186,7 +187,18 @@ deployment would need formal assessment.
 * The Islamic holiday and Ramadan dates are approximate. Tagalog and Malayalam content is not translated yet.
 * Docker build is written but could not be tested on the build box (no Docker daemon available).
 
+## Iteration 7 evidence (docs/)
+
+* `alert_precision.md`: consolidated alert policy. On the 20k cohort, precision is 100 % and recall is 100 % with 0 missed
+  true breaches; the legacy policy scored 77.8 % / 89.8 %.
+* `ml_calibration.md`: discrimination, ECE, slope, CITL and reliability bins with Wilson CIs, plus the fairness gates.
+* `patient_messages.md`: reading-level and tone checks, and the translator plus clinician sign-off for ar/hi/ur.
+* `human_signoff.md`: 17 high-impact actions that need a named human, the permission and a rationale.
+* `differential_results.md`: 10M results checked against the independent reference implementation.
+* `fault_injection_results.md`: the deliberately injected faults and which tests caught them.
+* `clinical_safety_case.md`: hazards H-01 to H-30.
+
 ## Repository map
 
-`wasl/` app · `tests/` pytest (2,925) · `wasl_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
+`wasl/` app · `tests/` pytest (3,082) · `wasl_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
 `scripts/ui_smoke.py` (optional Playwright) · `ITERATIONS.md` build log with self-assessments · `Makefile` · `Dockerfile` · `.env.example`
