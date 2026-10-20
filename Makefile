@@ -7,7 +7,7 @@ PORT    ?= 8000
 WORKERS ?= 4
 PATIENTS ?= 2000
 
-.PHONY: help setup seed seed-large validate validate-large demo run dev test test-clinical test-cohort fault-injection check ui-smoke clean
+.PHONY: help setup seed seed-large validate validate-large demo run dev test test-clinical test-cohort fault-injection differential check ui-smoke clean
 
 help:
 	@echo "make setup   - create virtualenv and install pinned-compatible deps"
@@ -48,7 +48,10 @@ test:
 	$(BIN)/python -m pytest
 
 test-clinical:
-	$(BIN)/python -m pytest tests/test_clinical_golden.py tests/test_failsafe.py tests/test_properties.py tests/test_statemachine_exhaustive.py tests/test_synthetic_data.py
+	$(BIN)/python -m pytest tests/test_clinical_golden.py tests/test_failsafe.py tests/test_properties.py tests/test_statemachine_exhaustive.py tests/test_synthetic_data.py tests/test_differential.py
+
+differential:
+	$(BIN)/python scripts/differential_test.py 2000000
 
 test-cohort:
 	$(BIN)/python -m pytest -m cohort -p no:cacheprovider

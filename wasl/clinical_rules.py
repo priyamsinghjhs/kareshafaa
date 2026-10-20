@@ -220,17 +220,22 @@ def _parse_cervical(r: ResultInput) -> tuple[str | None, str | None, bool]:
     if r.cytology and r.cytology.strip():  # a blank cytology field means "not reported"
         parts.append(r.cytology.strip().lower())
     hpv = cyto = None
+    hpvs: set[str] = set()
     for p in parts:
         if p in HPV_CODES:
-            if hpv not in (None, HPV_CODES[p]) and not {hpv, HPV_CODES[p]} <= {"16", "18"}:
-                return None, None, False  # contradictory HPV results in one report
-            hpv = hpv or HPV_CODES[p]
+            hpvs.add(HPV_CODES[p])
         elif p in CYTO:
             if cyto not in (None, CYTO[p]):
                 return None, None, False
             cyto = CYTO[p]
         else:
             return None, None, False
+    if hpvs:
+        if len(hpvs) > 1 and hpvs & {"neg", "invalid"}:
+            return None, None, False  # contradictory: negative/invalid together with another HPV result
+        # co-reported positive types (e.g. HPV16 + other hrHPV, or "HPV positive" + "HPV other") are managed by
+        # the most significant type: 16/18 > other (ASCCP 2019). CONFIRM.
+        hpv = ("16" if hpvs & {"16", "18"} else "other" if "other" in hpvs else next(iter(hpvs)))
     return hpv, cyto, bool(parts)
 
 

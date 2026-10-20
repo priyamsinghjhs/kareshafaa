@@ -84,7 +84,11 @@ review (urgent floor) - this catches identity/demographic errors rather than dis
 | CX-HPVNEG-LG | negative | ASC-US / LSIL / unsatisfactory | **review** | high | human_review | – | ASCCP 2023: a negative HPV on an inadequate sample is not valid → review (**CONFIRM**) |
 | CX-CYTO-LG-NOHPV | not done | ASC-US / LSIL | reflex HPV | routine (confirm) | reflex_hpv | ≤ 2 weeks (**CONFIRM**) | |
 | CX-CYTO-ONLY | not done | NILM | **review** (cytology-only is not the DoH primary test) | urgent | human_review | – | **CONFIRM** |
-| CX-ERR | contradictory (e.g. "HPV16" + "HPV other"), unknown text, numeric value | **review** | urgent | human_review | – | fail-safe |
+| CX-ERR | contradictory (HPV negative or invalid together with another HPV result; two different cytology results), unknown text, numeric value | **review** | urgent | human_review | – | fail-safe |
+
+**Co-reported HPV types** (e.g. "HPV16; other hrHPV" from a genotyping assay, or "HPV positive" plus "HPV other")
+are managed by the most significant type: 16/18 before other (ASCCP 2019: HPV16/18 → colposcopy) - **CONFIRM**.
+High-grade cytology with HPV invalid or not done is managed as high-grade (urgent colposcopy).
 
 **Negative follow-up test (cervical and diabetes):** a negative reflex/repeat test does **not** close the case
 by itself (state-machine v1.1): the clinician must record a surveillance care plan (repeat HPV at 12 months /
@@ -191,6 +195,7 @@ queue** (`IngestMessage.status = needs_review`, HL7 ACK `AE`); messages without 
 14. A negative follow-up test for cervical/diabetes requires a surveillance plan before closure.
 15. "Result after closure" window of 180 days.
 16. Patient age is computed from birth year only (±1 year at eligibility boundaries).
+17. Co-reported HPV types are managed by the most significant type (16/18 > other) rather than sent to review.
 
 ## 10. Sources
 

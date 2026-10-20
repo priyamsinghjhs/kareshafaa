@@ -7,6 +7,10 @@ If a row fails, do NOT edit the expectation to make it pass: the rule or the doc
 """
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
+
 import pytest
 
 from wasl.clinical_rules import PatientContext, ResultInput, evaluate, hba1c_mmol_to_pct, hba1c_pct_to_mmol
@@ -66,7 +70,10 @@ G = [
     ("CX-17", CX, None, "HPV invalid", None, None, "final", "LSIL", F50, "review", "high", "human_review", "CX-HPVINV-LG", "lead"),
     ("CX-18", CX, None, "LSIL", None, None, "final", None, F50, "actionable", "routine", "reflex_hpv", "CX-CYTO-LG-NOHPV", "coord"),
     ("CX-19", CX, None, "NILM", None, None, "final", None, F50, "review", "urgent", "human_review", "CX-CYTO-ONLY", "lead"),
-    ("CX-20", CX, None, "HPV16|HPV other hr", None, None, "final", None, F50, "review", "urgent", "human_review", "CX-ERR", "lead"),
+    ("CX-20", CX, None, "HPV negative|HPV16", None, None, "final", None, F50, "review", "urgent", "human_review", "CX-ERR", "lead"),
+    ("CX-40", CX, None, "HPV16|HPV other hr", None, None, "final", None, F50, "actionable", "high", "colposcopy", "CX-HPV1618", "coord"),
+    ("CX-41", CX, None, "HPV positive|HPV other", None, None, "final", None, F50, "actionable", "routine", "reflex_cytology", "CX-HPVOTHER-REFLEX", "coord"),
+    ("CX-42", CX, None, "HPV invalid|HPV18", None, None, "final", None, F50, "review", "urgent", "human_review", "CX-ERR", "lead"),
     ("CX-21", CX, None, "HPV maybe", None, None, "final", None, F50, "review", "urgent", "human_review", "CX-ERR", "lead"),
     ("CX-22", CX, 1.0, None, None, None, "final", None, F50, "review", "urgent", "human_review", "CX-ERR", "lead"),
     ("CX-23", CX, None, "HPV16", None, None, "final", None, dict(age=50, sex="male"), "review", "urgent", "colposcopy", "CX-HPV1618", "lead"),
@@ -302,3 +309,23 @@ def test_review_min_tier(reasons, tier):
     from wasl.clinical_rules import review_min_tier
 
     assert review_min_tier(reasons) == tier
+
+
+# ---- full-output snapshot (Iteration 7): next-step and target wording is clinician-facing and must only change
+# deliberately. Regenerate with WASL_UPDATE_SNAPSHOT=1 after clinical-lead approval of the new wording.
+SNAPSHOT = Path(__file__).parent / "snapshots" / "golden_decisions.json"
+
+
+def _full(d):
+    return {"disposition": d.disposition, "tier": d.tier, "pathway": d.pathway, "next_step": d.next_step,
+            "needs_confirmation": d.needs_confirmation, "target": d.target, "rule_id": d.rule_id,
+            "reasons": d.reasons, "clinical_tier": d.clinical_tier, "normalised": d.normalised}
+
+
+def test_golden_full_output_snapshot():
+    got = {row[0]: _full(_decide(row)) for row in G}
+    if os.environ.get("WASL_UPDATE_SNAPSHOT") == "1":
+        SNAPSHOT.write_text(json.dumps(got, indent=1, sort_keys=True))
+    want = json.loads(SNAPSHOT.read_text())
+    diff = {k: (want.get(k), v) for k, v in got.items() if want.get(k) != v}
+    assert not diff, json.dumps(dict(list(diff.items())[:3]), indent=1)

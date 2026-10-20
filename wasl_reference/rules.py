@@ -144,7 +144,9 @@ def cervical(value, text, cytology_field):
             cytos.add(CYTO_CANON.get(t, t))
         else:
             return REV("malformed_value", "urgent")
-    if len(hpvs - {"16", "18"}) + (1 if hpvs & {"16", "18"} else 0) > 1 or len(cytos) > 1:
+    # doc 4: negative/invalid together with any other HPV result, or two different cytology results, are
+    # contradictory; co-reported positive types are managed by the most significant (16/18 > other).
+    if (len(hpvs) > 1 and hpvs & {"neg", "invalid"}) or len(cytos) > 1:
         return REV("contradictory", "urgent")
     hpv = None if not hpvs else ("16/18" if hpvs & {"16", "18"} else next(iter(hpvs)))
     cyto = None if not cytos else next(k for k, ws in CYTO_WORDS.items() if next(iter(cytos)) in ws or
