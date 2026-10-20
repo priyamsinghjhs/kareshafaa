@@ -130,7 +130,9 @@ async function openForm(key, evidenceType) {
     case "decide_referral": return form(F.sel("accept", "Decision", kv({ true: "Accept", false: "Reject (reason required)" })) + F.sel("reason_code", "Reject reason", `<option value="">–</option>` + kv(META.reject_reasons)) + F.note("Note (required if rejecting)"),
       fd => post(`${u}/referral/decision`, { accept: fd.accept === "true", reason_code: fd.reason_code || null, note: fd.note || null }, "Referral decision recorded"));
     case "book": { const t = new Date(Date.now() + 7 * 864e5); t.setMinutes(0, 0, 0); const v = new Date(t - t.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); // local wall-clock
-      return form(`<label>Appointment date/time<input type="datetime-local" name="start" value="${v}" required></label>`, fd => post(`${u}/appointment`, { start: new Date(fd.start).toISOString() }, "Appointment booked – confirmation sent (simulated)")); }
+      return form(`<label>Appointment date/time<input type="datetime-local" name="start" value="${v}" required></label>` +
+        `<label>Reason if after the pathway target${C.target_due_at ? " (" + W.esc(String(C.target_due_at).slice(0, 10)) + ")" : ""}<input name="beyond" placeholder="e.g. earliest available slot; patient's choice"></label>`,
+        fd => post(`${u}/appointment`, { start: new Date(fd.start).toISOString(), beyond_target_reason: fd.beyond || null }, "Appointment booked – confirmation sent (simulated)")); }
     case "attendance": return form(F.sel("attended", "Outcome", kv({ true: "Attended", false: "No-show" })) + F.sel("barrier", "No-show barrier", `<option value="">–</option>` + META.barriers.map(b => `<option>${b}</option>`).join("")),
       fd => post(`${u}/attendance`, { attended: fd.attended === "true", barrier_code: fd.attended === "true" ? null : (fd.barrier || "unknown") }, "Attendance recorded"));
     case "start_care": return form(F.sel("kind", "Plan type", kv({ treatment: "Treatment", surveillance: "Surveillance" })) + `<label>Plan description<textarea name="description" rows="2" required></textarea></label>`,

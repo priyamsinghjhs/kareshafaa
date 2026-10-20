@@ -181,7 +181,8 @@ def run_scenario(db: Session, key: str, actor: Actor) -> dict:
                            "fasting during Ramadan - prefers late-morning slots.", now=t0 + timedelta(days=1, hours=1))
         sp = _actor(db, "vikram.mehta")
         wf.decide_referral(db, case, sp, True, now=t0 + timedelta(days=2))
-        wf.book_appointment(db, case, sp, now - timedelta(days=1), now=t0 + timedelta(days=3))
+        wf.book_appointment(db, case, sp, now - timedelta(days=1), now=t0 + timedelta(days=3),
+                            beyond_target_reason="earliest available slot (specialist capacity)")
         wf.record_attendance(db, case, sp, False, barrier_code="ramadan_hours", now=now - timedelta(hours=20))
         send_with_ladder(db, case, "no_show", SYSTEM, now=now - timedelta(hours=19), max_channels=3)
     audit.record(db, actor, "C", "demo.scenario_started", entity_type="Task", entity_id=case.id, case_id=case.id,

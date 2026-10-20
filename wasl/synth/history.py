@@ -369,7 +369,8 @@ class Replayer:
         for visit in range(3):
             wait_days = {"critical": 2, "urgent": 6, "high": 14, "routine": 28}[case.tier] * self.rng.uniform(0.6, 1.6)
             start = to_utc(next_working_slot(to_local(self.t + timedelta(days=wait_days)), hour=self.rng.randint(8, 15)))
-            wf.book_appointment(db, case, spec_actor if visit == 0 else self.coord(case), start, now=self.t)
+            wf.book_appointment(db, case, spec_actor if visit == 0 else self.coord(case), start, now=self.t,
+                                beyond_target_reason="earliest available slot (specialist capacity)")
             self.t = start
             if self.t > self.now:
                 raise Stop

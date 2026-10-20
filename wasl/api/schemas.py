@@ -71,6 +71,7 @@ class AppointmentIn(_In):
     start: datetime
     org_id: int | None = None
     practitioner_id: int | None = None
+    beyond_target_reason: str | None = Field(default=None, max_length=500)  # required if after the pathway target
 
 
 class AttendanceIn(_In):

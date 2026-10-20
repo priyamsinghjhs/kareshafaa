@@ -742,8 +742,12 @@ def decide_referral(db: Session, case: Case, actor: Actor, accept: bool, *, reas
     return sr
 
 
+MAX_BOOKING_AHEAD_DAYS = 365  # a booking further ahead is almost always a date typo
+
+
 def book_appointment(db: Session, case: Case, actor: Actor, start: datetime, *, org_id: int | None = None,
-                     practitioner_id: int | None = None, now: datetime | None = None) -> Appointment:
+                     practitioner_id: int | None = None, beyond_target_reason: str | None = None,
+                     now: datetime | None = None) -> Appointment:
     _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     if not actor.can("appointment:write"):
@@ -755,12 +759,21 @@ def book_appointment(db: Session, case: Case, actor: Actor, start: datetime, *, 
         raise DomainError("no accepted referral")
     if start < now - timedelta(days=1):
         raise Invalid("appointment start must not be in the past")
+    if start > now + timedelta(days=MAX_BOOKING_AHEAD_DAYS):
+        raise Invalid(f"appointment is more than {MAX_BOOKING_AHEAD_DAYS} days ahead: check the date (year typo?)")
+    beyond = case.target_due_at is not None and start > case.target_due_at
+    if beyond and (not beyond_target_reason or len(beyond_target_reason.strip()) < 10):
+        from ..calendar_uae import local_display
+
+        raise Invalid(f"appointment is after the pathway target ({local_display(case.target_due_at)[:10]}): book "
+                      "earlier, or give the reason (>= 10 characters, e.g. earliest slot, patient's choice)")
     appt = Appointment(case_id=case.id, service_request_id=ref.id, org_id=org_id or ref.performer_org_id,
                        practitioner_id=practitioner_id or ref.performer_id, start=start, status="booked", created_at=now)
     db.add(appt)
     db.flush()
     audit.record(db, actor, "C", "appointment.booked", entity_type="Appointment", entity_id=appt.id, case_id=case.id,
-                 ts=now, detail={"start": start.isoformat()})
+                 ts=now, detail={"start": start.isoformat(), "beyond_target": beyond,
+                                 **({"beyond_target_reason": beyond_target_reason} if beyond else {})})
     transition(db, case, S.APPOINTMENT_BOOKED, actor, now=now)
     return appt
 

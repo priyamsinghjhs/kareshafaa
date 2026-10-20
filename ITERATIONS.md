@@ -474,3 +474,11 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
   `POST /api/cases/{id}/patient-deceased/revoke`): open cases are re-flagged (`death_record_corrected`) and cases closed
   as `deceased` are listed for re-opening - nothing restarts silently. UI action added. Sign-off registry: 19 actions.
   Full suite 3,108 tests, all passing.
+
+### Round 14: appointment dates (21 Oct 2026, ~04:50-05:00 IST)
+- **Failure mode.** Any future appointment was accepted: a year typo (2027 for 2026), or a slot weeks after an urgent
+  pathway target, went through silently; the breach only surfaced when the target alert fired weeks later.
+- **Fix.** Bookings more than 365 days ahead are refused ("check the date"). A booking after the pathway target needs
+  a reason (>= 10 characters, e.g. earliest slot, patient's choice), recorded in the audit event (`beyond_target`).
+  UI form updated. Synthetic history records the capacity reason (data distribution unchanged).
+- 1 new test; full suite 3,109 tests, all passing.

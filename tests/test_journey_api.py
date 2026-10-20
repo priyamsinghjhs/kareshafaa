@@ -235,3 +235,27 @@ def test_validation_errors_are_422(client, as_user, new_case):
     assert r.status_code == 422
     r = _post(client, as_user("aisha.rahman"), f"/api/cases/{cid}/transition", to_state="triaged", hack=1)
     assert r.status_code == 422
+
+
+def test_booking_beyond_target_needs_reason_and_year_typo_refused(client, as_user, new_case, db):
+    """Round 14: an appointment after the pathway target (or a year-typo date) used to be accepted silently; the
+    breach only surfaced weeks later when the target alert fired."""
+    from wasl.models import AuditEvent
+
+    cid = new_case()["id"]
+    notify_and_ack(client, as_user, cid)
+    gp, sp, co = as_user("omar.haddad"), as_user("vikram.mehta"), as_user("aisha.rahman")
+    _post(client, gp, f"/api/cases/{cid}/transition", to_state="consultation")
+    _post(client, gp, f"/api/cases/{cid}/referral", performer_org_id=9, summary=SUMMARY)
+    _post(client, sp, f"/api/cases/{cid}/referral/decision", accept=True)
+    typo = (utcnow() + timedelta(days=400)).isoformat()
+    r = _post(client, co, f"/api/cases/{cid}/appointment", start=typo)
+    assert r.status_code in (400, 422) and "year typo" in r.text
+    db.expire_all()
+    late = (db.get(Case, cid).target_due_at + timedelta(days=3)).isoformat()
+    r = _post(client, co, f"/api/cases/{cid}/appointment", start=late)
+    assert r.status_code in (400, 422) and "pathway target" in r.text
+    r = _post(client, co, f"/api/cases/{cid}/appointment", start=late, beyond_target_reason="earliest available slot")
+    assert r.status_code == 200, r.text
+    ev = db.scalars(select(AuditEvent).where(AuditEvent.case_id == cid, AuditEvent.event == "appointment.booked")).all()
+    assert ev[-1].detail["beyond_target"] and ev[-1].detail["beyond_target_reason"] == "earliest available slot"
