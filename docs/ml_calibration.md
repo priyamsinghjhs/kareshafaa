@@ -38,39 +38,39 @@ Fairness (logreg, default setting): group flagged only if its bootstrap 95 % CI 
 | age_band | pass (none) | 0.0348 | pass (none) | 0.3397 | pass (none) |
 | region | pass (none) | 0.0836 | pass (none) | 0.1199 | pass (none) |
 
-## realistic_20k (`data/wasl_large.db`, as of 2026-10-20 22:01:50.014570 UTC)
+## realistic_20k (`data/wasl_large.db`, as of 2026-10-20 22:35:24.518122 UTC)
 
 | Algorithm | Recalibration setting -> chosen | n train / hold-out | AUC | ECE raw -> final | Slope raw -> final | CITL | Brier | Reliability bins within 95 % CI | Gates failed |
 |---|---|---|---|---|---|---|---|---|---|
-| logreg | none -> none | 4,170 / 1,391 | 0.6827 | 0.0295 -> 0.0295 | 1.061 -> 1.061 | 0.0208 | 0.1298 | 10/10 | none |
-| gbm | none -> none | 4,170 / 1,391 | 0.6788 | 0.0249 -> 0.0249 | 1.037 -> 1.037 | 0.0201 | 0.1284 | 10/10 | none |
-| logreg | auto -> platt | 4,170 / 1,391 | 0.6827 | 0.0295 -> 0.0303 | 1.061 -> 1.148 | 0.0214 | 0.13 | 10/10 | none |
-| gbm | auto -> platt | 4,170 / 1,391 | 0.6788 | 0.0249 -> 0.0265 | 1.037 -> 1.114 | 0.0203 | 0.1284 | 10/10 | none |
+| logreg | none -> none | 4,053 / 1,352 | 0.7363 | 0.0499 -> 0.0499 | 1.178 -> 1.178 | 0.0412 | 0.1089 | 8/10 | none |
+| gbm | none -> none | 4,053 / 1,352 | 0.7291 | 0.0507 -> 0.0507 | 1.133 -> 1.133 | 0.0408 | 0.1098 | 7/10 | none |
+| logreg | auto -> none | 4,053 / 1,352 | 0.7363 | 0.0499 -> 0.0499 | 1.178 -> 1.178 | 0.0412 | 0.1089 | 8/10 | none |
+| gbm | auto -> none | 4,053 / 1,352 | 0.7291 | 0.0507 -> 0.0507 | 1.133 -> 1.133 | 0.0408 | 0.1098 | 7/10 | none |
 
 Reliability (logreg, default setting): mean predicted vs observed with Wilson 95 % CI
 
 | Bin | n | Mean predicted | Observed | 95 % CI | Within |
 |---|---|---|---|---|---|
-| 1 | 140 | 0.099 | 0.114 | 0.072-0.178 | yes |
-| 2 | 139 | 0.121 | 0.144 | 0.095-0.212 | yes |
-| 3 | 139 | 0.136 | 0.101 | 0.061-0.162 | yes |
-| 4 | 139 | 0.148 | 0.129 | 0.084-0.195 | yes |
-| 5 | 139 | 0.162 | 0.144 | 0.095-0.212 | yes |
-| 6 | 139 | 0.179 | 0.129 | 0.084-0.195 | yes |
-| 7 | 139 | 0.2 | 0.144 | 0.095-0.212 | yes |
-| 8 | 139 | 0.229 | 0.18 | 0.125-0.252 | yes |
-| 9 | 139 | 0.269 | 0.252 | 0.187-0.33 | yes |
-| 10 | 139 | 0.591 | 0.59 | 0.507-0.668 | yes |
+| 1 | 136 | 0.087 | 0.081 | 0.046-0.139 | yes |
+| 2 | 136 | 0.114 | 0.081 | 0.046-0.139 | yes |
+| 3 | 135 | 0.131 | 0.096 | 0.057-0.158 | yes |
+| 4 | 135 | 0.145 | 0.096 | 0.057-0.158 | yes |
+| 5 | 135 | 0.161 | 0.111 | 0.068-0.175 | yes |
+| 6 | 135 | 0.175 | 0.126 | 0.08-0.192 | yes |
+| 7 | 135 | 0.194 | 0.126 | 0.08-0.192 | no |
+| 8 | 135 | 0.219 | 0.163 | 0.11-0.234 | yes |
+| 9 | 135 | 0.272 | 0.185 | 0.129-0.259 | no |
+| 10 | 135 | 0.698 | 0.719 | 0.637-0.788 | yes |
 
 Fairness (logreg, default setting): group flagged only if its bootstrap 95 % CI lies wholly beyond the tolerance; `gap` = largest point-estimate gap between groups.
 
 | Attribute | AUC gate | AUC gap | Recall gate | Recall gap | Calibration gate |
 |---|---|---|---|---|---|
-| language | pass (none) | 0.2346 | pass (none) | 0.5048 | pass (none) |
-| nationality_group | pass (none) | 0.1735 | pass (none) | 0.3678 | pass (none) |
-| gender | pass (none) | 0.0911 | pass (none) | 0.1803 | pass (none) |
-| age_band | pass (none) | 0.1659 | pass (none) | 0.227 | pass (none) |
-| region | pass (none) | 0.0605 | pass (none) | 0.426 | pass (none) |
+| language | pass (none) | 0.1661 | pass (none) | 0.3673 | pass (none) |
+| nationality_group | pass (none) | 0.2445 | pass (none) | 0.4129 | pass (none) |
+| gender | pass (none) | 0.0506 | pass (none) | 0.0774 | pass (none) |
+| age_band | pass (none) | 0.0462 | pass (none) | 0.1091 | pass (none) |
+| region | pass (none) | 0.1074 | pass (none) | 0.3493 | pass (none) |
 
 ## Decisions and limits
 
