@@ -417,9 +417,9 @@ def transition(db: Session, case: Case, dst: S | str, actor: Actor, *, owner_id:
         for f in ("closed_at", "closure_type", "closure_reason", "closure_note", "closure_evidence_type",
                   "closure_evidence_id", "closed_by_user_id"):
             setattr(case, f, None)
-    _open_step(db, case, dst, owner.id, actor, now, note)
     if dst == S.TREATMENT_STARTED and case.care_reached_at is None:
-        case.care_reached_at = now
+        case.care_reached_at = now  # BEFORE the step opens: the pathway target is met, so no target cap applies
+    _open_step(db, case, dst, owner.id, actor, now, note)
     audit.record(db, actor, "U", "case.transition", entity_type="Task", entity_id=case.id, case_id=case.id, ts=now,
                  detail={"from": src.value, "to": dst.value, "owner_id": owner.id, "note": note})
     return case

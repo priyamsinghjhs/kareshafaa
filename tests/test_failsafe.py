@@ -386,3 +386,15 @@ def test_escalation_tightens_target(sdb):
     t1 = c.target_due_at
     _ingest(sdb, p, value=900)         # more urgent -> urgent, 14 days from creation
     assert c.target_due_at < t1
+
+
+def test_post_care_step_is_not_capped_by_a_passed_pathway_target(sdb):
+    """Alert precision (Iteration 7): once care has started the pathway target is met; the closure-documentation
+    step must get its own SLA, not an instantly-breached clock (found: 1,122 spurious breaches in the 20k cohort)."""
+    now = utcnow()
+    _, c = _ingest(sdb, _patient(sdb), now=now - timedelta(days=40))
+    c.target_due_at = now - timedelta(days=9)          # target already missed
+    c.state = S.APPOINTMENT_ATTENDED
+    wf.start_care(sdb, c, _lead(sdb, "colorectal_fit"), "treatment", "Polypectomy, surveillance colonoscopy plan", now=now)
+    assert c.state == S.TREATMENT_STARTED and c.care_reached_at == now
+    assert c.due_at > now + timedelta(hours=1)

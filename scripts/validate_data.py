@@ -138,6 +138,9 @@ def run(max_examples: int = 5) -> dict:
             st = steps.get(c.id, [])
             if c.tier not in TIER_RANK:
                 bad("case.tier_valid", c.id)
+            for s_ in st:  # alert precision: once care has started, the pathway target must not cap the clock
+                if s_.state == S.TREATMENT_STARTED and s_.sla_hours and s_.due_at is not None and s_.due_at <= s_.started_at:
+                    bad("sla.post_care_step_not_instantly_overdue", (c.id, s_.id))
             if c.state != S.CLOSED:
                 open_by_pp[(c.patient_id, c.programme)].append(c.id)
                 if c.owner_id is None or c.owner_id not in pracs:
@@ -150,7 +153,7 @@ def run(max_examples: int = 5) -> dict:
                 elif c.care_reached_at is None:
                     for s_ in running:
                         if s_.due_at is not None and s_.due_at > max(c.target_due_at, s_.started_at):
-                            bad("sla.step_clock_within_pathway_target", (c.id, s_.id))
+                            bad("sla.step_clock_within_pathway_target", "sla.post_care_step_not_instantly_overdue", (c.id, s_.id))
                 if c.due_at is None and c.state not in (S.DECLINED_REVIEW,):
                     pass  # some states have no SLA by design
             else:
@@ -249,7 +252,7 @@ INVARIANTS = [
     "report.conclusion_valid", "report.sex_eligibility_or_flagged", "report.age_eligibility_or_flagged",
     "report.rules_reapplied_no_lost_actionable", "report.hba1c_plausible_or_review", "report.numeric_has_unit_or_review", "observation.interpretation_valid",
     "observation.interpretation_matches_conclusion", "case.tier_valid", "case.open_has_owner",
-    "case.open_has_exactly_one_running_step", "case.has_pathway_target", "sla.step_clock_within_pathway_target", "case.closed_at_after_created", "case.closed_with_unresolved_review",
+    "case.open_has_exactly_one_running_step", "case.has_pathway_target", "sla.step_clock_within_pathway_target", "sla.post_care_step_not_instantly_overdue", "case.closed_at_after_created", "case.closed_with_unresolved_review",
     "case.closed_by_human", "case.evidence_closure_has_evidence_id", "case.evidence_exists_and_belongs_to_case",
     "case.no_negative_confirmatory_closure_without_surveillance", "case.authorised_closure_reason_and_note",
     "case.closure_type_valid", "dates.step_after_case_created", "dates.step_ends_after_start",
