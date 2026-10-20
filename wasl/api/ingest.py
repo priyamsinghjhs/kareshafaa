@@ -1,6 +1,7 @@
 """Integration endpoints: HL7 v2 ORU^R01 and FHIR R4 Bundle result ingestion + match-review queue."""
 from __future__ import annotations
 
+from fastapi.concurrency import run_in_threadpool
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict
@@ -42,9 +43,11 @@ async def hl7v2(request: Request, actor: Actor = Depends(require("case:create"))
         parsed = ing.parse_hl7v2(raw.decode("utf-8", errors="strict"))
     except UnicodeDecodeError as e:
         raise Invalid("message must be UTF-8") from e
-    msg = ing.ingest(db, "hl7v2", parsed, actor)
-    db.commit()
-    return _out(db, msg, ing.ack_hl7(msg, parsed.message_id))
+    def work() -> dict:  # sync DB work off the event loop
+        msg = ing.ingest(db, "hl7v2", parsed, actor)
+        db.commit()
+        return _out(db, msg, ing.ack_hl7(msg, parsed.message_id))
+    return await run_in_threadpool(work)
 
 
 @router.post("/fhir")
@@ -60,9 +63,11 @@ async def fhir_bundle(request: Request, actor: Actor = Depends(require("case:cre
         raise Invalid("body must be JSON") from e
     if not isinstance(bundle, dict):
         raise Invalid("body must be a FHIR Bundle object")
-    msg = ing.ingest(db, "fhir", ing.parse_fhir_bundle(bundle), actor)
-    db.commit()
-    return _out(db, msg)
+    def work() -> dict:
+        msg = ing.ingest(db, "fhir", ing.parse_fhir_bundle(bundle), actor)
+        db.commit()
+        return _out(db, msg)
+    return await run_in_threadpool(work)
 
 
 @router.get("/sample", response_class=PlainTextResponse)

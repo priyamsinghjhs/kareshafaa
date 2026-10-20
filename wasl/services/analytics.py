@@ -167,3 +167,52 @@ def fairness_slices(db: Session) -> dict[str, list[dict]]:
             })
         out[sl] = rows
     return out
+
+
+# ---- aggregate cache ------------------------------------------------------------------------------------
+# KPIs scan every case and step (O(N)); dashboards poll them. Results are cached per process and keyed on
+# a cheap data fingerprint (max ids / counts of the tables they read), so any new event invalidates them,
+# with a TTL as a backstop for in-place updates. Cached values are already suppressed aggregates.
+_CACHE: dict[str, tuple[tuple, float, Any]] = {}
+CACHE_TTL_S = 60.0
+
+
+def _fingerprint(db: Session) -> tuple:
+    from sqlalchemy import func
+
+    parts = []
+    for m in (Case, StepTask, Consent, QuestionnaireResponse, ServiceRequest, Appointment, CarePlan, Lesson):
+        parts.append(tuple(db.execute(select(func.max(m.id), func.count(m.id))).one()))
+    return tuple(parts)
+
+
+MIN_REFRESH_S = 10.0  # bounded staleness: under constant writes, recompute at most every 10 s per process
+_LOCKS: dict[str, Any] = {}
+
+
+def cached(name: str, db: Session, fn) -> Any:
+    """Aggregate cache: reused while the data fingerprint is unchanged (up to CACHE_TTL_S). When data has
+    changed, a value at most MIN_REFRESH_S old is still served, and only one thread recomputes (single
+    flight) so a burst of dashboard requests cannot stampede the database."""
+    import threading
+    import time
+
+    lock = _LOCKS.setdefault(name, threading.Lock())
+    now = time.monotonic()
+    hit = _CACHE.get(name)
+    if hit and now - hit[1] < MIN_REFRESH_S:
+        return hit[2]
+    fp = _fingerprint(db)
+    if hit and hit[0] == fp and now - hit[1] < CACHE_TTL_S:
+        return hit[2]
+    with lock:
+        hit = _CACHE.get(name)  # another thread may have refreshed it while we waited
+        if hit and time.monotonic() - hit[1] < MIN_REFRESH_S and hit[0] == fp:
+            return hit[2]
+        val = fn()
+        _CACHE[name] = (fp, time.monotonic(), val)
+        return val
+
+
+def clear_cache() -> None:
+    _CACHE.clear()

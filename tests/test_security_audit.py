@@ -126,3 +126,39 @@ def test_audit_trail_for_case_reads(client, as_user):
     client.get("/api/cases/5", headers=h)
     r = client.get("/api/audit?case_id=5", headers=h).json()
     assert r["items"]
+
+
+def test_audit_chain_survives_concurrent_writers(client, as_user):
+    """Many simultaneous requests (each audited) must never fork the hash chain."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    h = as_user("aisha.rahman")
+    with ThreadPoolExecutor(max_workers=12) as ex:
+        codes = list(ex.map(lambda i: client.get(f"/api/queue?limit=5&offset={i % 3}", headers=h).status_code, range(60)))
+    assert set(codes) == {200}
+    r = client.get("/api/audit/verify", headers=as_user("fatima.al.mansoori")).json()
+    assert r["valid"] is True, r
+
+
+def test_queue_pagination_and_search(client, as_user):
+    h = as_user("aisha.rahman")
+    p1 = client.get("/api/queue?view=all&limit=10&offset=0", headers=h).json()
+    p2 = client.get("/api/queue?view=all&limit=10&offset=10", headers=h).json()
+    assert len(p1["items"]) == 10 and p1["total"] == p2["total"]
+    assert not {i["id"] for i in p1["items"]} & {i["id"] for i in p2["items"]}
+    target = p1["items"][0]
+    s = client.get(f"/api/queue?q={target['mrn']}", headers=h).json()
+    assert [i["id"] for i in s["items"]] == [target["id"]]
+    s2 = client.get(f"/api/queue?q=%23{target['id']}", headers=h).json()
+    assert target["id"] in [i["id"] for i in s2["items"]]
+
+
+def test_gp_queue_is_org_scoped(client, as_user, db):
+    from wasl.models import Case
+    from wasl.services.access import involved_org_ids
+
+    h = as_user("omar.haddad")
+    items = client.get("/api/queue?limit=1000", headers=h).json()["items"]
+    assert items
+    for i in items[:50]:
+        assert 3 in involved_org_ids(db, db.get(Case, i["id"]))  # Omar works at org 3

@@ -10,4 +10,4 @@ RUN useradd --create-home --uid 10001 wasl && mkdir -p /app/data/models && chown
 USER wasl
 EXPOSE 8000
 # Seeds a fresh synthetic database on first start (if none exists), then serves.
-CMD ["sh", "-c", "[ -f /app/data/wasl.db ] || python -m wasl.seed; exec uvicorn wasl.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "[ -f /app/data/wasl.db ] || python -m wasl.seed; exec uvicorn wasl.main:app --host 0.0.0.0 --port 8000 --workers ${WEB_WORKERS:-4}"]

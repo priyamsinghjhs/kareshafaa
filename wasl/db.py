@@ -94,6 +94,27 @@ APPEND_ONLY_TRIGGERS_PG = [
 
 
 def init_db(drop: bool = False) -> None:
+    """Create tables, missing indexes and append-only triggers. Serialised with a file lock so several
+    uvicorn workers starting together do not race on DDL."""
+    import os
+
+    from .config import get_settings
+
+    d = get_settings().data_dir
+    d.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(d / ".init.lock"), os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        try:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_EX)
+        except ImportError:  # pragma: no cover
+            pass
+        _init_db(drop)
+    finally:
+        os.close(fd)  # closing the descriptor releases the lock
+
+
+def _init_db(drop: bool) -> None:
     from . import models  # noqa: F401  (register tables)
 
     eng = get_engine()
@@ -110,6 +131,10 @@ def init_db(drop: bool = False) -> None:
         else:
             Base.metadata.drop_all(eng)
     Base.metadata.create_all(eng)
+    # create_all skips indexes added later to existing tables: add any that are missing (idempotent)
+    for table in Base.metadata.sorted_tables:
+        for idx in table.indexes:
+            idx.create(eng, checkfirst=True)
     stmts = APPEND_ONLY_TRIGGERS_SQLITE if eng.dialect.name == "sqlite" else APPEND_ONLY_TRIGGERS_PG
     with eng.begin() as conn:
         for st in stmts:

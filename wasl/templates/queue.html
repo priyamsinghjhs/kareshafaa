@@ -6,7 +6,7 @@
   <div style="display:flex;gap:.5rem;align-items:center">
     <select id="prog" style="margin:0;width:auto"><option value="">All programmes</option><option value="colorectal_fit">Bowel (FIT)</option>
       <option value="cervical">Cervical (HPV)</option><option value="breast">Breast</option><option value="diabetes_hba1c">Diabetes</option></select>
-    <input id="search" placeholder="Search name / MRN…" style="margin:0;width:200px">
+    <input id="search" type="search" aria-label="Search open cases by name, MRN or case number" placeholder="Search name / MRN / #id…" style="margin:0;width:200px">
     <button id="sweep" class="secondary outline" style="margin:0;width:auto" title="Run the SLA timer / escalation sweep now">Run SLA sweep</button>
   </div>
 </div>
@@ -17,36 +17,45 @@
 {% block scripts %}
 <script>
 const VIEWS = [["all","All open"],["mine","Mine"],["overdue","Overdue"],["unassigned","Unassigned"],["rejected","Rejected referrals"],["escalated","Escalated"],["calls","Phone-call tasks"],["transfers","Transfers pending"],["consults","Open consults"]];
-let view = new URLSearchParams(location.search).get("view") || "all", data = null;
+let view = new URLSearchParams(location.search).get("view") || "all", data = null, offset = 0, timer = null;
+const PAGE = 50;
+const EMPTY = { all: "No open cases – every result has reached care or a documented closure.", mine: "No cases owned by you right now.",
+  overdue: "Nothing overdue. Every step is inside its SLA.", unassigned: "Every case has a named owner.",
+  rejected: "No rejected referrals waiting for re-routing.", escalated: "No unacknowledged escalations.",
+  calls: "No phone-call tasks waiting.", transfers: "No two-key transfers pending.", consults: "No open consultation requests." };
 async function load() {
-  const prog = document.getElementById("prog").value;
-  data = await W.api(`/api/queue?view=${view}&limit=400${prog ? "&programme=" + prog : ""}`);
+  const prog = document.getElementById("prog").value, q = document.getElementById("search").value.trim();
+  data = await W.api(`/api/queue?view=${view}&limit=${PAGE}&offset=${offset}${prog ? "&programme=" + prog : ""}${q ? "&q=" + encodeURIComponent(q) : ""}`);
   document.getElementById("ordering").textContent = "Sorted by " + data.ordering + ".";
-  document.getElementById("tabs").innerHTML = VIEWS.map(([k, l]) => `<button class="${k === view ? "" : "secondary outline"}" data-v="${k}">${l} <b>${data.counts[k] ?? 0}</b></button>`).join("");
-  document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => { view = b.dataset.v; history.replaceState(null, "", "?view=" + view); load(); });
+  document.getElementById("tabs").innerHTML = VIEWS.map(([k, l]) => `<button class="${k === view ? "" : "secondary outline"}" data-v="${k}" aria-pressed="${k === view}">${l} <b>${data.counts[k] ?? 0}</b></button>`).join("");
+  document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => { view = b.dataset.v; offset = 0; history.replaceState(null, "", "?view=" + view); load(); });
   render();
 }
 function render() {
-  const q = document.getElementById("search").value.toLowerCase();
-  const rows = data.items.filter(r => !q || r.patient.toLowerCase().includes(q) || r.mrn.toLowerCase().includes(q) || String(r.id) === q);
-  if (!rows.length) { document.getElementById("qtable").innerHTML = `<div class="empty">Nothing in this view. 🎉</div>`; return; }
+  const rows = data.items;
+  if (!rows.length) { document.getElementById("qtable").innerHTML = `<div class="empty">${document.getElementById("search").value ? "No open case matches your search." : EMPTY[view] || "Nothing here."}</div>`; return; }
+  const from = data.offset + 1, to = data.offset + rows.length;
   document.getElementById("qtable").innerHTML = `<table class="compact striped"><thead><tr><th>SLA</th><th>Case</th><th>Patient</th><th>Programme</th><th>Urgency</th><th>Step</th><th>Owner</th><th>Due</th><th title="Outreach priority (ML) - prioritisation only">Outreach priority</th><th>Flags</th></tr></thead><tbody>` +
     rows.map(r => `<tr class="clickable" onclick="location.href='/cases/${r.id}'">
-      <td>${W.sla(r.sla_status, r.sla_fraction)}</td><td>#${r.id}</td>
+      <td>${W.sla(r.sla_status, r.sla_fraction)}</td><td><a href="/cases/${r.id}" onclick="event.stopPropagation()">#${r.id}</a></td>
       <td>${W.esc(r.patient)}<div class="small muted">${W.esc(r.mrn)} · ${W.esc(r.language)}</div></td>
       <td>${W.prog(r.programme)}</td><td>${W.tier(r.tier)}</td><td>${W.esc(r.state_label)}</td>
       <td>${r.owner_is_pool ? '<span class="chip pool">team pool</span> ' : ""}<span class="small">${W.esc(r.owner)}</span></td>
       <td class="small">${W.ago(r.due_at)}</td>
       <td>${r.risk_score == null ? '<span class="muted small">–</span>' : `<span class="risk-bar" style="width:${Math.round(r.risk_score * 60) + 4}px"></span> <span class="small">${Math.round(r.risk_score * 100)}%</span>`}</td>
-      <td>${r.escalation_level ? `<span class="chip sla-red">L${r.escalation_level}</span> ` : ""}${r.call_task ? '<span class="chip flag">call</span> ' : ""}${r.open_consult ? '<span class="chip flag">consult</span> ' : ""}${r.transfer_pending ? '<span class="chip flag">transfer</span>' : ""}</td></tr>`).join("") + `</tbody></table><p class="small muted">${rows.length} of ${data.total} shown</p>`;
+      <td>${r.escalation_level ? `<span class="chip sla-red">L${r.escalation_level}</span> ` : ""}${r.call_task ? '<span class="chip flag">call</span> ' : ""}${r.open_consult ? '<span class="chip flag">consult</span> ' : ""}${r.transfer_pending ? '<span class="chip flag">transfer</span>' : ""}</td></tr>`).join("") +
+    `</tbody></table><nav class="pager" aria-label="Queue pages"><span class="small muted">${from}–${to} of ${data.total}</span>
+     <button class="secondary outline" ${data.offset ? "" : "disabled"} onclick="page(-1)">‹ Previous</button>
+     <button class="secondary outline" ${to < data.total ? "" : "disabled"} onclick="page(1)">Next ›</button></nav>`;
 }
+window.page = d => { offset = Math.max(0, offset + d * PAGE); load(); };
 document.addEventListener("DOMContentLoaded", async () => {
   await W.ready; if (!W.requireLogin()) return;
   if (!W.me.permissions.includes("sweep:run")) document.getElementById("sweep").style.display = "none";
-  document.getElementById("search").oninput = render;
-  document.getElementById("prog").onchange = load;
+  document.getElementById("search").oninput = () => { clearTimeout(timer); timer = setTimeout(() => { offset = 0; load(); }, 250); };
+  document.getElementById("prog").onchange = () => { offset = 0; load(); };
   document.getElementById("sweep").onclick = async () => { try { const r = await W.api("/api/sla/sweep", { method: "POST", body: {} });
-    W.toast(`Sweep: ${r.checked} checked · ${r.reminders} reminders · ${r.supervisor} supervisor · ${r.clinical_lead} clinical-lead escalations`, "ok"); load(); } catch (e) { W.toast(e.message, "err"); } };
+    W.toast(`Sweep: ${r.checked} checked · ${r.reminders} reminders · ${r.supervisor} supervisor · ${r.clinical_lead} clinical-lead · ${r.director || 0} director escalations`, "ok"); load(); } catch (e) { W.toast(e.message, "err"); } };
   try { await load(); } catch (e) { document.getElementById("qtable").innerHTML = `<div class="empty">${W.esc(e.message)}</div>`; }
 });
 </script>

@@ -454,3 +454,17 @@ class IngestMessage(Base):  # inbound HL7 v2 / FHIR message log (idempotency + h
     case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     resolved_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+
+# ---- performance indexes (iteration 4: profiled at 10k+ cases) ------------------------------------------
+Index("ix_steps_status_case", StepTask.status, StepTask.case_id)          # queue/sweep: in-progress steps
+Index("ix_steps_case_state", StepTask.case_id, StepTask.state)            # KPIs: first entry per state
+Index("ix_cases_state_programme", Case.state, Case.programme)             # open-case scans
+Index("ix_calltasks_status_case", CallTask.status, CallTask.case_id)
+Index("ix_escalations_open", Escalation.acknowledged_at, Escalation.case_id)
+Index("ix_consults_status_case", ConsultRequest.status, ConsultRequest.case_id)
+Index("ix_consults_target_status", ConsultRequest.target_practitioner_id, ConsultRequest.status)
+Index("ix_comms_case_cat_status", Communication.case_id, Communication.category, Communication.status)
+Index("ix_consents_patient_scope", Consent.patient_id, Consent.scope, Consent.status)
+Index("ix_audit_actor_role", AuditEvent.actor_role)
+Index("ix_audit_event", AuditEvent.event)

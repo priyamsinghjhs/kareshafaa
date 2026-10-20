@@ -25,11 +25,11 @@ router = APIRouter(prefix="/api", tags=["operations"])
 
 
 @router.get("/queue")
-def queue(view: str = Query("all"), programme: str | None = None, limit: int = Query(200, ge=1, le=1000),
-          actor: Actor = Depends(require("queue:read")), db: Session = Depends(get_db)) -> dict:
+def queue(view: str = Query("all"), programme: str | None = None, limit: int = Query(50, ge=1, le=1000),
+          offset: int = Query(0, ge=0), q: str | None = Query(None, max_length=80), actor: Actor = Depends(require("queue:read")), db: Session = Depends(get_db)) -> dict:
     if view not in VIEWS:
         view = "all"
-    return work_queue(db, actor, view, limit=limit, programme=programme)
+    return work_queue(db, actor, view, limit=limit, programme=programme, offset=offset, search=q)
 
 
 @router.post("/sla/sweep")
@@ -52,13 +52,13 @@ def sweep(body: sch.SweepIn | None = None, actor: Actor = Depends(require("sweep
 
 @router.get("/analytics/kpis")
 def kpis(actor: Actor = Depends(require("analytics:read")), db: Session = Depends(get_db)) -> dict:
-    return analytics.kpis(db)
+    return analytics.cached("kpis", db, lambda: analytics.kpis(db))
 
 
 @router.get("/analytics/fairness")
 def fairness(actor: Actor = Depends(require("analytics:read")), db: Session = Depends(get_db)) -> dict:
     return {"label": "SIMULATED DATA", "suppression_threshold": get_settings().suppression_threshold,
-            "slices": analytics.fairness_slices(db)}
+            "slices": analytics.cached("fairness", db, lambda: analytics.fairness_slices(db))}
 
 
 @router.get("/analytics/lessons")

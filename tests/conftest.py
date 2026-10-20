@@ -20,6 +20,7 @@ def _env(tmp_path_factory) -> Iterator[None]:
         "WASL_MODEL_DIR": str(d / "models"),
         "WASL_SECRET_KEY": "test-only-secret-not-for-production",
         "WASL_DEMO_LOGINS": "true",
+        "WASL_SWEEP_INTERVAL_SECONDS": "0",
     })
     from wasl.config import get_settings
     from wasl.db import reset_engine

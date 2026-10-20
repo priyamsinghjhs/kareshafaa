@@ -139,3 +139,30 @@ def test_pages_render(client, path):
     assert r.status_code == 200
     if path != "/healthz":
         assert "SYNTHETIC" in r.text.upper()
+
+
+def test_kpi_cache_invalidates_on_new_data(client, as_user, new_case, monkeypatch):
+    from wasl.services import analytics
+
+    monkeypatch.setattr(analytics, "MIN_REFRESH_S", 0.0)  # disable the bounded-staleness window
+    analytics.clear_cache()
+    h = as_user("analyst")
+    k1 = client.get("/api/analytics/kpis", headers=h).json()
+    k2 = client.get("/api/analytics/kpis", headers=h).json()
+    assert k1 == k2
+    fp1 = analytics._CACHE["kpis"][0]
+    new_case()
+    client.get("/api/analytics/kpis", headers=h)
+    assert analytics._CACHE["kpis"][0] != fp1  # new data -> recomputed
+
+
+def test_kpi_cache_bounded_staleness(client, as_user, new_case):
+    from wasl.services import analytics
+
+    analytics.clear_cache()
+    h = as_user("analyst")
+    client.get("/api/analytics/kpis", headers=h)
+    t1 = analytics._CACHE["kpis"][1]
+    new_case()
+    client.get("/api/analytics/kpis", headers=h)
+    assert analytics._CACHE["kpis"][1] == t1  # within MIN_REFRESH_S the cached value is served

@@ -69,3 +69,5 @@ pre.card-md { white-space: pre-wrap; font-size:.8rem; background:#fafafa; paddin
 .grid-cards { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: .8rem; }
 .grid-cards .card { display:flex; flex-direction:column; justify-content:space-between; }
 .tier-critical { background:#4a148c; color:#fff; }
+.pager { display:flex; gap:.5rem; align-items:center; justify-content:flex-end; margin:.5rem 0; }
+.pager button { width:auto; margin:0; padding:.2rem .8rem; }

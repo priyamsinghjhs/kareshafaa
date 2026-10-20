@@ -4,6 +4,7 @@ VENV    ?= .venv
 BIN      = $(VENV)/bin
 HOST    ?= 0.0.0.0
 PORT    ?= 8000
+WORKERS ?= 4
 PATIENTS ?= 2000
 
 .PHONY: help setup seed demo run dev test check ui-smoke clean
@@ -26,7 +27,7 @@ seed:
 demo: seed run
 
 run:
-	$(BIN)/uvicorn wasl.main:app --host $(HOST) --port $(PORT)
+	$(BIN)/uvicorn wasl.main:app --host $(HOST) --port $(PORT) --workers $(WORKERS)
 
 dev:
 	$(BIN)/uvicorn wasl.main:app --host $(HOST) --port $(PORT) --reload

@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     clinical_lead_after_breach_fraction: float = 0.5  # L3 fires at (1 + this) x SLA
     director_after_fraction: float = 2.0  # L4 (T0/T1 only) fires at this multiple of the SLA
     phone_attempts_before_unreachable: int = 2
+    sweep_interval_seconds: int = 300  # background SLA/escalation job; 0 disables (tests, multi-replica: run one)
 
     cors_origins: list[str] = Field(default_factory=list)
 

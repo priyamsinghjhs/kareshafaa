@@ -69,12 +69,23 @@ def run_sweep(db: Session, now: datetime | None = None, actor: Actor = SYSTEM, c
     if case_ids:
         q = q.where(Case.id.in_(case_ids))
     out = {"checked": 0, "reminders": 0, "supervisor": 0, "clinical_lead": 0, "director": 0, "auto_pooled": 0, "breaches": 0}
-    for case in db.scalars(q).all():
+    cases = db.scalars(q).all()
+    # bulk-load (no per-case queries): in-progress steps for the open cases and the small practitioner table
+    sq = select(StepTask).where(StepTask.status == "in-progress")
+    if case_ids:
+        sq = sq.where(StepTask.case_id.in_(case_ids))
+    steps = {s.case_id: s for s in db.scalars(sq)}
+    pracs = {p.id: p for p in db.scalars(select(Practitioner))}
+    for case in cases:
         out["checked"] += 1
-        step = db.scalar(select(StepTask).where(StepTask.case_id == case.id, StepTask.status == "in-progress"))
+        step = steps.get(case.id)
         if step is None:
             continue
-        owner = db.get(Practitioner, case.owner_id)
+        owner = pracs.get(case.owner_id)
+        if owner is not None and owner.active:
+            level, _rag, _frac = required_level(case, step, now, sla)
+            if level <= case.escalation_level and (level < 2 or step.breached):
+                continue  # fast path: nothing new for this case
         if owner is None or not owner.active:
             pool = programme_pool(db, case.programme)
             db.add(OwnershipEvent(case_id=case.id, from_owner_id=case.owner_id, to_owner_id=pool.id, kind="auto_pool",

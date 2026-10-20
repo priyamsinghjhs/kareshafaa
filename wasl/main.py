@@ -1,6 +1,8 @@
 """FastAPI application factory."""
 from __future__ import annotations
 
+import asyncio
+
 import logging
 import re
 import time
@@ -18,8 +20,9 @@ from . import __version__, audit
 from .api import auth, cases, demo_api, governance, ingest, me, ops
 from .api.deps import resolve_actor
 from .config import get_settings
-from .db import init_db, session_factory
+from .db import init_db, session_factory, session_scope
 from .security import Actor
+from .services.escalation import run_sweep
 from .services.errors import DomainError
 from .statemachine import TransitionError
 
@@ -31,12 +34,73 @@ ANON = Actor(user_id=None, role="anonymous", display="anonymous", is_human=True)
 METHOD_ACTION = {"GET": "R", "HEAD": "R", "POST": "E", "PUT": "U", "PATCH": "U", "DELETE": "D"}
 
 
+def _sweep_once() -> dict:
+    with session_scope() as db:
+        return run_sweep(db)
+
+
+def _elect_sweeper() -> bool:
+    """With several uvicorn workers only one process runs the SLA job (non-blocking flock election)."""
+    global _SWEEP_LOCK_FD
+    try:
+        import fcntl
+        import os
+        fd = os.open(str(get_settings().data_dir / ".sla-sweeper.lock"), os.O_CREAT | os.O_RDWR, 0o600)
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _SWEEP_LOCK_FD = fd  # held for the life of the process
+        return True
+    except BlockingIOError:
+        return False
+    except ImportError:  # pragma: no cover
+        return True
+
+
+_SWEEP_LOCK_FD: int | None = None
+
+
+async def _sweep_loop(interval: int) -> None:
+    """Background SLA job: evaluates every open step clock and raises the escalation ladder.
+    Runs in a worker thread so request handling is never blocked; failures are logged, never fatal."""
+    if not _elect_sweeper():
+        log.info("another worker owns the background SLA sweep")
+        return
+    log.info("background SLA sweep every %ss", interval)
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            t = time.time()
+            out = await asyncio.to_thread(_sweep_once)
+            log.info("background SLA sweep: %s in %.0f ms", out, (time.time() - t) * 1000)
+        except Exception:  # noqa: BLE001
+            log.exception("background SLA sweep failed")
+
+
+def _audit_request(request: Request, state_actor, path: str, code: int, start: float) -> None:
+    db = session_factory()()
+    try:
+        actor = state_actor or resolve_actor(request, db) or ANON
+        m = CASE_RE.match(path)
+        outcome = "success" if code < 400 else "denied" if code in (401, 403) else "failure"
+        audit.record(db, actor, METHOD_ACTION.get(request.method, "E"), f"http.{request.method.lower()}",
+                     entity_type="http", entity_id=None, case_id=int(m.group(1)) if m else None, outcome=outcome,
+                     path=path[:300], detail={"status": code, "ms": int((time.time() - start) * 1000),
+                                              "query": str(request.url.query)[:200] or None})
+        db.commit()
+    finally:
+        db.close()
+
+
 def create_app() -> FastAPI:
     s = get_settings()
+    if not logging.getLogger().handlers:
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s %(message)s")
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         init_db()
+        task = asyncio.create_task(_sweep_loop(s.sweep_interval_seconds)) if s.sweep_interval_seconds > 0 else None
         yield
+        if task:
+            task.cancel()
 
     app = FastAPI(title="Wasl - Closing the Screening-to-Care Loop", version=__version__, lifespan=lifespan,
                   description="Prototype on SYNTHETIC data only. Not a medical device. No real messages are sent.")
@@ -49,20 +113,10 @@ def create_app() -> FastAPI:
         path = request.url.path
         if path.startswith("/static") or path in ("/favicon.ico", "/healthz"):
             return response
+        state_actor = getattr(request.state, "actor", None)
         try:
-            db = session_factory()()
-            try:
-                actor = getattr(request.state, "actor", None) or resolve_actor(request, db) or ANON
-                m = CASE_RE.match(path)
-                code = response.status_code
-                outcome = "success" if code < 400 else "denied" if code in (401, 403) else "failure"
-                audit.record(db, actor, METHOD_ACTION.get(request.method, "E"), f"http.{request.method.lower()}",
-                             entity_type="http", entity_id=None, case_id=int(m.group(1)) if m else None, outcome=outcome,
-                             path=path[:300], detail={"status": code, "ms": int((time.time() - start) * 1000),
-                                                      "query": str(request.url.query)[:200] or None})
-                db.commit()
-            finally:
-                db.close()
+            # sync DB work runs in a worker thread so the event loop is never blocked
+            await asyncio.to_thread(_audit_request, request, state_actor, path, response.status_code, start)
         except Exception:  # noqa: BLE001 - never break a response because of the request log
             log.exception("request audit failed")
         response.headers["X-Content-Type-Options"] = "nosniff"
