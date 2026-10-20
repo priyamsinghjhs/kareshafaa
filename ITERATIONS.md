@@ -433,7 +433,7 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
 - **Load test** (10k, 4 processes, 10 clients), p50/p95: coordinator queue 62/154 ms, GP queue 77/163 ms, detail 25/58 ms,
   HL7 ingest 79/163 ms; 0 errors; audit chain intact.
 
-### Round 11: consent withdrawn mid-pathway (21 Oct 2026, ~04:40-05:15 IST)
+### Round 11: consent withdrawn mid-pathway (21 Oct 2026, ~04:33-04:37 IST)
 - **Failure mode found by probe.** After a patient withdrew `care_coordination` consent (and refused phone contact):
   automated reminders kept going, no clinician was told, and phone call tasks were still created.
 - **Fix.**
@@ -447,7 +447,7 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
 - 4 new tests (`tests/test_consent_withdrawal.py`); full suite 3,086 tests, all passing. No rules-engine or schema
   change, so the differential result and seeded data stand.
 
-### Round 12: specimen collection time (21 Oct 2026, ~04:40-04:55 IST)
+### Round 12: specimen collection time (21 Oct 2026, ~04:37-04:42 IST)
 - **Failure mode.** The collection date in a result (HL7 OBR-7 / OBX-14, FHIR `effectiveDateTime`) was ignored. A
   backfilled message for a specimen collected a year ago, or one dated in the future by a lab clock or typo, was
   handled as a fresh result (and a stale/future-dated negative was filed silently).
@@ -457,7 +457,7 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
   Unparseable dates are ignored (nothing is dropped).
 - 14 new tests; full suite 3,100 tests, all passing. Rules engine `evaluate` unchanged.
 
-### Round 13: patient dies mid-pathway (21 Oct 2026, ~04:55-05:10 IST)
+### Round 13: patient dies mid-pathway (21 Oct 2026, ~04:42-04:48 IST)
 - **Failure modes.** (1) A death could only be set at registration, so after a death registry or family notification
   reminders and phone tasks continued. (2) Any case could be closed with reason `deceased` although the patient was not
   recorded as deceased: a mis-click silently ended a living patient's follow-up, while other programmes kept messaging.
@@ -475,7 +475,7 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
   as `deceased` are listed for re-opening - nothing restarts silently. UI action added. Sign-off registry: 19 actions.
   Full suite 3,108 tests, all passing.
 
-### Round 14: appointment dates (21 Oct 2026, ~04:50-05:00 IST)
+### Round 14: appointment dates (21 Oct 2026, ~04:48-04:51 IST)
 - **Failure mode.** Any future appointment was accepted: a year typo (2027 for 2026), or a slot weeks after an urgent
   pathway target, went through silently; the breach only surfaced when the target alert fired weeks later.
 - **Fix.** Bookings more than 365 days ahead are refused ("check the date"). A booking after the pathway target needs
