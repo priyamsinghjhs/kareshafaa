@@ -89,3 +89,53 @@ Issues found and fixed while building:
   AUC 0.639 **blocked by the "beats current" gate** (correct behaviour, visible on the governance page).
 * **Self-assessment:** R1 5 · R2 5 · R3 4 · R4 5 · R5 5 · R6 4 | J1 5 · J2 5 · J3 5 · J4 5 · J5 4 · J6 3.
   Next: efficiency at 10k+ cases (indexes, N+1, pagination, KPI cache, background sweep, load test).
+
+## Iteration 4 – efficiency at 10k+ cases (20 Oct 2026, ~23:40 IST – 21 Oct ~00:00 IST)
+Load-test DB: 10,000 synthetic patients → 10,005 cases (1,509 open), 80k step tasks, 160k audit events
+(`/workspace/fhdic/loadtest/`, seeded in 267 s). Tool: `scripts/loadtest.py` (httpx async, 10 concurrent clients,
+100–200 requests per endpoint; every request is audited exactly as in production).
+
+* **Profiling first** (`scripts/profile_hotpaths.py`, in-process): GP queue had an N+1 (org scope per case, ~4 queries per
+  open case); KPIs/fairness recomputed on every request; sweep loaded steps per case. Under HTTP load the service
+  timings did not explain the latencies → `py-spy dump` showed request threads blocked in SQLite and the GIL, and the
+  request-audit middleware did synchronous DB writes **on the event loop**.
+* **Changes**
+  - 11 composite indexes (`models.py`; `init_db` now also creates indexes missing from existing DBs, serialised with a
+    file lock so several workers can start together).
+  - Queue rewritten as one column query (case + patient + owner + in-progress step) plus 4 set-based scope queries;
+    server-side pagination (`limit`/`offset`, default 50) and search (`q` = MRN, name or `#case-id`); UI pager.
+  - KPI/fairness cache keyed on a data fingerprint, 60 s TTL, single-flight recompute and bounded staleness (≤ 10 s
+    under constant writes).
+  - SLA sweep bulk-loads steps and owners and skips cases already at the required level (fast path).
+  - **Background SLA job** in the app lifespan (`WASL_SWEEP_INTERVAL_SECONDS`, default 300, 0 = off); runs in a worker
+    thread; with several uvicorn workers a non-blocking `flock` elects exactly one sweeper. 10k DB: 1,705 open
+    clocks checked in 35–76 ms.
+  - Request audit + ingest endpoints moved off the event loop (`asyncio.to_thread` / `run_in_threadpool`).
+  - `make run` / Docker use 4 uvicorn workers (`WORKERS`, `WEB_WORKERS`).
+* **Bug found (serious, now fixed):** after the baseline load test the audit hash chain was **broken**
+  (`verify_chain → valid=False, broken_at_id=161555`): concurrent writers read the same chain head and forked the
+  chain. Fix: hash computed at flush time under a writer lock (thread lock + `flock` across worker processes on SQLite,
+  `pg_advisory_xact_lock` on PostgreSQL), released on commit/rollback/close. New tests: 60 concurrent requests →
+  chain valid; the load test now ends with a chain check (**valid=True, 163,948 events**, after 200 concurrent ingest
+  writes across 4 processes).
+* **Results (10 concurrent clients, 10k DB)** – p50 / p95 in ms
+
+  | Endpoint | Baseline (iter 3, 1 worker) | Optimised, 1 worker | Optimised, 4 workers |
+  |---|---|---|---|
+  | `GET /api/queue` coordinator, page of 50 | 4,297 / 4,527 | 1,387 / 1,501 | **29 / 448** |
+  | `GET /api/queue?view=overdue` | 4,217 / 4,480 | 1,347 / 1,426 | **26 / 434** |
+  | `GET /api/queue` GP (org-scoped) | 14,553 / 15,109 | 1,829 / 1,922 | **32 / 599** |
+  | `GET /api/cases/{id}` | 153 / 200 | 155 / 195 | **51 / 88** |
+  | `GET /api/cases/{id}/fhir` | 110 / 181 | 124 / 245 | **43 / 79** |
+  | `GET /api/analytics/kpis` | 32,770 / 33,795 | 47 / 58 | **3.5 / 29** |
+  | `GET /api/me/case` (patient) | 52 / 63 | 52 / 66 | **20 / 39** |
+  | `POST /api/ingest/hl7v2` (write) | – | – | **77 / 182** |
+
+  Sequential single request: queue 23–28 ms. Remaining tail: the queue still materialises all open cases to order them
+  by SLA status (RAG is computed from the working-day calendar in Python); with SQLite + the GIL this gives a p95 tail
+  under concurrency. Production path: PostgreSQL + a materialised `rag_due_at` column updated by the sweep, then
+  ORDER BY/LIMIT in SQL.
+* **Tests:** +5 (concurrent audit writers, pagination/search, GP queue org scope, KPI cache invalidation, bounded
+  staleness). **103/103 passed.**
+* **Self-assessment:** R1 5 · R2 5 · R3 4 · R4 5 · R5 5 · R6 4 | J1 5 · J2 5 · J3 5 · J4 5 · J5 5 · J6 3.
+  J5 (scalability) 4→5. Next: ease-of-use polish, README.
