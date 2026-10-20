@@ -142,6 +142,8 @@ async function openForm(key, evidenceType) {
     case "decline": return form(F.note("What did the patient say? (informed decline needs a clinician conversation)", true), fd => post(`${u}/decline`, { note: fd.note }, "Decline recorded – clinician review"));
     case "patient_deceased": return form(`<p class="small" style="color:#c62828">Records the death for <b>this patient</b>: all messages and call tasks stop and every open case goes to clinical review for an authorised closure. Check the identity first.</p>` +
       F.note("Source and date of the notification (≥10 characters)", true), fd => post(`${u}/patient-deceased`, { note: fd.note }, "Death recorded – outreach stopped, open cases sent to review"), "Sign off");
+    case "patient_deceased_revoke": return form(`<p class="small">Only for a death recorded against the wrong patient. Open cases are re-reviewed; cases closed as deceased are listed for re-opening.</p>` +
+      F.note("Why the record is wrong (≥20 characters)", true), fd => post(`${u}/patient-deceased/revoke`, { note: fd.note }, "Death record corrected – cases sent to review"), "Sign off correction");
     case "reconsider": return form(F.note("Note", true), fd => post(`${u}/reconsider`, { note: fd.note }, "Resumed"));
     case "assign": return form(F.sel("owner", "New owner", opts(d.prac.filter(p => !p.is_pool && ["coordinator", "gp", "specialist", "clinical_lead"].includes(p.role)), p => p.id, p => p.name)) + `<label>Reason<input name="reason" required></label>`,
       fd => post(`${u}/assign`, { owner_id: +fd.owner, reason: fd.reason }, "Owner changed"));
