@@ -208,9 +208,12 @@ def referral_decision(case_id: int, body: sch.ReferralDecisionIn, actor: Actor =
 def appointment(case_id: int, body: sch.AppointmentIn, actor: Actor = Depends(require("appointment:write")),
                 db: Session = Depends(get_db)) -> dict:
     c = _load(db, actor, case_id)
-    start = body.start.replace(tzinfo=None) if body.start.tzinfo else body.start
+    from ..calendar_uae import as_utc_naive, local_display
+
+    start = as_utc_naive(body.start)  # an offset is CONVERTED (was dropped: +04:00 input shifted by 4 h)
     a = wf.book_appointment(db, c, actor, start, org_id=body.org_id, practitioner_id=body.practitioner_id)
-    comms.send_with_ladder(db, c, "appointment_confirmation", actor, date=start.strftime("%d %b %Y %H:%M"), max_channels=3)
+    # the patient sees UAE local time (was UTC: a 09:00 appointment was confirmed as 05:00)
+    comms.send_with_ladder(db, c, "appointment_confirmation", actor, date=local_display(start), max_channels=3)
     return _done(db, c, actor, appointment_id=a.id)
 
 

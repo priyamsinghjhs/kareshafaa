@@ -5,8 +5,32 @@ must load the official announcement each year. Used for T2/T3 SLA clocks and for
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
+from zoneinfo import ZoneInfo
+
+# All stored datetimes are naive UTC. The working calendar (weekends, holidays, clinic hours, the day boundary)
+# is defined in UAE local time (Gulf Standard Time, UTC+4, no daylight saving). Convert before applying it:
+# using the UTC date directly shifts every day boundary by 4 hours (20:00-24:00 UAE counted as the wrong day).
+LOCAL_TZ = ZoneInfo("Asia/Dubai")
+
+
+def to_local(utc_naive: datetime) -> datetime:
+    return utc_naive.replace(tzinfo=timezone.utc).astimezone(LOCAL_TZ).replace(tzinfo=None)
+
+
+def to_utc(local_naive: datetime) -> datetime:
+    return local_naive.replace(tzinfo=LOCAL_TZ).astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def as_utc_naive(dt: datetime) -> datetime:
+    """Normalise any incoming datetime: aware -> converted to UTC; naive -> taken as UTC (API contract)."""
+    return dt.astimezone(timezone.utc).replace(tzinfo=None) if dt.tzinfo is not None else dt
+
+
+def local_display(utc_naive: datetime) -> str:
+    """Patient-facing date/time in UAE local time, numeric (language-neutral) dd/mm/yyyy HH:MM."""
+    return to_local(utc_naive).strftime("%d/%m/%Y %H:%M")
 
 
 def _span(y: int, m: int, d: int, n: int) -> list[date]:
@@ -48,8 +72,14 @@ def holiday_name(d: date) -> str | None:
     return PUBLIC_HOLIDAYS.get(d)
 
 
+def add_working_hours_utc(start_utc: datetime, hours: float) -> datetime:
+    """add_working_hours for a naive-UTC start, applying the calendar in UAE local time; returns naive UTC."""
+    return to_utc(add_working_hours(to_local(start_utc), hours))
+
+
 def add_working_hours(start: datetime, hours: float) -> datetime:
-    """Advance `hours` of clock time counting only working days (1 working day = 24 h of working calendar)."""
+    """Advance `hours` of clock time counting only working days (1 working day = 24 h of working calendar).
+    `start` is LOCAL wall-clock time; use add_working_hours_utc for stored (UTC) datetimes."""
     t, remaining = start, timedelta(hours=hours)
     for _ in range(2000):  # bounded loop
         if remaining <= timedelta(0):

@@ -71,6 +71,9 @@ SYSTEM_ALLOWED = {S.TRIAGED, S.PATIENT_NOTIFIED, S.ACKNOWLEDGED}
 PATIENT_ALLOWED = {S.ACKNOWLEDGED, S.DECLINED_REVIEW}
 
 
+ATTENDANCE_EARLY_HOURS = 4  # attendance may be recorded up to 4 h before the booked start (early arrival)
+
+
 def _claim(case: Case) -> None:
     """Mark the case row as changed so the UPDATE carries the row-version check (models.Case.row_version).
 
@@ -757,6 +760,14 @@ def record_attendance(db: Session, case: Case, actor: Actor, attended: bool, *, 
         raise DomainError("no booked appointment")
     if barrier_code is not None and barrier_code not in NO_SHOW_BARRIERS:
         raise Invalid(f"barrier_code must be one of {NO_SHOW_BARRIERS}")
+    # clock sanity: a no-show cannot be recorded before the appointment time, nor attendance more than
+    # ATTENDANCE_EARLY_HOURS before it (wrong case selected, or a skewed client/server clock)
+    if not attended and now < appt.start:
+        raise Invalid("a no-show cannot be recorded before the appointment time "
+                      f"({appt.start.isoformat(timespec='minutes')} UTC)")
+    if attended and now < appt.start - timedelta(hours=ATTENDANCE_EARLY_HOURS):
+        raise Invalid("attendance cannot be recorded this long before the appointment time "
+                      f"({appt.start.isoformat(timespec='minutes')} UTC)")
     appt.status = "fulfilled" if attended else "noshow"
     appt.barrier_code = None if attended else (barrier_code or "unknown")
     appt.updated_at = now

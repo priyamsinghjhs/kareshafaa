@@ -97,7 +97,7 @@ def sample(actor: Actor = Depends(require("case:create")), db: Session = Depends
                                         Patient.deceased.is_(False)).order_by(func.random()).limit(1))
     if p is None:
         raise Invalid("no eligible synthetic patient")
-    ts = utcnow().strftime("%Y%m%d%H%M%S")
+    ts = utcnow().strftime("%Y%m%d%H%M%S") + "+0000"
     return "\r".join([
         f"MSH|^~\\&|LIS|CENTRAL_SCREENING_LAB|WASL|EMIRATE_SCREENING|{ts}||ORU^R01^ORU_R01|LAB-{ts}-{p.id}|P|2.5.1",
         f"PID|1||{p.mrn}^^^WASL^MR||{p.family_name.upper()}^{p.given_name.upper()}||{p.birth_year}0101|{p.gender[0].upper()}",

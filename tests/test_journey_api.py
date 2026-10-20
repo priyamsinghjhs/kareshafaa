@@ -52,7 +52,7 @@ def test_full_colorectal_loop_closes_only_with_evidence(client, as_user, new_cas
     assert _post(client, gp, f"/api/cases/{cid}/referral/decision", accept=True).status_code == 403
     r = _post(client, sp, f"/api/cases/{cid}/referral/decision", accept=True, note="accepted")
     assert r.json()["case"]["state"] == "referral_accepted"
-    start = (utcnow() + timedelta(days=5)).isoformat()
+    start = (utcnow() - timedelta(hours=1)).isoformat()  # attendance is recorded after the appointment time
     r = _post(client, co, f"/api/cases/{cid}/appointment", start=start)
     assert r.json()["case"]["state"] == "appointment_booked"
     # still cannot close: appointment booked is not evidence
@@ -169,7 +169,7 @@ def test_no_show_then_rebook(client, as_user, new_case):
     _post(client, gp, f"/api/cases/{cid}/transition", to_state="consultation")
     _post(client, gp, f"/api/cases/{cid}/referral", performer_org_id=9, summary=SUMMARY)
     _post(client, sp, f"/api/cases/{cid}/referral/decision", accept=True)
-    start = (utcnow() + timedelta(days=3)).isoformat()
+    start = (utcnow() - timedelta(hours=1)).isoformat()
     _post(client, co, f"/api/cases/{cid}/appointment", start=start)
     r = _post(client, co, f"/api/cases/{cid}/attendance", attended=False, barrier_code="transport")
     assert r.json()["case"]["state"] == "no_show"

@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .config import get_settings
-from .calendar_uae import add_working_hours
+from .calendar_uae import add_working_hours_utc
 from .models import SlaRule
 from .programmes import WORKING_DAY_TIERS
 
@@ -79,7 +79,7 @@ def due_at(start: datetime, hours: float | None, tier: str | None = None) -> dat
     if hours is None:
         return None
     if tier in WORKING_DAY_TIERS:
-        return add_working_hours(start, hours)
+        return add_working_hours_utc(start, hours)  # calendar applied in UAE local time
     return start + timedelta(hours=hours)
 
 

@@ -328,7 +328,7 @@ def resolve_match(db: Session, msg_id: int, patient_id: int, actor: Actor, now: 
 
 def ack_hl7(msg: IngestMessage | None, control_id: str, error: str | None = None) -> str:
     """Minimal HL7 v2 ACK (AA = accepted, AE = application error)."""
-    ts = utcnow().strftime("%Y%m%d%H%M%S")
+    ts = utcnow().strftime("%Y%m%d%H%M%S") + "+0000"
     code = "AE" if error or (msg and msg.status in ("needs_match_review", "needs_review")) else "AA"
     text = error or (msg.error if msg and msg.error else ("accepted" if msg else ""))
     return "\r".join([f"MSH|^~\\&|WASL|PROGRAMME|LAB|LAB|{ts}||ACK^R01|ACK{control_id}|P|2.5.1",

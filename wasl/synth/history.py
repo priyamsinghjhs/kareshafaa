@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from ..comms.content import SUPPORTED_LANGUAGES
 from ..comms.service import record_call, send_with_ladder, submit_teach_back
 from ..models import Case, Consent, Patient, User
-from ..calendar_uae import is_ramadan, is_working_day, next_working_slot
+from ..calendar_uae import is_ramadan, is_working_day, next_working_slot, to_local, to_utc
 from ..programmes import CLINICIAN_CONFIRMED_TIERS, PROGRAMMES
 from ..security import SYSTEM, Actor
 from ..services import workflow as wf
@@ -83,14 +83,14 @@ class Replayer:
     def staff(self, case: Case) -> datetime:
         """Routine staff work happens on UAE working days in clinic hours; T0/T1 use the on-call roster."""
         if case.tier not in CLINICIAN_CONFIRMED_TIERS:
-            self.t = next_working_slot(self.t, hour=self.rng.randint(8, 14))
+            self.t = to_utc(next_working_slot(to_local(self.t), hour=self.rng.randint(8, 14)))  # UAE clinic hours
             if self.t > self.now:
                 raise Stop
         return self.t
 
     def patient_delay(self) -> float:
         """Patients respond more slowly during Ramadan and public holidays (assumption)."""
-        d = self.t.date()
+        d = to_local(self.t).date()
         return 1.35 if is_ramadan(d) else 1.2 if not is_working_day(d) else 1.0
 
     def a(self, practitioner) -> Actor:
@@ -368,12 +368,12 @@ class Replayer:
         self.adv(self.ln(24 * 3 * tf))
         for visit in range(3):
             wait_days = {"critical": 2, "urgent": 6, "high": 14, "routine": 28}[case.tier] * self.rng.uniform(0.6, 1.6)
-            start = next_working_slot(self.t + timedelta(days=wait_days), hour=self.rng.randint(8, 15))
+            start = to_utc(next_working_slot(to_local(self.t + timedelta(days=wait_days)), hour=self.rng.randint(8, 15)))
             wf.book_appointment(db, case, spec_actor if visit == 0 else self.coord(case), start, now=self.t)
             self.t = start
             if self.t > self.now:
                 raise Stop
-            p_dna = 0.07 * rm * (1.6 if is_ramadan(start.date()) else 1.0) * (1 + 0.25 * sp.prior_no_shows)
+            p_dna = 0.07 * rm * (1.6 if is_ramadan(to_local(start).date()) else 1.0) * (1 + 0.25 * sp.prior_no_shows)
             if rng.random() < min(0.6, p_dna):
                 wf.record_attendance(db, case, spec_actor, False, barrier_code=self._barrier(sp, case), now=self.t)
                 self.adv(self.ln(48))
@@ -394,7 +394,7 @@ class Replayer:
 
     def _barrier(self, sp: SynthPatient, case: Case) -> str:
         r = self.rng.random()
-        if is_ramadan(self.t.date()) and r < 0.35:
+        if is_ramadan(to_local(self.t).date()) and r < 0.35:
             return "ramadan_hours"
         if sp.region == "Al Dhafra" and r < 0.5:
             return "transport"
