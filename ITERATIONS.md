@@ -90,7 +90,7 @@ Issues found and fixed while building:
 * **Self-assessment:** R1 5 · R2 5 · R3 4 · R4 5 · R5 5 · R6 4 | J1 5 · J2 5 · J3 5 · J4 5 · J5 4 · J6 3.
   Next: efficiency at 10k+ cases (indexes, N+1, pagination, KPI cache, background sweep, load test).
 
-## Iteration 4 – efficiency at 10k+ cases (20 Oct 2026, completed ~23:30 IST)
+## Iteration 4 – efficiency at 10k+ cases (20 Oct 2026, completed ~23:25 IST)
 Load-test DB: 10,000 synthetic patients → 10,005 cases (1,509 open), 80k step tasks, 160k audit events
 (`/workspace/fhdic/loadtest/`, seeded in 267 s). Tool: `scripts/loadtest.py` (httpx async, 10 concurrent clients,
 100–200 requests per endpoint; every request is audited exactly as in production).
@@ -140,7 +140,7 @@ Load-test DB: 10,000 synthetic patients → 10,005 cases (1,509 open), 80k step 
 * **Self-assessment:** R1 5 · R2 5 · R3 4 · R4 5 · R5 5 · R6 4 | J1 5 · J2 5 · J3 5 · J4 5 · J5 5 · J6 3.
   J5 (scalability) 4→5. Next: ease-of-use polish, README.
 
-## Iteration 5 – ease of use, realism bugs, fresh-install verification (20 Oct 2026, completed ~23:55 IST)
+## Iteration 5 – ease of use, realism bugs, fresh-install verification (20 Oct 2026, completed ~23:37 IST)
 * **UI smoke review (screenshots of every role page)** found:
   - **Realism bug:** Maria Santos (BI-RADS 4 → direct biopsy) was told "your mammogram needs some more pictures" –
     the BI-RADS 0 wording – because patient text was programme-level while pathways were result-specific. Fix:
