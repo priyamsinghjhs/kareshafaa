@@ -134,12 +134,12 @@ Background sweep over 1,705 open clocks: 35–76 ms.
 | KPI | Baseline (no Wasl) | With Wasl |
 |---|---|---|
 | Median days result → patient notified | 8.0 | 1.3 |
-| Median days result → care | 48.6 | 24.8 |
-| Patient understood result (teach-back) | 44.3 % | 95.1 % |
-| Care reached or resolved | 35.0 % | 82.3 % |
-| Documented closure | 20.6 % | 85.3 % |
-| FIT-positive reaching colonoscopy | 28.9 % (Abu Dhabi 2015–16 reference: 30.5 %) | 88.3 % |
-| Median days FIT+ → colonoscopy | 71.3 (reference 72) | 28.4 |
+| Median days result → care | 48.3 | 24.6 |
+| Patient understood result (teach-back) | 44.1 % | 95.0 % |
+| Care reached or resolved | 34.8 % | 82.3 % |
+| Documented closure | 20.4 % | 85.1 % |
+| FIT-positive reaching colonoscopy | 29.3 % (Abu Dhabi 2015–16 reference: 30.5 %) | 88.0 % |
+| Median days FIT+ → colonoscopy | 72.9 (reference 72) | 28.5 |
 | Review-queue results actioned | 80.2 % | 100 % |
 
 These numbers come from model assumptions (`docs/synthetic_data.md`, `docs/simulation_20k_results.json`). They are not evidence of real-world effect.

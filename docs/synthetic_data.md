@@ -64,8 +64,8 @@ baseline. KPIs from the simulator are **simulated**, not evidence of real-world 
 Since Iteration 6 the simulator draws results with the same generator and classifies them with the **same rules
 engine** (tier, pathway, confirmatory step, review). The colorectal baseline is calibrated with two extra parameters:
 `CRC_BASELINE_EXTRA_DROP = 0.30` and `CRC_BASELINE_WAIT_FACTOR = 2.6`. They were tuned against that study and are
-**assumptions**. On 20,000 people × 5 replications the simulated baseline gives 28.9 % of FIT-positive people reaching
-colonoscopy (range 26.9–30.0 %) and a median of 71.3 days (reference 30.5 % and 72 days). Note that the simulator
+**assumptions**. On 20,000 people × 5 replications the simulated baseline gives 29.3 % of FIT-positive people reaching
+colonoscopy and a median of 72.9 days (Iteration 7 rules) (reference 30.5 % and 72 days). Note that the simulator
 horizon is shorter than the study's follow-up. Full output: `docs/simulation_20k_results.json`.
 
 ## Realised values in the 20,000-person realistic cohort (seed 42)

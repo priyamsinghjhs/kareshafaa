@@ -9,7 +9,7 @@
    "kpi": "median_days_to_notification",
    "baseline": 8.0,
    "baseline_range": [
-    8.0,
+    7.9,
     8.1
    ],
    "with_system": 1.3,
@@ -23,7 +23,7 @@
    "baseline": 12.1,
    "baseline_range": [
     12.0,
-    12.2
+    12.1
    ],
    "with_system": 4.9,
    "with_system_range": [
@@ -33,23 +33,23 @@
   },
   {
    "kpi": "median_days_to_confirmation",
-   "baseline": 34.0,
+   "baseline": 33.8,
    "baseline_range": [
-    33.3,
-    34.8
+    33.4,
+    34.2
    ],
-   "with_system": 17.8,
+   "with_system": 17.7,
    "with_system_range": [
-    17.5,
-    18.0
+    17.6,
+    17.8
    ]
   },
   {
    "kpi": "median_days_to_consultation",
-   "baseline": 26.3,
+   "baseline": 26.2,
    "baseline_range": [
-    26.1,
-    26.4
+    26.0,
+    26.3
    ],
    "with_system": 12.2,
    "with_system_range": [
@@ -59,114 +59,114 @@
   },
   {
    "kpi": "median_days_to_care",
-   "baseline": 48.6,
+   "baseline": 48.3,
    "baseline_range": [
-    48.3,
-    49.0
+    47.7,
+    48.7
    ],
-   "with_system": 24.8,
+   "with_system": 24.6,
    "with_system_range": [
-    24.7,
-    24.9
+    24.4,
+    24.7
    ]
   },
   {
    "kpi": "pct_notified",
    "baseline": 82.3,
    "baseline_range": [
-    82.2,
-    82.7
+    81.9,
+    82.6
    ],
    "with_system": 98.5,
    "with_system_range": [
     98.4,
-    98.7
+    98.5
    ]
   },
   {
    "kpi": "pct_understood",
-   "baseline": 44.3,
+   "baseline": 44.1,
    "baseline_range": [
-    44.1,
-    44.7
+    43.9,
+    44.3
    ],
-   "with_system": 95.1,
+   "with_system": 95.0,
    "with_system_range": [
-    95.0,
-    95.3
+    94.8,
+    95.2
    ]
   },
   {
    "kpi": "pct_referral_completed",
-   "baseline": 87.2,
+   "baseline": 87.0,
    "baseline_range": [
-    86.6,
-    88.0
+    86.7,
+    87.5
    ],
-   "with_system": 98.1,
+   "with_system": 98.4,
    "with_system_range": [
-    97.9,
-    98.4
+    98.0,
+    98.7
    ]
   },
   {
    "kpi": "pct_appointment_attended",
-   "baseline": 72.4,
+   "baseline": 73.2,
    "baseline_range": [
-    70.7,
-    73.9
+    72.8,
+    73.7
    ],
    "with_system": 95.9,
    "with_system_range": [
-    95.6,
-    96.0
+    95.8,
+    96.3
    ]
   },
   {
    "kpi": "pct_care_reached_or_resolved",
-   "baseline": 35.0,
+   "baseline": 34.8,
    "baseline_range": [
     34.6,
-    35.4
+    35.2
    ],
    "with_system": 82.3,
    "with_system_range": [
-    82.2,
-    82.4
+    81.7,
+    82.8
    ]
   },
   {
    "kpi": "pct_documented_closure",
-   "baseline": 20.6,
+   "baseline": 20.4,
    "baseline_range": [
-    20.2,
-    21.0
+    20.3,
+    20.6
    ],
-   "with_system": 85.3,
+   "with_system": 85.1,
    "with_system_range": [
-    85.1,
-    85.7
+    84.6,
+    85.4
    ]
   },
   {
    "kpi": "pct_open_unresolved_at_horizon",
-   "baseline": 79.4,
+   "baseline": 79.6,
    "baseline_range": [
-    79.0,
-    79.8
+    79.4,
+    79.7
    ],
-   "with_system": 14.7,
+   "with_system": 14.9,
    "with_system_range": [
-    14.3,
-    14.9
+    14.6,
+    15.4
    ]
   },
   {
    "kpi": "mean_confidence_1to5",
    "baseline": 2.8,
    "baseline_range": [
-    2.78,
-    2.8
+    2.77,
+    2.79
    ],
    "with_system": 4.1,
    "with_system_range": [
@@ -176,35 +176,35 @@
   },
   {
    "kpi": "pct_fit_positive_reaching_colonoscopy",
-   "baseline": 28.9,
+   "baseline": 29.3,
    "baseline_range": [
-    26.9,
-    30.0
+    27.9,
+    30.2
    ],
-   "with_system": 88.3,
+   "with_system": 88.0,
    "with_system_range": [
-    86.3,
-    89.8
+    87.2,
+    89.0
    ]
   },
   {
    "kpi": "median_days_fit_positive_to_colonoscopy",
-   "baseline": 71.3,
+   "baseline": 72.9,
    "baseline_range": [
-    68.5,
-    73.4
+    70.5,
+    77.1
    ],
-   "with_system": 28.4,
+   "with_system": 28.5,
    "with_system_range": [
-    27.8,
-    29.0
+    28.2,
+    28.8
    ]
   },
   {
    "kpi": "pct_review_results_actioned",
    "baseline": 80.2,
    "baseline_range": [
-    79.8,
+    79.4,
     80.8
    ],
    "with_system": 100.0,
@@ -216,67 +216,67 @@
  ],
  "baseline_detail": {
   "n": 20000,
-  "median_days_to_notification": 8.0,
-  "median_days_to_acknowledgement": 12.2,
-  "median_days_to_confirmation": 34.8,
-  "median_days_to_consultation": 26.4,
-  "median_days_to_care": 49.0,
-  "pct_notified": 82.3,
-  "pct_understood": 44.1,
-  "pct_referral_completed": 86.6,
-  "pct_appointment_attended": 70.7,
-  "pct_care_reached_or_resolved": 35.0,
+  "median_days_to_notification": 8.1,
+  "median_days_to_acknowledgement": 12.0,
+  "median_days_to_confirmation": 34.1,
+  "median_days_to_consultation": 26.1,
+  "median_days_to_care": 48.5,
+  "pct_notified": 82.4,
+  "pct_understood": 44.0,
+  "pct_referral_completed": 86.7,
+  "pct_appointment_attended": 73.7,
+  "pct_care_reached_or_resolved": 34.6,
   "pct_documented_closure": 20.4,
   "pct_open_unresolved_at_horizon": 79.6,
-  "mean_confidence_1to5": 2.78,
-  "pct_fit_positive_reaching_colonoscopy": 29.0,
-  "median_days_fit_positive_to_colonoscopy": 71.8,
-  "pct_review_results_actioned": 80.4,
+  "mean_confidence_1to5": 2.79,
+  "pct_fit_positive_reaching_colonoscopy": 30.2,
+  "median_days_fit_positive_to_colonoscopy": 77.1,
+  "pct_review_results_actioned": 79.4,
   "open_reasons": {
-   "did_not_understand": 6187,
-   "care_started_closure_not_documented": 3020,
-   "never_notified_or_unreachable": 2661,
-   "treatment_not_started": 1013,
-   "uncertain_result_not_actioned": 881,
-   "confirmatory_test_not_done": 708,
-   "no_show_not_rebooked": 273,
-   "colonoscopy_not_arranged": 268,
-   "patient_declined": 267,
-   "negative_confirmation": 204,
-   "still_in_progress_at_horizon": 197,
-   "referral_rejected_not_rerouted": 126,
-   "referral_lost": 106
+   "did_not_understand": 6245,
+   "care_started_closure_not_documented": 2962,
+   "never_notified_or_unreachable": 2581,
+   "treatment_not_started": 1016,
+   "uncertain_result_not_actioned": 945,
+   "confirmatory_test_not_done": 687,
+   "colonoscopy_not_arranged": 290,
+   "patient_declined": 275,
+   "negative_confirmation": 255,
+   "still_in_progress_at_horizon": 223,
+   "no_show_not_rebooked": 221,
+   "referral_lost": 115,
+   "referral_rejected_not_rerouted": 110
   },
   "by_language": {
    "ar": {
     "n": 6476,
-    "pct_care_reached": 38.4,
-    "pct_documented_closure": 22.5
+    "pct_care_reached": 37.8,
+    "pct_documented_closure": 22.1
    },
    "en": {
     "n": 5695,
-    "pct_care_reached": 37.1,
-    "pct_documented_closure": 21.8
+    "pct_care_reached": 37.6,
+    "pct_documented_closure": 22.5
    },
    "hi": {
     "n": 2297,
-    "pct_care_reached": 38.5,
-    "pct_documented_closure": 22.2
+    "pct_care_reached": 36.0,
+    "pct_documented_closure": 20.1
    },
    "ml": {
     "n": 1878,
-    "pct_care_reached": 19.3,
-    "pct_documented_closure": 11.3
+    "pct_care_reached": 19.2,
+    "pct_documented_closure": 10.8
    },
    "tl": {
     "n": 1225,
-    "pct_care_reached": 21.8,
-    "pct_documented_closure": 13.5
+    "pct_care_reached": 22.4,
+    "pct_documented_closure": 13.4
    },
    "ur": {
     "n": 2429,
-    "pct_care_reached": 36.7,
-    "pct_documented_closure": 20.7
+    "pct_care_reached": 35.7,
+    "pct_documented_closure": 22.1
    }
   }
  },
@@ -284,62 +284,62 @@
   "n": 20000,
   "median_days_to_notification": 1.3,
   "median_days_to_acknowledgement": 4.9,
-  "median_days_to_confirmation": 17.8,
-  "median_days_to_consultation": 12.1,
-  "median_days_to_care": 24.8,
+  "median_days_to_confirmation": 17.7,
+  "median_days_to_consultation": 12.2,
+  "median_days_to_care": 24.7,
   "pct_notified": 98.5,
-  "pct_understood": 95.2,
-  "pct_referral_completed": 97.9,
-  "pct_appointment_attended": 95.6,
-  "pct_care_reached_or_resolved": 82.4,
-  "pct_documented_closure": 85.1,
-  "pct_open_unresolved_at_horizon": 14.9,
+  "pct_understood": 94.8,
+  "pct_referral_completed": 98.7,
+  "pct_appointment_attended": 96.3,
+  "pct_care_reached_or_resolved": 82.8,
+  "pct_documented_closure": 85.4,
+  "pct_open_unresolved_at_horizon": 14.6,
   "mean_confidence_1to5": 4.07,
-  "pct_fit_positive_reaching_colonoscopy": 89.8,
-  "median_days_fit_positive_to_colonoscopy": 28.1,
+  "pct_fit_positive_reaching_colonoscopy": 87.7,
+  "median_days_fit_positive_to_colonoscopy": 28.6,
   "pct_review_results_actioned": 100.0,
   "open_reasons": {
-   "treatment_not_started": 1105,
-   "did_not_understand": 674,
-   "confirmatory_test_not_done": 506,
-   "care_started_closure_not_documented": 488,
+   "treatment_not_started": 1069,
+   "did_not_understand": 755,
+   "care_started_closure_not_documented": 480,
+   "confirmatory_test_not_done": 436,
    "no_show_not_rebooked": 85,
-   "referral_rejected_not_rerouted": 57,
-   "negative_confirmation": 31,
-   "referral_lost": 19,
-   "patient_declined": 15,
-   "still_in_progress_at_horizon": 9
+   "referral_rejected_not_rerouted": 34,
+   "negative_confirmation": 32,
+   "patient_declined": 18,
+   "referral_lost": 13,
+   "still_in_progress_at_horizon": 4
   },
   "by_language": {
    "ar": {
     "n": 6476,
-    "pct_care_reached": 83.0,
-    "pct_documented_closure": 85.7
+    "pct_care_reached": 84.0,
+    "pct_documented_closure": 86.5
    },
    "en": {
     "n": 5695,
-    "pct_care_reached": 83.2,
-    "pct_documented_closure": 86.2
+    "pct_care_reached": 83.6,
+    "pct_documented_closure": 85.9
    },
    "hi": {
     "n": 2297,
-    "pct_care_reached": 82.9,
-    "pct_documented_closure": 85.7
+    "pct_care_reached": 84.0,
+    "pct_documented_closure": 86.3
    },
    "ml": {
     "n": 1878,
-    "pct_care_reached": 78.6,
-    "pct_documented_closure": 81.5
+    "pct_care_reached": 75.8,
+    "pct_documented_closure": 80.0
    },
    "tl": {
     "n": 1225,
-    "pct_care_reached": 78.0,
-    "pct_documented_closure": 80.6
+    "pct_care_reached": 80.2,
+    "pct_documented_closure": 82.7
    },
    "ur": {
     "n": 2429,
-    "pct_care_reached": 83.5,
-    "pct_documented_closure": 85.0
+    "pct_care_reached": 82.7,
+    "pct_documented_closure": 85.7
    }
   }
  },
