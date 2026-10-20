@@ -166,3 +166,24 @@ def test_kpi_cache_bounded_staleness(client, as_user, new_case):
     new_case()
     client.get("/api/analytics/kpis", headers=h)
     assert analytics._CACHE["kpis"][1] == t1  # within MIN_REFRESH_S the cached value is served
+
+
+def test_direct_pathway_wording_matches_result(client, as_user, make_patient):
+    """BI-RADS 4 goes straight to biopsy, so the patient must not be told 'more pictures' (BI-RADS 0 wording)."""
+    from wasl.comms.content import programme_text
+
+    class C:  # minimal stand-in for a Case
+        programme, needs_confirmation = "breast", False
+    t = programme_text("en", C)
+    assert "biopsy" in t["next_step"]
+    C.needs_confirmation = True
+    assert "extra breast imaging" in programme_text("en", C)["next_step"]
+    for lang in ("ar", "hi", "ur"):
+        C.needs_confirmation = False
+        assert programme_text(lang, C)["next_step"] != programme_text("en", C)["next_step"]
+
+
+def test_tagalog_patient_gets_interpreter_notice(client, as_user):
+    d = client.get("/api/me/case", headers=as_user("patient.tl")).json()
+    assert d["language"] == "en" and d["interpreter_notice"].startswith("Tagalog")
+    assert "biopsy" in d["next_step"]  # Maria Santos: BI-RADS 4 -> direct biopsy pathway

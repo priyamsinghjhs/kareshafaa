@@ -20,7 +20,7 @@ from ..services.access import has_consent
 from ..services.configstore import channel_order, template_variant
 from ..services.errors import DomainError, Forbidden, Invalid
 from ..statemachine import S
-from .content import PROGRAMME_TEXT, SUPPORTED_LANGUAGES, TEACH_BACK, TEACH_BACK_CORRECT, TEMPLATES, TIMEFRAME
+from .content import PROGRAMME_TEXT, programme_text, SUPPORTED_LANGUAGES, TEACH_BACK, TEACH_BACK_CORRECT, TEMPLATES, TIMEFRAME
 
 SIM_PREFIX = "[SIMULATED - not sent] "
 
@@ -33,7 +33,7 @@ def comm_language(patient: Patient, override: str | None = None) -> str:
 def render(category: str, lang: str, case: Case, *, variant: str = "standard", date: str | None = None) -> str:
     lang = lang if lang in TEMPLATES else "en"
     tmpl = TEMPLATES[lang][category][variant]
-    prog = PROGRAMME_TEXT[lang][case.programme]
+    prog = programme_text(lang, case)
     return tmpl.format(name=case.patient.given_name, programme=prog["name"], meaning=prog["meaning"],
                        next_step=prog["next_step"], timeframe=TIMEFRAME[lang][case.tier],
                        link=f"https://wasl.example/p/{_link_token(case)}", date=date or "")
@@ -169,7 +169,7 @@ def record_call(db: Session, case: Case, actor: Actor, outcome: str, *, note: st
 def teach_back_form(case: Case, lang: str) -> dict:
     lang = lang if lang in TEACH_BACK else "en"
     tb = TEACH_BACK[lang]
-    prog = PROGRAMME_TEXT[lang][case.programme]
+    prog = programme_text(lang, case)
     fill = {"next_step": prog["next_step"], "timeframe": TIMEFRAME[lang][case.tier]}
     qs = []
     for q in ("q1", "q2", "q3"):

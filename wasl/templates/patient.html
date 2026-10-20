@@ -21,6 +21,7 @@ async function load() {
   el.dir = d.rtl ? "rtl" : "ltr"; el.lang = lang;  // real dir/lang attributes for screen readers and shaping
   el.innerHTML = `<div class="lang-switch">${Object.entries(LANG_LABEL).map(([k, v]) => `<button class="${k === lang ? "" : "secondary outline"}" data-l="${k}" lang="${k}" aria-pressed="${k === lang}">${v}</button>`).join("")}</div>
    <p class="small muted">${W.esc(d.label)}</p>
+   ${d.interpreter_notice ? `<div class="card notice" role="note" lang="${W.esc(d.patient.preferred_language)}">🗣️ ${W.esc(d.interpreter_notice)}</div>` : ""}
    <div class="hero"><h2>${W.esc(d.patient.given_name)} – ${W.esc(u.your_result)}: ${W.esc(d.programme)}</h2>
      <p><b>${W.esc(u.urgency)}:</b> ${W.esc(d.urgency)}</p></div>
    <div class="card"><h4>${W.esc(u.what_it_means)}</h4><p>${W.esc(d.meaning)}</p>

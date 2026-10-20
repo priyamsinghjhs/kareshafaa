@@ -286,3 +286,58 @@ STATE_LABELS_I18N: dict[str, dict[str, str]] = {
            "treatment_or_surveillance_started": "دیکھ بھال کا منصوبہ شروع", "closed": "مکمل", "unreachable": "ہم آپ تک نہیں پہنچ سکے",
            "no_show": "چھوٹی ملاقات", "declined_pending_review": "آپ نے آگے نہ بڑھنے کا انتخاب کیا", "referral_rejected": "صحیح کلینک تلاش کر رہے ہیں"},
 }
+
+
+# Result-specific wording for "direct" pathways (no confirmatory step): the programme-level text above
+# describes the commonest pathway; these override it so the patient is told the step that will actually
+# happen. PROTOTYPE wording - needs clinical and professional translation review like everything above.
+DIRECT_PATHWAY_TEXT: dict[str, dict[str, dict[str, str]]] = {
+    "en": {
+        "cervical": {"meaning": "Your cervical screening test found a type of HPV (16 or 18) that is more likely to cause cell changes. This does NOT mean you have cancer, but it needs a closer look soon.",
+                     "next_step": "a closer look at the cervix (colposcopy) at a hospital clinic"},
+        "breast": {"meaning": "Your mammogram showed an area that needs a closer check. Many of these areas turn out NOT to be cancer, but a small tissue sample is the only way to be sure.",
+                   "next_step": "a breast clinic visit for a small tissue sample (biopsy)"},
+        "diabetes_hba1c": {"meaning": "Your blood sugar test (HbA1c) was very high. This needs to be seen by a doctor quickly. It can be treated well.",
+                           "next_step": "a visit with a doctor today or tomorrow"},
+    },
+    "ar": {
+        "cervical": {"meaning": "وجد فحص عنق الرحم نوعاً من فيروس الورم الحليمي (16 أو 18) أكثر احتمالاً لإحداث تغيرات في الخلايا. هذا لا يعني أنك مصابة بالسرطان، لكنه يحتاج إلى فحص دقيق قريباً.",
+                     "next_step": "فحص عنق الرحم بالمنظار المكبّر في عيادة المستشفى"},
+        "breast": {"meaning": "أظهرت صورة الثدي منطقة تحتاج إلى فحص أدق. كثير من هذه المناطق لا تكون سرطاناً، لكن أخذ عينة صغيرة من النسيج هو الطريقة الوحيدة للتأكد.",
+                   "next_step": "زيارة عيادة الثدي لأخذ عينة صغيرة من النسيج (خزعة)"},
+        "diabetes_hba1c": {"meaning": "كانت نتيجة فحص السكر التراكمي مرتفعة جداً. يجب أن يراك الطبيب بسرعة. يمكن علاج ذلك بشكل جيد.",
+                           "next_step": "زيارة الطبيب اليوم أو غداً"},
+    },
+    "hi": {
+        "cervical": {"meaning": "आपकी जांच में HPV का एक प्रकार (16 या 18) मिला है जिससे कोशिकाओं में बदलाव की संभावना ज़्यादा होती है। इसका मतलब कैंसर नहीं है, लेकिन जल्द नज़दीकी जांच ज़रूरी है।",
+                     "next_step": "अस्पताल क्लिनिक में गर्भाशय ग्रीवा की नज़दीकी जांच (कोल्पोस्कोपी)"},
+        "breast": {"meaning": "आपके मैमोग्राम में एक हिस्सा दिखा है जिसकी नज़दीकी जांच ज़रूरी है। ऐसे कई हिस्से कैंसर नहीं निकलते, लेकिन पक्का जानने का एक ही तरीका ऊतक का छोटा नमूना है।",
+                   "next_step": "ऊतक के छोटे नमूने (बायोप्सी) के लिए स्तन क्लिनिक में मुलाक़ात"},
+        "diabetes_hba1c": {"meaning": "आपकी ब्लड शुगर (HbA1c) जांच बहुत ज़्यादा आई है। डॉक्टर को जल्दी दिखाना ज़रूरी है। इसका अच्छा इलाज संभव है।",
+                           "next_step": "आज या कल डॉक्टर से मुलाक़ात"},
+    },
+    "ur": {
+        "cervical": {"meaning": "آپ کے ٹیسٹ میں HPV کی ایک قسم (16 یا 18) ملی ہے جس سے خلیوں میں تبدیلی کا امکان زیادہ ہوتا ہے۔ اس کا مطلب کینسر نہیں، لیکن جلد قریبی معائنہ ضروری ہے۔",
+                     "next_step": "ہسپتال کلینک میں سروکس کا قریبی معائنہ (کولپوسکوپی)"},
+        "breast": {"meaning": "آپ کے میموگرام میں ایک حصہ نظر آیا ہے جس کا قریبی معائنہ ضروری ہے۔ ایسے کئی حصے کینسر نہیں ہوتے، لیکن یقین کا واحد طریقہ ٹشو کا چھوٹا نمونہ ہے۔",
+                   "next_step": "ٹشو کے چھوٹے نمونے (بایوپسی) کے لیے بریسٹ کلینک کا دورہ"},
+        "diabetes_hba1c": {"meaning": "آپ کے خون میں شوگر (HbA1c) کا ٹیسٹ بہت زیادہ آیا ہے۔ ڈاکٹر کو جلد دکھانا ضروری ہے۔ اس کا اچھا علاج ممکن ہے۔",
+                           "next_step": "آج یا کل ڈاکٹر سے ملاقات"},
+    },
+}
+
+# Languages spoken in the synthetic population without reviewed content yet: patients get English plus an
+# interpreter-supported navigator call. A one-line notice in their own language says so.
+INTERPRETER_NOTICE: dict[str, str] = {
+    "tl": "Tagalog: Hindi pa available ang mensaheng ito sa Tagalog. Tatawagan ka ng aming team na may interpreter.",
+    "ml": "Malayalam: ഈ സന്ദേശം ഇപ്പോൾ മലയാളത്തിൽ ലഭ്യമല്ല. ഒരു ദ്വിഭാഷിയുടെ സഹായത്തോടെ ഞങ്ങളുടെ ടീം നിങ്ങളെ വിളിക്കും.",
+}
+
+
+def programme_text(lang: str, case) -> dict[str, str]:
+    """Patient-facing wording for this case: programme text, overridden for result-specific direct pathways."""
+    lang = lang if lang in PROGRAMME_TEXT else "en"
+    base = dict(PROGRAMME_TEXT[lang][case.programme])
+    if case.needs_confirmation is False:
+        base.update(DIRECT_PATHWAY_TEXT[lang].get(case.programme, {}))
+    return base

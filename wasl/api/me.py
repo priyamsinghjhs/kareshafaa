@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from .. import audit
 from ..comms import service as comms
-from ..comms.content import (PROGRAMME_TEXT, RTL_LANGUAGES, STATE_LABELS_I18N, SUPPORTED_LANGUAGES, TEMPLATES, TIMEFRAME,
+from ..comms.content import (INTERPRETER_NOTICE, PROGRAMME_TEXT, programme_text, RTL_LANGUAGES, STATE_LABELS_I18N, SUPPORTED_LANGUAGES, TEMPLATES, TIMEFRAME,
                              UI_TEXT)
 from ..db import get_db
 from ..models import Case, Communication, ConsultRequest, Patient, Practitioner, QuestionnaireResponse
@@ -42,7 +42,7 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
     c = _my_case(db, actor)
     p: Patient = c.patient
     lang = lang if lang in SUPPORTED_LANGUAGES else comms.comm_language(p)
-    prog = PROGRAMME_TEXT[lang][c.programme]
+    prog = programme_text(lang, c)
     coord = db.get(Practitioner, c.owner_id)
     tb = db.scalars(select(QuestionnaireResponse).where(QuestionnaireResponse.case_id == c.id)
                     .order_by(QuestionnaireResponse.id.desc())).first()
@@ -55,6 +55,7 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
         "label": "SYNTHETIC DEMO - not a real result", "case_id": c.id, "language": lang, "rtl": lang in RTL_LANGUAGES,
         "languages": SUPPORTED_LANGUAGES, "ui": UI_TEXT[lang],
         "patient": {"given_name": p.given_name, "preferred_language": p.language},
+        "interpreter_notice": INTERPRETER_NOTICE.get(p.language),
         "programme": prog["name"], "meaning": prog["meaning"], "next_step": prog["next_step"],
         "timeframe": TIMEFRAME[lang][c.tier], "urgency": URGENCY[lang][c.tier],
         "reassurance": TEMPLATES[lang]["reassurance"][variant],
