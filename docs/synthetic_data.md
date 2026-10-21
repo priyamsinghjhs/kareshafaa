@@ -106,3 +106,67 @@ that every distribution table sums to 1.
 * Audit: every case has a creation event; the hash chain verifies end to end.
 
 Result on the 20k cohort: **0 violations** (see ITERATIONS.md, Iteration 6).
+
+## Edge-case cohort (round 20): `python -m wasl.seed --edge`
+
+| | `--edge` (stratified edge cases) |
+|---|---|
+| People | 20,000 planned (+ second records for the duplicate-identity scenario) |
+| Database | `data/wasl_edge.db`; per-person plan in `data/wasl_edge_manifest.json` (seed 2020) |
+| Purpose | exercise every supported **disease × severity × scenario** combination through the real service layer, for testing, validation, alert evaluation and ML robustness checks |
+| NOT for | prevalence, KPIs or calibration claims: the mix is **stratified by design**, not epidemiological |
+| Coverage | `docs/edge_case_coverage.md` (built from the database by `scripts/edge_coverage.py`) |
+
+**Design (code: `wasl/synth/edge.py`).**
+
+* **Programme** is balanced across the four supported programmes (diabetes HbA1c/FPG, breast, cervical, colorectal
+  FIT). No new disease or pathway is added: every category below is an input the existing rules
+  (`docs/clinical_rules.md`) already handle.
+* **Severity** is drawn uniformly over the tiers the rules can produce for that programme. These are T0 critical
+  (diabetes only), T1 urgent, T2 high, T3 routine (not breast) and negative. The severity label is the **rules
+  engine's own decision** on the clean result in a neutral eligible context, never a hand-coded mapping, so a
+  category can never sit under the wrong tier.
+* **Result categories:**
+  * FIT: quantitative < 80, 80–399 and ≥ 400 µg/g, qualitative positive/negative, and spoilt/invalid kit.
+  * Cervical (ASCCP 2019 categories as implemented):
+    * HPV negative, with and without NILM;
+    * other hrHPV with reflex pending, NILM, unsatisfactory, ASC-US/LSIL or ASC-H;
+    * HPV16/18 with NILM, ASC-US, HSIL, AGC or SCC;
+    * HPV invalid, alone and with LSIL;
+    * HPV negative with LSIL/ASC-US/HSIL (discordant);
+    * cytology-only ASC-US.
+  * Breast: BI-RADS 0, 1, 2, 3, 4, 4A, 4B, 4C, 5 and 6 (ACR 5th edition).
+  * Diabetes: HbA1c normal, prediabetes, diabetes range, high and critical in **both % and mmol/mol**, plus
+    unexpectedly low HbA1c; FPG normal, prediabetes, diabetes range, high, critical and hypoglycaemic in **mg/dL and
+    mmol/L** (ADA 2026 cut-offs; local critical rule marked CONFIRM).
+* **Boundary values**: every numeric cut-off exactly at and on either side of it: FIT 79.9/80/80.1 and 399.9/400/400.1;
+  HbA1c 3.9/4.0, 5.6/5.7, 6.4/6.5, 9.9/10.0, 14.9/15.0 % and 38.0/38.7/39, 47.4/47.5/48, 85.6/85.7/86,
+  139.8/139.9/140 mmol/mol; FPG 53/54, 99/100, 125/126, 299/300, 499/500 mg/dL and 2.9/3.0, 5.5/5.6, 6.9/7.0,
+  16.6/16.7, 27.6/27.7 mmol/L.
+* **Scenarios** (28; weights in `SCENARIOS`; "baseline" ×4, boundary/no-show/reschedule/malformed HL7 ×1.5, others
+  ×1). How each is produced:
+  * *Data defects:* missing value, unknown/garbled value, unit mismatch (FIT in ng/mL; IFCC number labelled %;
+    mg/dL number labelled mmol/L), amended/corrected and preliminary→final results, duplicate re-send, conflicting
+    second result of a different tier.
+  * *Patient context:* pregnancy (women 18–45), youngest/oldest eligible ages and one year outside the range,
+    very old adults (85–95, diabetes and breast which have no upper age), haemoglobin variant, already under the
+    specialist team, deceased before the result.
+  * *Pathway events:* death recorded mid-pathway (`record_death`, then authorised closure), care-coordination
+    consent withdrawn mid-pathway (patient), re-opened closed case (clinical lead), first-appointment no-show,
+    repeated reschedules (two no-shows then attendance), out-of-area move (two-key transfer, or moved abroad).
+  * *Language:* all four supported content languages (en, ar, hi, ur) and two that need an interpreter (ml, tl).
+    The interpreter-need scenario uses ml/tl only.
+  * *Calendar:* results issued in Ramadan 2026 or just before Eid al-Fitr, Eid al-Adha and National Day
+    (`calendar_uae.py`).
+  * *HL7:* stale specimens (collected 181–700 days earlier) and future-dated specimens (2–30 days ahead, or a
+    one-year typo), sent as HL7 ORU with OBR-7/OBX-14. Malformed HL7 is sent in eight variants: bad delimiters, not
+    HL7, unknown LOINC, missing PID, two PIDs, DOB mismatch, BOM + MLLP framing, and SN comparator. Rejected or held
+    messages are re-sent by the lab or resolved by a coordinator, so no result is lost.
+  * *Identity and multiple results:* duplicate identity (a second MRN with the same Emirates ID); multi-morbidity
+    (one or two further positive screens in other eligible programmes for the same person).
+* **Forced outcomes.** The no-show, reschedule and re-open scenarios force engagement (reached, teach-back
+  passed, referral, confirmatory test positive) **after** the random draw (`Replayer.force`). This means the
+  demo/realistic cohorts' random streams are unchanged; their seeds reproduce exactly as before.
+* **Assumptions (A):** all weights, the 181–700-day stale window, the 2–30-day future window, the 85 % / 60 % / 70 %
+  shares for closing after death, recording a decline after withdrawal, and transfer vs moving abroad, and the
+  4 h–20 day point at which mid-pathway events happen.

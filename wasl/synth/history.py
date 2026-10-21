@@ -69,6 +69,16 @@ class Replayer:
         self.db, self.rng, self.d, self.now, self.enriched = db, rng, d, now, enriched
         self.stats: dict[str, int] = {}
         self.ua = {pid: actor_from_user(u) for pid, u in users_by_pid.items()}
+        self.horizon: datetime | None = None  # edge cohort: stop a journey mid-pathway (default: now)
+
+    def force(self, key: str, default, **kw):
+        """Edge-cohort hook: override a simulated outcome AFTER the random draw (so the random stream of the demo and
+        realistic cohorts is unchanged). The base replayer never overrides."""
+        return default
+
+    @property
+    def lim(self) -> datetime:
+        return min(self.now, self.horizon) if self.horizon else self.now
 
     # helpers --------------------------------------------------------------
     def ln(self, median_h: float, spread: float = 0.6) -> float:
@@ -76,7 +86,7 @@ class Replayer:
 
     def adv(self, hours: float) -> datetime:
         self.t += timedelta(hours=hours)
-        if self.t > self.now:
+        if self.t > self.lim:
             raise Stop
         return self.t
 
@@ -84,7 +94,7 @@ class Replayer:
         """Routine staff work happens on UAE working days in clinic hours; T0/T1 use the on-call roster."""
         if case.tier not in CLINICIAN_CONFIRMED_TIERS:
             self.t = to_utc(next_working_slot(to_local(self.t), hour=self.rng.randint(8, 14)))  # UAE clinic hours
-            if self.t > self.now:
+            if self.t > self.lim:
                 raise Stop
         return self.t
 
@@ -226,7 +236,7 @@ class Replayer:
         calls = 0
         while S(case.state) == S.TRIAGED:
             self.adv(self.ln(20 * tf + 6))
-            reached = sp.phone_valid and rng.random() < 0.35 + 0.5 * sp.responsiveness
+            reached = self.force("reach", sp.phone_valid and rng.random() < 0.35 + 0.5 * sp.responsiveness)
             record_call(db, case, self.coord(case), "reached" if reached else ("no_answer" if sp.phone_valid else "wrong_number"),
                         now=self.t)
             calls += 1
@@ -243,14 +253,14 @@ class Replayer:
                     return
         # patient response: teach-back, decline or silence
         self.adv(self.ln(30 * rm * self.patient_delay()))
-        if rng.random() < min(0.5, 0.06 * rm ** 1.5):  # never responds in-app
+        if self.force("silent", rng.random() < min(0.5, 0.06 * rm ** 1.5)):  # never responds in-app
             if rng.random() < 0.5:
                 return  # stays in patient_notified -> overdue -> escalations
             self.adv(self.ln(72))
             record_call(db, case, self.coord(case), "reached", now=self.t)
             submit_teach_back(db, case, self.coord(case), {"q1": "a", "q2": "b", "q3": "a"}, confidence=3,
                               language="en", now=self.t)
-        elif rng.random() < 0.03 * rm:
+        elif self.force("decline", rng.random() < 0.03 * rm):
             wf.record_decline(db, case, patient_actor(patient), "Patient prefers not to have further tests now.", now=self.t)
             self.adv(self.ln(72))
             if rng.random() < 0.8:
@@ -260,7 +270,7 @@ class Replayer:
         else:
             lang = sp.language if sp.language in SUPPORTED_LANGUAGES else "en"
             fail_p = TB_FAIL.get(sp.language, 0.42) * (0.7 + 0.6 * (1 - sp.responsiveness))
-            passed = rng.random() >= fail_p
+            passed = self.force("tb_pass", rng.random() >= fail_p)
             ans = {"q1": "a", "q2": "b", "q3": "a"} if passed else rng.choice(
                 [{"q1": "b", "q2": "b", "q3": "a"}, {"q1": "a", "q2": "a", "q3": "a"}, {"q1": "a", "q2": "b", "q3": "c"}])
             submit_teach_back(db, case, patient_actor(patient), ans, confidence=rng.choice([4, 5] if passed else [2, 3]),
@@ -281,10 +291,11 @@ class Replayer:
             self.staff(case)
             wf.order_confirmatory(db, case, gp, self.d["lab"].id, now=self.t)
             self.adv(self.ln(24 * 7 * tf * math.sqrt(rm)))
-            if rng.random() < 0.05 * rm:
+            if self.force("confirm_dna", rng.random() < 0.05 * rm):
                 return  # did not attend confirmatory test -> open
             self.staff(case)
-            pos = rng.random() < CONFIRM_POSITIVE.get(case.pathway or "", CONFIRM_POSITIVE.get(case.programme, 0.5))
+            pos = self.force("confirm_pos", rng.random() < CONFIRM_POSITIVE.get(case.pathway or "",
+                                                                                CONFIRM_POSITIVE.get(case.programme, 0.5)))
             wf.record_confirmatory_result(db, case, gp, "positive" if pos else "negative", now=self.t)
             if not pos:
                 self.adv(self.ln(48))
@@ -312,7 +323,8 @@ class Replayer:
             if rng.random() < 0.92:
                 wf.close_case(db, case, gp, "evidence", evidence_type="care_plan", note="Care plan active.", now=self.t)
             return
-        if case.programme == "diabetes_hba1c" and not (case.tier in ("critical", "high") and rng.random() < 0.5):
+        if case.programme == "diabetes_hba1c" and not self.force("refer_dm", case.tier in ("critical", "high")
+                                                                 and rng.random() < 0.5):
             self.adv(self.ln(24 * 5 * tf))
             self.staff(case)
             wf.start_care(db, case, gp, "treatment", "GP visit: diabetes confirmed; education, lifestyle plan, metformin review, "
@@ -372,13 +384,13 @@ class Replayer:
             wf.book_appointment(db, case, spec_actor if visit == 0 else self.coord(case), start, now=self.t,
                                 beyond_target_reason="earliest available slot (specialist capacity)")
             self.t = start
-            if self.t > self.now:
+            if self.t > self.lim:
                 raise Stop
             p_dna = 0.07 * rm * (1.6 if is_ramadan(to_local(start).date()) else 1.0) * (1 + 0.25 * sp.prior_no_shows)
-            if rng.random() < min(0.6, p_dna):
+            if self.force("dna", rng.random() < min(0.6, p_dna), visit=visit):
                 wf.record_attendance(db, case, spec_actor, False, barrier_code=self._barrier(sp, case), now=self.t)
                 self.adv(self.ln(48))
-                if rng.random() > 0.75:
+                if self.force("norebook", rng.random() > 0.75):
                     return  # no-show not rebooked
                 continue
             wf.record_attendance(db, case, spec_actor, True, now=self.t)

@@ -109,6 +109,49 @@ def seed(n_patients: int | None = None, seed_value: int | None = None, *, train:
     return stats
 
 
+def seed_edge(n_patients: int = 20000, seed_value: int = 2020, *, verbose: bool = True,
+              manifest_path: str | None = None) -> dict:
+    """EDGE-CASE cohort (round 20, docs/edge_case_coverage.md): stratified over programme x severity x scenario,
+    replayed through the real service layer. No model is trained or promoted here."""
+    import json  # noqa: PLC0415
+
+    from .synth.edge import EdgeReplayer, edge_t0, plan_cohort  # noqa: PLC0415
+
+    t_start = time.time()
+    init_db(drop=True)
+    rng = random.Random(seed_value)
+    now = utcnow()
+    with session_scope() as db:
+        seed_sla_rules(db)
+        set_config(db, "channel_order:default", DEFAULT_CHANNEL_ORDER, "default")
+        d = build_directory(db)
+        users = build_users(db, d)
+        users_by_pid = {u.practitioner_id: u for u in users if u.practitioner_id}
+        _demo_content_signoffs(db, d, users_by_pid)
+        audit.record(db, SEED_ACTOR, "C", "seed.started", detail={"n_patients": n_patients, "seed": seed_value,
+                                                                 "synthetic": True, "cohort": "edge"})
+        rep = EdgeReplayer(db, rng, d, users_by_pid, now)
+        for i, (sp, plan) in enumerate(plan_cohort(n_patients, seed_value)):
+            t0 = edge_t0(rng, plan.scenario, now)
+            p = add_patient(db, sp, d, rng, now, age_at=t0)
+            rep.run_edge(p, sp, plan, t0)
+            if i % 200 == 199:
+                db.commit()
+                if verbose:
+                    print(f"  edge cohort {i + 1}/{n_patients} ({time.time() - t_start:.0f}s)", flush=True)
+        db.commit()
+        sweep = run_sweep(db, now=now)
+        audit.record(db, SEED_ACTOR, "C", "seed.finished", detail={"seconds": round(time.time() - t_start, 1)})
+        stats = {"sweep": sweep, "replay": rep.stats, "failures": rep.failures, "cases": db.query(Case).count(),
+                 "open": db.query(Case).filter(Case.state != S.CLOSED).count(),
+                 "patients": db.query(Patient).count()}
+    if manifest_path:
+        with open(manifest_path, "w") as f:
+            json.dump({"seed": seed_value, "n": n_patients, "now": now.isoformat(), "records": rep.manifest}, f)
+    stats["seconds"] = round(time.time() - t_start, 1)
+    return stats
+
+
 DEMO_PATIENTS = [  # named demo stories (synthetic people), aligned with the design-doc demo script
     # lang, nationality, given, family, gender, age, programme, region, value, value_text, smartphone
     ("ar", "Emirati", "Fatima", "Al Kaabi", "female", 52, "colorectal_fit", "Al Ain", 260.0, None, True),
@@ -210,7 +253,15 @@ def main() -> None:
     ap.add_argument("--no-train", action="store_true")
     ap.add_argument("--realistic", action="store_true", help="population-calibrated mix incl. negatives and defects")
     ap.add_argument("--no-sim", action="store_true", help="skip the discrete-event simulation")
+    ap.add_argument("--edge", action="store_true", help="stratified edge-case cohort (no training)")
+    ap.add_argument("--manifest", default=None, help="edge cohort: write the per-patient scenario manifest here")
     args = ap.parse_args()
+    if args.edge:
+        import json as _j
+
+        print(_j.dumps(seed_edge(args.patients or 20000, args.seed or 2020, manifest_path=args.manifest), indent=2,
+                       default=str))
+        return
     stats = seed(args.patients, args.seed, train=not args.no_train, realistic=args.realistic, simulate=not args.no_sim)
     import json
 
