@@ -11,7 +11,7 @@ import argparse
 import json
 import sys
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 from collections import defaultdict
 from pathlib import Path
 
@@ -159,7 +159,7 @@ def run(max_examples: int = 5) -> dict:
                 elif c.care_reached_at is None:
                     for s_ in running:
                         if s_.due_at is not None and s_.due_at > max(c.target_due_at, s_.started_at):
-                            bad("sla.step_clock_within_pathway_target", "sla.post_care_step_not_instantly_overdue", (c.id, s_.id))
+                            bad("sla.step_clock_within_pathway_target", (c.id, s_.id))
                 if c.due_at is None and c.state not in (S.DECLINED_REVIEW,):
                     pass  # some states have no SLA by design
             else:
@@ -306,6 +306,53 @@ def run(max_examples: int = 5) -> dict:
         for k, n in by.items():
             if n > 1:
                 bad("content.signoffs_by_different_people", k)
+        # --- round 20 (edge cohort) invariants -----------------------------------------------------------
+        from wasl.models import Consent as _Cs, IngestMessage as _IM
+
+        reopen_at: dict[int, datetime] = {}
+        for e in db.scalars(select(AuditEvent).where(AuditEvent.event == "case.transition")):
+            if (e.detail or {}).get("from") == "closed" and e.case_id:
+                reopen_at[e.case_id] = max(reopen_at.get(e.case_id, e.ts), e.ts)
+        for cid, ts in reopen_at.items():
+            c = cases_by_id.get(cid)
+            checked["reopened"] = checked.get("reopened", 0) + 1
+            if c is not None and c.state != S.CLOSED and c.target_due_at is not None and c.target_due_at <= ts:
+                bad("reopen.fresh_pathway_target", cid)
+        withdrawn: dict[int, datetime] = {}
+        for cs in db.scalars(select(_Cs).where(_Cs.scope == "care_coordination", _Cs.decision == "deny")):
+            withdrawn[cs.patient_id] = min(withdrawn.get(cs.patient_id, cs.recorded_at), cs.recorded_at)
+        auto_comm = defaultdict(list)
+        for e in db.scalars(select(AuditEvent).where(AuditEvent.event.like("communication.%"),
+                                                     AuditEvent.actor_user_id.is_(None),
+                                                     AuditEvent.actor_role != "patient")):
+            if e.case_id:
+                auto_comm[e.case_id].append(e.ts)
+        for c in cases:
+            w = withdrawn.get(c.patient_id)
+            if w is None:
+                continue
+            checked["consent_withdrawn_cases"] = checked.get("consent_withdrawn_cases", 0) + 1
+            if (c.closed_at is None or c.closed_at > w) and c.created_at <= w \
+                    and "consent_withdrawn" not in (c.review_reasons or []):
+                bad("consent.withdrawal_sends_open_cases_to_review", c.id)
+            if any(t > w for t in auto_comm.get(c.id, [])):
+                bad("consent.no_automated_contact_after_withdrawal", c.id)
+        for c in cases:
+            d_at = died_at.get(c.patient_id)
+            if d_at is not None and c.created_at <= d_at and (c.closed_at is None or c.closed_at > d_at) \
+                    and "deceased" not in (c.review_reasons or []):
+                bad("death.open_cases_reviewed_when_recorded", c.id)
+        for m in db.scalars(select(_IM)):
+            checked["ingest_messages"] = checked.get("ingest_messages", 0) + 1
+            if m.status not in ("processed", "needs_review", "needs_match_review", "resolved", "rejected"):
+                bad("ingest.status_valid", (m.id, m.status))
+            if m.status in ("processed", "resolved") and m.report_id is None:
+                bad("ingest.processed_message_has_report", m.id)
+            timing = {"stale_result", "collection_date_in_future"} & set(m.flags or [])
+            if timing and m.case_id is not None:
+                c = cases_by_id.get(m.case_id)
+                if c is not None and not timing <= set(c.review_reasons or []):
+                    bad("ingest.specimen_timing_flag_reaches_case", m.id)
         checked["audit_events"] = 0
         chain = audit.verify_chain(db)
         checked["audit_events"] = chain.get("checked", 0)
@@ -337,6 +384,9 @@ INVARIANTS = [
     "content.no_unapproved_translation_sent", "content.signoffs_by_different_people", "audit.hash_chain_valid",
     "identity.one_open_case_per_emirates_id_programme", "dates.attendance_not_before_appointment",
     "comms.reminders_inside_patient_window", "closure.deceased_reason_requires_deceased_patient",
+    "reopen.fresh_pathway_target", "consent.withdrawal_sends_open_cases_to_review",
+    "consent.no_automated_contact_after_withdrawal", "death.open_cases_reviewed_when_recorded", "ingest.status_valid",
+    "ingest.processed_message_has_report", "ingest.specimen_timing_flag_reaches_case",
     "comms.sent_message_single_language",
 ]
 
