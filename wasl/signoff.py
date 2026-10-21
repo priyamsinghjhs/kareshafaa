@@ -61,6 +61,13 @@ HIGH_IMPACT: dict[str, HighImpact] = {
                                           "review; recording it against the wrong patient would silently stop their care."),
     "patient.deceased.revoke": HighImpact(("case:reopen",), 20, "wasl.services.workflow:revoke_death",
                                           "Corrects a death recorded in error (wrong patient): outreach may resume."),
+    "consent.record": HighImpact(("consent:write",), 10, "wasl.services.workflow:record_consent",
+                                 "Records a patient's consent decision ON THEIR BEHALF: a withdrawal stops automated "
+                                 "outreach in every programme (or a channel) and sends open cases to review; a permit "
+                                 "resumes it or allows external sharing. The patient's own app decision is not affected."),
+    "case.decline.record": HighImpact(("consent:write",), 10, "wasl.services.workflow:record_decline",
+                                      "Records ON THE PATIENT'S BEHALF that they declined further care: the pathway "
+                                      "stops and the case goes to declined review."),
     "content.signoff": HighImpact(("content:approve", "content:translation_review"), 5,
                                   "wasl.comms.governance:approve", "Makes patient-facing wording (or a translation) live."),
 }

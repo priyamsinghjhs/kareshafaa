@@ -40,7 +40,7 @@ Requires Python 3.11+ (tested on 3.13) and `make`. Everything is free and open s
 make setup          # venv + dependencies (~1 min)
 make seed           # 2,000 synthetic patients, 6 months of history, train + register models (~55 s)
 make run            # http://localhost:8000  (python -m wasl.serve: 4 SO_REUSEPORT worker processes; WORKERS=1 for one)
-make test           # 3,146 pytest tests (~60 s; the 20k cohort test is skipped until `make seed-large`)
+make test           # 3,161 pytest tests (~60 s; the 20k cohort test is skipped until `make seed-large`)
 ```
 
 Clinical-safety targets (Iteration 6):
@@ -195,12 +195,12 @@ deployment would need formal assessment.
   true breaches; the legacy policy scored 77.8 % / 89.8 %.
 * `ml_calibration.md`: discrimination, ECE, slope, CITL and reliability bins with Wilson CIs, plus the fairness gates.
 * `patient_messages.md`: reading-level and tone checks, and the translator plus clinician sign-off for ar/hi/ur.
-* `human_signoff.md`: 19 high-impact actions that need a named human, the permission and a rationale.
+* `human_signoff.md`: 21 high-impact actions that need a named human, the permission and a rationale.
 * `differential_results.md`: 10M results checked against the independent reference implementation.
 * `fault_injection_results.md`: the deliberately injected faults and which tests caught them.
 * `clinical_safety_case.md`: hazards H-01 to H-30.
 
 ## Repository map
 
-`wasl/` app · `tests/` pytest (3,146) · `wasl_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
+`wasl/` app · `tests/` pytest (3,161) · `wasl_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
 `scripts/ui_smoke.py` (optional Playwright) · `ITERATIONS.md` build log with self-assessments · `Makefile` · `Dockerfile` · `.env.example`

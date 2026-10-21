@@ -14,6 +14,7 @@ from .. import audit
 from ..config import get_settings
 from ..models import (
     Appointment,
+    AuditEvent,
     CallTask,
     CarePlan,
     Case,
@@ -132,6 +133,32 @@ def _latest(db: Session, model, case_id: int, **filters):
     q = select(model).where(model.case_id == case_id)
     for k, v in filters.items():
         q = q.where(getattr(model, k) == v)
+    return db.scalar(q.order_by(model.id.desc()).limit(1))
+
+
+# When each kind of evidence was recorded (round 19): evidence recorded before the case's last re-open belongs to the
+# CLOSED episode and must not start care, mark attendance or close the re-opened case.
+_EVIDENCE_TIME = {CarePlan: "created_at", Appointment: "updated_at", ServiceRequest: "decided_at"}
+
+
+def episode_start(db: Session, case: Case) -> datetime | None:
+    """Time of the case's last re-open (closed -> triaged), or None if it was never re-opened."""
+    for ts, detail in db.execute(select(AuditEvent.ts, AuditEvent.detail).where(
+            AuditEvent.case_id == case.id, AuditEvent.event == "case.transition").order_by(AuditEvent.id.desc())):
+        if isinstance(detail, dict) and detail.get("from") == S.CLOSED.value:
+            return ts
+    return None
+
+
+def _latest_this_episode(db: Session, model, case: Case, **filters):
+    """Like _latest, but ignores evidence recorded before the last re-open (a stale care plan, a fulfilled
+    appointment or a negative confirmatory result of the closed episode)."""
+    q = select(model).where(model.case_id == case.id)
+    for k, v in filters.items():
+        q = q.where(getattr(model, k) == v)
+    since = episode_start(db, case)
+    if since is not None:
+        q = q.where(getattr(model, _EVIDENCE_TIME[model]) >= since)
     return db.scalar(q.order_by(model.id.desc()).limit(1))
 
 
@@ -405,11 +432,14 @@ def _guard(db: Session, case: Case, dst: S) -> None:
     elif dst == S.APPOINTMENT_BOOKED:
         need(bool(_latest(db, Appointment, case.id, status="booked")), "appointment_booked requires a booked appointment")
     elif dst == S.APPOINTMENT_ATTENDED:
-        need(bool(_latest(db, Appointment, case.id, status="fulfilled")), "appointment_attended requires a fulfilled appointment")
+        need(bool(_latest_this_episode(db, Appointment, case, status="fulfilled")),
+             "appointment_attended requires a fulfilled appointment (recorded since the last re-open)")
     elif dst == S.NO_SHOW:
-        need(bool(_latest(db, Appointment, case.id, status="noshow")), "no_show requires an appointment marked no-show")
+        need(bool(_latest_this_episode(db, Appointment, case, status="noshow")),
+             "no_show requires an appointment marked no-show (since the last re-open)")
     elif dst == S.TREATMENT_STARTED:
-        need(bool(_latest(db, CarePlan, case.id, status="active")), "treatment/surveillance requires a recorded care plan")
+        need(bool(_latest_this_episode(db, CarePlan, case, status="active")),
+             "treatment/surveillance requires a care plan recorded since the last re-open (careplan.start sign-off)")
     elif dst == S.UNREACHABLE:
         failed_calls = db.scalar(select(func.count()).select_from(CallTask).where(
             CallTask.case_id == case.id, CallTask.status == "completed", CallTask.outcome != "reached"))
@@ -551,9 +581,13 @@ def _verify_evidence(db: Session, case: Case, evidence_type: str, evidence_id: i
         raise TransitionError("unknown evidence type")
     if evidence_id is not None:
         q = q.where(model.id == evidence_id)
+    since = episode_start(db, case)
+    if since is not None:  # evidence of the closed episode cannot close the re-opened case (round 19)
+        q = q.where(getattr(model, _EVIDENCE_TIME[model]) >= since)
     row = db.scalar(q.order_by(model.id.desc()).limit(1))
     if row is None:
-        raise TransitionError(f"no valid '{evidence_type}' evidence is linked to this case")
+        raise TransitionError(f"no valid '{evidence_type}' evidence is linked to this case"
+                              + (" since it was re-opened" if since is not None else ""))
     return row.id
 
 
@@ -818,7 +852,8 @@ def start_care(db: Session, case: Case, actor: Actor, kind: str, description: st
         raise Invalid("kind must be treatment or surveillance")
     st = S(case.state)
     if st == S.CONFIRMATORY_TEST:
-        if kind != "surveillance" or not _latest(db, ServiceRequest, case.id, kind="confirmatory_test", result="negative"):
+        if kind != "surveillance" or not _latest_this_episode(db, ServiceRequest, case, kind="confirmatory_test",
+                                                               result="negative"):
             raise TransitionError("from a confirmatory test only a surveillance plan after a negative result may start")
     elif st not in (S.APPOINTMENT_ATTENDED, S.CONSULTATION):
         raise TransitionError("care can start after an attended appointment or a primary-care consultation")
@@ -837,10 +872,11 @@ def start_care(db: Session, case: Case, actor: Actor, kind: str, description: st
 def record_decline(db: Session, case: Case, actor: Actor, note: str, now: datetime | None = None) -> Consent:
     _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
-    if actor.role == "patient" and actor.patient_id != case.patient_id:
-        raise Forbidden("not your case")
-    if actor.role != "patient" and not actor.can("consent:write"):
-        raise Forbidden("role lacks consent:write")
+    if actor.role == "patient":
+        if actor.patient_id != case.patient_id:
+            raise Forbidden("not your case")
+    else:  # recorded ON BEHALF of the patient: a named person, with what the patient said (round 19)
+        require_signoff(actor, "case.decline.record", note)
     if S(case.state) not in (S.PATIENT_NOTIFIED, S.ACKNOWLEDGED, S.CONFIRMATORY_TEST, S.CONSULTATION, S.NO_SHOW):
         raise TransitionError(f"decline cannot be recorded in state {case.state}")
     c = Consent(patient_id=case.patient_id, case_id=case.id, scope="care_followup", decision="deny",
@@ -925,8 +961,8 @@ def record_consent(db: Session, patient: Patient, actor: Actor, scope: str, deci
     if actor.role == "patient":
         if actor.patient_id != patient.id:
             raise Forbidden("not your record")
-    elif not actor.can("consent:write"):
-        raise Forbidden("role lacks consent:write")
+    else:  # recorded ON BEHALF of the patient: a named person, with how the patient expressed it (round 19)
+        require_signoff(actor, "consent.record", note)
     if decision not in ("permit", "deny"):
         raise Invalid("decision must be permit or deny")
     allowed = {"care_coordination", "share_external", "comm_app", "comm_sms", "comm_whatsapp", "comm_phone",

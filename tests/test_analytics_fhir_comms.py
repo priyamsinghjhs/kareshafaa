@@ -85,7 +85,8 @@ def test_channel_ladder_respects_consent(client, as_user, new_case, db):
     c = new_case(phone_valid=True, whatsapp=True, smartphone=False)
     cid = c["id"]
     co = as_user("aisha.rahman")
-    client.post(f"/api/cases/{cid}/consent", headers=co, json={"scope": "comm_sms", "decision": "deny"})
+    client.post(f"/api/cases/{cid}/consent", headers=co, json={"scope": "comm_sms", "decision": "deny",
+                                                                "note": "Patient asked by phone: no SMS please"})
     r = client.post(f"/api/cases/{cid}/notify", headers=co, json={"category": "result_notification"}).json()
     att = r["result"]["attempts"]
     sms = [a for a in att if a["channel"] == "sms"]

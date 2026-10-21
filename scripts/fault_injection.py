@@ -100,6 +100,16 @@ FAULTS = [
      "ML governance: a gate-failing candidate (status tampered to awaiting approval) can be promoted"),
     ("F54", REG, '"passed": not f["underserved_tpr"], "gap": f["tpr_gap"]}', '"passed": True, "gap": f["tpr_gap"]}',
      "ML fairness: the recall gate never fails (a credibly under-flagged language group passes)"),
+    ("F55", WF, '        require_signoff(actor, "consent.record", note)', "        pass",
+     "Sign-off: staff/bot consent decision on the patient's behalf without a named person or rationale"),
+    ("F56", WF, '        require_signoff(actor, "case.decline.record", note)', "        pass",
+     "Sign-off: staff/bot decline on the patient's behalf without a named person or rationale"),
+    ("F57", WF, "        q = q.where(getattr(model, _EVIDENCE_TIME[model]) >= since)\n    return db.scalar",
+     "        pass\n    return db.scalar",
+     "Re-open: care plan / appointment / negative result of the closed episode counts again (pathway guards)"),
+    ("F58", WF, "        q = q.where(getattr(model, _EVIDENCE_TIME[model]) >= since)\n    row = db.scalar",
+     "        pass\n    row = db.scalar",
+     "Re-open: closure evidence of the closed episode closes the re-opened case"),
 ]
 
 TESTS = ["tests/test_clinical_golden.py", "tests/test_failsafe.py", "tests/test_properties.py",
@@ -107,7 +117,7 @@ TESTS = ["tests/test_clinical_golden.py", "tests/test_failsafe.py", "tests/test_
          "tests/test_ingest_adversarial.py", "tests/test_concurrency.py", "tests/test_time_handling.py",
          "tests/test_duplicate_identity.py", "tests/test_consent_withdrawal.py", "tests/test_deceased.py",
          "tests/test_journey_api.py", "tests/test_patient_messages.py", "tests/test_ml_fairness_language.py",
-         "tests/test_ml_governance.py"]
+         "tests/test_ml_governance.py", "tests/test_signoff_round19.py", "tests/test_human_signoff.py"]
 
 
 def run_tests() -> tuple[bool, str]:

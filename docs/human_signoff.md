@@ -32,6 +32,8 @@ Automated actors may only ingest results, auto-triage non-urgent cases, send pat
 | `content.signoff` | content:approve or content:translation_review | 5 | `wasl.comms.governance:approve` | Makes patient-facing wording (or a translation) live. |
 | `patient.deceased.record` | closure:authorise | 10 | `wasl.services.workflow:record_death` | Stops all patient messaging and outreach; every open case goes to clinical review (wrong patient = care silently stopped). |
 | `patient.deceased.revoke` | case:reopen | 20 | `wasl.services.workflow:revoke_death` | Corrects a death recorded in error; open cases re-reviewed, cases closed as deceased listed for re-opening. |
+| `consent.record` | consent:write | 10 | `wasl.services.workflow:record_consent` | Staff record a consent decision on the patient's behalf: a withdrawal stops automated outreach in every programme (or one channel) and sends open cases to review; a permit resumes it or allows external sharing. The patient's own app decision is unaffected (round 19). |
+| `case.decline.record` | consent:write | 10 | `wasl.services.workflow:record_decline` | Staff record on the patient's behalf that they declined further care: the pathway stops and goes to declined review (round 19). |
 
 Additional two-person rules already in place: a model's trainer cannot approve it (`model:train` vs
 `model:approve` roles); transfers are two-key (the current owner stays accountable until the receiver accepts);
@@ -48,3 +50,30 @@ through the guard. Declining a transfer now needs a reason.
 Tests: `tests/test_human_signoff.py` (static check that every registered function calls the guard with its
 action name; guard behaviour for bots, missing permission and short rationale for all 19 actions; service
 functions refuse automated actors before any state change; API re-open needs permission and a reason).
+
+## Gaps closed in round 19
+
+An audit of every write endpoint against the registry found two kinds of high-impact path without explicit
+sign-off:
+
+* **Decisions recorded on the patient's behalf.** `record_consent` and `record_decline`, when called by staff,
+  checked only `consent:write`. An automated job holding a coordinator role could withdraw a patient's
+  care-coordination consent, which stops automated outreach in every programme, or record a decline, which stops the
+  pathway. Neither needed a rationale. Both are now registered (`consent.record`, `case.decline.record`): a named
+  person, `consent:write`, and a written rationale of at least 10 characters (how the patient gave the decision).
+  A patient's own decision in the app is unchanged.
+* **Evidence of a closed episode re-used after a re-open.** A re-opened case could reach
+  `treatment_or_surveillance_started` through a generic transition on the *old* care plan, without the
+  `careplan.start` sign-off. It could also be closed on the old care plan, the old fulfilled appointment or the old
+  negative confirmatory result before the new result arrived. Care-plan, attendance, no-show and closure evidence,
+  and the negative result that allows a surveillance plan, now count only if they were recorded since the last
+  re-open (`workflow.episode_start`).
+
+Endpoints reviewed and judged adequately covered: attendance, appointment booking, reconsider and the other generic
+transitions (automated actors are limited to triage, notification and acknowledgement; all other targets need
+the per-state permission and their evidence guard). Consult requests and replies, lessons, notification sends and
+call records change no pathway state on their own. Model training and proposal generation create only candidates;
+promotion and adoption are signed off. The SLA sweep and simulation run are operational. Ingest is automated by
+design, with the fail-safe review.
+
+Tests: `tests/test_signoff_round19.py`.
