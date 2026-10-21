@@ -290,6 +290,16 @@ def run(max_examples: int = 5) -> dict:
         for cm in db.query(_Cm).filter(_Cm.language.in_(["ar", "hi", "ur"])):
             if any(lang == cm.language and frag in (cm.content or "") for lang, frag in drafts):
                 bad("content.no_unapproved_translation_sent", cm.id)
+        # Round 16: a patient message is in ONE language (no English wording spliced into an ar/hi/ur template;
+        # untranslated result wording is sent wholly in English plus an interpreter call)
+        import re as _re
+        _latin = _re.compile(r"[A-Za-z]+[,.]?\s+[A-Za-z]+[,.]?\s+[A-Za-z]+")
+        _native = _re.compile(r"[\u0600-\u06FF\u0900-\u097F]")
+        for cm in db.query(_Cm).filter(_Cm.status != "not-done", _Cm.template_key != "call_script"):
+            checked["patient_messages"] = checked.get("patient_messages", 0) + 1
+            txt = _re.sub(r"https://\S+", "", (cm.content or "").replace("[SIMULATED - not sent] ", ""))
+            if (cm.language in ("ar", "hi", "ur") and _latin.search(txt)) or (cm.language == "en" and _native.search(txt)):
+                bad("comms.sent_message_single_language", cm.id)
         by = _C()
         for a in db.query(_CA):
             by[(a.content_id, a.sha256, a.user_id)] += 1
@@ -327,6 +337,7 @@ INVARIANTS = [
     "content.no_unapproved_translation_sent", "content.signoffs_by_different_people", "audit.hash_chain_valid",
     "identity.one_open_case_per_emirates_id_programme", "dates.attendance_not_before_appointment",
     "comms.reminders_inside_patient_window", "closure.deceased_reason_requires_deceased_patient",
+    "comms.sent_message_single_language",
 ]
 
 

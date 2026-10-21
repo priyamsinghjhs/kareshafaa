@@ -30,13 +30,30 @@ def comm_language(patient: Patient, override: str | None = None) -> str:
     return lang if lang in SUPPORTED_LANGUAGES else "en"
 
 
-def render(category: str, lang: str, case: Case, *, variant: str = "standard", date: str | None = None) -> str:
+def render_message(category: str, lang: str, case: Case, *, variant: str = "standard",
+                   date: str | None = None) -> tuple[str, str, bool]:
+    """Render one patient message in ONE language. Returns (body, language actually used, interpreter_needed).
+
+    If the result-specific wording for this patient's language has no signed-off translation, programme_text falls
+    back to the signed-off English (or neutral English) wording. Splicing that into the patient's-language template
+    produced a half-Arabic/Hindi/Urdu, half-English message (Round 16). The whole message is then sent in English
+    and the caller arranges an interpreter-supported navigator call - never an unreviewed translation."""
     lang = lang if lang in TEMPLATES else "en"
-    tmpl = TEMPLATES[lang][category][variant]
     prog = programme_text(lang, case)
-    return tmpl.format(name=case.patient.given_name, programme=prog["name"], meaning=prog["meaning"],
+    interpreter = False
+    uses_result_wording = any(f"{{{k}}}" in TEMPLATES[lang][category][variant] for k in ("meaning", "next_step"))
+    if lang != "en" and prog.get("translation_pending") and uses_result_wording:
+        lang, interpreter = "en", True
+        prog = programme_text("en", case)
+    tmpl = TEMPLATES[lang][category][variant]
+    body = tmpl.format(name=case.patient.given_name, programme=prog["name"], meaning=prog["meaning"],
                        next_step=prog["next_step"], timeframe=TIMEFRAME[lang][case.tier],
                        link=f"https://wasl.example/p/{_link_token(case)}", date=date or "")
+    return body, lang, interpreter
+
+
+def render(category: str, lang: str, case: Case, *, variant: str = "standard", date: str | None = None) -> str:
+    return render_message(category, lang, case, variant=variant, date=date)[0]
 
 
 def _link_token(case: Case) -> str:
@@ -80,9 +97,12 @@ def send_with_ladder(db: Session, case: Case, category: str, actor: Actor = SYST
     if not actor.is_human and consent_status(db, p.id, "care_coordination") == "deny":
         # automated outreach stops when the patient withdraws; a clinician decides (case flagged consent_withdrawn)
         raise DomainError("patient withdrew consent for care coordination: automated messaging is stopped")
-    lang = comm_language(p)
-    variant = template_variant(db, category, lang)
-    body = render(category, lang, case, variant=variant, date=date)
+    requested_lang = comm_language(p)
+    variant = template_variant(db, category, requested_lang)
+    body, lang, interpreter = render_message(category, requested_lang, case, variant=variant, date=date)
+    if lang != requested_lang:
+        variant = template_variant(db, category, lang)
+        body = render_message(category, lang, case, variant=variant, date=date)[0]
     attempts: list[dict] = []
     delivered = None
     order = channel_order(db, p.language)
@@ -114,10 +134,16 @@ def send_with_ladder(db: Session, case: Case, category: str, actor: Actor = SYST
         if ok:
             delivered = ch
             break
+    interpreter_task = None
+    if interpreter and category == "result_notification" and consent_status(db, p.id, "comm_phone") != "deny":
+        # the explanation is not yet signed off in the patient's language: a navigator calls with an interpreter
+        # (what the patient portal promises); one open call task per case, so repeat sends do not duplicate it
+        interpreter_task = _ensure_call_task(db, case, actor, now, reason="interpreter")
     db.flush()
     audit.record(db, actor, "C", f"communication.{category}", entity_type="Communication", case_id=case.id, ts=now,
                  detail={"attempts": attempts, "delivered": delivered, "language": lang, "variant": variant,
-                         "simulated": True})
+                         "simulated": True, "requested_language": requested_lang,
+                         "interpreter_call_task_id": interpreter_task.id if interpreter_task else None})
     if category == "result_notification" and delivered and S(case.state) in (S.TRIAGED, S.UNREACHABLE) \
             and (actor.is_human or not case.review_required):
         from ..services.workflow import transition
@@ -126,10 +152,12 @@ def send_with_ladder(db: Session, case: Case, category: str, actor: Actor = SYST
         # may not progress a flagged case; this used to fail the whole send with 403)
         transition(db, case, S.PATIENT_NOTIFIED, actor if actor.is_human else SYSTEM, now=now,
                    note=f"delivery confirmed via {delivered} (simulated)")
-    return {"delivered_channel": delivered, "attempts": attempts, "language": lang, "variant": variant}
+    return {"delivered_channel": delivered, "attempts": attempts, "language": lang, "variant": variant,
+            "requested_language": requested_lang,
+            "interpreter_call_task_id": interpreter_task.id if interpreter_task else None}
 
 
-def _ensure_call_task(db: Session, case: Case, actor: Actor, now: datetime) -> CallTask:
+def _ensure_call_task(db: Session, case: Case, actor: Actor, now: datetime, *, reason: str = "digital_channels_failed") -> CallTask:
     open_task = db.scalar(select(CallTask).where(CallTask.case_id == case.id, CallTask.status == "requested"))
     if open_task:
         return open_task
@@ -138,7 +166,8 @@ def _ensure_call_task(db: Session, case: Case, actor: Actor, now: datetime) -> C
     t = CallTask(case_id=case.id, owner_id=programme_coordinator(db, case.programme).id, created_at=now)
     db.add(t)
     db.flush()
-    audit.record(db, actor, "C", "calltask.created", entity_type="Task", entity_id=f"call-{t.id}", case_id=case.id, ts=now)
+    audit.record(db, actor, "C", "calltask.created", entity_type="Task", entity_id=f"call-{t.id}", case_id=case.id, ts=now,
+                 detail={"reason": reason})
     return t
 
 

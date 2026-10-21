@@ -56,6 +56,28 @@ unreviewed translation.
 * Data validator invariants 47-48: no unapproved translation was ever sent; no wording has two sign-offs by the
   same person.
 
+## Round 16: the message as actually sent (21 Oct 2026)
+
+The checks above measure each template with neutral placeholder samples (`meaning` is empty). Rendering every
+template x programme x pathway x tier x sign-off state as the patient receives it (138,240 messages) found:
+
+* **Mixed-language messages.** While a pathway text has no signed-off translation, the English wording was spliced
+  into the Arabic/Hindi/Urdu template ("مرحباً Yousef. ... Your blood sugar test was a little higher than normal ...
+  خطوتك التالية: <English next step>"). The patient portal promised "a navigator will call you with an
+  interpreter", but no call task was created. In the existing synthetic data: 637 (demo), 3,177 (10k) and
+  2,197 (20k) sent messages were mixed.
+  **Fix:** if the result wording is not signed off in the patient's language, the WHOLE message is sent in the
+  signed-off English wording (`Communication.language = en`, audit `requested_language`) and an
+  interpreter-supported navigator call task is created (audit `calltask.created` reason `interpreter`; one open task
+  per case; a `comm_phone` deny is honoured). Messages that do not carry result wording (no-show, decline,
+  reassurance) stay in the patient's language.
+* **Reminders too long once the next step is inserted.** "your next step is a camera test of the bowel (colonoscopy)
+  at a hospital clinic, today" gave FK grade > 8 (en) and sentences > 30 words (hi/ur). Reminder templates in all
+  four languages now split the next step and the timeframe ("Your next step: ... When: ..."), reusing phrases of the
+  existing simplified variants. The non-English template edits are drafts and need translator sign-off like the rest.
+* Now: all 138,240 rendered messages are in one language and pass the reading-level and tone checks (the secure link
+  is measured as one token, "the link"). New validator invariant 53 `comms.sent_message_single_language`.
+
 ## Limits
 
 * FK / reading ease use a heuristic syllable counter, and the proxies for Arabic, Hindi and Urdu are coarse

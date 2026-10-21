@@ -95,9 +95,9 @@ def my_consult(body: sch.ConsultIn, actor: Actor = Depends(require("self:respond
 def my_decline(body: sch.NoteIn, actor: Actor = Depends(require("self:respond")), db: Session = Depends(get_db)) -> dict:
     c = _my_case(db, actor)
     wf.record_decline(db, c, actor, body.note)
-    lang = comms.comm_language(c.patient)
+    body_text, lang, _ = comms.render_message("decline_ack", comms.comm_language(c.patient), c)
     db.add(Communication(case_id=c.id, patient_id=c.patient_id, category="decline_ack", channel="app", language=lang,
-                         template_key="decline_ack", content=comms.SIM_PREFIX + comms.render("decline_ack", lang, c),
+                         template_key="decline_ack", content=comms.SIM_PREFIX + body_text,
                          status="completed", simulated=True))
     db.commit()
     return {"ok": True, "state": c.state}

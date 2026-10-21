@@ -100,8 +100,8 @@ TEMPLATES: dict[str, dict[str, dict[str, str]]] = {
             "standard": "Hello {name}. This is your screening programme about your {programme} result. {meaning} Your next step: {next_step}, {timeframe}. We will help you arrange it. Please open your secure link to read more and confirm you understand: {link}",
             "simplified": "Hello {name}. Your {programme} result needs a check. {meaning} Next: {next_step}. When: {timeframe}. We will help you. Open: {link}"},
         "reminder": {
-            "standard": "Hello {name}, a reminder from your screening team: your next step is {next_step}, {timeframe}. Open {link} or ask to talk to us.",
-            "simplified": "Hello {name}. Reminder: {next_step}, {timeframe}. Open {link}."},
+            "standard": "Hello {name}, this is a reminder from your screening team. Your next step: {next_step}. When: {timeframe}. Open {link} or ask to talk to us.",
+            "simplified": "Hello {name}. This is a reminder. Your next step is {next_step}. When: {timeframe}. Open {link}."},
         "reassurance": {
             "standard": "You are not alone. A named care coordinator is looking after your follow-up and will guide you at every step. Most people who need a follow-up test do not have a serious illness. You can ask to talk to a clinician at any time.",
             "simplified": "You are not alone. We will guide you at every step. Most follow-up tests do not find a serious illness. You can talk to a clinician any time."},
@@ -120,8 +120,8 @@ TEMPLATES: dict[str, dict[str, dict[str, str]]] = {
             "standard": "مرحباً {name}. هذه رسالة من برنامج الفحص بخصوص نتيجة {programme}. {meaning} خطوتك التالية: {next_step}، {timeframe}. سنساعدك في ترتيب ذلك. يرجى فتح الرابط الآمن لقراءة المزيد وتأكيد فهمك: {link}",
             "simplified": "مرحباً {name}. نتيجة {programme} تحتاج إلى فحص. {meaning} الخطوة التالية: {next_step}. متى: {timeframe}. سنساعدك. افتح: {link}"},
         "reminder": {
-            "standard": "مرحباً {name}، تذكير من فريق الفحص: خطوتك التالية هي {next_step}، {timeframe}. افتح {link} أو اطلب التحدث معنا.",
-            "simplified": "مرحباً {name}. تذكير: {next_step}، {timeframe}. افتح {link}."},
+            "standard": "مرحباً {name}، تذكير من فريق الفحص. الخطوة التالية: {next_step}. متى: {timeframe}. افتح {link} أو اطلب التحدث معنا.",
+            "simplified": "مرحباً {name}. تذكير: {next_step}. متى: {timeframe}. افتح {link}."},
         "reassurance": {
             "standard": "لست وحدك. منسق رعاية محدد يتابع حالتك وسيرشدك في كل خطوة. معظم الأشخاص الذين يحتاجون إلى فحص متابعة لا يكون لديهم مرض خطير. يمكنك طلب التحدث مع طبيب في أي وقت.",
             "simplified": "لست وحدك. سنرشدك في كل خطوة. معظم فحوصات المتابعة لا تجد مرضاً خطيراً. يمكنك التحدث مع طبيب في أي وقت."},
@@ -140,8 +140,8 @@ TEMPLATES: dict[str, dict[str, dict[str, str]]] = {
             "standard": "नमस्ते {name}। यह आपके {programme} के नतीजे के बारे में आपके स्क्रीनिंग कार्यक्रम का संदेश है। {meaning} आपका अगला कदम: {next_step}, {timeframe}। हम इसकी व्यवस्था में आपकी मदद करेंगे। ज़्यादा जानने और यह पुष्टि करने के लिए कि आप समझ गए हैं, कृपया अपना सुरक्षित लिंक खोलें: {link}",
             "simplified": "नमस्ते {name}। आपके {programme} के नतीजे की आगे जांच ज़रूरी है। {meaning} अगला कदम: {next_step}। कब: {timeframe}। हम मदद करेंगे। खोलें: {link}"},
         "reminder": {
-            "standard": "नमस्ते {name}, आपकी स्क्रीनिंग टीम की ओर से याद दिलाना: आपका अगला कदम {next_step} है, {timeframe}। {link} खोलें या हमसे बात करने के लिए कहें।",
-            "simplified": "नमस्ते {name}। याद दिलाना: {next_step}, {timeframe}। {link} खोलें।"},
+            "standard": "नमस्ते {name}, आपकी स्क्रीनिंग टीम की ओर से याद दिलाना। अगला कदम: {next_step}। कब: {timeframe}। {link} खोलें या हमसे बात करने के लिए कहें।",
+            "simplified": "नमस्ते {name}। याद दिलाना: {next_step}। कब: {timeframe}। {link} खोलें।"},
         "reassurance": {
             "standard": "आप अकेले नहीं हैं। एक नामित केयर कोऑर्डिनेटर आपकी देखभाल पर नज़र रख रहे हैं और हर कदम पर आपका मार्गदर्शन करेंगे। आगे की जांच वाले ज़्यादातर लोगों को कोई गंभीर बीमारी नहीं होती। आप कभी भी डॉक्टर से बात करने के लिए कह सकते हैं।",
             "simplified": "आप अकेले नहीं हैं। हम हर कदम पर आपके साथ हैं। ज़्यादातर जांचों में गंभीर बीमारी नहीं मिलती। आप कभी भी डॉक्टर से बात कर सकते हैं।"},
@@ -160,8 +160,8 @@ TEMPLATES: dict[str, dict[str, dict[str, str]]] = {
             "standard": "السلام علیکم {name}۔ یہ آپ کے {programme} کے نتیجے کے بارے میں آپ کے اسکریننگ پروگرام کا پیغام ہے۔ {meaning} آپ کا اگلا قدم: {next_step}، {timeframe}۔ ہم اس کے انتظام میں آپ کی مدد کریں گے۔ مزید پڑھنے اور سمجھنے کی تصدیق کے لیے اپنا محفوظ لنک کھولیں: {link}",
             "simplified": "السلام علیکم {name}۔ آپ کے {programme} کے نتیجے کا مزید معائنہ ضروری ہے۔ {meaning} اگلا قدم: {next_step}۔ کب: {timeframe}۔ ہم مدد کریں گے۔ کھولیں: {link}"},
         "reminder": {
-            "standard": "السلام علیکم {name}، آپ کی اسکریننگ ٹیم کی طرف سے یاد دہانی: آپ کا اگلا قدم {next_step} ہے، {timeframe}۔ {link} کھولیں یا ہم سے بات کرنے کو کہیں۔",
-            "simplified": "السلام علیکم {name}۔ یاد دہانی: {next_step}، {timeframe}۔ {link} کھولیں۔"},
+            "standard": "السلام علیکم {name}، آپ کی اسکریننگ ٹیم کی طرف سے یاد دہانی۔ اگلا قدم: {next_step}۔ کب: {timeframe}۔ {link} کھولیں یا ہم سے بات کرنے کو کہیں۔",
+            "simplified": "السلام علیکم {name}۔ یاد دہانی: {next_step}۔ کب: {timeframe}۔ {link} کھولیں۔"},
         "reassurance": {
             "standard": "آپ اکیلے نہیں ہیں۔ ایک نامزد کیئر کوآرڈینیٹر آپ کی دیکھ بھال پر نظر رکھے ہوئے ہیں اور ہر قدم پر آپ کی رہنمائی کریں گے۔ مزید ٹیسٹ والے زیادہ تر لوگوں کو کوئی سنگین بیماری نہیں ہوتی۔ آپ کسی بھی وقت ڈاکٹر سے بات کرنے کو کہہ سکتے ہیں۔",
             "simplified": "آپ اکیلے نہیں ہیں۔ ہم ہر قدم پر آپ کے ساتھ ہیں۔ زیادہ تر ٹیسٹوں میں سنگین بیماری نہیں ملتی۔ آپ کسی بھی وقت ڈاکٹر سے بات کر سکتے ہیں۔"},

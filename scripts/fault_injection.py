@@ -90,13 +90,17 @@ FAULTS = [
      "Booking: appointment after the pathway target accepted without a reason"),
     ("F50", IN, '        mag = ("birads", -(int(m.group(1)) * 10 + " abc".index((m.group(2) or " ").lower())))', "        pass",
      "HL7: bilateral BI-RADS 4 + 5 headlined as BI-RADS 4"),
+    ("F51", CM, '    if lang != "en" and prog.get("translation_pending") and uses_result_wording:', "    if False:",
+     "Messages: untranslated result wording spliced into the patient's-language template (mixed language)"),
+    ("F52", CM, '        interpreter_task = _ensure_call_task(db, case, actor, now, reason="interpreter")', "        pass",
+     "Messages: no interpreter call when the result wording is not translated"),
 ]
 
 TESTS = ["tests/test_clinical_golden.py", "tests/test_failsafe.py", "tests/test_properties.py",
          "tests/test_statemachine_exhaustive.py", "tests/test_statemachine.py", "tests/test_workflow.py",
          "tests/test_ingest_adversarial.py", "tests/test_concurrency.py", "tests/test_time_handling.py",
          "tests/test_duplicate_identity.py", "tests/test_consent_withdrawal.py", "tests/test_deceased.py",
-         "tests/test_journey_api.py"]
+         "tests/test_journey_api.py", "tests/test_patient_messages.py"]
 
 
 def run_tests() -> tuple[bool, str]:

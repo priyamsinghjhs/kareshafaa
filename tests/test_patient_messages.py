@@ -184,3 +184,95 @@ def test_content_api_permissions(client, as_user):
     r = client.post("/api/governance/content/signoff", headers=as_user("translator"),
                     json={"content_id": "pathway:repeat_fit:ar", "kind": "bogus", "note": "x"})
     assert r.status_code == 422
+
+
+# ---------------------------------------------------------------- Round 16: the message as actually sent
+_LATIN_RUN = re.compile(r"[A-Za-z]+[,.]?\s+[A-Za-z]+[,.]?\s+[A-Za-z]+")  # 3+ consecutive Latin words = English prose
+_NON_LATIN = re.compile(r"[\u0600-\u06FF\u0900-\u097F]")
+
+
+def _sent_text(body: str) -> str:
+    # the secure link is one token a patient taps, not prose: measured as "the link" (as in the template check)
+    return re.sub(r"https://\S+", "the link", body)
+
+
+@pytest.mark.parametrize("lang", ["en", *LANGS])
+def test_every_rendered_message_is_one_language_and_passes_checks(lang, monkeypatch):
+    """Render every template x programme x pathway x tier x sign-off state as the patient receives it (the template
+    check above measures placeholders only). Before Round 16 an Arabic/Hindi/Urdu patient whose result wording had
+    no signed-off translation got the English wording spliced into a native-language template (mixed-language
+    message), and the inserted next step pushed reminders past the sentence-length limit."""
+    from types import SimpleNamespace as NS
+
+    from wasl.comms.service import render_message
+    bad, n = [], 0
+    for live_state in ("none", "en", "all"):
+        for pw in [None, *C.PATHWAY_TEXT_EN]:
+            live = set()
+            if pw and live_state in ("en", "all"):
+                live.add(f"pathway:{pw}:en")
+            if pw and live_state == "all":
+                live.add(f"pathway:{pw}:{lang}")
+            monkeypatch.setattr(G, "live_content", lambda case, live=live: live)
+            for prog in C.PROGRAMME_TEXT["en"]:
+                for tier in ("critical", "urgent", "high", "routine"):
+                    for nc, rid in ((True, None), (False, None), (False, "CX-HPV1618"), (False, "BR-4A"),
+                                    (False, "DM-CRIT"), (False, "X")):
+                        case = NS(id=7, programme=prog, pathway=pw, tier=tier, needs_confirmation=nc, rule_id=rid,
+                                  patient=NS(given_name="Sara", mrn="M7"))
+                        for cat, vs in C.TEMPLATES[lang].items():
+                            for v in vs:
+                                body, sent_lang, interp = render_message(cat, lang, case, variant=v, date="01/11/2026 09:00")
+                                n += 1
+                                txt = _sent_text(body)
+                                if sent_lang != "en" and _LATIN_RUN.search(txt):
+                                    bad.append(("mixed language", lang, cat, v, pw, live_state, body))
+                                if sent_lang == "en" and _NON_LATIN.search(txt):
+                                    bad.append(("mixed language", lang, cat, v, pw, live_state, body))
+                                if interp and (lang == "en" or sent_lang != "en"):
+                                    bad.append(("interpreter flag", lang, cat, v, pw, live_state, body))
+                                r = measure(txt, sent_lang, simplified=v == "simplified",
+                                            result_message=cat == "result_notification")
+                                if not r.ok:
+                                    bad.append((r.problems, lang, cat, v, pw, live_state, body))
+    assert n > 5000
+    assert not bad, bad[:5]
+
+
+def test_pending_translation_sends_english_and_books_interpreter_call(db, new_case):
+    """Integration: an Arabic-speaking patient whose result wording is signed off in English only receives ONE
+    coherent English message (Communication.language = en) plus an interpreter-supported navigator call task."""
+    from sqlalchemy import select
+
+    from wasl.comms import service as comms
+    from wasl.models import AuditEvent, CallTask, Case, Communication
+    from wasl.security import SYSTEM
+    c = db.get(Case, new_case(programme="diabetes_hba1c", value=6.0, language="ar", smartphone=True)["id"])
+    assert c.pathway == "prediabetes_gp" and not c.review_required
+    live = G.live_ids(db)
+    assert "pathway:prediabetes_gp:en" in live and "pathway:prediabetes_gp:ar" not in live
+    res = comms.send_with_ladder(db, c, "result_notification", SYSTEM)
+    assert res["language"] == "en" and res["requested_language"] == "ar"
+    sent = db.scalars(select(Communication).where(Communication.case_id == c.id,
+                                                  Communication.status.in_(("completed", "failed")))).all()
+    assert sent and all(m.language == "en" and not _NON_LATIN.search(m.content) for m in sent)
+    assert C.PATHWAY_TEXT_EN["prediabetes_gp"]["meaning"] in sent[0].content
+    task = db.get(CallTask, res["interpreter_call_task_id"])
+    assert task is not None and task.status == "requested"
+    ev = db.scalars(select(AuditEvent).where(AuditEvent.case_id == c.id, AuditEvent.event == "calltask.created")).first()
+    assert ev is not None and ev.detail == {"reason": "interpreter"}
+    # a repeat send does not create a second call task
+    assert comms.send_with_ladder(db, c, "reminder", SYSTEM)["interpreter_call_task_id"] is None
+    assert comms.send_with_ladder(db, c, "result_notification", SYSTEM)["interpreter_call_task_id"] == task.id
+    assert len(db.scalars(select(CallTask).where(CallTask.case_id == c.id)).all()) == 1
+    db.rollback()
+
+
+def test_english_speaker_gets_no_interpreter_task(db, new_case):
+    from wasl.comms import service as comms
+    from wasl.models import Case
+    from wasl.security import SYSTEM
+    c = db.get(Case, new_case(programme="diabetes_hba1c", value=6.0, language="en", smartphone=True)["id"])
+    res = comms.send_with_ladder(db, c, "result_notification", SYSTEM)
+    assert res["language"] == "en" and res["interpreter_call_task_id"] is None
+    db.rollback()
