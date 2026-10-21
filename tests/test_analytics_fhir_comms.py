@@ -187,3 +187,24 @@ def test_tagalog_patient_gets_interpreter_notice(client, as_user):
     d = client.get("/api/me/case", headers=as_user("patient.tl")).json()
     assert d["language"] == "en" and d["interpreter_notice"].startswith("Tagalog")
     assert "biopsy" in d["next_step"]  # Maria Santos: BI-RADS 4 -> direct biopsy pathway
+
+
+FHIR_COMM_STATUS = {"preparation", "in-progress", "not-done", "on-hold", "stopped", "completed", "entered-in-error",
+                    "unknown"}
+
+
+@pytest.mark.parametrize("status", ["completed", "failed", "not-done", "pending", "on-hold", "stopped"])
+def test_fhir_export_handles_every_communication_status(db, new_case, status):
+    """Round 17: a case holding a queued night-time reminder (on-hold, round 10) or a dispatched/cancelled
+    placeholder (stopped) could not be exported: KeyError -> HTTP 500 (found by the 10k load test)."""
+    from wasl.fhir import export_case
+    from wasl.models import Case, Communication
+    c = db.get(Case, new_case(value=250)["id"])
+    db.add(Communication(case_id=c.id, patient_id=c.patient_id, category="reminder", channel="scheduled",
+                         language="en", template_key="reminder", content="[SIMULATED - not sent] queued",
+                         status=status, simulated=True, attempt_no=1))
+    db.flush()
+    b = export_case(db, c)
+    st = [e["resource"]["status"] for e in b["entry"] if e["resource"]["resourceType"] == "Communication"]
+    assert st and set(st) <= FHIR_COMM_STATUS
+    db.rollback()

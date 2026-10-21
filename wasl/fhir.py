@@ -31,6 +31,9 @@ TASK_BIZ = {"requested": "requested", "accepted": "accepted", "rejected": "rejec
 APPT_STATUS = {"booked": "booked", "fulfilled": "fulfilled", "noshow": "noshow", "cancelled": "cancelled"}
 
 
+_COMM_STATUS = {"completed": "completed", "failed": "stopped", "not-done": "not-done", "pending": "in-progress",
+                "on-hold": "on-hold", "stopped": "stopped"}
+
 def export_case(db: Session, case: Case, include_audit: bool = True) -> dict:
     p = case.patient
     res: list[dict] = []
@@ -138,7 +141,9 @@ def export_case(db: Session, case: Case, include_audit: bool = True) -> dict:
     for c in db.scalars(select(Communication).where(Communication.case_id == case.id)):
         if c.recipient_practitioner_id:
             prac_ids.add(c.recipient_practitioner_id)
-        status = {"completed": "completed", "failed": "stopped", "not-done": "not-done", "pending": "in-progress"}[c.status]
+        # every internal status maps to a FHIR Communication.status code; queued night-time reminders (on-hold) and
+        # dispatched/cancelled placeholders (stopped) made the export raise KeyError -> HTTP 500 (Round 17)
+        status = _COMM_STATUS.get(c.status, "unknown")
         res.append({"resourceType": "Communication", "id": str(c.id), "status": status,
                     "category": [{"text": c.category}], "medium": [{"text": c.channel}],
                     "subject": _ref("Patient", p.id), "sent": _ts(c.sent_at),
