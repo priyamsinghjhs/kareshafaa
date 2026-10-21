@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 
 import logging
+import os
 import re
 import sys
 import time
@@ -107,6 +108,23 @@ async def _sweep_loop(interval: int) -> None:
             log.info("background SLA sweep: %s in %.0f ms", out, (time.time() - t) * 1000)
         except Exception:  # noqa: BLE001
             log.exception("background SLA sweep failed")
+
+
+async def _heartbeat_loop() -> None:
+    """Round 22 watchdog heartbeat (see wasl/serve.py). Written from the event loop AFTER a no-op has passed through
+    the request thread pool, so a blocked loop or an exhausted/wedged thread pool both stop the heartbeat."""
+    import anyio
+
+    path = os.path.join(os.environ["WASL_HEARTBEAT_DIR"], str(os.getpid()))
+    interval = float(os.environ.get("WASL_HEARTBEAT_INTERVAL_S", "2"))
+    while True:
+        try:
+            await anyio.to_thread.run_sync(lambda: None)
+            with open(path, "w") as f:
+                f.write(str(time.time()))
+        except Exception:  # noqa: BLE001 - a failed beat is simply a missed beat
+            log.warning("heartbeat write failed", exc_info=True)
+        await asyncio.sleep(interval)
 
 
 def _prepare_request_audit(request: Request, state_actor, path: str, code: int, start: float, shed: int = 0) -> list:
@@ -221,9 +239,12 @@ def create_app() -> FastAPI:
         # effect, measured p95 1.3 s at 10 concurrent clients). A shorter interval bounds that wait.
         sys.setswitchinterval(s.gil_switch_interval_ms / 1000)
         task = asyncio.create_task(_sweep_loop(s.sweep_interval_seconds)) if s.sweep_interval_seconds > 0 else None
+        hb = asyncio.create_task(_heartbeat_loop()) if os.environ.get("WASL_HEARTBEAT_DIR") else None
         yield
         if task:
             task.cancel()
+        if hb:
+            hb.cancel()
 
     app = FastAPI(title="Wasl - Closing the Screening-to-Care Loop", version=__version__, lifespan=lifespan,
                   description="Prototype on SYNTHETIC data only. Not a medical device. No real messages are sent.")
