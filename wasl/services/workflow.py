@@ -460,6 +460,15 @@ def transition(db: Session, case: Case, dst: S | str, actor: Actor, *, owner_id:
     # authorisation
     if src == S.CLOSED:
         require_signoff(actor, "case.reopen", note)
+        # Round 20 (edge cohort): re-opening while another episode for the same person and programme is open
+        # (e.g. a new result arrived after closure) hit the one-open-case database constraint as an unexplained
+        # 409/IntegrityError. One accountable open episode per person and programme: say where to continue.
+        other = db.scalar(select(Case.id).where(Case.patient_id.in_(identity_group(db, case.patient)),
+                                                Case.programme == case.programme, Case.state != S.CLOSED,
+                                                Case.id != case.id).limit(1))
+        if other is not None:
+            raise Invalid(f"case #{other} is already open for this patient and programme: continue the follow-up "
+                          "there (the closed episode stays closed)")
     if case.review_required and src == S.ISSUED:
         raise Forbidden("this result is awaiting clinician review (resolve_review) before any pathway step")
     if src == S.CLOSED:
@@ -493,6 +502,14 @@ def transition(db: Session, case: Case, dst: S | str, actor: Actor, *, owner_id:
         for f in ("closed_at", "closure_type", "closure_reason", "closure_note", "closure_evidence_type",
                   "closure_evidence_id", "closed_by_user_id"):
             setattr(case, f, None)
+        # Round 20 (edge cohort): a re-opened episode kept the ORIGINAL pathway target, so it was born breached
+        # (months overdue) and went straight to the director - alert noise that hides real breaches - while its
+        # step clock ran past the target. The re-opened episode gets a fresh target for its tier from re-opening.
+        old_target = case.target_due_at
+        case.target_due_at = now + timedelta(days=target_days(case.pathway, case.rule_id, case.tier, case.tier))
+        audit.record(db, actor, "U", "case.target_restarted", entity_type="Task", entity_id=case.id, case_id=case.id,
+                     ts=now, detail={"from": old_target.isoformat() if old_target else None,
+                                     "to": case.target_due_at.isoformat(), "reason": "re-opened"})
     if dst == S.TREATMENT_STARTED and case.care_reached_at is None:
         case.care_reached_at = now  # BEFORE the step opens: the pathway target is met, so no target cap applies
     _open_step(db, case, dst, owner.id, actor, now, note)

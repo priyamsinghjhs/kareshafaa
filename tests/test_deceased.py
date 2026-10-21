@@ -76,3 +76,32 @@ def test_death_recorded_in_error_can_be_revoked_by_lead_only(client, as_user, db
     assert r.json()["closed_as_deceased"] == [cid]
     db.expire_all()
     assert not db.get(Patient, db.get(Case, cid).patient_id).deceased
+
+
+def test_reopen_gets_fresh_target_and_is_refused_when_another_episode_is_open(db, new_case):
+    """Round 20 (edge cohort): a re-opened case kept its original, long-past pathway target (born breached, alerts
+    straight to the director); re-opening while a newer episode was open failed with an unexplained IntegrityError."""
+    from datetime import timedelta
+
+    import pytest
+
+    from wasl.models import Case, User, utcnow
+    from wasl.api.deps import actor_from_user
+    from wasl.services import workflow as wf
+    from wasl.services.errors import Invalid
+
+    lead = actor_from_user(db.scalar(select(User).where(User.username == LEAD)))
+    c = db.get(Case, new_case(value=250)["id"])
+    long_ago = utcnow() - timedelta(days=200)
+    c.created_at, c.target_due_at = long_ago, long_ago + timedelta(days=31)
+    wf.close_case(db, c, lead, "authorised_decision", reason="clinically_not_indicated",
+                  note="Closed after clinical review (test).")
+    wf.transition(db, c, "triaged", lead, note="Re-opened: new symptoms reported (test).")
+    assert c.target_due_at > utcnow() + timedelta(days=1)
+    wf.close_case(db, c, lead, "authorised_decision", reason="clinically_not_indicated", note="Closed again (test).")
+    _, c2 = wf.ingest_result(db, c.patient, c.programme, value=300, value_text=None, unit="ug/g", test="FIT",
+                             performer_org_id=1)
+    assert c2 is not None and c2.id != c.id
+    with pytest.raises(Invalid, match="already open"):
+        wf.transition(db, c, "triaged", lead, note="Re-opened again by mistake (test).")
+    db.rollback()
