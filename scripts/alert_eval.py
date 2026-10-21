@@ -96,7 +96,13 @@ def truth(case, steps, horizon):
     created, target, care, closed = case["created_at"], case["target_due_at"], case["care_reached_at"], case["closed_at"]
     if target is not None and (care is None or care > target) and (closed is None or closed > target) and horizon > target:
         end = min(x for x in (care, closed, horizon) if x is not None)
-        ev[("target", case["id"])] = (target, end)
+        # round 20: a case can be CLOSED when its target passes and re-opened later (steps list excludes the closed
+        # step). Nobody can act on a closed case, so the alertable breach starts when a live step first covers the
+        # time after the target (= the re-opening), not at the target itself.
+        live = [max(target, st["started_at"]) for st in steps if (st["ended_at"] or horizon) > target]
+        start = min(live) if live else target
+        if start < end:
+            ev[("target", case["id"])] = (start, end)
     for st in steps:
         s, e, due = st["started_at"], st["ended_at"] or horizon, st["due_at"]
         if due is None:
@@ -205,7 +211,12 @@ def main():
                 if t1 - t0 <= SWEEP:
                     short += 1  # resolved within one sweep: recorded as a breach at step close, no alert possible
                     continue
-                if k in first_l2 and first_l2[k] <= grid(t0) + SWEEP:
+                # a step breach is also detected by the case's consolidated pathway alert (policy: one alert per
+                # level, attributed to the upstream breach) when that alert fires within the same window
+                hit = first_l2.get(k)
+                if k[0] == "step" and ("target", cid) in first_l2:
+                    hit = min(x for x in (hit, first_l2[("target", cid)]) if x is not None)
+                if hit is not None and hit <= grid(t0) + SWEEP:
                     detected += 1
                 else:
                     missed += 1

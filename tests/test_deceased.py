@@ -106,6 +106,7 @@ def test_reopen_keeps_original_target_by_default_and_is_refused_when_another_epi
                                               AuditEvent.case_id == c.id)) is not None
     running = db.scalar(select(StepTask).where(StepTask.case_id == c.id, StepTask.status == "in-progress"))
     assert running.inherited_breach  # flagged breached at once -> escalates
+    assert running.due_at <= max(original, running.started_at)  # step clock capped by the kept target
     wf.close_case(db, c, lead, "authorised_decision", reason="clinically_not_indicated", note="Closed (test).")
     from wasl.config import get_settings
     monkeypatch.setattr(get_settings(), "reopen_restarts_target", True)

@@ -359,9 +359,12 @@ def resolve_review(db: Session, case: Case, actor: Actor, *, note: str, tier: st
     return case
 
 
-def _capped_due(case: Case, due: datetime | None, start: datetime) -> datetime | None:
-    """No step clock may run past the end-to-end pathway target (never earlier than the step start)."""
-    if case.target_due_at is None or case.state == S.CLOSED or getattr(case, "care_reached_at", None) is not None:
+def _capped_due(case: Case, due: datetime | None, start: datetime, state: S | None = None) -> datetime | None:
+    """No step clock may run past the end-to-end pathway target (never earlier than the step start).
+    `state` = the state of the step being opened: when a CLOSED case is re-opened, case.state is still CLOSED at
+    this point, which used to skip the cap (round 20: the re-opened step's clock ran past the kept target)."""
+    if case.target_due_at is None or (state or case.state) == S.CLOSED \
+            or getattr(case, "care_reached_at", None) is not None:
         return due
     cap = max(case.target_due_at, start)
     return cap if due is None or due > cap else due
@@ -374,7 +377,7 @@ def _open_step(db: Session, case: Case, state: S, owner_id: int, actor: Actor, n
 
     inherited = state != S.CLOSED and opened_already_breached(case.target_due_at, case.care_reached_at, now)
     step = StepTask(case_id=case.id, state=state, owner_id=owner_id, status="in-progress", started_at=now,
-                    due_at=_capped_due(case, due_at(now, hours, case.tier), now), sla_hours=hours,
+                    due_at=_capped_due(case, due_at(now, hours, case.tier), now, state), sla_hours=hours,
                     actor_user_id=actor.user_id, note=note, inherited_breach=inherited, breached=inherited)
     db.add(step)
     case.state = state
