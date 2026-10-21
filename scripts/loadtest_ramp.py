@@ -32,6 +32,8 @@ async def main() -> None:
     ap.add_argument("--steps", default="5,10,20,40,80,160")
     ap.add_argument("--step-seconds", type=float, default=20)
     ap.add_argument("--p95-limit", type=float, default=1000)
+    ap.add_argument("--continue-past-break", action="store_true",
+                    help="keep ramping after the breaking point (round 21: check degradation is graceful)")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
     limits = httpx.Limits(max_connections=1000, max_keepalive_connections=1000)
@@ -69,6 +71,7 @@ async def main() -> None:
         rows = []
         for users in [int(x) for x in a.steps.split(",")]:
             lat, errs, by_kind = [], 0, {}
+            ok_lat, shed_lat, codes = [], [], {}
             stop = time.perf_counter() + a.step_seconds
 
             async def vu():
@@ -85,9 +88,14 @@ async def main() -> None:
                         else:
                             r = await c.get(url, headers=h)
                         ok = r.status_code == 200
+                        code = r.status_code
                     except httpx.HTTPError:
-                        ok = False
+                        ok, code = False, "transport_error"
                     dt = (time.perf_counter() - t) * 1000
+                    codes[code] = codes.get(code, 0) + 1
+                    (ok_lat if ok else shed_lat if code == 503 else []).append(dt)
+                    if code == 503:
+                        await asyncio.sleep(0.05)  # a client honouring back-off (Retry-After) briefly
                     lat.append(dt)
                     by_kind.setdefault(kind, []).append(dt)
                     errs += 0 if ok else 1
@@ -98,12 +106,17 @@ async def main() -> None:
             row = {"users": users, "requests": len(lat), "rps": round(len(lat) / wall, 1), "p50": round(pct(lat, 50), 1),
                    "p95": round(pct(lat, 95), 1), "p99": round(pct(lat, 99), 1), "errors": errs,
                    "error_rate": round(errs / max(1, len(lat)), 4),
+                   "max": round(max(lat), 1) if lat else None,
+                   "ok_rps": round(len(ok_lat) / wall, 1), "p95_ok": round(pct(ok_lat, 95), 1) if ok_lat else None,
+                   "p95_503": round(pct(shed_lat, 95), 1) if shed_lat else None,
+                   "status_codes": {str(k): v for k, v in codes.items()},
                    "p95_by_kind": {k: round(pct(v, 95), 1) for k, v in by_kind.items()}}
             rows.append(row)
             print(json.dumps(row), flush=True)
             if row["p95"] > a.p95_limit or row["error_rate"] > 0.01:
                 print(f"BREAKING POINT at {users} concurrent zero-think-time users", flush=True)
-                break
+                if not a.continue_past_break:
+                    break
             await asyncio.sleep(2)
         if a.out:  # write the measurements first: the audit check below can be slow on a big chain
             json.dump({"steps": rows, "audit_valid": None}, open(a.out, "w"), indent=1)

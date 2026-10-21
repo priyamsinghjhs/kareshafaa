@@ -75,3 +75,23 @@ def test_admission_control_sheds_fast_and_audits_the_count(app, client, as_user,
     db.expire_all()
     ev = db.scalar(select(AuditEvent).where(AuditEvent.event == "http.load_shed").order_by(AuditEvent.id.desc()))
     assert ev is not None and ev.detail["requests_shed"] >= 1
+
+
+def test_read_is_refused_when_its_access_cannot_be_logged(app, client, as_user, monkeypatch):
+    """Group-committed request log: if the audit write fails (saturated), a read is answered 503, never served
+    unlogged."""
+    import concurrent.futures
+
+    from wasl import main
+    from wasl.services.errors import ServiceBusy
+
+    h = as_user("analyst")
+
+    def failing(_items):
+        f = concurrent.futures.Future()
+        f.set_exception(ServiceBusy())
+        return f
+
+    monkeypatch.setattr(main._BATCHER, "submit", failing)
+    r = client.get("/api/analytics/kpis", headers=h)
+    assert r.status_code == 503 and r.headers.get("Retry-After")

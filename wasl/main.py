@@ -109,22 +109,104 @@ async def _sweep_loop(interval: int) -> None:
             log.exception("background SLA sweep failed")
 
 
-def _audit_request(request: Request, state_actor, path: str, code: int, start: float, shed: int = 0) -> None:
-    db = session_factory()()
-    try:
-        if shed:
-            audit.record(db, ANON, "E", "http.load_shed", entity_type="http", entity_id=None, outcome="failure",
-                         detail={"requests_shed": shed, "status": 503})
-        actor = state_actor or resolve_actor(request, db) or ANON
-        m = CASE_RE.match(path)
-        outcome = "success" if code < 400 else "denied" if code in (401, 403) else "failure"
-        audit.record(db, actor, METHOD_ACTION.get(request.method, "E"), f"http.{request.method.lower()}",
-                     entity_type="http", entity_id=None, case_id=int(m.group(1)) if m else None, outcome=outcome,
-                     path=path[:300], detail={"status": code, "ms": int((time.time() - start) * 1000),
-                                              "query": str(request.url.query)[:200] or None})
-        db.commit()
-    finally:
-        db.close()
+def _prepare_request_audit(request: Request, state_actor, path: str, code: int, start: float, shed: int = 0) -> list:
+    """Resolve the actor (read only) and build the request-log event(s); the write happens in _BATCHER."""
+    from .models import utcnow
+
+    items = []
+    now = utcnow()
+    if shed:
+        items.append((ANON, "E", "http.load_shed", dict(entity_type="http", entity_id=None, outcome="failure",
+                                                        detail={"requests_shed": shed, "status": 503}, ts=now)))
+    actor = state_actor
+    if actor is None:
+        db = session_factory()()
+        try:
+            actor = resolve_actor(request, db) or ANON
+        finally:
+            db.close()
+    m = CASE_RE.match(path)
+    outcome = "success" if code < 400 else "denied" if code in (401, 403) else "failure"
+    items.append((actor, METHOD_ACTION.get(request.method, "E"), f"http.{request.method.lower()}",
+                  dict(entity_type="http", entity_id=None, case_id=int(m.group(1)) if m else None, outcome=outcome,
+                       path=path[:300], detail={"status": code, "ms": int((time.time() - start) * 1000),
+                                                "query": str(request.url.query)[:200] or None}, ts=now)))
+    return items
+
+
+class _AuditBatcher:
+    """Round 21 group commit for the per-request log. Each request still gets its audit event written and
+    committed BEFORE its response is sent (the middleware awaits it), but one writer thread per process commits
+    the events of all concurrent requests in one transaction, so the cross-process writer lock is taken once per
+    batch instead of once per request (it was the bottleneck: every GET is an audited write)."""
+
+    MAX_BATCH = 256
+
+    def __init__(self) -> None:
+        import queue
+        import threading
+
+        self._q: queue.Queue = queue.Queue()
+        self._lock = threading.Lock()
+        self._thread = None
+
+    def submit(self, items: list):
+        import concurrent.futures
+        import threading
+
+        fut: concurrent.futures.Future = concurrent.futures.Future()
+        with self._lock:
+            if self._thread is None or not self._thread.is_alive():
+                self._thread = threading.Thread(target=self._run, name="wasl-audit-writer", daemon=True)
+                self._thread.start()
+        self._q.put((items, fut))
+        return fut
+
+    @staticmethod
+    def _write(batch: list) -> None:
+        db = session_factory()()
+        try:
+            # take the pooled connection BEFORE the cross-process writer lock (taken at flush): holding the lock
+            # while waiting for a connection stalled every worker (round 21 ramp: uniform ~6 s at 80 users)
+            db.connection()
+            for items, _f in batch:
+                for actor, action, event, kw in items:
+                    audit.record(db, actor, action, event, **kw)
+            db.commit()
+        finally:
+            db.close()
+
+    def _run(self) -> None:
+        import queue
+
+        while True:
+            batch = [self._q.get()]
+            while len(batch) < self.MAX_BATCH:
+                try:
+                    batch.append(self._q.get_nowait())
+                except queue.Empty:
+                    break
+            try:
+                self._write(batch)
+                for _i, f in batch:
+                    f.set_result(None)
+            except Exception as e:  # noqa: BLE001
+                from sqlalchemy.exc import OperationalError as _OE, TimeoutError as _TO
+
+                from .services.errors import ServiceBusy as _SB
+                if isinstance(e, (_SB, _TO, _OE)):  # saturated: fail fast, no serial per-request retries
+                    for _i, f in batch:
+                        f.set_exception(e)
+                    continue
+                for one in batch:  # any other error: isolate the bad event, one transaction per request
+                    try:
+                        self._write([one])
+                        one[1].set_result(None)
+                    except Exception as e:  # noqa: BLE001
+                        one[1].set_exception(e)
+
+
+_BATCHER = _AuditBatcher()
 
 
 def create_app() -> FastAPI:
@@ -157,12 +239,21 @@ def create_app() -> FastAPI:
         if path.startswith("/static") or path in ("/favicon.ico", "/healthz"):
             return response
         state_actor = getattr(request.state, "actor", None)
+        shed, inflight["shed"] = inflight["shed"], 0
         try:
             # sync DB work runs in a worker thread so the event loop is never blocked
-            shed, inflight["shed"] = inflight["shed"], 0
-            await asyncio.to_thread(_audit_request, request, state_actor, path, response.status_code, start, shed)
-        except Exception:  # noqa: BLE001 - never break a response because of the request log
-            log.exception("request audit failed")
+            items = await asyncio.to_thread(_prepare_request_audit, request, state_actor, path,
+                                            response.status_code, start, shed)
+            await asyncio.wrap_future(_BATCHER.submit(items))  # committed before the response leaves
+        except Exception as e:  # noqa: BLE001
+            inflight["shed"] += shed  # keep the shed count for the next audited request
+            if request.method in ("GET", "HEAD") and response.status_code < 400:
+                # round 21: never hand out data whose access could not be logged - the read is refused (503)
+                busy = isinstance(e, (ServiceBusy, SATimeoutError, OperationalError))
+                (log.warning if busy else log.exception)("request audit failed; read refused (503): %r", e)
+                return JSONResponse({"detail": "the service is busy - please retry shortly"}, status_code=503,
+                                    headers={"Retry-After": str(s.retry_after_s)})
+            log.exception("request audit failed")  # a committed write is still reported as done
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
