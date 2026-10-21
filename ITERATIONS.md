@@ -527,3 +527,23 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
   patient -> English message + one interpreter call task, no duplicate on resend); English speaker gets no task.
   All 6 fail on the pre-fix code. Fault injection F51 (splice) and F52 (no interpreter call) both killed.
   **Full suite 3,121 tests, all passing.** Rules engine unchanged, so the 10M differential result stands.
+
+### Round 17: efficiency re-check since round 10; FHIR export crash (21 Oct 2026, ~05:58-06:08 IST)
+- **Load test** on the freshly seeded 10k (temporary server on :8010/:8011, 4 processes, 10 clients, 200 requests
+  per endpoint; :8000 untouched) **found a crash:** `GET /api/cases/{id}/fhir` raised `KeyError: 'on-hold'` -> HTTP 500
+  for every case holding a reminder queued outside the patient message window (round 10) or a dispatched/cancelled
+  placeholder (`stopped`). An export-every-case sweep on the 10k: **123 of 10,005 cases (1.2 %) could not be
+  exported** (care handover / FHIR interoperability blocked); demo 26 and 20k 71 such Communications. The round-10
+  code fails the same way on the same DB, so it dates from round 10 (its load test ran before any reminder was queued).
+- **Fix.** Every internal Communication status maps to a FHIR `Communication.status` code (`on-hold`, `stopped`;
+  anything unexpected -> `unknown`, never a crash). Export-every-case sweep after the fix: 0 errors on 10k (10,005
+  cases, FHIR + case detail) and 20k (5,922 cases). 6 new parametrised tests (2 fail before the fix).
+  The :8000 demo server was restarted the same way (`python -m wasl.serve --host 0.0.0.0 --port 8000 --workers 4`,
+  log `/tmp/serve.log`); FHIR export of demo case 208 (on-hold reminder) now 200.
+- **Latency A/B, same 10k DB, round-10 code (d04f62a) vs current, 2 x 2 runs each** (p50/p95 ms, mean):
+  coordinator queue r10 71-90 / 137-177 (mean 74-85) vs now 29-137 / 140-188 (mean 75-118); GP queue r10 78-89 /
+  153-167 vs now 36-168 / 171-242; detail r10 22-30 / 42-55 vs now 13-40 / 55-78; HL7 ingest now 71-75 / 176-212
+  (round 10: 79/163). Throughput 95-130 req/s on the queues for both. **No consistent regression**: the spread
+  between runs of the same code is as large as the difference; one current run was slower across the board (box
+  contention suspected). Audit hash chain valid after every run; 0 errors once the FHIR fix was in.
+- **Full suite 3,127 tests, all passing.** Validator unchanged (53 invariants, 0 violations).
