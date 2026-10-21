@@ -21,11 +21,11 @@ from wasl.calendar_uae import is_ramadan, to_local  # noqa: E402
 from wasl.db import session_scope  # noqa: E402
 from wasl.models import (Appointment, AuditEvent, Case, Consent, DiagnosticReport, IngestMessage,  # noqa: E402
                          Patient)
-from wasl.synth.cohort import ELIGIBLE  # noqa: E402
+from wasl.clinical_rules import ELIGIBLE_AGE  # noqa: E402
 from wasl.synth.edge import PROGRAMMES, SCENARIOS, TIERS, not_applicable  # noqa: E402
 
 REVIEW_EVIDENCE = {
-    "missing_value": {"missing_value"}, "unknown_value": {"malformed_value", "unknown_test"},
+    "missing_value": {"missing_value"}, "unknown_value": {"malformed_value", "unknown_test", "missing_value"},
     "unit_mismatch": {"unit_needs_assay_conversion", "implausible_value", "unknown_unit", "unexpectedly_low",
                       "malformed_value"},
     "amended_result": {"amended_result", "corrected_result"}, "preliminary_then_final": {"preliminary_result"},
@@ -88,6 +88,15 @@ def main() -> None:
                 return False  # a result was lost: never counted as covered
             rs = reasons_by_pat[pid]
             cases = cases_by_pat[pid]
+            if r["tier"] == "negative" and scn in ("duplicate_result", "conflicting_result", "duplicate_identity"):
+                # a negative first result opens no case, so there is nothing to flag against: the evidence is that
+                # BOTH results were stored and that a case exists exactly when one of them was actionable
+                group = nat[p.national_id] if scn == "duplicate_identity" else [pid]
+                n_rep = sum(len(reports.get((q, prog), [])) for q in group)
+                any_case = any(c.programme == prog for q in group for c in cases_by_pat[q])
+                second = r.get("second_tier")
+                return n_rep >= 2 and (any_case == (second not in (None, "negative")) if scn == "conflicting_result"
+                                       else not any_case or bool(rs))
             if scn in REVIEW_EVIDENCE:
                 if scn == "duplicate_identity":
                     return any("possible_duplicate_identity" in reasons_by_pat[q] for q in nat[p.national_id])
@@ -97,7 +106,7 @@ def main() -> None:
             if scn == "haemoglobinopathy":
                 return bool(p.haemoglobinopathy)
             if scn in ("age_youngest", "age_oldest"):
-                lo, hi = ELIGIBLE[prog]
+                lo, hi = ELIGIBLE_AGE[prog]  # the RULES' range (breast/diabetes have no upper age)
                 age = reports[(pid, prog)][0].issued_at.year - p.birth_year if reports.get((pid, prog)) else None
                 if age is not None and not lo <= age <= hi:
                     return bool({"age_below_programme", "age_above_programme"} & rs)
