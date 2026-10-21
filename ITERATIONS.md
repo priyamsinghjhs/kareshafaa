@@ -670,3 +670,62 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
     episode. Step SLAs still alert. Whether re-opening should reset the target clock is a clinical decision, not
     changed here.
   - Synthetic validation only; no clinical claim.
+
+### Round 20: edge-case synthetic cohort, re-open fixes, load ramp (21 Oct 2026, ~10:12-12:15 IST)
+
+**Edge-case cohort.** `python -m wasl.seed --edge` writes `data/wasl_edge.db` and a manifest (see
+`docs/synthetic_data.md`).
+* **Size:** 20,000 planned people, 20,603 records in total (the extra records are duplicate identities).
+  18,511 cases.
+* **Content:** all four supported programmes × every tier the rules produce × 28 scenarios. The mix is stratified,
+  not prevalence-based. No new disease or pathway was added.
+* **Coverage** (`docs/edge_case_coverage.md`):
+  * 403 supported disease × severity × scenario cells, 0 empty. Smallest cell: diabetes negative + multimorbidity
+    = 5.
+  * 19,202 of 20,000 plans are verified in the database. The rest were planned but not realised, e.g. the journey
+    closed before a planned withdrawal or move, or the move was refused because the patient denied external sharing.
+* **Run-to-run determinism:** totals vary by ±3 records between runs (wall-clock `now`).
+
+**Bugs found and fixed:**
+* **A. Re-open target.** A re-opened case kept its original target. Round 20 first tried a fresh target; that was
+  reverted to the safer default because it produced *fewer* alerts. The default now keeps the original target:
+  * the case is flagged breached at once (`case.reopened_past_target`, 436 in the edge cohort) and escalates;
+  * a fresh target is the opt-in `reopen_restarts_target`.
+  * **Clinical lead to confirm** (clinical_rules.md §9.18).
+* **A2. Re-open step clock.** The re-opened step's clock was not capped by the target, because `case.state` was
+  still CLOSED while the step opened. 9 validator violations, now fixed.
+* **B. Re-open with another open episode.** Re-opening while another episode was open for the same person and
+  programme gave an unexplained IntegrityError. It now gives a clear refusal naming the open case.
+* **C. Duplicate detection.**
+  * Identical cervical co-test re-sends were labelled "conflicting", because the comparison used the raw HPV text
+    instead of the stored "HPV|cytology".
+  * The same number in a different unit counted as a duplicate (48 % vs 48 mmol/mol).
+* **D. KPI cache stampede under constant writes.** KPI p95 was 2.4–6 s under load; now about 40 ms.
+* **E. Validator crash.** `sla.step_clock_within_pathway_target` crashed when it fired (wrong argument count).
+* **alert_eval.py (evaluator).**
+  * A target that passed while the case was closed now counts as alertable from re-opening.
+  * A step breach is credited to the consolidated pathway alert of the same case when that alert falls within the
+    same window.
+
+**Tests and checks:**
+* **Validator:** 7 new invariants (60 in total).
+* **Golden cases:** EDGE-01…32.
+* **Unit tests:** reopen policy and step clock, cervical duplicate, unit duplicate.
+
+**Metrics:**
+* **Tests:** 3,228 passed, 0 failed.
+* **Validator:** 0 violations on all four databases (demo, 10k, 20k, edge).
+* **Differential tests:**
+  * 10M random inputs: 0 disagreements.
+  * Edge-cohort input distribution, 20k × 50 mutation draws = 1M comparisons: 0 disagreements.
+* **Alerts (edge cohort):** precision 1.0 (51,963 L2+ alerts, 0 false positives), recall 1.0 (26,297 alertable
+  breaches, 0 missed), ladder 10,628/10,628. The 20k realistic cohort is also 1.0/1.0.
+* **ML** (`docs/ml_pooled_retrain.md`; offline, nothing registered or promoted, round-18 inputs unchanged):
+  * Naive pooling with the stratified edge cohort (40 % positives) fails calibration-in-the-large on both realistic
+    cohorts.
+  * A prior-matched pool passes every gate on demo, 10k and 20k. AUC is within about 0.01–0.03 of own-cohort models,
+    so it brings no AUC gain.
+  * Recommendation: use the edge cohort for robustness testing, not for production training. The decision belongs
+    to the clinical lead and governance.
+* **Load:** p95 stays under 1 s up to 40 concurrent zero-think-time users (about 120 requests/s). The system
+  collapses at 80 users (pool timeouts) and recovers once the backlog drains (`docs/loadtest_ramp.md`).
