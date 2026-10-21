@@ -139,6 +139,16 @@ def send_with_ladder(db: Session, case: Case, category: str, actor: Actor = SYST
         # the explanation is not yet signed off in the patient's language: a navigator calls with an interpreter
         # (what the patient portal promises); one open call task per case, so repeat sends do not duplicate it
         interpreter_task = _ensure_call_task(db, case, actor, now, reason="interpreter")
+        # the task may already exist (digital channels failed): record the interpreter need on it once, so the
+        # navigator queue/audit shows it whichever path created the task
+        from ..models import AuditEvent  # noqa: PLC0415
+
+        if db.scalar(select(func.count()).select_from(AuditEvent).where(
+                AuditEvent.event == "calltask.interpreter_needed",
+                AuditEvent.entity_id == f"call-{interpreter_task.id}")) == 0:
+            audit.record(db, actor, "U", "calltask.interpreter_needed", entity_type="Task",
+                         entity_id=f"call-{interpreter_task.id}", case_id=case.id, ts=now,
+                         detail={"language": requested_lang})
     db.flush()
     audit.record(db, actor, "C", f"communication.{category}", entity_type="Communication", case_id=case.id, ts=now,
                  detail={"attempts": attempts, "delivered": delivered, "language": lang, "variant": variant,

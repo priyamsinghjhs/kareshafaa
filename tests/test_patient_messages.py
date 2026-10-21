@@ -260,11 +260,15 @@ def test_pending_translation_sends_english_and_books_interpreter_call(db, new_ca
     task = db.get(CallTask, res["interpreter_call_task_id"])
     assert task is not None and task.status == "requested"
     ev = db.scalars(select(AuditEvent).where(AuditEvent.case_id == c.id, AuditEvent.event == "calltask.created")).first()
-    assert ev is not None and ev.detail == {"reason": "interpreter"}
+    # reason "interpreter", or "digital_channels_failed" if the simulated ladder reached the phone step first
+    assert ev is not None and ev.detail["reason"] in ("interpreter", "digital_channels_failed")
     # a repeat send does not create a second call task
     assert comms.send_with_ladder(db, c, "reminder", SYSTEM)["interpreter_call_task_id"] is None
     assert comms.send_with_ladder(db, c, "result_notification", SYSTEM)["interpreter_call_task_id"] == task.id
     assert len(db.scalars(select(CallTask).where(CallTask.case_id == c.id)).all()) == 1
+    need = db.scalars(select(AuditEvent).where(AuditEvent.case_id == c.id,
+                                               AuditEvent.event == "calltask.interpreter_needed")).all()
+    assert len(need) == 1 and need[0].entity_id == f"call-{task.id}" and need[0].detail == {"language": "ar"}
     db.rollback()
 
 

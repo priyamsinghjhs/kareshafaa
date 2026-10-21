@@ -39,14 +39,14 @@ Requires Python 3.11+ (tested on 3.13) and `make`. Everything is free and open s
 make setup          # venv + dependencies (~1 min)
 make seed           # 2,000 synthetic patients, 6 months of history, train + register models (~55 s)
 make run            # http://localhost:8000  (python -m wasl.serve: 4 SO_REUSEPORT worker processes; WORKERS=1 for one)
-make test           # 3,082 pytest tests (~60 s; the 20k cohort test is skipped until `make seed-large`)
+make test           # 3,127 pytest tests (~60 s; the 20k cohort test is skipped until `make seed-large`)
 ```
 
 Clinical-safety targets (Iteration 6):
 
 ```bash
 make seed-large      # 20,000 realistic synthetic people -> data/wasl_large.db (~3 min, no model training)
-make validate        # 51 data invariants on the demo DB (exit 1 on any violation)
+make validate        # 53 data invariants on the demo DB (exit 1 on any violation)
 make validate-large  # same on the 20k cohort
 make test-clinical   # golden cases, fail-safe, Hypothesis properties, exhaustive state machine
 make test-cohort     # full-cohort run on the 20k DB (needs seed-large)
@@ -162,6 +162,7 @@ deployment would need formal assessment.
 * SLA status and tier always sort ahead of the score.
 * A model cannot be promoted without passing the gates and getting a clinical lead's approval; rollback needs a previous version.
 * Rule and template changes from the lessons loop only apply after human approval.
+* A patient message is in one language: result wording without a signed-off translation goes out wholly in the signed-off English plus an interpreter-supported navigator call (never an unreviewed translation).
 * A case cannot close without evidence or an authorised decision with a reason.
 * The audit log is append-only (DB triggers) and tamper-evident (hash chain; `GET /api/audit/verify`).
 
@@ -200,5 +201,5 @@ deployment would need formal assessment.
 
 ## Repository map
 
-`wasl/` app · `tests/` pytest (3,082) · `wasl_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
+`wasl/` app · `tests/` pytest (3,127) · `wasl_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
 `scripts/ui_smoke.py` (optional Playwright) · `ITERATIONS.md` build log with self-assessments · `Makefile` · `Dockerfile` · `.env.example`
