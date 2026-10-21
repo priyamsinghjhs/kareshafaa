@@ -202,12 +202,16 @@ def cached(name: str, db: Session, fn) -> Any:
     hit = _CACHE.get(name)
     if hit and now - hit[1] < MIN_REFRESH_S:
         return hit[2]
+    if hit and lock.locked() and now - hit[1] < CACHE_TTL_S:
+        return hit[2]  # a refresh is already running: serve the previous value instead of queueing behind it
     fp = _fingerprint(db)
     if hit and hit[0] == fp and now - hit[1] < CACHE_TTL_S:
         return hit[2]
     with lock:
         hit = _CACHE.get(name)  # another thread may have refreshed it while we waited
-        if hit and time.monotonic() - hit[1] < MIN_REFRESH_S and hit[0] == fp:
+        # round 20 load ramp: this re-check also demanded an identical fingerprint, so under constant ingest every
+        # waiter recomputed in turn (KPI p95 2-6 s). Any value refreshed within MIN_REFRESH_S is fresh enough.
+        if hit and time.monotonic() - hit[1] < MIN_REFRESH_S:
             return hit[2]
         val = fn()
         _CACHE[name] = (fp, time.monotonic(), val)
