@@ -495,3 +495,35 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
 - Fault injection 50/50 killed (F43-F50 added for rounds 11-15). Validator: 52 invariants, 0 violations on demo, 10k
   and 20k. Alert precision/recall (20k) 100 % / 100 %, 0 missed. Sign-off registry: 19 high-impact actions.
 - Rules engine, ML and alert policy unchanged since round 10, so ML calibration and load-test figures stand.
+
+### Round 16: patient messages as actually sent (21 Oct 2026, ~05:36-05:55 IST)
+- **Why this area.** Safety is at its measured best (rounds 11-15); patient messages had not been revisited since
+  round 6. The round-6 checks measure each *template* with empty placeholder samples, never the message a patient
+  receives.
+- **Failure mode found by probe** (rendering every template x programme x pathway x tier x sign-off state in 4
+  languages, 138,240 messages):
+  1. **Mixed-language messages.** While a pathway text had no signed-off translation (all of them today), its English
+     wording was spliced into the Arabic/Hindi/Urdu template: "مرحباً Yousef. ... Your blood sugar test was a little
+     higher than normal ... خطوتك التالية: <English next step>". The patient portal promised "a navigator will call you
+     with an interpreter", but no call task was ever created. Existing synthetic data: **637 (demo), 3,177 (10k),
+     2,197 (20k)** mixed messages sent (about 22-26 % of messages).
+  2. **Reminders too long once the next step is inserted:** FK grade > 8 in English ("your next step is a camera test
+     of the bowel (colonoscopy) at a hospital clinic, today") and sentences > 30 words in Hindi/Urdu.
+- **Fix.**
+  - `render_message` sends the WHOLE message in the signed-off English wording when the result wording is not signed
+    off in the patient's language (`Communication.language = en`; audit `requested_language`), and
+    `send_with_ladder` creates an interpreter-supported navigator call task (audit `calltask.created`, reason
+    `interpreter`; one open task per case; a `comm_phone` deny is honoured). Messages without result wording
+    (no-show, decline, reassurance) stay in the patient's language. Never an unreviewed translation.
+  - Reminder templates (all 4 languages, both variants) split "next step" and "when" into short sentences, reusing
+    phrases of the existing simplified variants (non-English edits remain drafts needing translator sign-off).
+  - Governance unchanged: translation gate, clinical sign-off, hash binding, separation of duties.
+- **Invariants.** New validator invariant 53 `comms.sent_message_single_language`. Re-seeded demo, 10k and 20k
+  (server on :8000 stopped and restarted the same way; old DBs kept in `/workspace/fhdic/backup_pre_r16/`):
+  **53 invariants, 0 violations** on all three; 0 lost actionable results. Alert precision/recall on the new 20k:
+  **100 % / 100 %** (5,233 TP, 0 FP, 3,178 true breaches, 0 missed).
+- **Tests.** 6 new: every rendered message (4 languages, parametrised) is single-language and passes reading-level
+  and tone checks at the strict limits (FK <= 8, <= 6 for simplified, ease >= 60); integration test (Arabic
+  patient -> English message + one interpreter call task, no duplicate on resend); English speaker gets no task.
+  All 6 fail on the pre-fix code. Fault injection F51 (splice) and F52 (no interpreter call) both killed.
+  **Full suite 3,121 tests, all passing.** Rules engine unchanged, so the 10M differential result stands.
