@@ -313,11 +313,21 @@ def run(max_examples: int = 5) -> dict:
         for e in db.scalars(select(AuditEvent).where(AuditEvent.event == "case.transition")):
             if (e.detail or {}).get("from") == "closed" and e.case_id:
                 reopen_at[e.case_id] = max(reopen_at.get(e.case_id, e.ts), e.ts)
+        from wasl.config import get_settings as _gs
+
+        restart = _gs().reopen_restarts_target  # CLINICAL LEAD TO CONFIRM; default False keeps the original target
+        restarted = {e.case_id for e in db.scalars(select(AuditEvent).where(AuditEvent.event == "case.target_restarted"))}
+        flagged = {e.case_id for e in db.scalars(select(AuditEvent).where(AuditEvent.event == "case.reopened_past_target"))}
         for cid, ts in reopen_at.items():
             c = cases_by_id.get(cid)
             checked["reopened"] = checked.get("reopened", 0) + 1
-            if c is not None and c.state != S.CLOSED and c.target_due_at is not None and c.target_due_at <= ts:
-                bad("reopen.fresh_pathway_target", cid)
+            if c is None:
+                continue
+            if restart:
+                if c.state != S.CLOSED and c.target_due_at is not None and c.target_due_at <= ts:
+                    bad("reopen.target_follows_policy", cid)
+            elif cid in restarted or (c.target_due_at is not None and c.target_due_at <= ts and cid not in flagged):
+                bad("reopen.target_follows_policy", cid)  # target relaxed, or breached on re-opening but not flagged
         withdrawn: dict[int, datetime] = {}
         for cs in db.scalars(select(_Cs).where(_Cs.scope == "care_coordination", _Cs.decision == "deny")):
             withdrawn[cs.patient_id] = min(withdrawn.get(cs.patient_id, cs.recorded_at), cs.recorded_at)
@@ -384,7 +394,7 @@ INVARIANTS = [
     "content.no_unapproved_translation_sent", "content.signoffs_by_different_people", "audit.hash_chain_valid",
     "identity.one_open_case_per_emirates_id_programme", "dates.attendance_not_before_appointment",
     "comms.reminders_inside_patient_window", "closure.deceased_reason_requires_deceased_patient",
-    "reopen.fresh_pathway_target", "consent.withdrawal_sends_open_cases_to_review",
+    "reopen.target_follows_policy", "consent.withdrawal_sends_open_cases_to_review",
     "consent.no_automated_contact_after_withdrawal", "death.open_cases_reviewed_when_recorded", "ingest.status_valid",
     "ingest.processed_message_has_report", "ingest.specimen_timing_flag_reaches_case",
     "comms.sent_message_single_language",

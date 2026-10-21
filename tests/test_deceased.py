@@ -78,9 +78,11 @@ def test_death_recorded_in_error_can_be_revoked_by_lead_only(client, as_user, db
     assert not db.get(Patient, db.get(Case, cid).patient_id).deceased
 
 
-def test_reopen_gets_fresh_target_and_is_refused_when_another_episode_is_open(db, new_case):
+def test_reopen_keeps_original_target_by_default_and_is_refused_when_another_episode_is_open(db, new_case, monkeypatch):
     """Round 20 (edge cohort): a re-opened case kept its original, long-past pathway target (born breached, alerts
-    straight to the director); re-opening while a newer episode was open failed with an unexplained IntegrityError."""
+    straight to the director); re-opening while a newer episode was open failed with an unexplained IntegrityError.
+    Default policy (safer, clinical lead to confirm): the original target is kept and the breach is flagged; the
+    reopen_restarts_target option gives a fresh target."""
     from datetime import timedelta
 
     import pytest
@@ -96,8 +98,20 @@ def test_reopen_gets_fresh_target_and_is_refused_when_another_episode_is_open(db
     c.created_at, c.target_due_at = long_ago, long_ago + timedelta(days=31)
     wf.close_case(db, c, lead, "authorised_decision", reason="clinically_not_indicated",
                   note="Closed after clinical review (test).")
+    original = c.target_due_at
     wf.transition(db, c, "triaged", lead, note="Re-opened: new symptoms reported (test).")
+    assert c.target_due_at == original  # default: not relaxed
+    from wasl.models import AuditEvent, StepTask
+    assert db.scalar(select(AuditEvent).where(AuditEvent.event == "case.reopened_past_target",
+                                              AuditEvent.case_id == c.id)) is not None
+    running = db.scalar(select(StepTask).where(StepTask.case_id == c.id, StepTask.status == "in-progress"))
+    assert running.inherited_breach  # flagged breached at once -> escalates
+    wf.close_case(db, c, lead, "authorised_decision", reason="clinically_not_indicated", note="Closed (test).")
+    from wasl.config import get_settings
+    monkeypatch.setattr(get_settings(), "reopen_restarts_target", True)
+    wf.transition(db, c, "triaged", lead, note="Re-opened under the fresh-target option (test).")
     assert c.target_due_at > utcnow() + timedelta(days=1)
+    monkeypatch.setattr(get_settings(), "reopen_restarts_target", False)
     wf.close_case(db, c, lead, "authorised_decision", reason="clinically_not_indicated", note="Closed again (test).")
     _, c2 = wf.ingest_result(db, c.patient, c.programme, value=300, value_text=None, unit="ug/g", test="FIT",
                              performer_org_id=1)

@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     # 'none' (default): log-loss-fitted models are used as-is; 'auto': Platt recalibration chosen on a temporal tuning
     # slice of the training data. At demo/pilot volumes (<5k labelled cases) 'auto' over-corrected on the hold-out.
     ml_recalibration: str = "none"
+    # Re-opened case (CLOSED -> active): False (default, the safer choice) keeps the ORIGINAL pathway target, so a
+    # case re-opened after its target is flagged breached at once and escalates (more alerts, not fewer). True gives
+    # the re-opened episode a fresh target for its tier. CLINICAL LEAD TO CONFIRM (round 19/20 open question).
+    reopen_restarts_target: bool = False
     gil_switch_interval_ms: float = 0.5  # see main.lifespan (sqlite row-fetch convoy)
     fairness_auc_tolerance: float = 0.05  # group AUC CI must not lie wholly below overall - tol
     fairness_tpr_tolerance: float = 0.15  # group recall-at-top CI must not lie wholly below overall - tol

@@ -126,6 +126,26 @@ def test_duplicate_never_creates_second_case(sdb):
     assert sdb.query(Case).filter(Case.patient_id == p.id).count() == 1
 
 
+def test_identical_cervical_cotest_resend_is_a_duplicate_not_a_conflict(sdb):
+    """Round 20 bug C: co-tests are stored as "HPV|cytology"; an identical re-send must read as a duplicate, while a
+    different cytology on the same HPV result is still a conflict."""
+    p = _patient(sdb, sex="female", age=40)
+    _, c1 = _ingest(sdb, p, "cervical", None, "HPV16", None, cytology="HSIL")
+    _, c2 = _ingest(sdb, p, "cervical", None, "HPV16", None, cytology="HSIL")
+    assert c1.id == c2.id
+    assert "duplicate_result" in c2.review_reasons and "conflicting_result" not in c2.review_reasons
+    _, c3 = _ingest(sdb, p, "cervical", None, "HPV16", None, cytology="NILM")
+    assert "conflicting_result" in c3.review_reasons
+
+
+def test_same_number_in_a_different_unit_is_not_a_duplicate(sdb):
+    p = _patient(sdb, age=50)
+    _, c1 = _ingest(sdb, p, "diabetes_hba1c", 48, None, "mmol/mol")
+    _, c2 = _ingest(sdb, p, "diabetes_hba1c", 48, None, "%")
+    assert c1.id == c2.id
+    assert "conflicting_result" in c2.review_reasons and "duplicate_result" not in c2.review_reasons
+
+
 def test_conflicting_negative_flags_and_never_lowers(sdb):
     p = _patient(sdb)
     _, c1 = _ingest(sdb, p, value=500)  # urgent

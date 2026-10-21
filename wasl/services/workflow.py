@@ -255,10 +255,11 @@ def ingest_result(db: Session, patient: Patient, programme: str, *, value: float
                            display=prog.screening_display, conclusion={"negative": "negative", "actionable": "actionable",
                                                                        "review": "needs_review"}[dec.disposition],
                            issued_at=now, performer_org_id=performer_org_id, status=(status or "final")[:20])
+    stored_text = ((value_text if not cytology else f"{value_text or ''}|{cytology}")[:100]
+                   if (value_text or cytology) else None)
+    stored_unit = (unit or None) and str(unit)[:30]
     rep.observations.append(Observation(code=prog.screening_code, display=prog.screening_display, value=value,
-                                        value_text=(value_text if not cytology else f"{value_text or ''}|{cytology}")[:100]
-                                        if (value_text or cytology) else None,
-                                        unit=(unit or None) and str(unit)[:30], interpretation=dec.interpretation))
+                                        value_text=stored_text, unit=stored_unit, interpretation=dec.interpretation))
     for code, otest, raw, ounit in other_observations or []:  # every value in the message is kept, never dropped
         try:
             ov = float(raw)
@@ -285,7 +286,11 @@ def ingest_result(db: Session, patient: Patient, programme: str, *, value: float
         same = db.scalar(select(func.count()).select_from(Observation).join(DiagnosticReport).where(
             DiagnosticReport.case_id == open_case.id, DiagnosticReport.id != rep.id,
             Observation.value.is_(None) if value is None else Observation.value == value,
-            Observation.value_text.is_(None) if not value_text else Observation.value_text == value_text))
+            # compare with what was STORED (a cervical co-test is kept as "HPV|cytology") and with the unit:
+            # 48 % and 48 mmol/mol are different results, and an identical co-test re-send is a duplicate, not a
+            # "conflict" that sends the reviewer looking for a discrepancy that does not exist (round 20, bug C)
+            Observation.value_text.is_(None) if not stored_text else Observation.value_text == stored_text,
+            Observation.unit.is_(None) if not stored_unit else Observation.unit == stored_unit))
         reasons.append("duplicate_result" if (same and dec.disposition != "negative") else "conflicting_result")
         if dec.tier and max_tier(dec.tier, open_case.tier) == dec.tier and dec.tier != open_case.tier:
             reasons.append("more_urgent_result")
@@ -502,14 +507,21 @@ def transition(db: Session, case: Case, dst: S | str, actor: Actor, *, owner_id:
         for f in ("closed_at", "closure_type", "closure_reason", "closure_note", "closure_evidence_type",
                   "closure_evidence_id", "closed_by_user_id"):
             setattr(case, f, None)
-        # Round 20 (edge cohort): a re-opened episode kept the ORIGINAL pathway target, so it was born breached
-        # (months overdue) and went straight to the director - alert noise that hides real breaches - while its
-        # step clock ran past the target. The re-opened episode gets a fresh target for its tier from re-opening.
+        # Re-opened episode and its pathway target - CLINICAL LEAD TO CONFIRM (docs/clinical_rules.md).
+        # Default (reopen_restarts_target=False, the safer choice): keep the ORIGINAL target. A case re-opened after
+        # its target is born breached (inherited_breach) and escalates straight away: more alerts, not fewer, and a
+        # booking beyond the target needs a written reason. Option True: a fresh target for the tier from re-opening.
         old_target = case.target_due_at
-        case.target_due_at = now + timedelta(days=target_days(case.pathway, case.rule_id, case.tier, case.tier))
-        audit.record(db, actor, "U", "case.target_restarted", entity_type="Task", entity_id=case.id, case_id=case.id,
-                     ts=now, detail={"from": old_target.isoformat() if old_target else None,
-                                     "to": case.target_due_at.isoformat(), "reason": "re-opened"})
+        if get_settings().reopen_restarts_target:
+            case.target_due_at = now + timedelta(days=target_days(case.pathway, case.rule_id, case.tier, case.tier))
+            audit.record(db, actor, "U", "case.target_restarted", entity_type="Task", entity_id=case.id,
+                         case_id=case.id, ts=now, detail={"from": old_target.isoformat() if old_target else None,
+                                                          "to": case.target_due_at.isoformat(), "reason": "re-opened",
+                                                          "policy": "reopen_restarts_target"})
+        elif old_target is not None and old_target <= now:
+            audit.record(db, actor, "U", "case.reopened_past_target", entity_type="Task", entity_id=case.id,
+                         case_id=case.id, ts=now, detail={"target": old_target.isoformat(),
+                                                          "note": "original pathway target kept: breached on re-opening"})
     if dst == S.TREATMENT_STARTED and case.care_reached_at is None:
         case.care_reached_at = now  # BEFORE the step opens: the pathway target is met, so no target cap applies
     _open_step(db, case, dst, owner.id, actor, now, note)
