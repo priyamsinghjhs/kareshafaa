@@ -1,0 +1,87 @@
+{
+ "legacy": {
+  "alerts_l2plus": 74023,
+  "true_positive": 48006,
+  "false_positive": 26017,
+  "fp_kinds": {
+   "repeat_for_same_breach": 26017
+  },
+  "precision": 0.6485281601664348,
+  "true_breaches_alertable": 26297,
+  "detected_within_one_sweep": 23935,
+  "missed": 2362,
+  "recall": 0.9101798684260562,
+  "resolved_within_one_sweep": 111,
+  "l1_reminders": 66397,
+  "ladder_escalations_expected": 10628,
+  "ladder_escalations_reached": 5700,
+  "missed_examples": [
+   {
+    "case": 3,
+    "event": [
+     "target",
+     3
+    ],
+    "at": "2026-04-20 06:14:53.310147",
+    "until": "2026-05-06 21:43:02.198133",
+    "first_alert": "2026-04-20 06:40:00"
+   },
+   {
+    "case": 23,
+    "event": [
+     "target",
+     23
+    ],
+    "at": "2026-09-03 10:55:42.832121",
+    "until": "2026-10-23 02:55:07.016227",
+    "first_alert": "None"
+   },
+   {
+    "case": 39,
+    "event": [
+     "target",
+     39
+    ],
+    "at": "2026-08-07 05:40:09.448747",
+    "until": "2026-08-12 18:29:46.473607",
+    "first_alert": "None"
+   },
+   {
+    "case": 45,
+    "event": [
+     "target",
+     45
+    ],
+    "at": "2026-09-15 17:42:53.003076",
+    "until": "2026-10-23 02:55:07.016227",
+    "first_alert": "None"
+   },
+   {
+    "case": 53,
+    "event": [
+     "target",
+     53
+    ],
+    "at": "2026-04-07 10:07:49.311880",
+    "until": "2026-04-23 15:14:02.733032",
+    "first_alert": "2026-04-08 22:35:00"
+   }
+  ]
+ },
+ "current": {
+  "alerts_l2plus": 51963,
+  "true_positive": 51963,
+  "false_positive": 0,
+  "fp_kinds": {},
+  "precision": 1.0,
+  "true_breaches_alertable": 26297,
+  "detected_within_one_sweep": 26297,
+  "missed": 0,
+  "recall": 1.0,
+  "resolved_within_one_sweep": 111,
+  "l1_reminders": 45187,
+  "ladder_escalations_expected": 10628,
+  "ladder_escalations_reached": 10628,
+  "missed_examples": []
+ }
+}

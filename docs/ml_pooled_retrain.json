@@ -1,0 +1,453 @@
+{
+ "features": [
+  "programme",
+  "tier",
+  "region",
+  "has_smartphone",
+  "whatsapp",
+  "phone_valid",
+  "alt_contact",
+  "prior_no_shows",
+  "prior_screens",
+  "early_failed_contacts",
+  "early_notified",
+  "early_teach_back_failed",
+  "language_unsupported"
+ ],
+ "cohorts": {
+  "demo": {
+   "logreg:own_cohort": {
+    "auc": 0.6842,
+    "ece": 0.0362,
+    "slope": 1.007,
+    "citl": 0.0099,
+    "brier": 0.1448,
+    "n_train": 1381,
+    "n_holdout": 461,
+    "positive_rate": 0.208,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "logreg:pooled_without_edge": {
+    "auc": 0.6816,
+    "ece": 0.0135,
+    "slope": 1.038,
+    "citl": -0.004,
+    "brier": 0.1442,
+    "n_train": 12306,
+    "n_holdout": 461,
+    "positive_rate": 0.208,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "logreg:pooled_with_edge": {
+    "auc": 0.6773,
+    "ece": 0.0468,
+    "slope": 0.897,
+    "citl": 0.0374,
+    "brier": 0.1464,
+    "n_train": 24893,
+    "n_holdout": 461,
+    "positive_rate": 0.208,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "logreg:pooled_with_edge_prior_matched": {
+    "auc": 0.6542,
+    "ece": 0.0221,
+    "slope": 0.924,
+    "citl": -0.0117,
+    "brier": 0.1465,
+    "n_train": 21701,
+    "n_holdout": 461,
+    "positive_rate": 0.208,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "gbm:own_cohort": {
+    "auc": 0.6702,
+    "ece": 0.0283,
+    "slope": 0.883,
+    "citl": 0.0128,
+    "brier": 0.1472,
+    "n_train": 1381,
+    "n_holdout": 461,
+    "positive_rate": 0.208,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "gbm:pooled_without_edge": {
+    "auc": 0.6857,
+    "ece": 0.0245,
+    "slope": 1.025,
+    "citl": -0.0021,
+    "brier": 0.1438,
+    "n_train": 12306,
+    "n_holdout": 461,
+    "positive_rate": 0.208,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "gbm:pooled_with_edge": {
+    "auc": 0.6914,
+    "ece": 0.0412,
+    "slope": 0.955,
+    "citl": 0.0361,
+    "brier": 0.1444,
+    "n_train": 24893,
+    "n_holdout": 461,
+    "positive_rate": 0.208,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "gbm:pooled_with_edge_prior_matched": {
+    "auc": 0.6857,
+    "ece": 0.0327,
+    "slope": 0.953,
+    "citl": -0.0104,
+    "brier": 0.1449,
+    "n_train": 21701,
+    "n_holdout": 461,
+    "positive_rate": 0.208,
+    "gates_failed": [],
+    "all_gates_passed": true
+   }
+  },
+  "realistic_10k": {
+   "logreg:own_cohort": {
+    "auc": 0.6586,
+    "ece": 0.0249,
+    "slope": 1.021,
+    "citl": 0.0217,
+    "brier": 0.1299,
+    "n_train": 6869,
+    "n_holdout": 2290,
+    "positive_rate": 0.182,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "logreg:pooled_without_edge": {
+    "auc": 0.6617,
+    "ece": 0.0247,
+    "slope": 0.991,
+    "citl": 0.0223,
+    "brier": 0.1296,
+    "n_train": 12306,
+    "n_holdout": 2290,
+    "positive_rate": 0.182,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "logreg:pooled_with_edge": {
+    "auc": 0.6711,
+    "ece": 0.0627,
+    "slope": 0.926,
+    "citl": 0.0609,
+    "brier": 0.1333,
+    "n_train": 24893,
+    "n_holdout": 2290,
+    "positive_rate": 0.182,
+    "gates_failed": [
+     "calibration_in_the_large"
+    ],
+    "all_gates_passed": false
+   },
+   "logreg:pooled_with_edge_prior_matched": {
+    "auc": 0.6511,
+    "ece": 0.016,
+    "slope": 0.962,
+    "citl": 0.0138,
+    "brier": 0.1295,
+    "n_train": 21701,
+    "n_holdout": 2290,
+    "positive_rate": 0.182,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "gbm:own_cohort": {
+    "auc": 0.6614,
+    "ece": 0.0283,
+    "slope": 0.94,
+    "citl": 0.0233,
+    "brier": 0.1296,
+    "n_train": 6869,
+    "n_holdout": 2290,
+    "positive_rate": 0.182,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "gbm:pooled_without_edge": {
+    "auc": 0.659,
+    "ece": 0.0271,
+    "slope": 0.96,
+    "citl": 0.0228,
+    "brier": 0.1286,
+    "n_train": 12306,
+    "n_holdout": 2290,
+    "positive_rate": 0.182,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "gbm:pooled_with_edge": {
+    "auc": 0.6784,
+    "ece": 0.0603,
+    "slope": 0.969,
+    "citl": 0.0596,
+    "brier": 0.1317,
+    "n_train": 24893,
+    "n_holdout": 2290,
+    "positive_rate": 0.182,
+    "gates_failed": [
+     "calibration_in_the_large"
+    ],
+    "all_gates_passed": false
+   },
+   "gbm:pooled_with_edge_prior_matched": {
+    "auc": 0.6632,
+    "ece": 0.0219,
+    "slope": 0.943,
+    "citl": 0.0147,
+    "brier": 0.1285,
+    "n_train": 21701,
+    "n_holdout": 2290,
+    "positive_rate": 0.182,
+    "gates_failed": [],
+    "all_gates_passed": true
+   }
+  },
+  "realistic_20k": {
+   "logreg:own_cohort": {
+    "auc": 0.72,
+    "ece": 0.0422,
+    "slope": 1.198,
+    "citl": 0.028,
+    "brier": 0.1161,
+    "n_train": 4056,
+    "n_holdout": 1353,
+    "positive_rate": 0.184,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "logreg:pooled_without_edge": {
+    "auc": 0.7117,
+    "ece": 0.0452,
+    "slope": 1.315,
+    "citl": 0.0297,
+    "brier": 0.1176,
+    "n_train": 12306,
+    "n_holdout": 1353,
+    "positive_rate": 0.184,
+    "gates_failed": [
+     "calibration_slope"
+    ],
+    "all_gates_passed": false
+   },
+   "logreg:pooled_with_edge": {
+    "auc": 0.7248,
+    "ece": 0.063,
+    "slope": 1.205,
+    "citl": 0.0579,
+    "brier": 0.1184,
+    "n_train": 24893,
+    "n_holdout": 1353,
+    "positive_rate": 0.184,
+    "gates_failed": [
+     "calibration_in_the_large"
+    ],
+    "all_gates_passed": false
+   },
+   "logreg:pooled_with_edge_prior_matched": {
+    "auc": 0.7082,
+    "ece": 0.0343,
+    "slope": 1.268,
+    "citl": 0.0252,
+    "brier": 0.1164,
+    "n_train": 21701,
+    "n_holdout": 1353,
+    "positive_rate": 0.184,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "gbm:own_cohort": {
+    "auc": 0.6992,
+    "ece": 0.038,
+    "slope": 1.018,
+    "citl": 0.0306,
+    "brier": 0.117,
+    "n_train": 4056,
+    "n_holdout": 1353,
+    "positive_rate": 0.184,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "gbm:pooled_without_edge": {
+    "auc": 0.7106,
+    "ece": 0.0448,
+    "slope": 1.25,
+    "citl": 0.0334,
+    "brier": 0.1169,
+    "n_train": 12306,
+    "n_holdout": 1353,
+    "positive_rate": 0.184,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "gbm:pooled_with_edge": {
+    "auc": 0.7185,
+    "ece": 0.0699,
+    "slope": 1.212,
+    "citl": 0.0615,
+    "brier": 0.118,
+    "n_train": 24893,
+    "n_holdout": 1353,
+    "positive_rate": 0.184,
+    "gates_failed": [
+     "calibration_in_the_large"
+    ],
+    "all_gates_passed": false
+   },
+   "gbm:pooled_with_edge_prior_matched": {
+    "auc": 0.7055,
+    "ece": 0.0398,
+    "slope": 1.247,
+    "citl": 0.0306,
+    "brier": 0.1155,
+    "n_train": 21701,
+    "n_holdout": 1353,
+    "positive_rate": 0.184,
+    "gates_failed": [],
+    "all_gates_passed": true
+   }
+  },
+  "edge_20k": {
+   "logreg:own_cohort": {
+    "auc": 0.7248,
+    "ece": 0.0348,
+    "slope": 1.125,
+    "citl": 0.03,
+    "brier": 0.1843,
+    "n_train": 12587,
+    "n_holdout": 4196,
+    "positive_rate": 0.386,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "logreg:pooled_without_edge": {
+    "auc": 0.7026,
+    "ece": 0.1191,
+    "slope": 1.133,
+    "citl": -0.1191,
+    "brier": 0.2029,
+    "n_train": 12306,
+    "n_holdout": 4196,
+    "positive_rate": 0.386,
+    "gates_failed": [
+     "calibration_ece",
+     "calibration_in_the_large",
+     "fairness_calibration:language",
+     "fairness_calibration:nationality_group",
+     "fairness_calibration:gender",
+     "fairness_calibration:age_band",
+     "fairness_calibration:region"
+    ],
+    "all_gates_passed": false
+   },
+   "logreg:pooled_with_edge": {
+    "auc": 0.7268,
+    "ece": 0.023,
+    "slope": 1.12,
+    "citl": -0.0017,
+    "brier": 0.1833,
+    "n_train": 24893,
+    "n_holdout": 4196,
+    "positive_rate": 0.386,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "logreg:pooled_with_edge_prior_matched": {
+    "auc": 0.7151,
+    "ece": 0.1238,
+    "slope": 1.163,
+    "citl": -0.1234,
+    "brier": 0.1999,
+    "n_train": 21701,
+    "n_holdout": 4196,
+    "positive_rate": 0.386,
+    "gates_failed": [
+     "calibration_ece",
+     "calibration_in_the_large",
+     "fairness_calibration:language",
+     "fairness_calibration:nationality_group",
+     "fairness_calibration:gender",
+     "fairness_calibration:age_band",
+     "fairness_calibration:region"
+    ],
+    "all_gates_passed": false
+   },
+   "gbm:own_cohort": {
+    "auc": 0.7322,
+    "ece": 0.0353,
+    "slope": 1.159,
+    "citl": 0.0291,
+    "brier": 0.1829,
+    "n_train": 12587,
+    "n_holdout": 4196,
+    "positive_rate": 0.386,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "gbm:pooled_without_edge": {
+    "auc": 0.6977,
+    "ece": 0.1177,
+    "slope": 1.068,
+    "citl": -0.1147,
+    "brier": 0.2017,
+    "n_train": 12306,
+    "n_holdout": 4196,
+    "positive_rate": 0.386,
+    "gates_failed": [
+     "calibration_ece",
+     "calibration_in_the_large",
+     "fairness_calibration:language",
+     "fairness_calibration:nationality_group",
+     "fairness_calibration:gender",
+     "fairness_calibration:age_band"
+    ],
+    "all_gates_passed": false
+   },
+   "gbm:pooled_with_edge": {
+    "auc": 0.7302,
+    "ece": 0.0169,
+    "slope": 1.129,
+    "citl": -0.0025,
+    "brier": 0.1823,
+    "n_train": 24893,
+    "n_holdout": 4196,
+    "positive_rate": 0.386,
+    "gates_failed": [],
+    "all_gates_passed": true
+   },
+   "gbm:pooled_with_edge_prior_matched": {
+    "auc": 0.7178,
+    "ece": 0.1215,
+    "slope": 1.118,
+    "citl": -0.1215,
+    "brier": 0.1991,
+    "n_train": 21701,
+    "n_holdout": 4196,
+    "positive_rate": 0.386,
+    "gates_failed": [
+     "calibration_ece",
+     "calibration_in_the_large",
+     "fairness_calibration:language",
+     "fairness_calibration:nationality_group",
+     "fairness_calibration:gender",
+     "fairness_calibration:age_band",
+     "fairness_calibration:region"
+    ],
+    "all_gates_passed": false
+   }
+  }
+ },
+ "prior_matched_target_rate": 0.2084
+}
