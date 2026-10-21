@@ -1,0 +1,107 @@
+{
+ "steps": [
+  {
+   "users": 5,
+   "requests": 3708,
+   "rps": 185.2,
+   "p50": 21.4,
+   "p95": 76.5,
+   "p99": 120.3,
+   "errors": 0,
+   "error_rate": 0.0,
+   "p95_by_kind": {
+    "gp_queue": 113.4,
+    "detail": 21.9,
+    "queue": 81.6,
+    "overdue": 85.2,
+    "ingest": 29.7,
+    "patient": 13.5,
+    "fhir": 20.2,
+    "kpis": 14.0
+   }
+  },
+  {
+   "users": 10,
+   "requests": 3184,
+   "rps": 157.8,
+   "p50": 23.3,
+   "p95": 274.7,
+   "p99": 440.8,
+   "errors": 0,
+   "error_rate": 0.0,
+   "p95_by_kind": {
+    "detail": 28.7,
+    "gp_queue": 388.7,
+    "ingest": 38.2,
+    "kpis": 16.5,
+    "fhir": 25.6,
+    "overdue": 366.1,
+    "queue": 320.9,
+    "patient": 16.2
+   }
+  },
+  {
+   "users": 20,
+   "requests": 2735,
+   "rps": 131.1,
+   "p50": 48.4,
+   "p95": 420.8,
+   "p99": 662.7,
+   "errors": 0,
+   "error_rate": 0.0,
+   "p95_by_kind": {
+    "fhir": 51.6,
+    "patient": 32.6,
+    "detail": 50.2,
+    "kpis": 47.9,
+    "queue": 455.2,
+    "ingest": 73.1,
+    "overdue": 545.3,
+    "gp_queue": 531.1
+   }
+  },
+  {
+   "users": 40,
+   "requests": 2525,
+   "rps": 120.1,
+   "p50": 55.2,
+   "p95": 945.0,
+   "p99": 1365.4,
+   "errors": 0,
+   "error_rate": 0.0,
+   "p95_by_kind": {
+    "fhir": 124.4,
+    "detail": 66.1,
+    "ingest": 72.7,
+    "overdue": 1043.6,
+    "queue": 1163.1,
+    "kpis": 36.8,
+    "patient": 25.8,
+    "gp_queue": 1193.3
+   }
+  },
+  {
+   "users": 80,
+   "requests": 111,
+   "rps": 3.7,
+   "p50": 30171.4,
+   "p95": 30334.1,
+   "p99": 30339.1,
+   "errors": 80,
+   "error_rate": 0.7207,
+   "p95_by_kind": {
+    "patient": 30320.1,
+    "detail": 30313.1,
+    "ingest": 30282.0,
+    "fhir": 30305.9,
+    "kpis": 30335.3,
+    "gp_queue": 30326.4,
+    "queue": 30339.1,
+    "overdue": 30282.4
+   }
+  }
+ ],
+ "audit_valid": true,
+ "audit_checked": 172975,
+ "note": "audit verify inside the script failed (500) while the 80-user backlog drained; verified manually ~2 min later: valid=true, 172,975 events. Server: 4 workers, SQLite copy of data/wasl_10k.db, load generator on the same 8-CPU box."
+}
