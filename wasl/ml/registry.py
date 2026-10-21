@@ -197,8 +197,8 @@ def gate_results(metrics: dict, fairness: dict, current_auc_on_same_holdout: flo
 
 def _reference_stats(df: pd.DataFrame, scores: np.ndarray) -> dict:
     ref: dict[str, Any] = {"categorical": {}, "score_hist": np.histogram(scores, bins=10, range=(0, 1))[0].tolist()}
-    for c in CAT_FEATURES + ["has_smartphone", "whatsapp", "phone_valid", "alt_contact", "early_notified",
-                             "early_teach_back_failed"]:
+    for c in CAT_FEATURES + ["language", "has_smartphone", "whatsapp", "phone_valid", "alt_contact", "early_notified",
+                             "early_teach_back_failed", "language_unsupported"]:
         ref["categorical"][c] = df[c].astype(str).value_counts(normalize=True).round(5).to_dict()
     ref["numeric_means"] = {c: round(float(df[c].mean()), 4) for c in ("prior_no_shows", "prior_screens")}
     return ref
@@ -456,8 +456,9 @@ def model_card(mv: ModelVersion) -> str:
               "", "## Limitations",
               "- Trained on synthetic data with assumed delay/drop-off mechanisms; real performance is unknown.",
               "- Small subgroups have wide uncertainty; fairness gaps are point estimates without confidence intervals.",
-              "- Language, region and age band are inputs (they drive operational barriers such as channel reach); "
-              "their effect must be reviewed so higher risk leads to MORE support, never less.",
+              "- Region and the interpreter need (no patient material in the preferred language) are inputs (operational "
+              "barriers such as channel reach); language itself and age band are monitored for fairness but are not "
+              "inputs. Their effect must be reviewed so higher risk leads to MORE support, never less.",
               "- Aligned with (not certified against) WHO guidance on ethics & governance of AI for health, NIST AI RMF "
               "and ISO/IEC 42001 practices."]
     return "\n".join(lines)

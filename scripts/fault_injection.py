@@ -19,6 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 R, SM, WF, CM = "wasl/clinical_rules.py", "wasl/statemachine.py", "wasl/services/workflow.py", "wasl/comms/service.py"
 IN, MO, CAL = "wasl/services/ingest.py", "wasl/models.py", "wasl/calendar_uae.py"
+REG = "wasl/ml/registry.py"
 
 FAULTS = [
     # id, file, original, replacement, description
@@ -94,13 +95,19 @@ FAULTS = [
      "Messages: untranslated result wording spliced into the patient's-language template (mixed language)"),
     ("F52", CM, '        interpreter_task = _ensure_call_task(db, case, actor, now, reason="interpreter")', "        pass",
      "Messages: no interpreter call when the result wording is not translated"),
+    ("F53", REG, '    if not mv.gates.get("all_passed"):\n        raise DomainError("candidate did not pass all promotion gates")',
+     '    if False:\n        raise DomainError("candidate did not pass all promotion gates")',
+     "ML governance: a gate-failing candidate (status tampered to awaiting approval) can be promoted"),
+    ("F54", REG, '"passed": not f["underserved_tpr"], "gap": f["tpr_gap"]}', '"passed": True, "gap": f["tpr_gap"]}',
+     "ML fairness: the recall gate never fails (a credibly under-flagged language group passes)"),
 ]
 
 TESTS = ["tests/test_clinical_golden.py", "tests/test_failsafe.py", "tests/test_properties.py",
          "tests/test_statemachine_exhaustive.py", "tests/test_statemachine.py", "tests/test_workflow.py",
          "tests/test_ingest_adversarial.py", "tests/test_concurrency.py", "tests/test_time_handling.py",
          "tests/test_duplicate_identity.py", "tests/test_consent_withdrawal.py", "tests/test_deceased.py",
-         "tests/test_journey_api.py", "tests/test_patient_messages.py"]
+         "tests/test_journey_api.py", "tests/test_patient_messages.py", "tests/test_ml_fairness_language.py",
+         "tests/test_ml_governance.py"]
 
 
 def run_tests() -> tuple[bool, str]:
@@ -118,8 +125,10 @@ def run_tests() -> tuple[bool, str]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--quick", action="store_true", help="first 5 faults only")
+    ap.add_argument("--only", default="", help="comma-separated fault ids; prints results, does not rewrite the report")
     a = ap.parse_args()
-    faults = FAULTS[:5] if a.quick else FAULTS
+    only = {x.strip() for x in a.only.split(",") if x.strip()}
+    faults = [f for f in FAULTS if f[0] in only] if only else FAULTS[:5] if a.quick else FAULTS
     ok, _ = run_tests()
     if ok:
         sys.exit("baseline test run fails - fix the suite before fault injection")
@@ -146,6 +155,9 @@ def main() -> None:
            f"Faults applied: {len(applied)}; killed: {killed}; kill rate: {rate:.0%}.", "",
            "| ID | Injected fault | Result | First failing test |", "|---|---|---|---|"]
     out += [f"| {r[0]} | {r[1]} | {r[2]} | `{r[3]}` |" for r in rows]
+    if only:
+        print(f"kill rate {killed}/{len(applied)} (subset; report not rewritten)")
+        return
     (ROOT / "docs").mkdir(exist_ok=True)
     (ROOT / "docs" / "fault_injection_results.md").write_text("\n".join(out) + "\n")
     print(f"kill rate {killed}/{len(applied)} = {rate:.0%}")

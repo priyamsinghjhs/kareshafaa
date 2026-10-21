@@ -27,7 +27,8 @@ Challenge 05 and aligned with `../Challenge05_Solution_Design.md`.
   export per case.
 * **Governed ML** (scikit-learn) used **only** for outreach priority and queue order. A model registry with AUC,
   calibration and fairness gates. Promotion needs a better candidate **and** clinical-lead approval. Drift monitoring,
-  rollback and model cards. A lessons-learned engine proposes rule changes that a human must approve.
+  rollback and model cards. Gender, nationality, age band and language are fairness-monitored, never model inputs
+  (the interpreter need is). A lessons-learned engine proposes rule changes that a human must approve.
 * **Security**: RBAC with 7 roles, consent checks, an **append-only, hash-chained audit log** of every read and write,
   and suppression of analyst cells below 5.
 
@@ -39,7 +40,7 @@ Requires Python 3.11+ (tested on 3.13) and `make`. Everything is free and open s
 make setup          # venv + dependencies (~1 min)
 make seed           # 2,000 synthetic patients, 6 months of history, train + register models (~55 s)
 make run            # http://localhost:8000  (python -m wasl.serve: 4 SO_REUSEPORT worker processes; WORKERS=1 for one)
-make test           # 3,127 pytest tests (~60 s; the 20k cohort test is skipped until `make seed-large`)
+make test           # 3,146 pytest tests (~60 s; the 20k cohort test is skipped until `make seed-large`)
 ```
 
 Clinical-safety targets (Iteration 6):
@@ -50,7 +51,7 @@ make validate        # 53 data invariants on the demo DB (exit 1 on any violatio
 make validate-large  # same on the 20k cohort
 make test-clinical   # golden cases, fail-safe, Hypothesis properties, exhaustive state machine
 make test-cohort     # full-cohort run on the 20k DB (needs seed-large)
-make fault-injection # 42 deliberate faults; writes docs/fault_injection_results.md
+make fault-injection # 54 deliberate faults; writes docs/fault_injection_results.md
 make differential    # 2M randomised results: rules engine vs independent reference (docs/differential_results.md)
 ```
 
@@ -177,7 +178,7 @@ deployment would need formal assessment.
 
 ## Known limitations
 
-* Synthetic data only. The ML model (AUC ≈ 0.66 on the 2k demo, 0.72 on the 20k cohort) and the simulator say nothing about real-world performance.
+* Synthetic data only. The ML model (AUC ≈ 0.68 on the 2k demo, 0.66 on the 10k, 0.72 on the 20k cohort) and the simulator say nothing about real-world performance.
 * Fairness gates use bootstrap CIs on a ~445-case holdout, so small groups (e.g. hi, ur, tl, n < 50 positives) are
   *not eligible* for gating and are only monitored. A real deployment needs larger validation sets.
 * Channels are simulated. There is no SMS, WhatsApp or email integration, and no real telephony.
@@ -201,5 +202,5 @@ deployment would need formal assessment.
 
 ## Repository map
 
-`wasl/` app · `tests/` pytest (3,127) · `wasl_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
+`wasl/` app · `tests/` pytest (3,146) · `wasl_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
 `scripts/ui_smoke.py` (optional Playwright) · `ITERATIONS.md` build log with self-assessments · `Makefile` · `Dockerfile` · `.env.example`

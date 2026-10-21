@@ -17,9 +17,14 @@ from ..models import Case, Patient, utcnow
 # age_band is NOT a model input (Iteration 7): with it, both demo candidates ranked 40-49-year-olds last (recall at
 # top 30 % 0.05-0.10 vs 0.80-1.0 for 60-75) and failed the fairness gate; without it AUC and ECE improved and all
 # gates passed. Age band stays a fairness-monitoring attribute (FAIRNESS_ATTRS).
-CAT_FEATURES = ["programme", "tier", "language", "region"]
+# language is NOT a model input as an identity one-hot (round 18). With it, the demo logistic candidate learned a low
+# baseline for English speakers (top-30 % flag rate 6 % against an observed delay rate of 18 %, recall 0.12 vs 0.47
+# overall) and failed the language recall gate; the same pattern was present, but not yet credible, before round 16.
+# The operational barrier it stood for is kept as `language_unsupported` (no patient material exists in the patient's
+# language, so contact needs an interpreter). Language stays a fairness-monitoring attribute and is drift-monitored.
+CAT_FEATURES = ["programme", "tier", "region"]
 NUM_FEATURES = ["has_smartphone", "whatsapp", "phone_valid", "alt_contact", "prior_no_shows", "prior_screens",
-                "early_failed_contacts", "early_notified", "early_teach_back_failed"]
+                "early_failed_contacts", "early_notified", "early_teach_back_failed", "language_unsupported"]
 EARLY_WINDOW_HOURS = 72  # engagement signals observed only in the first 72h after the result (no label leakage)
 FEATURES = CAT_FEATURES + NUM_FEATURES
 FAIRNESS_ATTRS = ["language", "nationality_group", "gender", "age_band", "region"]
@@ -43,7 +48,15 @@ def case_frame(db: Session, *, open_only: bool = False) -> pd.DataFrame:
         return df
     for c in ("has_smartphone", "whatsapp", "phone_valid", "alt_contact"):
         df[c] = df[c].astype(int)
+    df["language_unsupported"] = language_unsupported(df.language)
     return _early_signals(db, df)
+
+
+def language_unsupported(language: pd.Series) -> pd.Series:
+    """1 = no patient material exists in the patient's preferred language (contact needs an interpreter)."""
+    from ..comms.content import SUPPORTED_LANGUAGES  # noqa: PLC0415
+
+    return (~language.astype(str).isin(list(SUPPORTED_LANGUAGES))).astype(int)
 
 
 def _early_signals(db: Session, df: pd.DataFrame) -> pd.DataFrame:

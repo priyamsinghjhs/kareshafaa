@@ -1,44 +1,34 @@
 {
  "demo_2000": {
   "db": "data/wasl.db",
-  "as_of": "2026-10-20 22:39:37.860059",
+  "as_of": "2026-10-21 02:10:40.301180",
   "results": [
    {
     "recalibration": "none",
     "algorithm": "logreg",
     "chosen": "none",
-    "n_train": 1384,
-    "n_holdout": 462,
-    "auc": 0.6557,
+    "n_train": 1381,
+    "n_holdout": 461,
+    "auc": 0.6842,
     "raw": {
-     "ece": 0.0336,
-     "brier": 0.1339,
-     "citl": 0.0293,
-     "slope": 0.859,
-     "bins_within_ci": 9,
+     "ece": 0.0362,
+     "brier": 0.1448,
+     "citl": 0.0099,
+     "slope": 1.007,
+     "bins_within_ci": 10,
      "bins": 10
     },
     "final": {
-     "ece": 0.0336,
-     "brier": 0.1339,
-     "citl": 0.0293,
-     "slope": 0.859,
-     "bins_within_ci": 9,
+     "ece": 0.0362,
+     "brier": 0.1448,
+     "citl": 0.0099,
+     "slope": 1.007,
+     "bins_within_ci": 10,
      "bins": 10
     },
     "reliability": [
      {
-      "mean_pred": 0.088,
-      "observed": 0.106,
-      "ci": [
-       0.046,
-       0.226
-      ],
-      "n": 47,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.115,
+      "mean_pred": 0.101,
       "observed": 0.085,
       "ci": [
        0.034,
@@ -48,27 +38,27 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.133,
-      "observed": 0.087,
+      "mean_pred": 0.123,
+      "observed": 0.065,
       "ci": [
-       0.034,
-       0.203
+       0.022,
+       0.175
       ],
       "n": 46,
       "within_ci": true
      },
      {
-      "mean_pred": 0.15,
-      "observed": 0.13,
+      "mean_pred": 0.138,
+      "observed": 0.109,
       "ci": [
-       0.061,
-       0.257
+       0.047,
+       0.23
       ],
       "n": 46,
       "within_ci": true
      },
      {
-      "mean_pred": 0.167,
+      "mean_pred": 0.152,
       "observed": 0.174,
       "ci": [
        0.091,
@@ -78,27 +68,7 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.182,
-      "observed": 0.239,
-      "ci": [
-       0.139,
-       0.379
-      ],
-      "n": 46,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.204,
-      "observed": 0.152,
-      "ci": [
-       0.076,
-       0.282
-      ],
-      "n": 46,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.232,
+      "mean_pred": 0.17,
       "observed": 0.217,
       "ci": [
        0.123,
@@ -108,21 +78,51 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.286,
-      "observed": 0.13,
+      "mean_pred": 0.187,
+      "observed": 0.261,
       "ci": [
-       0.061,
-       0.257
+       0.156,
+       0.403
       ],
       "n": 46,
-      "within_ci": false
+      "within_ci": true
      },
      {
-      "mean_pred": 0.516,
-      "observed": 0.457,
+      "mean_pred": 0.211,
+      "observed": 0.174,
       "ci": [
-       0.322,
-       0.598
+       0.091,
+       0.307
+      ],
+      "n": 46,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.241,
+      "observed": 0.217,
+      "ci": [
+       0.123,
+       0.356
+      ],
+      "n": 46,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.293,
+      "observed": 0.239,
+      "ci": [
+       0.139,
+       0.379
+      ],
+      "n": 46,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.568,
+      "observed": 0.543,
+      "ci": [
+       0.402,
+       0.678
       ],
       "n": 46,
       "within_ci": true
@@ -139,12 +139,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0501
+       "gap": 0.1545
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0833
+       "gap": 0.26
       },
       "calibration": {
        "passed": true,
@@ -156,12 +156,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0753
+       "gap": 0.1318
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.2154
+       "gap": 0.3306
       },
       "calibration": {
        "passed": true,
@@ -173,12 +173,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1047
+       "gap": 0.1588
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0088
+       "gap": 0.2144
       },
       "calibration": {
        "passed": true,
@@ -190,12 +190,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.2193
+       "gap": 0.1147
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.3571
+       "gap": 0.0208
       },
       "calibration": {
        "passed": true,
@@ -207,12 +207,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0256
+       "gap": 0.206
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1096
+       "gap": 0.1547
       },
       "calibration": {
        "passed": true,
@@ -226,28 +226,28 @@
     "recalibration": "none",
     "algorithm": "gbm",
     "chosen": "none",
-    "n_train": 1384,
-    "n_holdout": 462,
-    "auc": 0.6368,
+    "n_train": 1381,
+    "n_holdout": 461,
+    "auc": 0.6702,
     "raw": {
-     "ece": 0.0415,
-     "brier": 0.1365,
-     "citl": 0.0367,
-     "slope": 0.75,
-     "bins_within_ci": 9,
+     "ece": 0.0283,
+     "brier": 0.1472,
+     "citl": 0.0128,
+     "slope": 0.883,
+     "bins_within_ci": 10,
      "bins": 10
     },
     "final": {
-     "ece": 0.0415,
-     "brier": 0.1365,
-     "citl": 0.0367,
-     "slope": 0.75,
-     "bins_within_ci": 9,
+     "ece": 0.0283,
+     "brier": 0.1472,
+     "citl": 0.0128,
+     "slope": 0.883,
+     "bins_within_ci": 10,
      "bins": 10
     },
     "reliability": [
      {
-      "mean_pred": 0.077,
+      "mean_pred": 0.091,
       "observed": 0.085,
       "ci": [
        0.034,
@@ -257,17 +257,7 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.112,
-      "observed": 0.106,
-      "ci": [
-       0.046,
-       0.226
-      ],
-      "n": 47,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.132,
+      "mean_pred": 0.123,
       "observed": 0.109,
       "ci": [
        0.047,
@@ -277,27 +267,7 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.147,
-      "observed": 0.174,
-      "ci": [
-       0.091,
-       0.307
-      ],
-      "n": 46,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.168,
-      "observed": 0.239,
-      "ci": [
-       0.139,
-       0.379
-      ],
-      "n": 46,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.189,
+      "mean_pred": 0.142,
       "observed": 0.087,
       "ci": [
        0.034,
@@ -307,21 +277,51 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.213,
-      "observed": 0.196,
+      "mean_pred": 0.155,
+      "observed": 0.152,
       "ci": [
-       0.107,
-       0.332
+       0.076,
+       0.282
       ],
       "n": 46,
       "within_ci": true
      },
      {
-      "mean_pred": 0.248,
-      "observed": 0.152,
+      "mean_pred": 0.17,
+      "observed": 0.261,
       "ci": [
-       0.076,
-       0.282
+       0.156,
+       0.403
+      ],
+      "n": 46,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.188,
+      "observed": 0.217,
+      "ci": [
+       0.123,
+       0.356
+      ],
+      "n": 46,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.211,
+      "observed": 0.217,
+      "ci": [
+       0.123,
+       0.356
+      ],
+      "n": 46,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.244,
+      "observed": 0.196,
+      "ci": [
+       0.107,
+       0.332
       ],
       "n": 46,
       "within_ci": true
@@ -337,14 +337,14 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.554,
-      "observed": 0.37,
+      "mean_pred": 0.58,
+      "observed": 0.5,
       "ci": [
-       0.245,
-       0.514
+       0.361,
+       0.639
       ],
       "n": 46,
-      "within_ci": false
+      "within_ci": true
      }
     ],
     "tuning": {
@@ -358,12 +358,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.027
+       "gap": 0.1809
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1367
+       "gap": 0.14
       },
       "calibration": {
        "passed": true,
@@ -375,12 +375,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0589
+       "gap": 0.1605
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.3938
+       "gap": 0.1667
       },
       "calibration": {
        "passed": true,
@@ -392,12 +392,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0453
+       "gap": 0.1401
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.08
+       "gap": 0.1556
       },
       "calibration": {
        "passed": true,
@@ -409,12 +409,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0968
+       "gap": 0.147
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.2667
+       "gap": 0.2917
       },
       "calibration": {
        "passed": true,
@@ -426,12 +426,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0721
+       "gap": 0.0577
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1122
+       "gap": 0.1458
       },
       "calibration": {
        "passed": true,
@@ -445,38 +445,28 @@
     "recalibration": "auto",
     "algorithm": "logreg",
     "chosen": "platt",
-    "n_train": 1384,
-    "n_holdout": 462,
-    "auc": 0.6557,
+    "n_train": 1381,
+    "n_holdout": 461,
+    "auc": 0.6842,
     "raw": {
-     "ece": 0.0336,
-     "brier": 0.1339,
-     "citl": 0.0293,
-     "slope": 0.859,
-     "bins_within_ci": 9,
+     "ece": 0.0362,
+     "brier": 0.1448,
+     "citl": 0.0099,
+     "slope": 1.007,
+     "bins_within_ci": 10,
      "bins": 10
     },
     "final": {
-     "ece": 0.035,
-     "brier": 0.1334,
-     "citl": 0.0317,
-     "slope": 1.057,
-     "bins_within_ci": 9,
+     "ece": 0.0224,
+     "brier": 0.1448,
+     "citl": 0.0099,
+     "slope": 1.23,
+     "bins_within_ci": 10,
      "bins": 10
     },
     "reliability": [
      {
-      "mean_pred": 0.106,
-      "observed": 0.106,
-      "ci": [
-       0.046,
-       0.226
-      ],
-      "n": 47,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.131,
+      "mean_pred": 0.117,
       "observed": 0.085,
       "ci": [
        0.034,
@@ -486,27 +476,27 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.147,
-      "observed": 0.087,
+      "mean_pred": 0.138,
+      "observed": 0.065,
       "ci": [
-       0.034,
-       0.203
+       0.022,
+       0.175
       ],
       "n": 46,
       "within_ci": true
      },
      {
-      "mean_pred": 0.162,
-      "observed": 0.13,
+      "mean_pred": 0.151,
+      "observed": 0.109,
       "ci": [
-       0.061,
-       0.257
+       0.047,
+       0.23
       ],
       "n": 46,
       "within_ci": true
      },
      {
-      "mean_pred": 0.177,
+      "mean_pred": 0.163,
       "observed": 0.174,
       "ci": [
        0.091,
@@ -516,27 +506,7 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.19,
-      "observed": 0.239,
-      "ci": [
-       0.139,
-       0.379
-      ],
-      "n": 46,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.208,
-      "observed": 0.152,
-      "ci": [
-       0.076,
-       0.282
-      ],
-      "n": 46,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.231,
+      "mean_pred": 0.178,
       "observed": 0.217,
       "ci": [
        0.123,
@@ -546,21 +516,51 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.274,
-      "observed": 0.13,
+      "mean_pred": 0.193,
+      "observed": 0.261,
       "ci": [
-       0.061,
-       0.257
+       0.156,
+       0.403
       ],
       "n": 46,
-      "within_ci": false
+      "within_ci": true
      },
      {
-      "mean_pred": 0.47,
-      "observed": 0.457,
+      "mean_pred": 0.213,
+      "observed": 0.174,
       "ci": [
-       0.322,
-       0.598
+       0.091,
+       0.307
+      ],
+      "n": 46,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.237,
+      "observed": 0.217,
+      "ci": [
+       0.123,
+       0.356
+      ],
+      "n": 46,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.279,
+      "observed": 0.239,
+      "ci": [
+       0.139,
+       0.379
+      ],
+      "n": 46,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.515,
+      "observed": 0.543,
+      "ci": [
+       0.402,
+       0.678
       ],
       "n": 46,
       "within_ci": true
@@ -569,14 +569,14 @@
     "tuning": {
      "n_tune": 277,
      "none": {
-      "ece": 0.0585,
-      "slope": 0.424,
-      "citl": -0.0177
+      "ece": 0.0773,
+      "slope": 0.412,
+      "citl": -0.0172
      },
      "platt": {
-      "ece": 0.0597,
-      "slope": 0.531,
-      "citl": -0.0174
+      "ece": 0.0685,
+      "slope": 0.509,
+      "citl": -0.0167
      },
      "chosen": "platt"
     },
@@ -587,12 +587,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0501
+       "gap": 0.1545
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0833
+       "gap": 0.26
       },
       "calibration": {
        "passed": true,
@@ -604,12 +604,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0753
+       "gap": 0.1318
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.2154
+       "gap": 0.3306
       },
       "calibration": {
        "passed": true,
@@ -621,12 +621,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1047
+       "gap": 0.1588
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0088
+       "gap": 0.2144
       },
       "calibration": {
        "passed": true,
@@ -638,12 +638,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.2193
+       "gap": 0.1147
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.3571
+       "gap": 0.0208
       },
       "calibration": {
        "passed": true,
@@ -655,12 +655,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0256
+       "gap": 0.206
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1096
+       "gap": 0.1547
       },
       "calibration": {
        "passed": true,
@@ -674,28 +674,28 @@
     "recalibration": "auto",
     "algorithm": "gbm",
     "chosen": "platt",
-    "n_train": 1384,
-    "n_holdout": 462,
-    "auc": 0.6368,
+    "n_train": 1381,
+    "n_holdout": 461,
+    "auc": 0.6702,
     "raw": {
-     "ece": 0.0415,
-     "brier": 0.1365,
-     "citl": 0.0367,
-     "slope": 0.75,
-     "bins_within_ci": 9,
+     "ece": 0.0283,
+     "brier": 0.1472,
+     "citl": 0.0128,
+     "slope": 0.883,
+     "bins_within_ci": 10,
      "bins": 10
     },
     "final": {
-     "ece": 0.0444,
-     "brier": 0.1344,
-     "citl": 0.0361,
-     "slope": 1.211,
+     "ece": 0.0242,
+     "brier": 0.1466,
+     "citl": 0.0125,
+     "slope": 1.275,
      "bins_within_ci": 10,
      "bins": 10
     },
     "reliability": [
      {
-      "mean_pred": 0.116,
+      "mean_pred": 0.121,
       "observed": 0.085,
       "ci": [
        0.034,
@@ -705,17 +705,7 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.146,
-      "observed": 0.106,
-      "ci": [
-       0.046,
-       0.226
-      ],
-      "n": 47,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.161,
+      "mean_pred": 0.149,
       "observed": 0.109,
       "ci": [
        0.047,
@@ -725,27 +715,7 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.172,
-      "observed": 0.174,
-      "ci": [
-       0.091,
-       0.307
-      ],
-      "n": 46,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.186,
-      "observed": 0.239,
-      "ci": [
-       0.139,
-       0.379
-      ],
-      "n": 46,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.199,
+      "mean_pred": 0.163,
       "observed": 0.087,
       "ci": [
        0.034,
@@ -755,17 +725,7 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.215,
-      "observed": 0.196,
-      "ci": [
-       0.107,
-       0.332
-      ],
-      "n": 46,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.236,
+      "mean_pred": 0.174,
       "observed": 0.152,
       "ci": [
        0.076,
@@ -775,7 +735,7 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.271,
+      "mean_pred": 0.184,
       "observed": 0.261,
       "ci": [
        0.156,
@@ -785,11 +745,51 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.439,
-      "observed": 0.37,
+      "mean_pred": 0.198,
+      "observed": 0.217,
       "ci": [
-       0.245,
-       0.514
+       0.123,
+       0.356
+      ],
+      "n": 46,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.214,
+      "observed": 0.217,
+      "ci": [
+       0.123,
+       0.356
+      ],
+      "n": 46,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.237,
+      "observed": 0.196,
+      "ci": [
+       0.107,
+       0.332
+      ],
+      "n": 46,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.28,
+      "observed": 0.261,
+      "ci": [
+       0.156,
+       0.403
+      ],
+      "n": 46,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.491,
+      "observed": 0.5,
+      "ci": [
+       0.361,
+       0.639
       ],
       "n": 46,
       "within_ci": true
@@ -798,14 +798,14 @@
     "tuning": {
      "n_tune": 277,
      "none": {
-      "ece": 0.0801,
-      "slope": 0.421,
-      "citl": -0.0235
+      "ece": 0.0866,
+      "slope": 0.336,
+      "citl": -0.019
      },
      "platt": {
-      "ece": 0.0522,
-      "slope": 0.678,
-      "citl": -0.0231
+      "ece": 0.0395,
+      "slope": 0.498,
+      "citl": -0.0164
      },
      "chosen": "platt"
     },
@@ -816,12 +816,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.027
+       "gap": 0.1809
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1367
+       "gap": 0.14
       },
       "calibration": {
        "passed": true,
@@ -833,12 +833,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0589
+       "gap": 0.1605
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.3938
+       "gap": 0.1667
       },
       "calibration": {
        "passed": true,
@@ -850,12 +850,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0453
+       "gap": 0.1401
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.08
+       "gap": 0.1556
       },
       "calibration": {
        "passed": true,
@@ -867,12 +867,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0968
+       "gap": 0.147
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.2667
+       "gap": 0.2917
       },
       "calibration": {
        "passed": true,
@@ -884,12 +884,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0721
+       "gap": 0.0577
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1122
+       "gap": 0.1458
       },
       "calibration": {
        "passed": true,
@@ -903,34 +903,54 @@
  },
  "realistic_20k": {
   "db": "data/wasl_large.db",
-  "as_of": "2026-10-20 22:35:24.518122",
+  "as_of": "2026-10-21 00:16:50.672128",
   "results": [
    {
     "recalibration": "none",
     "algorithm": "logreg",
     "chosen": "none",
-    "n_train": 4053,
-    "n_holdout": 1352,
-    "auc": 0.7225,
+    "n_train": 4056,
+    "n_holdout": 1353,
+    "auc": 0.72,
     "raw": {
-     "ece": 0.0519,
-     "brier": 0.1092,
-     "citl": 0.0427,
-     "slope": 1.189,
-     "bins_within_ci": 7,
+     "ece": 0.0422,
+     "brier": 0.1161,
+     "citl": 0.028,
+     "slope": 1.198,
+     "bins_within_ci": 9,
      "bins": 10
     },
     "final": {
-     "ece": 0.0519,
-     "brier": 0.1092,
-     "citl": 0.0427,
-     "slope": 1.189,
-     "bins_within_ci": 7,
+     "ece": 0.0422,
+     "brier": 0.1161,
+     "citl": 0.028,
+     "slope": 1.198,
+     "bins_within_ci": 9,
      "bins": 10
     },
     "reliability": [
      {
-      "mean_pred": 0.098,
+      "mean_pred": 0.099,
+      "observed": 0.125,
+      "ci": [
+       0.08,
+       0.191
+      ],
+      "n": 136,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.116,
+      "observed": 0.074,
+      "ci": [
+       0.04,
+       0.13
+      ],
+      "n": 136,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.126,
       "observed": 0.088,
       "ci": [
        0.051,
@@ -940,37 +960,7 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.123,
-      "observed": 0.103,
-      "ci": [
-       0.062,
-       0.165
-      ],
-      "n": 136,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.135,
-      "observed": 0.089,
-      "ci": [
-       0.052,
-       0.149
-      ],
-      "n": 135,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.149,
-      "observed": 0.104,
-      "ci": [
-       0.063,
-       0.167
-      ],
-      "n": 135,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.159,
+      "mean_pred": 0.14,
       "observed": 0.141,
       "ci": [
        0.092,
@@ -980,51 +970,61 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.175,
-      "observed": 0.119,
+      "mean_pred": 0.156,
+      "observed": 0.104,
       "ci": [
-       0.074,
-       0.184
+       0.063,
+       0.167
       ],
       "n": 135,
       "within_ci": true
      },
      {
-      "mean_pred": 0.191,
-      "observed": 0.119,
+      "mean_pred": 0.17,
+      "observed": 0.096,
       "ci": [
-       0.074,
-       0.184
+       0.057,
+       0.158
       ],
       "n": 135,
       "within_ci": false
      },
      {
-      "mean_pred": 0.22,
-      "observed": 0.133,
+      "mean_pred": 0.189,
+      "observed": 0.141,
       "ci": [
-       0.086,
-       0.201
+       0.092,
+       0.209
       ],
       "n": 135,
-      "within_ci": false
+      "within_ci": true
      },
      {
-      "mean_pred": 0.268,
-      "observed": 0.185,
+      "mean_pred": 0.218,
+      "observed": 0.163,
       "ci": [
-       0.129,
-       0.259
+       0.11,
+       0.234
       ],
       "n": 135,
-      "within_ci": false
+      "within_ci": true
      },
      {
-      "mean_pred": 0.695,
-      "observed": 0.704,
+      "mean_pred": 0.264,
+      "observed": 0.274,
       "ci": [
-       0.622,
-       0.774
+       0.206,
+       0.355
+      ],
+      "n": 135,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.644,
+      "observed": 0.637,
+      "ci": [
+       0.553,
+       0.713
       ],
       "n": 135,
       "within_ci": true
@@ -1041,12 +1041,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1561
+       "gap": 0.1933
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.4335
+       "gap": 0.534
       },
       "calibration": {
        "passed": true,
@@ -1058,12 +1058,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.2737
+       "gap": 0.3286
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.5129
+       "gap": 0.5
       },
       "calibration": {
        "passed": true,
@@ -1075,12 +1075,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0425
+       "gap": 0.0634
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.064
+       "gap": 0.1136
       },
       "calibration": {
        "passed": true,
@@ -1092,12 +1092,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0414
+       "gap": 0.0946
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0965
+       "gap": 0.1488
       },
       "calibration": {
        "passed": true,
@@ -1109,12 +1109,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1053
+       "gap": 0.0678
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.3375
+       "gap": 0.212
       },
       "calibration": {
        "passed": true,
@@ -1128,28 +1128,28 @@
     "recalibration": "none",
     "algorithm": "gbm",
     "chosen": "none",
-    "n_train": 4053,
-    "n_holdout": 1352,
-    "auc": 0.7171,
+    "n_train": 4056,
+    "n_holdout": 1353,
+    "auc": 0.6992,
     "raw": {
-     "ece": 0.0526,
-     "brier": 0.1105,
-     "citl": 0.0414,
-     "slope": 1.125,
-     "bins_within_ci": 7,
+     "ece": 0.038,
+     "brier": 0.117,
+     "citl": 0.0306,
+     "slope": 1.018,
+     "bins_within_ci": 9,
      "bins": 10
     },
     "final": {
-     "ece": 0.0526,
-     "brier": 0.1105,
-     "citl": 0.0414,
-     "slope": 1.125,
-     "bins_within_ci": 7,
+     "ece": 0.038,
+     "brier": 0.117,
+     "citl": 0.0306,
+     "slope": 1.018,
+     "bins_within_ci": 9,
      "bins": 10
     },
     "reliability": [
      {
-      "mean_pred": 0.098,
+      "mean_pred": 0.101,
       "observed": 0.103,
       "ci": [
        0.062,
@@ -1159,91 +1159,91 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.124,
-      "observed": 0.081,
+      "mean_pred": 0.112,
+      "observed": 0.096,
       "ci": [
-       0.046,
-       0.139
+       0.057,
+       0.157
       ],
       "n": 136,
       "within_ci": true
      },
      {
-      "mean_pred": 0.135,
-      "observed": 0.081,
+      "mean_pred": 0.124,
+      "observed": 0.132,
       "ci": [
-       0.046,
-       0.14
+       0.085,
+       0.2
+      ],
+      "n": 136,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.137,
+      "observed": 0.119,
+      "ci": [
+       0.074,
+       0.184
       ],
       "n": 135,
       "within_ci": true
      },
      {
-      "mean_pred": 0.142,
-      "observed": 0.141,
+      "mean_pred": 0.15,
+      "observed": 0.119,
       "ci": [
-       0.092,
-       0.209
+       0.074,
+       0.184
       ],
       "n": 135,
       "within_ci": true
      },
      {
-      "mean_pred": 0.153,
-      "observed": 0.141,
+      "mean_pred": 0.163,
+      "observed": 0.111,
       "ci": [
-       0.092,
-       0.209
+       0.068,
+       0.175
       ],
       "n": 135,
       "within_ci": true
      },
      {
-      "mean_pred": 0.167,
-      "observed": 0.081,
+      "mean_pred": 0.185,
+      "observed": 0.148,
       "ci": [
-       0.046,
-       0.14
+       0.098,
+       0.218
+      ],
+      "n": 135,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.216,
+      "observed": 0.2,
+      "ci": [
+       0.141,
+       0.275
+      ],
+      "n": 135,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.273,
+      "observed": 0.17,
+      "ci": [
+       0.116,
+       0.243
       ],
       "n": 135,
       "within_ci": false
      },
      {
-      "mean_pred": 0.188,
-      "observed": 0.163,
+      "mean_pred": 0.688,
+      "observed": 0.644,
       "ci": [
-       0.11,
-       0.234
-      ],
-      "n": 135,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.223,
-      "observed": 0.126,
-      "ci": [
-       0.08,
-       0.192
-      ],
-      "n": 135,
-      "within_ci": false
-     },
-     {
-      "mean_pred": 0.274,
-      "observed": 0.193,
-      "ci": [
-       0.135,
-       0.267
-      ],
-      "n": 135,
-      "within_ci": false
-     },
-     {
-      "mean_pred": 0.694,
-      "observed": 0.674,
-      "ci": [
-       0.591,
-       0.747
+       0.561,
+       0.72
       ],
       "n": 135,
       "within_ci": true
@@ -1260,12 +1260,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.192
+       "gap": 0.1851
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.4642
+       "gap": 0.4417
       },
       "calibration": {
        "passed": true,
@@ -1277,12 +1277,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.2458
+       "gap": 0.2406
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.4795
+       "gap": 0.4445
       },
       "calibration": {
        "passed": true,
@@ -1294,12 +1294,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0199
+       "gap": 0.0363
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0202
+       "gap": 0.1251
       },
       "calibration": {
        "passed": true,
@@ -1311,12 +1311,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0747
+       "gap": 0.0888
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1667
+       "gap": 0.0887
       },
       "calibration": {
        "passed": true,
@@ -1328,12 +1328,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0475
+       "gap": 0.0835
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.2151
+       "gap": 0.2282
       },
       "calibration": {
        "passed": true,
@@ -1347,28 +1347,48 @@
     "recalibration": "auto",
     "algorithm": "logreg",
     "chosen": "none",
-    "n_train": 4053,
-    "n_holdout": 1352,
-    "auc": 0.7225,
+    "n_train": 4056,
+    "n_holdout": 1353,
+    "auc": 0.72,
     "raw": {
-     "ece": 0.0519,
-     "brier": 0.1092,
-     "citl": 0.0427,
-     "slope": 1.189,
-     "bins_within_ci": 7,
+     "ece": 0.0422,
+     "brier": 0.1161,
+     "citl": 0.028,
+     "slope": 1.198,
+     "bins_within_ci": 9,
      "bins": 10
     },
     "final": {
-     "ece": 0.0519,
-     "brier": 0.1092,
-     "citl": 0.0427,
-     "slope": 1.189,
-     "bins_within_ci": 7,
+     "ece": 0.0422,
+     "brier": 0.1161,
+     "citl": 0.028,
+     "slope": 1.198,
+     "bins_within_ci": 9,
      "bins": 10
     },
     "reliability": [
      {
-      "mean_pred": 0.098,
+      "mean_pred": 0.099,
+      "observed": 0.125,
+      "ci": [
+       0.08,
+       0.191
+      ],
+      "n": 136,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.116,
+      "observed": 0.074,
+      "ci": [
+       0.04,
+       0.13
+      ],
+      "n": 136,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.126,
       "observed": 0.088,
       "ci": [
        0.051,
@@ -1378,37 +1398,7 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.123,
-      "observed": 0.103,
-      "ci": [
-       0.062,
-       0.165
-      ],
-      "n": 136,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.135,
-      "observed": 0.089,
-      "ci": [
-       0.052,
-       0.149
-      ],
-      "n": 135,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.149,
-      "observed": 0.104,
-      "ci": [
-       0.063,
-       0.167
-      ],
-      "n": 135,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.159,
+      "mean_pred": 0.14,
       "observed": 0.141,
       "ci": [
        0.092,
@@ -1418,67 +1408,77 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.175,
-      "observed": 0.119,
+      "mean_pred": 0.156,
+      "observed": 0.104,
       "ci": [
-       0.074,
-       0.184
+       0.063,
+       0.167
       ],
       "n": 135,
       "within_ci": true
      },
      {
-      "mean_pred": 0.191,
-      "observed": 0.119,
+      "mean_pred": 0.17,
+      "observed": 0.096,
       "ci": [
-       0.074,
-       0.184
+       0.057,
+       0.158
       ],
       "n": 135,
       "within_ci": false
      },
      {
-      "mean_pred": 0.22,
-      "observed": 0.133,
+      "mean_pred": 0.189,
+      "observed": 0.141,
       "ci": [
-       0.086,
-       0.201
+       0.092,
+       0.209
       ],
       "n": 135,
-      "within_ci": false
+      "within_ci": true
      },
      {
-      "mean_pred": 0.268,
-      "observed": 0.185,
+      "mean_pred": 0.218,
+      "observed": 0.163,
       "ci": [
-       0.129,
-       0.259
+       0.11,
+       0.234
       ],
       "n": 135,
-      "within_ci": false
+      "within_ci": true
      },
      {
-      "mean_pred": 0.695,
-      "observed": 0.704,
+      "mean_pred": 0.264,
+      "observed": 0.274,
       "ci": [
-       0.622,
-       0.774
+       0.206,
+       0.355
+      ],
+      "n": 135,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.644,
+      "observed": 0.637,
+      "ci": [
+       0.553,
+       0.713
       ],
       "n": 135,
       "within_ci": true
      }
     ],
     "tuning": {
-     "n_tune": 811,
+     "n_tune": 812,
      "none": {
-      "ece": 0.0161,
-      "slope": 1.054,
-      "citl": 0.0023
+      "ece": 0.0246,
+      "slope": 1.015,
+      "citl": -0.0018
      },
      "platt": {
-      "ece": 0.014,
-      "slope": 1.151,
-      "citl": 0.0028
+      "ece": 0.0207,
+      "slope": 1.082,
+      "citl": -0.002
      },
      "chosen": "none"
     },
@@ -1489,12 +1489,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1561
+       "gap": 0.1933
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.4335
+       "gap": 0.534
       },
       "calibration": {
        "passed": true,
@@ -1506,12 +1506,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.2737
+       "gap": 0.3286
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.5129
+       "gap": 0.5
       },
       "calibration": {
        "passed": true,
@@ -1523,12 +1523,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0425
+       "gap": 0.0634
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.064
+       "gap": 0.1136
       },
       "calibration": {
        "passed": true,
@@ -1540,12 +1540,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0414
+       "gap": 0.0946
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0965
+       "gap": 0.1488
       },
       "calibration": {
        "passed": true,
@@ -1557,12 +1557,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1053
+       "gap": 0.0678
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.3375
+       "gap": 0.212
       },
       "calibration": {
        "passed": true,
@@ -1576,28 +1576,28 @@
     "recalibration": "auto",
     "algorithm": "gbm",
     "chosen": "none",
-    "n_train": 4053,
-    "n_holdout": 1352,
-    "auc": 0.7171,
+    "n_train": 4056,
+    "n_holdout": 1353,
+    "auc": 0.6992,
     "raw": {
-     "ece": 0.0526,
-     "brier": 0.1105,
-     "citl": 0.0414,
-     "slope": 1.125,
-     "bins_within_ci": 7,
+     "ece": 0.038,
+     "brier": 0.117,
+     "citl": 0.0306,
+     "slope": 1.018,
+     "bins_within_ci": 9,
      "bins": 10
     },
     "final": {
-     "ece": 0.0526,
-     "brier": 0.1105,
-     "citl": 0.0414,
-     "slope": 1.125,
-     "bins_within_ci": 7,
+     "ece": 0.038,
+     "brier": 0.117,
+     "citl": 0.0306,
+     "slope": 1.018,
+     "bins_within_ci": 9,
      "bins": 10
     },
     "reliability": [
      {
-      "mean_pred": 0.098,
+      "mean_pred": 0.101,
       "observed": 0.103,
       "ci": [
        0.062,
@@ -1607,107 +1607,107 @@
       "within_ci": true
      },
      {
-      "mean_pred": 0.124,
-      "observed": 0.081,
+      "mean_pred": 0.112,
+      "observed": 0.096,
       "ci": [
-       0.046,
-       0.139
+       0.057,
+       0.157
       ],
       "n": 136,
       "within_ci": true
      },
      {
-      "mean_pred": 0.135,
-      "observed": 0.081,
+      "mean_pred": 0.124,
+      "observed": 0.132,
       "ci": [
-       0.046,
-       0.14
+       0.085,
+       0.2
+      ],
+      "n": 136,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.137,
+      "observed": 0.119,
+      "ci": [
+       0.074,
+       0.184
       ],
       "n": 135,
       "within_ci": true
      },
      {
-      "mean_pred": 0.142,
-      "observed": 0.141,
+      "mean_pred": 0.15,
+      "observed": 0.119,
       "ci": [
-       0.092,
-       0.209
+       0.074,
+       0.184
       ],
       "n": 135,
       "within_ci": true
      },
      {
-      "mean_pred": 0.153,
-      "observed": 0.141,
+      "mean_pred": 0.163,
+      "observed": 0.111,
       "ci": [
-       0.092,
-       0.209
+       0.068,
+       0.175
       ],
       "n": 135,
       "within_ci": true
      },
      {
-      "mean_pred": 0.167,
-      "observed": 0.081,
+      "mean_pred": 0.185,
+      "observed": 0.148,
       "ci": [
-       0.046,
-       0.14
+       0.098,
+       0.218
+      ],
+      "n": 135,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.216,
+      "observed": 0.2,
+      "ci": [
+       0.141,
+       0.275
+      ],
+      "n": 135,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.273,
+      "observed": 0.17,
+      "ci": [
+       0.116,
+       0.243
       ],
       "n": 135,
       "within_ci": false
      },
      {
-      "mean_pred": 0.188,
-      "observed": 0.163,
+      "mean_pred": 0.688,
+      "observed": 0.644,
       "ci": [
-       0.11,
-       0.234
-      ],
-      "n": 135,
-      "within_ci": true
-     },
-     {
-      "mean_pred": 0.223,
-      "observed": 0.126,
-      "ci": [
-       0.08,
-       0.192
-      ],
-      "n": 135,
-      "within_ci": false
-     },
-     {
-      "mean_pred": 0.274,
-      "observed": 0.193,
-      "ci": [
-       0.135,
-       0.267
-      ],
-      "n": 135,
-      "within_ci": false
-     },
-     {
-      "mean_pred": 0.694,
-      "observed": 0.674,
-      "ci": [
-       0.591,
-       0.747
+       0.561,
+       0.72
       ],
       "n": 135,
       "within_ci": true
      }
     ],
     "tuning": {
-     "n_tune": 811,
+     "n_tune": 812,
      "none": {
-      "ece": 0.022,
-      "slope": 1.018,
-      "citl": 0.0019
+      "ece": 0.016,
+      "slope": 1.028,
+      "citl": -0.0026
      },
      "platt": {
-      "ece": 0.0208,
-      "slope": 1.202,
-      "citl": 0.0014
+      "ece": 0.0147,
+      "slope": 1.149,
+      "citl": -0.0028
      },
      "chosen": "none"
     },
@@ -1718,12 +1718,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.192
+       "gap": 0.1851
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.4642
+       "gap": 0.4417
       },
       "calibration": {
        "passed": true,
@@ -1735,12 +1735,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.2458
+       "gap": 0.2406
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.4795
+       "gap": 0.4445
       },
       "calibration": {
        "passed": true,
@@ -1752,12 +1752,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0199
+       "gap": 0.0363
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0202
+       "gap": 0.1251
       },
       "calibration": {
        "passed": true,
@@ -1769,12 +1769,12 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0747
+       "gap": 0.0888
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.1667
+       "gap": 0.0887
       },
       "calibration": {
        "passed": true,
@@ -1786,12 +1786,914 @@
       "auc": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.0475
+       "gap": 0.0835
       },
       "recall": {
        "passed": true,
        "flagged": "none",
-       "gap": 0.2151
+       "gap": 0.2282
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     }
+    }
+   }
+  ]
+ },
+ "realistic_10k": {
+  "db": "data/wasl_10k.db",
+  "as_of": "2026-10-21 00:21:25.671524",
+  "results": [
+   {
+    "recalibration": "none",
+    "algorithm": "logreg",
+    "chosen": "none",
+    "n_train": 6869,
+    "n_holdout": 2290,
+    "auc": 0.6586,
+    "raw": {
+     "ece": 0.0249,
+     "brier": 0.1299,
+     "citl": 0.0217,
+     "slope": 1.021,
+     "bins_within_ci": 9,
+     "bins": 10
+    },
+    "final": {
+     "ece": 0.0249,
+     "brier": 0.1299,
+     "citl": 0.0217,
+     "slope": 1.021,
+     "bins_within_ci": 9,
+     "bins": 10
+    },
+    "reliability": [
+     {
+      "mean_pred": 0.106,
+      "observed": 0.092,
+      "ci": [
+       0.061,
+       0.136
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.124,
+      "observed": 0.109,
+      "ci": [
+       0.075,
+       0.156
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.135,
+      "observed": 0.135,
+      "ci": [
+       0.097,
+       0.186
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.145,
+      "observed": 0.131,
+      "ci": [
+       0.093,
+       0.181
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.159,
+      "observed": 0.188,
+      "ci": [
+       0.142,
+       0.243
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.173,
+      "observed": 0.118,
+      "ci": [
+       0.082,
+       0.166
+      ],
+      "n": 229,
+      "within_ci": false
+     },
+     {
+      "mean_pred": 0.189,
+      "observed": 0.153,
+      "ci": [
+       0.112,
+       0.205
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.213,
+      "observed": 0.17,
+      "ci": [
+       0.127,
+       0.224
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.257,
+      "observed": 0.214,
+      "ci": [
+       0.166,
+       0.272
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.533,
+      "observed": 0.507,
+      "ci": [
+       0.442,
+       0.571
+      ],
+      "n": 229,
+      "within_ci": true
+     }
+    ],
+    "tuning": {
+     "chosen": "none",
+     "reason": "configured (ml_recalibration='none')"
+    },
+    "gates_failed": [],
+    "all_gates_passed": true,
+    "fairness": {
+     "language": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.0534
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.5831
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     },
+     "nationality_group": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.1003
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.5071
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     },
+     "gender": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.0335
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.058
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     },
+     "age_band": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.0804
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.1555
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     },
+     "region": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.0124
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.1738
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     }
+    }
+   },
+   {
+    "recalibration": "none",
+    "algorithm": "gbm",
+    "chosen": "none",
+    "n_train": 6869,
+    "n_holdout": 2290,
+    "auc": 0.6614,
+    "raw": {
+     "ece": 0.0283,
+     "brier": 0.1296,
+     "citl": 0.0233,
+     "slope": 0.94,
+     "bins_within_ci": 8,
+     "bins": 10
+    },
+    "final": {
+     "ece": 0.0283,
+     "brier": 0.1296,
+     "citl": 0.0233,
+     "slope": 0.94,
+     "bins_within_ci": 8,
+     "bins": 10
+    },
+    "reliability": [
+     {
+      "mean_pred": 0.104,
+      "observed": 0.131,
+      "ci": [
+       0.093,
+       0.181
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.118,
+      "observed": 0.083,
+      "ci": [
+       0.054,
+       0.126
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.133,
+      "observed": 0.135,
+      "ci": [
+       0.097,
+       0.186
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.145,
+      "observed": 0.114,
+      "ci": [
+       0.079,
+       0.161
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.155,
+      "observed": 0.179,
+      "ci": [
+       0.135,
+       0.234
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.172,
+      "observed": 0.087,
+      "ci": [
+       0.057,
+       0.131
+      ],
+      "n": 229,
+      "within_ci": false
+     },
+     {
+      "mean_pred": 0.192,
+      "observed": 0.201,
+      "ci": [
+       0.154,
+       0.258
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.216,
+      "observed": 0.144,
+      "ci": [
+       0.104,
+       0.195
+      ],
+      "n": 229,
+      "within_ci": false
+     },
+     {
+      "mean_pred": 0.264,
+      "observed": 0.249,
+      "ci": [
+       0.197,
+       0.309
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.55,
+      "observed": 0.493,
+      "ci": [
+       0.429,
+       0.558
+      ],
+      "n": 229,
+      "within_ci": true
+     }
+    ],
+    "tuning": {
+     "chosen": "none",
+     "reason": "configured (ml_recalibration='none')"
+    },
+    "gates_failed": [],
+    "all_gates_passed": true,
+    "fairness": {
+     "language": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.1154
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.5825
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     },
+     "nationality_group": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.1181
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.4849
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     },
+     "gender": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.0263
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.0507
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     },
+     "age_band": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.074
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.0745
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     },
+     "region": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.0244
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.1218
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     }
+    }
+   },
+   {
+    "recalibration": "auto",
+    "algorithm": "logreg",
+    "chosen": "none",
+    "n_train": 6869,
+    "n_holdout": 2290,
+    "auc": 0.6586,
+    "raw": {
+     "ece": 0.0249,
+     "brier": 0.1299,
+     "citl": 0.0217,
+     "slope": 1.021,
+     "bins_within_ci": 9,
+     "bins": 10
+    },
+    "final": {
+     "ece": 0.0249,
+     "brier": 0.1299,
+     "citl": 0.0217,
+     "slope": 1.021,
+     "bins_within_ci": 9,
+     "bins": 10
+    },
+    "reliability": [
+     {
+      "mean_pred": 0.106,
+      "observed": 0.092,
+      "ci": [
+       0.061,
+       0.136
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.124,
+      "observed": 0.109,
+      "ci": [
+       0.075,
+       0.156
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.135,
+      "observed": 0.135,
+      "ci": [
+       0.097,
+       0.186
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.145,
+      "observed": 0.131,
+      "ci": [
+       0.093,
+       0.181
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.159,
+      "observed": 0.188,
+      "ci": [
+       0.142,
+       0.243
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.173,
+      "observed": 0.118,
+      "ci": [
+       0.082,
+       0.166
+      ],
+      "n": 229,
+      "within_ci": false
+     },
+     {
+      "mean_pred": 0.189,
+      "observed": 0.153,
+      "ci": [
+       0.112,
+       0.205
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.213,
+      "observed": 0.17,
+      "ci": [
+       0.127,
+       0.224
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.257,
+      "observed": 0.214,
+      "ci": [
+       0.166,
+       0.272
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.533,
+      "observed": 0.507,
+      "ci": [
+       0.442,
+       0.571
+      ],
+      "n": 229,
+      "within_ci": true
+     }
+    ],
+    "tuning": {
+     "n_tune": 1374,
+     "none": {
+      "ece": 0.018,
+      "slope": 0.97,
+      "citl": -0.0123
+     },
+     "platt": {
+      "ece": 0.0193,
+      "slope": 1.028,
+      "citl": -0.0127
+     },
+     "chosen": "none"
+    },
+    "gates_failed": [],
+    "all_gates_passed": true,
+    "fairness": {
+     "language": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.0534
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.5831
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     },
+     "nationality_group": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.1003
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.5071
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     },
+     "gender": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.0335
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.058
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     },
+     "age_band": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.0804
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.1555
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     },
+     "region": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.0124
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.1738
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     }
+    }
+   },
+   {
+    "recalibration": "auto",
+    "algorithm": "gbm",
+    "chosen": "none",
+    "n_train": 6869,
+    "n_holdout": 2290,
+    "auc": 0.6614,
+    "raw": {
+     "ece": 0.0283,
+     "brier": 0.1296,
+     "citl": 0.0233,
+     "slope": 0.94,
+     "bins_within_ci": 8,
+     "bins": 10
+    },
+    "final": {
+     "ece": 0.0283,
+     "brier": 0.1296,
+     "citl": 0.0233,
+     "slope": 0.94,
+     "bins_within_ci": 8,
+     "bins": 10
+    },
+    "reliability": [
+     {
+      "mean_pred": 0.104,
+      "observed": 0.131,
+      "ci": [
+       0.093,
+       0.181
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.118,
+      "observed": 0.083,
+      "ci": [
+       0.054,
+       0.126
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.133,
+      "observed": 0.135,
+      "ci": [
+       0.097,
+       0.186
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.145,
+      "observed": 0.114,
+      "ci": [
+       0.079,
+       0.161
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.155,
+      "observed": 0.179,
+      "ci": [
+       0.135,
+       0.234
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.172,
+      "observed": 0.087,
+      "ci": [
+       0.057,
+       0.131
+      ],
+      "n": 229,
+      "within_ci": false
+     },
+     {
+      "mean_pred": 0.192,
+      "observed": 0.201,
+      "ci": [
+       0.154,
+       0.258
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.216,
+      "observed": 0.144,
+      "ci": [
+       0.104,
+       0.195
+      ],
+      "n": 229,
+      "within_ci": false
+     },
+     {
+      "mean_pred": 0.264,
+      "observed": 0.249,
+      "ci": [
+       0.197,
+       0.309
+      ],
+      "n": 229,
+      "within_ci": true
+     },
+     {
+      "mean_pred": 0.55,
+      "observed": 0.493,
+      "ci": [
+       0.429,
+       0.558
+      ],
+      "n": 229,
+      "within_ci": true
+     }
+    ],
+    "tuning": {
+     "n_tune": 1374,
+     "none": {
+      "ece": 0.0174,
+      "slope": 1.034,
+      "citl": -0.0146
+     },
+     "platt": {
+      "ece": 0.0192,
+      "slope": 1.124,
+      "citl": -0.0151
+     },
+     "chosen": "none"
+    },
+    "gates_failed": [],
+    "all_gates_passed": true,
+    "fairness": {
+     "language": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.1154
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.5825
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     },
+     "nationality_group": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.1181
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.4849
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     },
+     "gender": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.0263
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.0507
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     },
+     "age_band": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.074
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.0745
+      },
+      "calibration": {
+       "passed": true,
+       "flagged": "none",
+       "gap": null
+      }
+     },
+     "region": {
+      "auc": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.0244
+      },
+      "recall": {
+       "passed": true,
+       "flagged": "none",
+       "gap": 0.1218
       },
       "calibration": {
        "passed": true,

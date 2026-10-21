@@ -139,6 +139,8 @@ LABELS = {
     "alt_contact": ("No alternative contact", "Has an alternative contact"),
     "early_notified": ("Not yet notified in the first 3 days", "Notified in the first 3 days"),
     "early_teach_back_failed": ("No failed teach-back recorded", "Did not confirm understanding at teach-back"),
+    "language_unsupported": ("Patient materials exist in the preferred language",
+                             "No patient materials in the preferred language (interpreter needed)"),
 }
 
 

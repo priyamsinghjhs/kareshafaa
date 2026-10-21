@@ -75,6 +75,15 @@ def render(data: dict) -> str:
           "whole CI is beyond tolerance, which avoids false alarms but has low power at these sizes; subgroup "
           "monitoring must continue on pilot data, and outreach for under-served groups is not ML-driven (tier and "
           "SLA come first).",
+          "* **Language is no longer an identity input (round 18).** After the round-16 re-seed the demo logistic "
+          "candidate failed `fairness_recall:language`: English speakers were flagged for priority outreach at 6 % "
+          "against an observed delay rate of 18 % (recall 0.12 vs 0.47 overall, bootstrap CI upper bound 0.26 below "
+          "the 0.32 limit). The same pattern was in the pre-round-16 data (recall 0.25, CI 0.07-0.43) but not yet "
+          "credible. The one-hot `language` input was replaced by `language_unsupported` (no patient material in the "
+          "preferred language, i.e. interpreter needed), the operational barrier it stood for. Gates, tolerances and "
+          "minimum group sizes are unchanged. Three feature sets were compared on the same hold-outs (one-hot, none, "
+          "barrier flag); the choice follows the mechanism but was made after seeing these hold-outs, so it must be "
+          "re-checked on fresh data.",
           "* Synthetic data: these numbers say the pipeline and gates work; they are not evidence of real-world "
           "performance. Re-validate on pilot data before relying on the ordering.", ""]
     return "\n".join(L)
