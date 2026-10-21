@@ -1,0 +1,119 @@
+{
+ "steps": [
+  {
+   "users": 40,
+   "requests": 4317,
+   "rps": 213.9,
+   "p50": 128.3,
+   "p95": 518.1,
+   "p99": 807.5,
+   "errors": 1410,
+   "error_rate": 0.3266,
+   "max": 2283.2,
+   "ok_rps": 144.1,
+   "p95_ok": 600.3,
+   "p95_503": 12.1,
+   "status_codes": {
+    "503": 1410,
+    "200": 2907
+   },
+   "p95_by_kind": {
+    "patient": 371.3,
+    "detail": 436.6,
+    "gp_queue": 559.2,
+    "ingest": 429.9,
+    "fhir": 470.7,
+    "queue": 575.4,
+    "overdue": 598.7,
+    "kpis": 718.3
+   }
+  },
+  {
+   "users": 60,
+   "requests": 8351,
+   "rps": 414.4,
+   "p50": 24.2,
+   "p95": 460.2,
+   "p99": 722.5,
+   "errors": 5066,
+   "error_rate": 0.6066,
+   "max": 2779.7,
+   "ok_rps": 163.0,
+   "p95_ok": 597.8,
+   "p95_503": 108.9,
+   "status_codes": {
+    "200": 3285,
+    "503": 5066
+   },
+   "p95_by_kind": {
+    "ingest": 371.2,
+    "detail": 399.5,
+    "patient": 315.2,
+    "fhir": 382.6,
+    "kpis": 374.5,
+    "queue": 506.6,
+    "overdue": 521.6,
+    "gp_queue": 523.4
+   }
+  },
+  {
+   "users": 80,
+   "requests": 8045,
+   "rps": 399.9,
+   "p50": 88.4,
+   "p95": 581.0,
+   "p99": 1007.8,
+   "errors": 4615,
+   "error_rate": 0.5736,
+   "max": 3482.4,
+   "ok_rps": 170.5,
+   "p95_ok": 762.9,
+   "p95_503": 283.2,
+   "status_codes": {
+    "200": 3430,
+    "503": 4615
+   },
+   "p95_by_kind": {
+    "patient": 534.8,
+    "detail": 519.9,
+    "ingest": 468.4,
+    "fhir": 508.9,
+    "gp_queue": 600.0,
+    "queue": 659.3,
+    "overdue": 671.4,
+    "kpis": 526.5
+   }
+  },
+  {
+   "users": 160,
+   "requests": 2828,
+   "rps": 136.1,
+   "p50": 739.6,
+   "p95": 3525.3,
+   "p99": 5106.8,
+   "errors": 409,
+   "error_rate": 0.1446,
+   "max": 10174.3,
+   "ok_rps": 116.4,
+   "p95_ok": 3485.4,
+   "p95_503": 3650.1,
+   "status_codes": {
+    "200": 2419,
+    "503": 408,
+    "transport_error": 1
+   },
+   "p95_by_kind": {
+    "patient": 3210.5,
+    "detail": 3558.8,
+    "kpis": 3369.6,
+    "ingest": 3259.1,
+    "queue": 3546.7,
+    "overdue": 3365.9,
+    "fhir": 3260.7,
+    "gp_queue": 3617.3
+   }
+  }
+ ],
+ "audit_valid": true,
+ "audit_checked": 175469
+}

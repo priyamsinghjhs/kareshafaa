@@ -729,3 +729,30 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
     to the clinical lead and governance.
 * **Load:** p95 stays under 1 s up to 40 concurrent zero-think-time users (about 120 requests/s). The system
   collapses at 80 users (pool timeouts) and recovers once the backlog drains (`docs/loadtest_ramp.md`).
+
+### Round 21: load and efficiency, and the demo-server hang (21 Oct 2026, ~11:45-12:30 IST)
+
+Details are in `docs/loadtest_ramp.md`.
+
+**Root cause of the 11:02 hang.** The audit-writer and SLA-sweeper locks were shared through `data_dir` by every
+server and script, whatever their database. The overloaded load-test server therefore stalled the demo server's
+audited requests. This was reproduced, and is now fixed with per-database locks and bounded waits.
+
+**Graceful degradation:**
+* bounded pool, busy and lock waits;
+* 503 + Retry-After;
+* admission control (16 in-flight requests per worker), with shed requests audited in aggregate;
+* group-committed request log (reads refused if they cannot be logged);
+* a 2 s work-queue cache dropped on any local write.
+
+**Ramp results** (10k copy, 4 workers):
+* At 40 users p95 fell from 945 ms to 539 ms, and throughput rose from 120 to 170 per second.
+* At 80 users, round 20 collapsed to 4 per second with 30 s timeouts. Round 21 kept about 142 per second of 200s,
+  at p95 1.6 s with 12 % 503s.
+* At 160 users the server stays up (75 per second), but 503s are slow (p95 about 5 s). This is the CPU limit with
+  the load generator on the same box.
+
+**Other checks:**
+* PostgreSQL 17 smoke test: seed, validator 0 violations, ramp, audit chain valid.
+* Tests: 3,234 passed.
+* Validator: 0 violations on the demo, 10k, 20k and edge databases.
