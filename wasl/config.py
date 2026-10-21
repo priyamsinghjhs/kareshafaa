@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     writer_lock_timeout_s: float = 5.0  # wait for the audit-chain writer lock, then 503 (nothing is saved)
     max_inflight_requests: int = 16  # per worker; beyond this a request is shed at once with 503 + Retry-After
     retry_after_s: int = 2
+    queue_cache_ttl_s: float = 2.0  # work-queue base data, per process; 0 disables (see services/queue.py)
     gil_switch_interval_ms: float = 0.5  # see main.lifespan (sqlite row-fetch convoy)
     fairness_auc_tolerance: float = 0.05  # group AUC CI must not lie wholly below overall - tol
     fairness_tpr_tolerance: float = 0.15  # group recall-at-top CI must not lie wholly below overall - tol

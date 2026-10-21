@@ -95,3 +95,12 @@ def test_read_is_refused_when_its_access_cannot_be_logged(app, client, as_user, 
     monkeypatch.setattr(main._BATCHER, "submit", failing)
     r = client.get("/api/analytics/kpis", headers=h)
     assert r.status_code == 503 and r.headers.get("Retry-After")
+
+
+def test_queue_cache_is_dropped_by_a_clinical_write_in_this_process(client, as_user, new_case):
+    """The read-path cache (<= 2 s) must never hide a case this process just created or changed."""
+    h = as_user("fatima.al.mansoori")
+    client.get("/api/queue?view=all&limit=1000", headers=h)  # warm the cache
+    cid = new_case()["id"]
+    ids = [i["id"] for i in client.get("/api/queue?view=all&limit=1000", headers=h).json()["items"]]
+    assert cid in ids

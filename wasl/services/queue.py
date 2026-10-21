@@ -43,6 +43,73 @@ def _org_scope(db: Session, case_ids: list[int]) -> dict[int, set[int]]:
     return out
 
 
+class _BaseCache:
+    """Round 21 read-path cache for the work queue's base data (open cases + flags), per process.
+
+    Bounded staleness: at most QUEUE_CACHE_TTL_S (2 s) old, and dropped at once when THIS process commits any
+    clinical/domain change (after_commit hook below; the per-request access log does not count). RAG status and
+    sorting are still computed per request at the current time, the per-user org scope is applied per request, and
+    every action re-checks the case's row_version (409 on a stale view), so a cached list can never cause a wrong
+    write. Single-flight: concurrent misses compute once."""
+
+    def __init__(self) -> None:
+        import threading
+
+        self._d: dict = {}
+        self._gen = 0
+        self._lock = threading.Lock()
+
+    def bump(self) -> None:
+        self._gen += 1
+
+    def get(self, key, load):
+        import time
+
+        from ..config import get_settings
+        ttl = get_settings().queue_cache_ttl_s
+        if ttl <= 0:
+            return load()
+        hit = self._d.get(key)
+        now = time.monotonic()
+        if hit and hit[0] == self._gen and now - hit[1] < ttl:
+            return hit[2]
+        with self._lock:
+            hit = self._d.get(key)
+            if hit and hit[0] == self._gen and time.monotonic() - hit[1] < ttl:
+                return hit[2]
+            gen = self._gen
+            val = load()
+            if len(self._d) > 256:
+                self._d.clear()
+            self._d[key] = (gen, time.monotonic(), val)
+            return val
+
+
+_BASE_CACHE = _BaseCache()
+
+
+def _mark_domain_write(session, _ctx, _instances) -> None:
+    from ..models import AuditEvent
+    if any(not isinstance(o, AuditEvent) for o in (*session.new, *session.dirty, *session.deleted)):
+        session.info["domain_write"] = True
+
+
+def _after_commit(session) -> None:
+    if session.info.pop("domain_write", False):
+        _BASE_CACHE.bump()
+
+
+def _after_rollback(session) -> None:
+    session.info.pop("domain_write", None)
+
+
+from sqlalchemy import event as _event  # noqa: E402
+
+_event.listen(Session, "before_flush", _mark_domain_write)
+_event.listen(Session, "after_commit", _after_commit)
+_event.listen(Session, "after_rollback", _after_rollback)
+
+
 def sort_key(row: dict) -> tuple:
     # 1) SLA status (clinical safety first)  2) urgency tier  3) ML outreach priority  4) due time
     # The ML score only orders cases WITHIN the same SLA status and tier; it can never move a case across tiers.
@@ -75,15 +142,21 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
         if search.strip().lstrip("#").isdigit():
             cond = or_(cond, Case.id == int(search.strip().lstrip("#")))
         q = q.where(cond)
-    rows_db = db.execute(q).all()
+    scoped_role = actor.role not in PROGRAMME_WIDE_ROLES
+
+    def load():
+        rows = db.execute(q).all()
+        ids_ = [r[0] for r in rows]
+        return (rows, _org_scope(db, ids_),
+                set(db.scalars(select(CallTask.case_id).where(CallTask.status == "requested"))),
+                set(db.scalars(select(Escalation.case_id).where(Escalation.acknowledged_at.is_(None)))),
+                set(db.scalars(select(ConsultRequest.case_id).where(ConsultRequest.status == "requested"))))
+
+    rows_db, orgs, open_calls, open_esc, open_consults = _BASE_CACHE.get((programme, search), load)
     ids = [r[0] for r in rows_db]
     scoped = None
-    if actor.role not in PROGRAMME_WIDE_ROLES:
-        orgs = _org_scope(db, ids)
+    if scoped_role:
         scoped = {cid for cid in ids if actor.org_id in orgs.get(cid, ())}
-    open_calls = set(db.scalars(select(CallTask.case_id).where(CallTask.status == "requested")))
-    open_esc = set(db.scalars(select(Escalation.case_id).where(Escalation.acknowledged_at.is_(None))))
-    open_consults = set(db.scalars(select(ConsultRequest.case_id).where(ConsultRequest.status == "requested")))
     counts = {v: 0 for v in VIEWS}
     rows = []
     for (cid, prog, tier, state, owner_id, due, esc, risk, risk_v, pending, review, given, family, mrn, lang,
