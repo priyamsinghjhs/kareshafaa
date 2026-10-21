@@ -1575,6 +1575,474 @@
   "target": "Clinician contact the same day (local rule - CONFIRM)",
   "tier": "critical"
  },
+ "EDGE-01": {
+  "clinical_tier": "high",
+  "disposition": "actionable",
+  "needs_confirmation": true,
+  "next_step": "Confirm diagnosis and GP review soon (consider insulin per ADA if symptomatic)",
+  "normalised": {
+   "hba1c_mmol_mol": 139.8,
+   "hba1c_pct": 14.94
+  },
+  "pathway": "confirm_then_gp",
+  "reasons": [],
+  "rule_id": "DM-A1C-HIGH",
+  "target": "GP review within 2 weeks (CONFIRM)",
+  "tier": "high"
+ },
+ "EDGE-02": {
+  "clinical_tier": "critical",
+  "disposition": "actionable",
+  "needs_confirmation": false,
+  "next_step": "Same-day clinician contact (very high HbA1c); assess for hyperglycaemic crisis",
+  "normalised": {
+   "hba1c_mmol_mol": 139.9,
+   "hba1c_pct": 14.95
+  },
+  "pathway": "same_day_review",
+  "reasons": [],
+  "rule_id": "DM-A1C-CRIT",
+  "target": "Clinician contact the same day (local rule - CONFIRM)",
+  "tier": "critical"
+ },
+ "EDGE-03": {
+  "clinical_tier": "high",
+  "disposition": "actionable",
+  "needs_confirmation": true,
+  "next_step": "Confirm diagnosis and GP review soon (consider insulin per ADA if symptomatic)",
+  "normalised": {},
+  "pathway": "confirm_then_gp",
+  "reasons": [],
+  "rule_id": "DM-FPG-HIGH",
+  "target": "GP review within 2 weeks (CONFIRM)",
+  "tier": "high"
+ },
+ "EDGE-04": {
+  "clinical_tier": null,
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Clinician review: unexpectedly low HbA1c (haemoglobin variant / haemolysis?)",
+  "normalised": {
+   "hba1c_mmol_mol": 19.1,
+   "hba1c_pct": 3.9
+  },
+  "pathway": "human_review",
+  "reasons": [
+   "unexpectedly_low"
+  ],
+  "rule_id": "DM-A1C-LOW",
+  "target": "Human review within the tier SLA",
+  "tier": "routine"
+ },
+ "EDGE-05": {
+  "clinical_tier": null,
+  "disposition": "negative",
+  "needs_confirmation": false,
+  "next_step": "Rescreen at the routine interval (ADA: every 3 years if normal)",
+  "normalised": {},
+  "pathway": "routine_recall",
+  "reasons": [],
+  "rule_id": "DM-A1C-NEG",
+  "target": null,
+  "tier": null
+ },
+ "EDGE-06": {
+  "clinical_tier": null,
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Clinician review of the result before any patient pathway",
+  "normalised": {},
+  "pathway": "human_review",
+  "reasons": [
+   "implausible_value"
+  ],
+  "rule_id": "DM-ERR",
+  "target": "Human review within the tier SLA",
+  "tier": "urgent"
+ },
+ "EDGE-07": {
+  "clinical_tier": null,
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Clinician review of the result before any patient pathway",
+  "normalised": {},
+  "pathway": "human_review",
+  "reasons": [
+   "implausible_value"
+  ],
+  "rule_id": "DM-ERR",
+  "target": "Human review within the tier SLA",
+  "tier": "urgent"
+ },
+ "EDGE-08": {
+  "clinical_tier": null,
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Clinician review of the result before any patient pathway",
+  "normalised": {},
+  "pathway": "human_review",
+  "reasons": [
+   "implausible_value"
+  ],
+  "rule_id": "DM-ERR",
+  "target": "Human review within the tier SLA",
+  "tier": "urgent"
+ },
+ "EDGE-09": {
+  "clinical_tier": "routine",
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Clinician review: HbA1c may be unreliable with a haemoglobin variant - use glucose criteria",
+  "normalised": {
+   "hba1c_mmol_mol": 48.6,
+   "hba1c_pct": 6.6
+  },
+  "pathway": "human_review",
+  "reasons": [
+   "haemoglobinopathy"
+  ],
+  "rule_id": "DM-A1C-DIAB",
+  "target": "Human review within the tier SLA",
+  "tier": "high"
+ },
+ "EDGE-10": {
+  "clinical_tier": "routine",
+  "disposition": "actionable",
+  "needs_confirmation": true,
+  "next_step": "Repeat fasting glucose or HbA1c to confirm, then GP visit and care plan",
+  "normalised": {},
+  "pathway": "confirm_then_gp",
+  "reasons": [],
+  "rule_id": "DM-FPG-DIAB",
+  "target": "Confirmatory test within 4 weeks (CONFIRM)",
+  "tier": "routine"
+ },
+ "EDGE-11": {
+  "clinical_tier": "routine",
+  "disposition": "review",
+  "needs_confirmation": true,
+  "next_step": "Repeat HbA1c or fasting glucose to confirm, then GP visit and care plan",
+  "normalised": {
+   "hba1c_mmol_mol": 53.0,
+   "hba1c_pct": 7.0
+  },
+  "pathway": "confirm_then_gp",
+  "reasons": [
+   "pregnant"
+  ],
+  "rule_id": "DM-A1C-DIAB",
+  "target": "Confirmatory test within 4 weeks (CONFIRM)",
+  "tier": "high"
+ },
+ "EDGE-12": {
+  "clinical_tier": "urgent",
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Triple assessment with image-guided core biopsy",
+  "normalised": {},
+  "pathway": "biopsy",
+  "reasons": [
+   "pregnant"
+  ],
+  "rule_id": "BR-4",
+  "target": "Assessment within 5 working days; needle biopsy result within 5 working days (DoH)",
+  "tier": "urgent"
+ },
+ "EDGE-13": {
+  "clinical_tier": "routine",
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "GP review: prediabetes advice / prevention programme; retest within 12 months",
+  "normalised": {
+   "hba1c_mmol_mol": 42.1,
+   "hba1c_pct": 6.0
+  },
+  "pathway": "prediabetes_gp",
+  "reasons": [
+   "age_below_programme"
+  ],
+  "rule_id": "DM-A1C-PRE",
+  "target": "GP review within 3 months; retest at least yearly (ADA)",
+  "tier": "routine"
+ },
+ "EDGE-14": {
+  "clinical_tier": "high",
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Specialist assessment then colonoscopy",
+  "normalised": {
+   "fit_ug_g": 120.0
+  },
+  "pathway": "colonoscopy",
+  "reasons": [
+   "age_below_programme"
+  ],
+  "rule_id": "CRC-FIT-POS",
+  "target": "Colonoscopy within 31 days of referral (DoH)",
+  "tier": "high"
+ },
+ "EDGE-15": {
+  "clinical_tier": "high",
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Specialist assessment then colonoscopy",
+  "normalised": {
+   "fit_ug_g": 120.0
+  },
+  "pathway": "colonoscopy",
+  "reasons": [
+   "age_above_programme"
+  ],
+  "rule_id": "CRC-FIT-POS",
+  "target": "Colonoscopy within 31 days of referral (DoH)",
+  "tier": "high"
+ },
+ "EDGE-16": {
+  "clinical_tier": "high",
+  "disposition": "review",
+  "needs_confirmation": true,
+  "next_step": "Recall for additional imaging at a breast assessment unit",
+  "normalised": {},
+  "pathway": "assessment_imaging",
+  "reasons": [
+   "age_below_programme"
+  ],
+  "rule_id": "BR-0",
+  "target": "Assessment offered within 5 working days (DoH)",
+  "tier": "high"
+ },
+ "EDGE-17": {
+  "clinical_tier": "high",
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Colposcopy with biopsy (HPV 16/18 positive)",
+  "normalised": {},
+  "pathway": "colposcopy",
+  "reasons": [
+   "age_below_programme"
+  ],
+  "rule_id": "CX-HPV1618",
+  "target": "Colposcopy offered within 6 weeks (NHS low-grade standard)",
+  "tier": "high"
+ },
+ "EDGE-18": {
+  "clinical_tier": "high",
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Colposcopy with biopsy (HPV 16/18 positive)",
+  "normalised": {},
+  "pathway": "colposcopy",
+  "reasons": [
+   "age_above_programme"
+  ],
+  "rule_id": "CX-HPV1618",
+  "target": "Colposcopy offered within 6 weeks (NHS low-grade standard)",
+  "tier": "high"
+ },
+ "EDGE-19": {
+  "clinical_tier": "urgent",
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Specialist assessment then colonoscopy",
+  "normalised": {
+   "fit_ug_g": 450.0
+  },
+  "pathway": "colonoscopy",
+  "reasons": [
+   "deceased"
+  ],
+  "rule_id": "CRC-FIT-URGENT",
+  "target": "Colonoscopy within 31 days of referral (DoH); expedite (local rule)",
+  "tier": "urgent"
+ },
+ "EDGE-20": {
+  "clinical_tier": "urgent",
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Triple assessment with image-guided core biopsy",
+  "normalised": {},
+  "pathway": "biopsy",
+  "reasons": [
+   "under_specialist_care"
+  ],
+  "rule_id": "BR-5",
+  "target": "Assessment within 5 working days; needle biopsy result within 5 working days (DoH)",
+  "tier": "urgent"
+ },
+ "EDGE-21": {
+  "clinical_tier": "routine",
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Clinician review of the result before any patient pathway",
+  "normalised": {},
+  "pathway": "human_review",
+  "reasons": [
+   "hpv_negative_abnormal_cytology"
+  ],
+  "rule_id": "CX-HPVNEG-LG",
+  "target": "Human review within the tier SLA",
+  "tier": "high"
+ },
+ "EDGE-22": {
+  "clinical_tier": "high",
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Specialist assessment then colonoscopy",
+  "normalised": {
+   "fit_ug_g": 85.0
+  },
+  "pathway": "colonoscopy",
+  "reasons": [
+   "amended_result"
+  ],
+  "rule_id": "CRC-FIT-POS",
+  "target": "Colonoscopy within 31 days of referral (DoH)",
+  "tier": "urgent"
+ },
+ "EDGE-23": {
+  "clinical_tier": "urgent",
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Triple assessment with image-guided core biopsy",
+  "normalised": {},
+  "pathway": "biopsy",
+  "reasons": [
+   "preliminary_result"
+  ],
+  "rule_id": "BR-4",
+  "target": "Assessment within 5 working days; needle biopsy result within 5 working days (DoH)",
+  "tier": "urgent"
+ },
+ "EDGE-24": {
+  "clinical_tier": null,
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Clinician review of the result before any patient pathway",
+  "normalised": {},
+  "pathway": "human_review",
+  "reasons": [
+   "missing_value"
+  ],
+  "rule_id": "CRC-ERR",
+  "target": "Human review within the tier SLA",
+  "tier": "urgent"
+ },
+ "EDGE-25": {
+  "clinical_tier": null,
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Clinician review of the result before any patient pathway",
+  "normalised": {},
+  "pathway": "human_review",
+  "reasons": [
+   "malformed_value"
+  ],
+  "rule_id": "CX-ERR",
+  "target": "Human review within the tier SLA",
+  "tier": "urgent"
+ },
+ "EDGE-26": {
+  "clinical_tier": "urgent",
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Known biopsy-proven malignancy: confirm the patient is under the breast cancer team",
+  "normalised": {},
+  "pathway": "human_review",
+  "reasons": [
+   "known_malignancy"
+  ],
+  "rule_id": "BR-6",
+  "target": "Human review within the tier SLA",
+  "tier": "urgent"
+ },
+ "EDGE-27": {
+  "clinical_tier": "critical",
+  "disposition": "actionable",
+  "needs_confirmation": false,
+  "next_step": "Same-day clinician contact (very high HbA1c); assess for hyperglycaemic crisis",
+  "normalised": {
+   "hba1c_mmol_mol": 140.4,
+   "hba1c_pct": 15.0
+  },
+  "pathway": "same_day_review",
+  "reasons": [],
+  "rule_id": "DM-A1C-CRIT",
+  "target": "Clinician contact the same day (local rule - CONFIRM)",
+  "tier": "critical"
+ },
+ "EDGE-28": {
+  "clinical_tier": "high",
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Specialist assessment then colonoscopy",
+  "normalised": {
+   "fit_ug_g": 120.0
+  },
+  "pathway": "colonoscopy",
+  "reasons": [
+   "corrected_result"
+  ],
+  "rule_id": "CRC-FIT-POS",
+  "target": "Colonoscopy within 31 days of referral (DoH)",
+  "tier": "urgent"
+ },
+ "EDGE-29": {
+  "clinical_tier": "routine",
+  "disposition": "actionable",
+  "needs_confirmation": true,
+  "next_step": "HPV test on the same sample, then risk-based plan",
+  "normalised": {},
+  "pathway": "reflex_hpv",
+  "reasons": [],
+  "rule_id": "CX-CYTO-LG-NOHPV",
+  "target": "HPV result within 2 weeks (CONFIRM)",
+  "tier": "routine"
+ },
+ "EDGE-30": {
+  "clinical_tier": "urgent",
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Clinician review: fasting glucose in hypoglycaemic range",
+  "normalised": {},
+  "pathway": "human_review",
+  "reasons": [
+   "hypoglycaemia",
+   "pregnant"
+  ],
+  "rule_id": "DM-FPG-HYPO",
+  "target": "Human review within the tier SLA",
+  "tier": "urgent"
+ },
+ "EDGE-31": {
+  "clinical_tier": "high",
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Specialist assessment then colonoscopy",
+  "normalised": {
+   "fit_ug_g": 80.0
+  },
+  "pathway": "colonoscopy",
+  "reasons": [
+   "pregnant"
+  ],
+  "rule_id": "CRC-FIT-POS",
+  "target": "Colonoscopy within 31 days of referral (DoH)",
+  "tier": "high"
+ },
+ "EDGE-32": {
+  "clinical_tier": null,
+  "disposition": "review",
+  "needs_confirmation": false,
+  "next_step": "Clinician review of the result and patient context",
+  "normalised": {},
+  "pathway": "human_review",
+  "reasons": [
+   "deceased"
+  ],
+  "rule_id": "BR-2",
+  "target": null,
+  "tier": "high"
+ },
  "FPG-01": {
   "clinical_tier": null,
   "disposition": "negative",
