@@ -40,7 +40,7 @@ Requires Python 3.11+ (tested on 3.13) and `make`. Everything is free and open s
 make setup          # venv + dependencies (~1 min)
 make seed           # 2,000 synthetic patients, 6 months of history, train + register models (~55 s)
 make run            # http://localhost:8000  (python -m wasl.serve: 4 SO_REUSEPORT worker processes; WORKERS=1 for one)
-make test           # 3,161 pytest tests (~60 s; the 20k cohort test is skipped until `make seed-large`)
+make test           # 3,234 pytest tests (~60 s; the 20k cohort test is skipped until `make seed-large`)
 ```
 
 Clinical-safety targets (Iteration 6):

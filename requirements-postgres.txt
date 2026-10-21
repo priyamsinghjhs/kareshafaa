@@ -1,0 +1,1 @@
+psycopg[binary]>=3.2  # optional: WASL_DATABASE_URL=postgresql+psycopg://user:pass@host/db
