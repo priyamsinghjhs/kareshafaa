@@ -203,6 +203,16 @@ queue** (`IngestMessage.status = needs_review`, HL7 ACK `AE`); messages without 
 15. "Result after closure" window of 180 days.
 16. Patient age is computed from birth year only (±1 year at eligibility boundaries).
 17. Co-reported HPV types are managed by the most significant type (16/18 > other) rather than sent to review.
+18. **Re-opened case and its pathway target (round 20; clinical lead to confirm).** Default
+    (`reopen_restarts_target=False`, the safer choice): a re-opened case KEEPS its original target. If that target has
+    passed, the new step is flagged breached at once (`case.reopened_past_target` audit event) and escalates, and any
+    booking beyond the target needs a written reason. This means more alerts, not fewer. The option `True` gives the
+    re-opened episode a fresh target for its tier (`case.target_restarted`), which is quieter but could hide a
+    long-delayed patient. Known limit (unchanged): if care was already reached in the earlier episode,
+    `care_reached_at` is kept, so no pathway-target alert fires and only step SLAs alert.
+19. **One open episode per person and programme (round 20).** A closed case cannot be re-opened while another case
+    for the same person (any linked MRN) and programme is open. The service names the open case so that follow-up
+    continues there.
 
 ## 10. Sources
 

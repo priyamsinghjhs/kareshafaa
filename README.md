@@ -47,7 +47,7 @@ Clinical-safety targets (Iteration 6):
 
 ```bash
 make seed-large      # 20,000 realistic synthetic people -> data/wasl_large.db (~3 min, no model training)
-make validate        # 53 data invariants on the demo DB (exit 1 on any violation)
+make validate        # 60 data invariants on the demo DB (exit 1 on any violation)
 make validate-large  # same on the 20k cohort
 make test-clinical   # golden cases, fail-safe, Hypothesis properties, exhaustive state machine
 make test-cohort     # full-cohort run on the 20k DB (needs seed-large)
