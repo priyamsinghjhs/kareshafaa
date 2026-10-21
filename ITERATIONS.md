@@ -547,3 +547,52 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
   between runs of the same code is as large as the difference; one current run was slower across the board (box
   contention suspected). Audit hash chain valid after every run; 0 errors once the FHIR fix was in.
 - **Full suite 3,127 tests, all passing.** Validator unchanged (53 invariants, 0 violations).
+
+### Round 18: ML fairness gate failure after the round-16 re-seed (21 Oct 2026, ~07:40-08:05 IST)
+- **Finding.** The regenerated calibration report (after round 16 re-seeded demo, 10k and 20k) showed the demo
+  logistic candidate failing `fairness_recall:language` (both recalibration settings); 10k and 20k pass every gate.
+  Reproduced exactly. The flagged group is **English** speakers: 25 delayed cases in the hold-out, only 3 in the
+  top-30 % outreach priority (recall 0.12 vs 0.47 overall; bootstrap CI 0.00-0.26, wholly below the 0.32 limit), and
+  English cases were flagged at 6 % although their observed delay rate (18 %) equals the Arabic group's (17 %,
+  flagged at 24 %). Group calibration was fine (CITL -0.02); the model gave English speakers a low baseline through
+  the one-hot `language` input and ranked them poorly within the group (AUC 0.60).
+- **Diagnosis.** Not a round-16 messaging artefact: English speakers are not touched by the interpreter path and
+  their delay rates are unchanged (train 0.179 -> 0.177). Not gate noise either: the pre-round-16 demo
+  (`backup_pre_r16/wasl_demo.db`) shows the same pattern (English recall 0.25, flag rate 10 % vs delay rate 17 %) that
+  passed only because the CI (0.07-0.43) was wide; the re-seed shifted the random stream and the CI crossed the line.
+  The gate correctly caught a real, previously under-powered weakness. In the simulator the only language effect on
+  drop-off is "no material in the patient's language" (Tagalog, Malayalam); the one-hot input let the model encode
+  language identity instead. The seed itself had already put demo v1 (logreg) in `failed_gates` and promoted the
+  passing gbm (v2), so production was never affected.
+- **Fix (no gate, tolerance, minimum group size or definition changed).** The one-hot `language` model input is
+  replaced by `language_unsupported` (1 = no patient material in the preferred language, so contact needs an
+  interpreter), the operational barrier it stood for. Language stays a fairness attribute and is still drift-monitored
+  (added explicitly to the reference stats). Rationale label: "No patient materials in the preferred language
+  (interpreter needed)". Model card limitation text updated. Three feature sets were compared on the same hold-outs
+  (one-hot / no language / barrier flag); the barrier flag follows the mechanism and was the only one that kept or
+  raised AUC on demo and 20k, but the choice was made after seeing these hold-outs, so it must be re-checked on fresh
+  data. Older models keep their own input columns: the demo production gbm v2 (trained with one-hot language) scores
+  identically after the change (max score change 0.0, tiers/states unchanged, drift ok); nothing was promoted.
+- **ML metrics (hold-out, recalibration none; before -> after).** Demo logreg AUC 0.676 -> 0.684, ECE 0.015 -> 0.036,
+  slope 0.957 -> 1.007, CITL 0.010, bins 10/10, gates **all pass** (language recall gap 0.38 -> 0.26, English recall
+  0.12 -> 0.24); demo gbm AUC 0.671 -> 0.670, ECE 0.028, slope 0.883, bins 8/10 -> 10/10, all pass. 10k logreg AUC
+  0.660 -> 0.659, ECE 0.025, slope 1.021, bins 9/10; gbm 0.666 -> 0.661, ECE 0.028, slope 0.94, bins 9/10 -> 8/10; all
+  pass. 20k logreg AUC 0.713 -> 0.720, ECE 0.042, slope 1.198, CITL 0.028, bins 9/10; gbm 0.701 -> 0.699, ECE 0.038,
+  slope 1.018, bins 9/10; all pass. `auto` recalibration chose Platt on the demo (slope 1.23/1.28, within the gate but
+  over-correcting again), none on 10k/20k. Report now includes the 10k cohort (`docs/ml_calibration.md/.json`).
+- **Governance (verified, now tested unconditionally).** A candidate failing only the language recall gate is
+  refused by the API (409) for a clinical lead, and by the service layer even with its status tampered to
+  `awaiting_approval` (the `all_passed` guard); production is unchanged. The ML writes only the risk score and
+  rationale; tiers, states and closures are untouched. Every model input has a staff-readable rationale label (no
+  column names), and every scored case carries a rationale list (empty = "close to the typical case" in the UI).
+- **Tests.** New `tests/test_ml_fairness_language.py` (19 tests: recall gate fails on a credibly under-flagged group
+  and passes when groups are served alike; gate-failing promotion refusal; language monitored, not an input;
+  interpreter-need flag; case frame keeps `language` for older models; rationale label per input; rationale stored for
+  every scored case). Fault injection F53 (approve ignores `all_passed`) and F54 (recall gate never fails): **both
+  killed** (`--only F53,F54`; the full 54-fault re-run is recorded separately if it completes).
+  **Full suite 3,146 tests, all passing.**
+- **Invariants and alerts (no DB re-seeded).** Validator: **53 invariants, 0 violations** on demo, 10k and 20k; 0 lost
+  actionable results. Alert precision/recall (20k): **100 % / 100 %** (5,233 TP, 0 FP, 3,178 true breaches, 0 missed;
+  legacy 76.6 % / 89.6 %). The :8000 demo server was restarted the same way to load the new feature code.
+- **Open.** The 10k/20k language recall gaps are still wide point estimates (0.58 / 0.53) that pass only on CI
+  width; continue subgroup monitoring on pilot data. Synthetic validation only: no clinical claim.
