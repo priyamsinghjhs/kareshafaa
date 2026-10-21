@@ -40,7 +40,7 @@ Requires Python 3.11+ (tested on 3.13) and `make`. Everything is free and open s
 make setup          # venv + dependencies (~1 min)
 make seed           # 2,000 synthetic patients, 6 months of history, train + register models (~55 s)
 make run            # http://localhost:8000  (python -m wasl.serve: 4 SO_REUSEPORT worker processes; WORKERS=1 for one)
-make test           # 3,234 pytest tests (~60 s; the 20k cohort test is skipped until `make seed-large`)
+make test           # 3,235 pytest tests (~60 s; the 20k cohort test is skipped until `make seed-large`)
 ```
 
 Clinical-safety targets (Iteration 6):
@@ -131,6 +131,42 @@ Iteration 6 run: a fresh 10k DB (10,155 cases, 1,250 open, 160k audit events). D
 Background sweep over 1,705 open clocks: 35–76 ms.
 Iteration 7 run: fresh 10k DB (1,215 open cases, 155k audit events), 10 concurrent clients, 0 errors, audit chain intact. In an earlier Iteration 7 run the queue p95 had regressed to 1.3 s (sqlite per-row GIL convoy); the fixes are in ITERATIONS.md (round 8).
 
+### Capacity and resilience (rounds 20–22, 21 Oct 2026; `docs/loadtest_ramp.md`)
+
+**Load ramp.** Fresh 10k database, `wasl.serve --workers 4`, zero-think-time virtual users, mixed reads with 8 %
+HL7 writes. Columns: requests per second answered OK, p95 latency of those, share answered 503.
+
+| Concurrent users | Round 20 | Round 21 (current) |
+|---|---|---|
+| 40 | 120/s, p95 945 ms, 0 errors | **170/s, p95 539 ms, 0 errors** |
+| 80 | collapse: 4/s, 30 s pool timeouts | **142/s OK, p95 1.6 s, 12 % 503** (fast "busy, retry") |
+| 160 | – | 75/s OK, 17 % 503 (p95 of 503s about 5 s); no hang, audit chain intact |
+
+* **Capacity:** p95 stays under 1 s up to about 40 back-to-back users. That is roughly 1,700 staff at 10 s think
+  time; this is an estimate, not measured. The load generator ran on the same box.
+* **Graceful degradation:**
+  * bounded waits on database connections, locks and the audit writer;
+  * 503 + Retry-After when busy;
+  * admission control (16 in-flight requests per worker);
+  * group-committed request audit: a read is refused rather than served unlogged;
+  * 2 s work-queue cache, dropped on any local write.
+* **Locks are per database.** Before round 21, a load test on another database could stall the demo server.
+* **Watchdog** (round 22): each worker heartbeats from its event loop through the request thread pool. The parent
+  takes a thread dump of, then kills and replaces, any worker silent for more than 60 s (`WASL_HEARTBEAT_TIMEOUT_S`).
+* **PostgreSQL 17 smoke test:** passed (validator, ramp, audit chain).
+
+**Current verification:**
+
+| Check | Result |
+|---|---|
+| Tests | 3,235 passed |
+| Validator | 60 invariants, 0 violations on demo / 10k / 20k / edge-case cohorts |
+| Differential, random inputs | 10M, 0 disagreements |
+| Differential, edge-cohort inputs | 1M, 0 disagreements |
+| Alerts, 20k cohort | precision 1.0 / recall 1.0 |
+| Alerts, 20k edge-case cohort | precision 1.0 / recall 1.0 (51,963 alerts, 26,297 breaches) |
+| Edge-case coverage | 403 supported disease × severity × scenario cells, 0 empty (`docs/edge_case_coverage.md`) |
+
 ## Simulated KPIs (SIMULATED – 20,000 synthetic people × 5 replications, same rules engine)
 
 | KPI | Baseline (no Wasl) | With Wasl |
@@ -185,7 +221,8 @@ deployment would need formal assessment.
 * Authentication is demo-grade: HMAC tokens with role-switcher logins. Production needs OIDC/SSO (UAE PASS for patients), MFA and secret management.
 * The queue still orders all open cases in Python (SLA status depends on the working-day calendar). It is fine at 10k
   cases with ~1.5k open, but beyond that it should use a materialised due/RAG column with SQL ORDER BY/LIMIT.
-* SQLite is for the demo. Multi-host deployment needs PostgreSQL; the audit writer lock already uses `pg_advisory_xact_lock` there.
+* SQLite is for the demo. Multi-host deployment needs PostgreSQL (pool settings in `wasl/config.py`, driver in
+  `requirements-postgres.txt`, smoke-tested in round 21); the audit writer lock uses `pg_advisory_xact_lock` there.
 * The Islamic holiday and Ramadan dates are approximate. Tagalog and Malayalam content is not translated yet.
 * Docker build is written but could not be tested on the build box (no Docker daemon available).
 
@@ -202,5 +239,5 @@ deployment would need formal assessment.
 
 ## Repository map
 
-`wasl/` app · `tests/` pytest (3,161) · `wasl_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
+`wasl/` app · `tests/` pytest (3,235) · `wasl_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
 `scripts/ui_smoke.py` (optional Playwright) · `ITERATIONS.md` build log with self-assessments · `Makefile` · `Dockerfile` · `.env.example`

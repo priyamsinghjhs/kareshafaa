@@ -756,3 +756,30 @@ audited requests. This was reproduced, and is now fixed with per-database locks 
 * PostgreSQL 17 smoke test: seed, validator 0 violations, ramp, audit chain valid.
 * Tests: 3,234 passed.
 * Validator: 0 violations on the demo, 10k, 20k and edge databases.
+
+### Round 22: watchdog for stuck workers (21 Oct 2026, ~12:20-12:35 IST)
+
+* **Heartbeat.** Each worker writes a heartbeat file (`WASL_HEARTBEAT_DIR`, default `/tmp/wasl-hb-<port>`) from
+  its event loop every 2 s. It writes only after a no-op has passed through the request thread pool, so a blocked
+  loop and an exhausted or wedged thread pool both stop the heartbeat.
+* **Replacement.** `wasl.serve` checks heartbeats every 0.5 s. If a worker has been silent longer than
+  `WASL_HEARTBEAT_TIMEOUT_S` (60 s), the parent:
+  * asks it for a thread dump (SIGUSR1 → faulthandler, written to the log, so the cause of a hang is kept next
+    time);
+  * SIGKILLs it;
+  * starts a replacement.
+
+  The database rolls back the killed worker's open transaction, so no half-written audit link is possible.
+  Previously only workers that *exited* were restarted. The round-21 hang left blocked workers holding their
+  SO_REUSEPORT sockets.
+* **Test.** `tests/test_serve.py::test_watchdog_replaces_a_wedged_worker_and_audit_chain_stays_intact`:
+  * a worker is frozen with SIGSTOP (alive, cannot serve or heartbeat);
+  * it is replaced within the 3 s test timeout;
+  * 20 audited requests are served afterwards;
+  * the audit hash chain verifies.
+* **Results.**
+  * Tests: 3,235 passed.
+  * Validator: 0 violations on all four databases.
+  * The demo server on :8000 was restarted on this code, and all 4 workers are heartbeating.
+* **Not covered.** A worker that keeps heartbeating but serves one request forever (one stuck thread out of 40) is
+  not detected. Request-level timeouts would be the next step.
