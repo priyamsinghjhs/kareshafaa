@@ -227,6 +227,72 @@ class _AuditBatcher:
 _BATCHER = _AuditBatcher()
 
 
+class TimeBudgetMiddleware:
+    """Cut off a request that runs past settings.request_timeout_s: 503 + Retry-After at once, its transaction
+    rolled back, any later SQL/commit from it refused, stack logged, counted (/healthz) and audited. A request
+    that has started a commit is never cut off (it is allowed to finish), so "nothing was saved" is always true."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        import contextvars
+
+        from . import request_timeout as rt
+
+        cfg = get_settings()
+        path = scope.get("path", "")
+        budget = cfg.request_timeout_s
+        if scope["type"] != "http" or budget <= 0 or not path.startswith("/api/") \
+                or path.startswith(cfg.request_timeout_exempt):
+            return await self.app(scope, receive, send)
+        st = rt.RequestState(path)
+        started = {"v": False, "detached": False}
+
+        async def guarded_send(msg):
+            if started["detached"]:
+                return  # the client already got the 503: the stuck request's late response is discarded
+            if msg["type"] == "http.response.start":
+                started["v"] = True
+            await send(msg)
+
+        token = rt.CURRENT.set(st)
+        try:
+            task = asyncio.ensure_future(self.app(scope, receive, guarded_send))
+        finally:
+            rt.CURRENT.reset(token)
+        waited = 0.0
+        while True:
+            done, _ = await asyncio.wait({task}, timeout=budget)
+            waited += budget
+            if done:
+                return task.result()
+            if started["v"] or not rt.try_cut_off(st):
+                rt.TIMEOUTS["slow_committing"] += 1  # committing or already streaming: let it finish
+                log.warning("request %s over its time budget (%.0f s) but committing/streaming: allowed to finish",
+                            path, waited)
+                budget = 5.0
+                continue
+            break
+        started["detached"] = True
+        rt.TIMEOUTS["count"] += 1
+        log.error("request timed out after %.1f s: %s %s - cut off, transaction rolled back; stack of the stuck "
+                  "request:\n%s", waited, scope.get("method"), path, rt.stacks(st))
+        await asyncio.to_thread(contextvars.Context().run, rt.abort_transactions, st)
+        task.add_done_callback(lambda t: t.cancelled() or t.exception())  # the stuck work is discarded
+        items = [(ANON, "E", "http.request_timeout", dict(entity_type="http", entity_id=None, outcome="failure",
+                                                          path=path[:300], detail={"seconds": round(waited, 1),
+                                                                                   "method": scope.get("method"),
+                                                                                   "status": 503, "saved": False}))]
+        try:
+            await asyncio.wrap_future(_BATCHER.submit(items))
+        except Exception:  # noqa: BLE001 - the request log still records the 503
+            log.warning("could not audit a request timeout", exc_info=True)
+        resp = JSONResponse({"detail": "the request took too long and was stopped - nothing was saved; please retry"},
+                            status_code=503, headers={"Retry-After": str(cfg.retry_after_s)})
+        await resp(scope, receive, send)
+
+
 def create_app() -> FastAPI:
     s = get_settings()
     if not logging.getLogger().handlers:
@@ -250,6 +316,10 @@ def create_app() -> FastAPI:
                   description="Prototype on SYNTHETIC data only. Not a medical device. No real messages are sent.")
 
     inflight = {"n": 0, "shed": 0}
+
+    # Round 23: per-request time budget, a pure ASGI layer INSIDE the audit middleware (so a cut-off request is
+    # still logged as 503). It answers without waiting for the stuck thread (wasl/request_timeout.py).
+    app.add_middleware(TimeBudgetMiddleware)
 
     @app.middleware("http")
     async def audit_every_request(request: Request, call_next):
@@ -357,7 +427,9 @@ def create_app() -> FastAPI:
             db.execute(text("SELECT 1"))
         finally:
             db.close()
-        return {"status": "ok", "version": __version__}
+        from .request_timeout import TIMEOUTS
+        return {"status": "ok", "version": __version__, "request_timeouts": TIMEOUTS["count"],
+                "slow_committing_requests": TIMEOUTS["slow_committing"]}
 
     def page(name: str, request: Request, **ctx) -> HTMLResponse:
         return templates.TemplateResponse(request, name, {"demo_logins": s.demo_logins, "version": __version__, **ctx})

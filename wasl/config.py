@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     writer_lock_timeout_s: float = 5.0  # wait for the audit-chain writer lock, then 503 (nothing is saved)
     max_inflight_requests: int = 16  # per worker; beyond this a request is shed at once with 503 + Retry-After
     retry_after_s: int = 2
+    # per-request time budget (round 23, wasl/request_timeout.py); 0 disables. Long admin jobs are exempt.
+    request_timeout_s: float = 30.0
+    request_timeout_exempt: tuple[str, ...] = ("/api/audit/verify", "/api/governance/models/train", "/api/sla/sweep",
+                                               "/api/demo/")
     queue_cache_ttl_s: float = 2.0  # work-queue base data, per process; 0 disables (see services/queue.py)
     gil_switch_interval_ms: float = 0.5  # see main.lifespan (sqlite row-fetch convoy)
     fairness_auc_tolerance: float = 0.05  # group AUC CI must not lie wholly below overall - tol
