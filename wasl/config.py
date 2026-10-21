@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     # case re-opened after its target is flagged breached at once and escalates (more alerts, not fewer). True gives
     # the re-opened episode a fresh target for its tier. CLINICAL LEAD TO CONFIRM (round 19/20 open question).
     reopen_restarts_target: bool = False
+    # --- load / graceful degradation (round 21) -----------------------------------------------------------
+    db_pool_size: int = 10  # per worker process (Postgres-ready; SQLite uses the same pool)
+    db_max_overflow: int = 10
+    db_pool_timeout_s: float = 3.0  # wait for a pooled connection, then 503 + Retry-After (was SQLAlchemy's 30 s)
+    db_busy_timeout_s: float = 5.0  # SQLite busy_timeout / Postgres lock_timeout for one statement
+    writer_lock_timeout_s: float = 5.0  # wait for the audit-chain writer lock, then 503 (nothing is saved)
+    max_inflight_requests: int = 24  # per worker; beyond this a request is shed at once with 503 + Retry-After
+    retry_after_s: int = 2
     gil_switch_interval_ms: float = 0.5  # see main.lifespan (sqlite row-fetch convoy)
     fairness_auc_tolerance: float = 0.05  # group AUC CI must not lie wholly below overall - tol
     fairness_tpr_tolerance: float = 0.15  # group recall-at-top CI must not lie wholly below overall - tol

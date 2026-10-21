@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import threading
+import time
 from datetime import datetime
 from typing import Any
 
@@ -49,51 +50,99 @@ def record(db: Session, actor: Actor, action: str, event: str, *, entity_type: s
 # DATA_DIR does the same across uvicorn worker processes on one host.
 class _WriterLock:
     """Re-entrant per thread, but releasable from any thread (FastAPI may close a session in a different
-    worker thread from the one that flushed). The cross-process file lock is held while count > 0."""
+    worker thread from the one that flushed). The cross-process file lock is held while count > 0.
+    Round 21: both waits are bounded (settings.writer_lock_timeout_s) - a saturated server answers 503 instead of
+    queueing writers forever."""
 
     def __init__(self) -> None:
         self._cond = threading.Condition()
         self._owner: int | None = None
         self._count = 0
+        self._path: str | None = None
 
-    def acquire(self, file_lock: bool) -> None:
+    def acquire(self, file_lock: bool, path: str | None = None, timeout: float | None = None) -> None:
         me = threading.get_ident()
+        deadline = None if timeout is None else time.monotonic() + timeout
         with self._cond:
             while self._count and self._owner != me:
-                self._cond.wait()
+                left = None if deadline is None else deadline - time.monotonic()
+                if left is not None and left <= 0:
+                    from .services.errors import ServiceBusy
+                    raise ServiceBusy()
+                self._cond.wait(left)
             first = self._count == 0
             self._owner = me
             self._count += 1
         if first and file_lock:
-            _file_lock(True)
+            try:
+                _file_lock(True, path, deadline)
+            except BaseException:
+                with self._cond:
+                    self._count -= 1
+                    self._owner = None
+                    self._cond.notify_all()
+                raise
+            self._path = path
 
     def release(self, file_lock: bool) -> None:
         with self._cond:
             self._count -= 1
             last = self._count == 0
             if last and file_lock:
-                _file_lock(False)
+                _file_lock(False, self._path)
             if last:
                 self._owner = None
                 self._cond.notify_all()
 
 
 _WRITER_LOCK = _WriterLock()
-_FILE_LOCK_FD: int | None = None
+_FILE_LOCK_FDS: dict[str, int] = {}
 
 
-def _file_lock(acquire: bool) -> None:
-    global _FILE_LOCK_FD
+def lock_key(url: str) -> str:
+    """Lock-file key for ONE database. Round 21 root cause: the lock file was shared by every server and script
+    using the same data_dir, so a load test (or a seed) on another database stalled the demo server's writes."""
+    import hashlib
+    return hashlib.sha1(url.encode()).hexdigest()[:12]
+
+
+def _file_lock(acquire: bool, path: str | None = None, deadline: float | None = None) -> None:
     try:
         import fcntl
     except ImportError:  # pragma: no cover - non-POSIX: single process only
         return
-    if _FILE_LOCK_FD is None:
-        from .config import get_settings
-        d = get_settings().data_dir
-        d.mkdir(parents=True, exist_ok=True)
-        _FILE_LOCK_FD = os.open(str(d / ".audit-writer.lock"), os.O_CREAT | os.O_RDWR, 0o600)
-    fcntl.flock(_FILE_LOCK_FD, fcntl.LOCK_EX if acquire else fcntl.LOCK_UN)
+    from .config import get_settings
+    if path is None:
+        path = str(get_settings().data_dir / f".audit-writer-{lock_key(get_settings().database_url)}.lock")
+    fd = _FILE_LOCK_FDS.get(path)
+    if fd is None:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        fd = _FILE_LOCK_FDS[path] = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
+    if not acquire:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        return
+    if deadline is None:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        return
+    pause = 0.001
+    while True:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except BlockingIOError:
+            if time.monotonic() >= deadline:
+                from .services.errors import ServiceBusy
+                raise ServiceBusy() from None
+            time.sleep(pause)
+            pause = min(pause * 2, 0.02)
+
+
+def _writer_lock_path(session: Session) -> str:
+    from .config import get_settings
+    u = session.get_bind().url
+    # the SAME database file must always map to the same lock (else two writers could fork the hash chain)
+    ident = os.path.realpath(u.database) if u.database and u.database != ":memory:" else str(u)
+    return str(get_settings().data_dir / f".audit-writer-{lock_key(ident)}.lock")
 
 
 @event.listens_for(Session, "before_flush")
@@ -102,7 +151,9 @@ def _chain_on_flush(session: Session, _ctx, _instances) -> None:
         return
     if not session.info.get("writer_lock"):
         is_pg = session.get_bind().dialect.name == "postgresql"
-        _WRITER_LOCK.acquire(file_lock=not is_pg)
+        from .config import get_settings
+        _WRITER_LOCK.acquire(file_lock=not is_pg, path=None if is_pg else _writer_lock_path(session),
+                             timeout=get_settings().writer_lock_timeout_s)
         session.info["writer_lock"] = "pg" if is_pg else "file"
         if is_pg:
             session.execute(text("SELECT pg_advisory_xact_lock(4242)"))

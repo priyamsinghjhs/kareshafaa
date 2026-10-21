@@ -22,10 +22,20 @@ _SessionLocal: sessionmaker[Session] | None = None
 def get_engine() -> Engine:
     global _engine, _SessionLocal
     if _engine is None:
-        url = get_settings().database_url
+        cfg = get_settings()
+        url = cfg.database_url
         kwargs: dict = {"future": True, "pool_pre_ping": True}
+        memory = url.startswith("sqlite") and (":memory:" in url or url.rstrip("/") in ("sqlite:", "sqlite:"))
+        if not memory:
+            # round 21: bounded waits everywhere - a saturated server answers 503 + Retry-After (main.py) instead of
+            # holding requests for SQLAlchemy's default 30 s pool wait. Same settings serve Postgres.
+            kwargs.update(pool_size=cfg.db_pool_size, max_overflow=cfg.db_max_overflow,
+                          pool_timeout=cfg.db_pool_timeout_s, pool_recycle=1800)
         if url.startswith("sqlite"):
-            kwargs["connect_args"] = {"check_same_thread": False, "timeout": 30}
+            kwargs["connect_args"] = {"check_same_thread": False, "timeout": cfg.db_busy_timeout_s}
+        elif url.startswith("postgresql"):
+            ms = int(cfg.db_busy_timeout_s * 1000)
+            kwargs["connect_args"] = {"options": f"-c lock_timeout={ms} -c idle_in_transaction_session_timeout=60000"}
         _engine = create_engine(url, **kwargs)
         if url.startswith("sqlite"):
 

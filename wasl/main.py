@@ -10,7 +10,8 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.exc import TimeoutError as SATimeoutError
 from sqlalchemy.orm.exc import StaleDataError
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -26,7 +27,7 @@ from .config import get_settings
 from .db import init_db, session_factory, session_scope
 from .security import Actor
 from .services.escalation import run_sweep
-from .services.errors import DomainError
+from .services.errors import DomainError, ServiceBusy
 from .statemachine import TransitionError
 
 log = logging.getLogger("wasl")
@@ -71,7 +72,14 @@ def _elect_sweeper() -> bool:
     try:
         import fcntl
         import os
-        fd = os.open(str(get_settings().data_dir / ".sla-sweeper.lock"), os.O_CREAT | os.O_RDWR, 0o600)
+        from sqlalchemy.engine import make_url
+
+        from .audit import lock_key
+        u = make_url(get_settings().database_url)
+        ident = os.path.realpath(u.database) if u.database and u.database != ":memory:" else str(u)
+        # one sweeper per DATABASE (round 21: a shared lock let a server on another database "own" the sweep)
+        fd = os.open(str(get_settings().data_dir / f".sla-sweeper-{lock_key(ident)}.lock"), os.O_CREAT | os.O_RDWR,
+                     0o600)
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         _SWEEP_LOCK_FD = fd  # held for the life of the process
         return True
@@ -101,9 +109,12 @@ async def _sweep_loop(interval: int) -> None:
             log.exception("background SLA sweep failed")
 
 
-def _audit_request(request: Request, state_actor, path: str, code: int, start: float) -> None:
+def _audit_request(request: Request, state_actor, path: str, code: int, start: float, shed: int = 0) -> None:
     db = session_factory()()
     try:
+        if shed:
+            audit.record(db, ANON, "E", "http.load_shed", entity_type="http", entity_id=None, outcome="failure",
+                         detail={"requests_shed": shed, "status": 503})
         actor = state_actor or resolve_actor(request, db) or ANON
         m = CASE_RE.match(path)
         outcome = "success" if code < 400 else "denied" if code in (401, 403) else "failure"
@@ -135,6 +146,8 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Wasl - Closing the Screening-to-Care Loop", version=__version__, lifespan=lifespan,
                   description="Prototype on SYNTHETIC data only. Not a medical device. No real messages are sent.")
 
+    inflight = {"n": 0, "shed": 0}
+
     @app.middleware("http")
     async def audit_every_request(request: Request, call_next):
         """Append-only audit of EVERY API read and write (and page view), including denied attempts."""
@@ -146,7 +159,8 @@ def create_app() -> FastAPI:
         state_actor = getattr(request.state, "actor", None)
         try:
             # sync DB work runs in a worker thread so the event loop is never blocked
-            await asyncio.to_thread(_audit_request, request, state_actor, path, response.status_code, start)
+            shed, inflight["shed"] = inflight["shed"], 0
+            await asyncio.to_thread(_audit_request, request, state_actor, path, response.status_code, start, shed)
         except Exception:  # noqa: BLE001 - never break a response because of the request log
             log.exception("request audit failed")
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -154,9 +168,44 @@ def create_app() -> FastAPI:
         response.headers["Referrer-Policy"] = "no-referrer"
         return response
 
+    @app.middleware("http")
+    async def admission_control(request: Request, call_next):
+        """Declared AFTER the audit middleware so it is the OUTERMOST layer: a shed request costs no DB work. Round 21 graceful degradation: beyond max_inflight_requests per worker, answer 503 + Retry-After at once
+        (nothing read or saved) instead of queueing into 30 s connection waits. Shed requests are counted and
+        written to the audit log as one aggregated `http.load_shed` event with the next audited request."""
+        path = request.url.path
+        if path.startswith("/static") or path in ("/favicon.ico", "/healthz"):
+            return await call_next(request)
+        if inflight["n"] >= s.max_inflight_requests:
+            inflight["shed"] += 1
+            return JSONResponse({"detail": "the service is busy - nothing was read or saved; please retry shortly"},
+                                status_code=503, headers={"Retry-After": str(s.retry_after_s)})
+        inflight["n"] += 1
+        try:
+            return await call_next(request)
+        finally:
+            inflight["n"] -= 1
+
     @app.exception_handler(DomainError)
     async def _domain(_req: Request, exc: DomainError):
         return JSONResponse({"detail": exc.message}, status_code=exc.status_code)
+
+    @app.exception_handler(ServiceBusy)
+    async def _busy(_req: Request, exc: ServiceBusy):
+        return JSONResponse({"detail": exc.message}, status_code=503, headers={"Retry-After": str(s.retry_after_s)})
+
+    @app.exception_handler(SATimeoutError)
+    async def _pool(_req: Request, exc: SATimeoutError):
+        return JSONResponse({"detail": "the service is busy (no database connection free) - nothing was saved; "
+                                       "please retry shortly"}, status_code=503,
+                            headers={"Retry-After": str(s.retry_after_s)})
+
+    @app.exception_handler(OperationalError)
+    async def _locked(_req: Request, exc: OperationalError):
+        if "locked" in str(exc.orig).lower() or "busy" in str(exc.orig).lower():
+            return JSONResponse({"detail": "the database is busy - nothing was saved; please retry shortly"},
+                                status_code=503, headers={"Retry-After": str(s.retry_after_s)})
+        raise exc
 
     @app.exception_handler(TransitionError)
     async def _transition(_req: Request, exc: TransitionError):
