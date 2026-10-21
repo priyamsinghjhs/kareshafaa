@@ -12,7 +12,15 @@ Decision rule (pre-specified in round 19 before any fresh-cohort result was seen
         AUC(barrier) - AUC(alternative) must not lie wholly below -0.01.
   Otherwise NOT CONFIRMED: report it; do not change any gate to make it pass.
 
-usage: python scripts/ml_feature_revalidation.py --db PATH --name NAME [--db PATH --name NAME ...] [--out docs/ml_feature_revalidation]
+Second pre-registered check (round 19, written after the first three fresh cohorts and BEFORE the second set was
+seeded): the first check was NOT confirmed (the barrier set failed `fairness_recall:nationality_group` on the fresh
+demo and fresh 10k for both algorithms; it passed on the fresh 20k), while the "none" set passed every gate on all
+three. Because "none" was picked by looking at those cohorts, it is tested with `--primary none` on three NEW seeds
+with the same rule (primary passes every gate for both algorithms on every cohort, and its AUC is not credibly worse
+than either alternative). Only if that holds may the production inputs change; otherwise they stay as they are.
+
+usage: python scripts/ml_feature_revalidation.py --db PATH --name NAME [--db PATH --name NAME ...] [--primary barrier]
+       [--out docs/ml_feature_revalidation]
 """
 from __future__ import annotations
 
@@ -61,7 +69,7 @@ def _paired_auc_diff(y: np.ndarray, pa: np.ndarray, pb: np.ndarray, reps: int = 
     return round(float(point), 4), [round(float(np.quantile(d, 0.025)), 4), round(float(np.quantile(d, 0.975)), 4)]
 
 
-def run_cohort(db_path: str) -> dict:
+def run_cohort(db_path: str, primary: str = "barrier") -> dict:
     tmp = Path(tempfile.mkdtemp(prefix="mlfeat_"))
     src, dst = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True), sqlite3.connect(tmp / "w.db")
     src.backup(dst)
@@ -115,18 +123,25 @@ def run_cohort(db_path: str) -> dict:
                 "language_recall_gap": lang["tpr_gap"],
                 "language_groups": [{k: g.get(k) for k in ("group", "n", "n_pos", "eligible_for_gate", "tpr_at_top",
                                                           "tpr_ci", "flag_rate", "observed_rate")}
-                                    for g in lang["groups"]]}
-        y, pb = preds[(alg, "barrier")]
-        for alt in ("onehot", "none"):
+                                    for g in lang["groups"]],
+                "failing_attribute_groups": {
+                    attr: [{k: g.get(k) for k in ("group", "n", "n_pos", "eligible_for_gate", "tpr_at_top", "tpr_ci",
+                                                  "auc", "auc_ci", "flag_rate", "observed_rate", "calibration_diff")}
+                           for g in f["groups"]]
+                    for attr, f in mv.fairness.items()
+                    if f["underserved_tpr"] or f["underserved_auc"] or f["miscalibrated"]}}
+        y, pb = preds[(alg, primary)]
+        for alt in (x for x in FEATURE_SETS if x != primary):
             y2, pa = preds[(alg, alt)]
             assert np.array_equal(y, y2)
-            out["paired_auc_diff"][f"{alg}: barrier - {alt}"] = _paired_auc_diff(y, pb, pa)
+            out["paired_auc_diff"][f"{alg}: {primary} - {alt}"] = _paired_auc_diff(y, pb, pa)
     db.close()
     _use(*FEATURE_SETS["barrier"])
     shutil.rmtree(tmp, ignore_errors=True)
-    ok_gates = all(out["results"][f"{a}/barrier"]["all_gates_passed"] for a in ("logreg", "gbm"))
+    ok_gates = all(out["results"][f"{a}/{primary}"]["all_gates_passed"] for a in ("logreg", "gbm"))
     ok_auc = all(ci[1] >= -0.01 for _, ci in out["paired_auc_diff"].values())
-    out["confirmed"] = {"barrier_passes_all_gates": ok_gates, "barrier_auc_not_credibly_worse": ok_auc,
+    out["primary"] = primary
+    out["confirmed"] = {f"{primary}_passes_all_gates": ok_gates, f"{primary}_auc_not_credibly_worse": ok_auc,
                         "confirmed": ok_gates and ok_auc}
     return out
 
@@ -136,12 +151,13 @@ def main() -> int:
     ap.add_argument("--db", action="append", required=True)
     ap.add_argument("--name", action="append", required=True)
     ap.add_argument("--out", default=str(ROOT / "docs" / "ml_feature_revalidation"))
+    ap.add_argument("--primary", default="barrier", choices=sorted(FEATURE_SETS))
     a = ap.parse_args()
     assert len(a.db) == len(a.name)
     jpath = Path(a.out).with_suffix(".json")
     data = json.loads(jpath.read_text()) if jpath.exists() else {}
     for path, name in zip(a.db, a.name):
-        data[name] = {"db": path} | run_cohort(path)
+        data[name] = {"db": path} | run_cohort(path, a.primary)
         jpath.write_text(json.dumps(data, indent=1, default=str))
         d = data[name]
         for k, r in d["results"].items():

@@ -1,0 +1,2501 @@
+{
+ "fresh_demo_seed20261919": {
+  "db": "/workspace/fhdic/r19_fresh/fresh_demo.db",
+  "as_of": "2026-10-21 04:05:06.020735",
+  "results": {
+   "logreg/onehot": {
+    "n_train": 1380,
+    "n_holdout": 461,
+    "auc": 0.6755,
+    "ece": 0.0262,
+    "slope": 1.168,
+    "citl": 0.0123,
+    "bins": "10/10",
+    "recall_at_top": 0.5067,
+    "all_gates_passed": false,
+    "gates_failed": [
+     "fairness_recall:nationality_group"
+    ],
+    "language_recall_gap": 0.0103,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 160,
+      "n_pos": 21,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.381,
+      "tpr_ci": [
+       0.1578,
+       0.6009
+      ],
+      "flag_rate": 0.1812,
+      "observed_rate": 0.1313
+     },
+     {
+      "group": "en",
+      "n": 123,
+      "n_pos": 23,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.3913,
+      "tpr_ci": [
+       0.1899,
+       0.6003
+      ],
+      "flag_rate": 0.2439,
+      "observed_rate": 0.187
+     },
+     {
+      "group": "hi",
+      "n": 49,
+      "n_pos": 9,
+      "eligible_for_gate": false,
+      "tpr_at_top": 0.6667,
+      "tpr_ci": null,
+      "flag_rate": 0.3673,
+      "observed_rate": 0.1837
+     },
+     {
+      "group": "ml",
+      "n": 48,
+      "n_pos": 10,
+      "eligible_for_gate": false,
+      "tpr_at_top": 0.7,
+      "tpr_ci": null,
+      "flag_rate": 0.5417,
+      "observed_rate": 0.2083
+     },
+     {
+      "group": "tl",
+      "n": 29,
+      "n_pos": 3,
+      "eligible_for_gate": false,
+      "tpr_at_top": null,
+      "tpr_ci": null,
+      "flag_rate": 0.6552,
+      "observed_rate": 0.1034
+     },
+     {
+      "group": "ur",
+      "n": 52,
+      "n_pos": 9,
+      "eligible_for_gate": false,
+      "tpr_at_top": 0.5556,
+      "tpr_ci": null,
+      "flag_rate": 0.3269,
+      "observed_rate": 0.1731
+     }
+    ],
+    "failing_attribute_groups": {
+     "nationality_group": [
+      {
+       "group": "Emirati",
+       "n": 102,
+       "n_pos": 13,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.6154,
+       "tpr_ci": [
+        0.3122,
+        0.9231
+       ],
+       "auc": 0.7779,
+       "auc_ci": [
+        0.6005,
+        0.8896
+       ],
+       "flag_rate": 0.1961,
+       "observed_rate": 0.1275,
+       "calibration_diff": 0.0203
+      },
+      {
+       "group": "Filipino",
+       "n": 53,
+       "n_pos": 8,
+       "eligible_for_gate": false,
+       "tpr_at_top": 0.5,
+       "tpr_ci": null,
+       "auc": null,
+       "auc_ci": null,
+       "flag_rate": 0.4528,
+       "observed_rate": 0.1509,
+       "calibration_diff": 0.0503
+      },
+      {
+       "group": "Indian",
+       "n": 124,
+       "n_pos": 23,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.6087,
+       "tpr_ci": [
+        0.3599,
+        0.8333
+       ],
+       "auc": 0.7348,
+       "auc_ci": [
+        0.6047,
+        0.8269
+       ],
+       "flag_rate": 0.3952,
+       "observed_rate": 0.1855,
+       "calibration_diff": 0.017
+      },
+      {
+       "group": "Other",
+       "n": 47,
+       "n_pos": 6,
+       "eligible_for_gate": false,
+       "tpr_at_top": 0.5,
+       "tpr_ci": null,
+       "auc": null,
+       "auc_ci": null,
+       "flag_rate": 0.2766,
+       "observed_rate": 0.1277,
+       "calibration_diff": 0.0456
+      },
+      {
+       "group": "Other Arab",
+       "n": 68,
+       "n_pos": 11,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.0909,
+       "tpr_ci": [
+        0.0,
+        0.2861
+       ],
+       "auc": 0.559,
+       "auc_ci": [
+        0.3601,
+        0.7387
+       ],
+       "flag_rate": 0.1471,
+       "observed_rate": 0.1618,
+       "calibration_diff": -0.0272
+      },
+      {
+       "group": "Pakistani",
+       "n": 51,
+       "n_pos": 8,
+       "eligible_for_gate": false,
+       "tpr_at_top": 0.625,
+       "tpr_ci": null,
+       "auc": null,
+       "auc_ci": null,
+       "flag_rate": 0.3333,
+       "observed_rate": 0.1569,
+       "calibration_diff": 0.0379
+      },
+      {
+       "group": "Western",
+       "n": 16,
+       "n_pos": 6,
+       "eligible_for_gate": false,
+       "tpr_at_top": 0.5,
+       "tpr_ci": null,
+       "auc": null,
+       "auc_ci": null,
+       "flag_rate": 0.375,
+       "observed_rate": 0.375,
+       "calibration_diff": -0.2126
+      }
+     ]
+    }
+   },
+   "logreg/none": {
+    "n_train": 1380,
+    "n_holdout": 461,
+    "auc": 0.6951,
+    "ece": 0.0254,
+    "slope": 1.257,
+    "citl": 0.0126,
+    "bins": "10/10",
+    "recall_at_top": 0.52,
+    "all_gates_passed": true,
+    "gates_failed": [],
+    "language_recall_gap": 0.0497,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 160,
+      "n_pos": 21,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4286,
+      "tpr_ci": [
+       0.2172,
+       0.6673
+      ],
+      "flag_rate": 0.2625,
+      "observed_rate": 0.1313
+     },
+     {
+      "group": "en",
+      "n": 123,
+      "n_pos": 23,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4783,
+      "tpr_ci": [
+       0.25,
+       0.6846
+      ],
+      "flag_rate": 0.3089,
+      "observed_rate": 0.187
+     },
+     {
+      "group": "hi",
+      "n": 49,
+      "n_pos": 9,
+      "eligible_for_gate": false,
+      "tpr_at_top": 0.6667,
+      "tpr_ci": null,
+      "flag_rate": 0.3469,
+      "observed_rate": 0.1837
+     },
+     {
+      "group": "ml",
+      "n": 48,
+      "n_pos": 10,
+      "eligible_for_gate": false,
+      "tpr_at_top": 0.6,
+      "tpr_ci": null,
+      "flag_rate": 0.3542,
+      "observed_rate": 0.2083
+     },
+     {
+      "group": "tl",
+      "n": 29,
+      "n_pos": 3,
+      "eligible_for_gate": false,
+      "tpr_at_top": null,
+      "tpr_ci": null,
+      "flag_rate": 0.2759,
+      "observed_rate": 0.1034
+     },
+     {
+      "group": "ur",
+      "n": 52,
+      "n_pos": 9,
+      "eligible_for_gate": false,
+      "tpr_at_top": 0.5556,
+      "tpr_ci": null,
+      "flag_rate": 0.3269,
+      "observed_rate": 0.1731
+     }
+    ],
+    "failing_attribute_groups": {}
+   },
+   "logreg/barrier": {
+    "n_train": 1380,
+    "n_holdout": 461,
+    "auc": 0.6807,
+    "ece": 0.0323,
+    "slope": 1.19,
+    "citl": 0.0128,
+    "bins": "10/10",
+    "recall_at_top": 0.5067,
+    "all_gates_passed": false,
+    "gates_failed": [
+     "fairness_recall:nationality_group"
+    ],
+    "language_recall_gap": 0.0103,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 160,
+      "n_pos": 21,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.381,
+      "tpr_ci": [
+       0.1578,
+       0.6009
+      ],
+      "flag_rate": 0.2375,
+      "observed_rate": 0.1313
+     },
+     {
+      "group": "en",
+      "n": 123,
+      "n_pos": 23,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.3913,
+      "tpr_ci": [
+       0.1899,
+       0.6003
+      ],
+      "flag_rate": 0.252,
+      "observed_rate": 0.187
+     },
+     {
+      "group": "hi",
+      "n": 49,
+      "n_pos": 9,
+      "eligible_for_gate": false,
+      "tpr_at_top": 0.6667,
+      "tpr_ci": null,
+      "flag_rate": 0.2857,
+      "observed_rate": 0.1837
+     },
+     {
+      "group": "ml",
+      "n": 48,
+      "n_pos": 10,
+      "eligible_for_gate": false,
+      "tpr_at_top": 0.9,
+      "tpr_ci": null,
+      "flag_rate": 0.625,
+      "observed_rate": 0.2083
+     },
+     {
+      "group": "tl",
+      "n": 29,
+      "n_pos": 3,
+      "eligible_for_gate": false,
+      "tpr_at_top": null,
+      "tpr_ci": null,
+      "flag_rate": 0.5172,
+      "observed_rate": 0.1034
+     },
+     {
+      "group": "ur",
+      "n": 52,
+      "n_pos": 9,
+      "eligible_for_gate": false,
+      "tpr_at_top": 0.3333,
+      "tpr_ci": null,
+      "flag_rate": 0.2115,
+      "observed_rate": 0.1731
+     }
+    ],
+    "failing_attribute_groups": {
+     "nationality_group": [
+      {
+       "group": "Emirati",
+       "n": 102,
+       "n_pos": 13,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.6154,
+       "tpr_ci": [
+        0.3122,
+        0.9231
+       ],
+       "auc": 0.7692,
+       "auc_ci": [
+        0.5958,
+        0.8871
+       ],
+       "flag_rate": 0.2451,
+       "observed_rate": 0.1275,
+       "calibration_diff": 0.0301
+      },
+      {
+       "group": "Filipino",
+       "n": 53,
+       "n_pos": 8,
+       "eligible_for_gate": false,
+       "tpr_at_top": 0.5,
+       "tpr_ci": null,
+       "auc": null,
+       "auc_ci": null,
+       "flag_rate": 0.3774,
+       "observed_rate": 0.1509,
+       "calibration_diff": 0.0456
+      },
+      {
+       "group": "Indian",
+       "n": 124,
+       "n_pos": 23,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.6957,
+       "tpr_ci": [
+        0.4795,
+        0.8892
+       ],
+       "auc": 0.7359,
+       "auc_ci": [
+        0.6177,
+        0.8238
+       ],
+       "flag_rate": 0.3952,
+       "observed_rate": 0.1855,
+       "calibration_diff": 0.0142
+      },
+      {
+       "group": "Other",
+       "n": 47,
+       "n_pos": 6,
+       "eligible_for_gate": false,
+       "tpr_at_top": 0.5,
+       "tpr_ci": null,
+       "auc": null,
+       "auc_ci": null,
+       "flag_rate": 0.2766,
+       "observed_rate": 0.1277,
+       "calibration_diff": 0.0482
+      },
+      {
+       "group": "Other Arab",
+       "n": 68,
+       "n_pos": 11,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.0909,
+       "tpr_ci": [
+        0.0,
+        0.2861
+       ],
+       "auc": 0.551,
+       "auc_ci": [
+        0.3511,
+        0.7348
+       ],
+       "flag_rate": 0.2206,
+       "observed_rate": 0.1618,
+       "calibration_diff": -0.0184
+      },
+      {
+       "group": "Pakistani",
+       "n": 51,
+       "n_pos": 8,
+       "eligible_for_gate": false,
+       "tpr_at_top": 0.375,
+       "tpr_ci": null,
+       "auc": null,
+       "auc_ci": null,
+       "flag_rate": 0.2157,
+       "observed_rate": 0.1569,
+       "calibration_diff": 0.0199
+      },
+      {
+       "group": "Western",
+       "n": 16,
+       "n_pos": 6,
+       "eligible_for_gate": false,
+       "tpr_at_top": 0.5,
+       "tpr_ci": null,
+       "auc": null,
+       "auc_ci": null,
+       "flag_rate": 0.375,
+       "observed_rate": 0.375,
+       "calibration_diff": -0.2097
+      }
+     ]
+    }
+   },
+   "gbm/onehot": {
+    "n_train": 1380,
+    "n_holdout": 461,
+    "auc": 0.6716,
+    "ece": 0.0315,
+    "slope": 1.029,
+    "citl": 0.013,
+    "bins": "9/10",
+    "recall_at_top": 0.5067,
+    "all_gates_passed": true,
+    "gates_failed": [],
+    "language_recall_gap": 0.1201,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 160,
+      "n_pos": 21,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.381,
+      "tpr_ci": [
+       0.1992,
+       0.6154
+      ],
+      "flag_rate": 0.2,
+      "observed_rate": 0.1313
+     },
+     {
+      "group": "en",
+      "n": 123,
+      "n_pos": 23,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.2609,
+      "tpr_ci": [
+       0.0864,
+       0.4446
+      ],
+      "flag_rate": 0.2033,
+      "observed_rate": 0.187
+     },
+     {
+      "group": "hi",
+      "n": 49,
+      "n_pos": 9,
+      "eligible_for_gate": false,
+      "tpr_at_top": 0.7778,
+      "tpr_ci": null,
+      "flag_rate": 0.3878,
+      "observed_rate": 0.1837
+     },
+     {
+      "group": "ml",
+      "n": 48,
+      "n_pos": 10,
+      "eligible_for_gate": false,
+      "tpr_at_top": 0.9,
+      "tpr_ci": null,
+      "flag_rate": 0.6042,
+      "observed_rate": 0.2083
+     },
+     {
+      "group": "tl",
+      "n": 29,
+      "n_pos": 3,
+      "eligible_for_gate": false,
+      "tpr_at_top": null,
+      "tpr_ci": null,
+      "flag_rate": 0.4828,
+      "observed_rate": 0.1034
+     },
+     {
+      "group": "ur",
+      "n": 52,
+      "n_pos": 9,
+      "eligible_for_gate": false,
+      "tpr_at_top": 0.6667,
+      "tpr_ci": null,
+      "flag_rate": 0.3846,
+      "observed_rate": 0.1731
+     }
+    ],
+    "failing_attribute_groups": {}
+   },
+   "gbm/none": {
+    "n_train": 1380,
+    "n_holdout": 461,
+    "auc": 0.6823,
+    "ece": 0.0284,
+    "slope": 1.155,
+    "citl": 0.0108,
+    "bins": "9/10",
+    "recall_at_top": 0.4667,
+    "all_gates_passed": true,
+    "gates_failed": [],
+    "language_recall_gap": 0.1719,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 160,
+      "n_pos": 21,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4762,
+      "tpr_ci": [
+       0.2497,
+       0.7062
+      ],
+      "flag_rate": 0.2875,
+      "observed_rate": 0.1313
+     },
+     {
+      "group": "en",
+      "n": 123,
+      "n_pos": 23,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.3043,
+      "tpr_ci": [
+       0.1301,
+       0.5186
+      ],
+      "flag_rate": 0.252,
+      "observed_rate": 0.187
+     },
+     {
+      "group": "hi",
+      "n": 49,
+      "n_pos": 9,
+      "eligible_for_gate": false,
+      "tpr_at_top": 0.6667,
+      "tpr_ci": null,
+      "flag_rate": 0.3061,
+      "observed_rate": 0.1837
+     },
+     {
+      "group": "ml",
+      "n": 48,
+      "n_pos": 10,
+      "eligible_for_gate": false,
+      "tpr_at_top": 0.6,
+      "tpr_ci": null,
+      "flag_rate": 0.3958,
+      "observed_rate": 0.2083
+     },
+     {
+      "group": "tl",
+      "n": 29,
+      "n_pos": 3,
+      "eligible_for_gate": false,
+      "tpr_at_top": null,
+      "tpr_ci": null,
+      "flag_rate": 0.3448,
+      "observed_rate": 0.1034
+     },
+     {
+      "group": "ur",
+      "n": 52,
+      "n_pos": 9,
+      "eligible_for_gate": false,
+      "tpr_at_top": 0.4444,
+      "tpr_ci": null,
+      "flag_rate": 0.3462,
+      "observed_rate": 0.1731
+     }
+    ],
+    "failing_attribute_groups": {}
+   },
+   "gbm/barrier": {
+    "n_train": 1380,
+    "n_holdout": 461,
+    "auc": 0.6648,
+    "ece": 0.0323,
+    "slope": 1.059,
+    "citl": 0.0101,
+    "bins": "9/10",
+    "recall_at_top": 0.4933,
+    "all_gates_passed": false,
+    "gates_failed": [
+     "fairness_recall:nationality_group"
+    ],
+    "language_recall_gap": 0.029,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 160,
+      "n_pos": 21,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.3333,
+      "tpr_ci": [
+       0.1108,
+       0.5389
+      ],
+      "flag_rate": 0.2188,
+      "observed_rate": 0.1313
+     },
+     {
+      "group": "en",
+      "n": 123,
+      "n_pos": 23,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.3043,
+      "tpr_ci": [
+       0.1301,
+       0.5186
+      ],
+      "flag_rate": 0.2114,
+      "observed_rate": 0.187
+     },
+     {
+      "group": "hi",
+      "n": 49,
+      "n_pos": 9,
+      "eligible_for_gate": false,
+      "tpr_at_top": 0.6667,
+      "tpr_ci": null,
+      "flag_rate": 0.3061,
+      "observed_rate": 0.1837
+     },
+     {
+      "group": "ml",
+      "n": 48,
+      "n_pos": 10,
+      "eligible_for_gate": false,
+      "tpr_at_top": 1.0,
+      "tpr_ci": null,
+      "flag_rate": 0.6458,
+      "observed_rate": 0.2083
+     },
+     {
+      "group": "tl",
+      "n": 29,
+      "n_pos": 3,
+      "eligible_for_gate": false,
+      "tpr_at_top": null,
+      "tpr_ci": null,
+      "flag_rate": 0.5862,
+      "observed_rate": 0.1034
+     },
+     {
+      "group": "ur",
+      "n": 52,
+      "n_pos": 9,
+      "eligible_for_gate": false,
+      "tpr_at_top": 0.4444,
+      "tpr_ci": null,
+      "flag_rate": 0.2885,
+      "observed_rate": 0.1731
+     }
+    ],
+    "failing_attribute_groups": {
+     "nationality_group": [
+      {
+       "group": "Emirati",
+       "n": 102,
+       "n_pos": 13,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.4615,
+       "tpr_ci": [
+        0.1667,
+        0.7274
+       ],
+       "auc": 0.7442,
+       "auc_ci": [
+        0.5676,
+        0.8568
+       ],
+       "flag_rate": 0.1961,
+       "observed_rate": 0.1275,
+       "calibration_diff": 0.0205
+      },
+      {
+       "group": "Filipino",
+       "n": 53,
+       "n_pos": 8,
+       "eligible_for_gate": false,
+       "tpr_at_top": 0.5,
+       "tpr_ci": null,
+       "auc": null,
+       "auc_ci": null,
+       "flag_rate": 0.3962,
+       "observed_rate": 0.1509,
+       "calibration_diff": 0.0338
+      },
+      {
+       "group": "Indian",
+       "n": 124,
+       "n_pos": 23,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.7391,
+       "tpr_ci": [
+        0.5332,
+        0.9093
+       ],
+       "auc": 0.7385,
+       "auc_ci": [
+        0.6158,
+        0.8467
+       ],
+       "flag_rate": 0.4194,
+       "observed_rate": 0.1855,
+       "calibration_diff": 0.0187
+      },
+      {
+       "group": "Other",
+       "n": 47,
+       "n_pos": 6,
+       "eligible_for_gate": false,
+       "tpr_at_top": 0.6667,
+       "tpr_ci": null,
+       "auc": null,
+       "auc_ci": null,
+       "flag_rate": 0.2979,
+       "observed_rate": 0.1277,
+       "calibration_diff": 0.0262
+      },
+      {
+       "group": "Other Arab",
+       "n": 68,
+       "n_pos": 11,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.0909,
+       "tpr_ci": [
+        0.0,
+        0.2861
+       ],
+       "auc": 0.5271,
+       "auc_ci": [
+        0.3508,
+        0.7138
+       ],
+       "flag_rate": 0.2059,
+       "observed_rate": 0.1618,
+       "calibration_diff": -0.0091
+      },
+      {
+       "group": "Pakistani",
+       "n": 51,
+       "n_pos": 8,
+       "eligible_for_gate": false,
+       "tpr_at_top": 0.5,
+       "tpr_ci": null,
+       "auc": null,
+       "auc_ci": null,
+       "flag_rate": 0.2941,
+       "observed_rate": 0.1569,
+       "calibration_diff": 0.0288
+      },
+      {
+       "group": "Western",
+       "n": 16,
+       "n_pos": 6,
+       "eligible_for_gate": false,
+       "tpr_at_top": 0.1667,
+       "tpr_ci": null,
+       "auc": null,
+       "auc_ci": null,
+       "flag_rate": 0.1875,
+       "observed_rate": 0.375,
+       "calibration_diff": -0.2255
+      }
+     ]
+    }
+   }
+  },
+  "paired_auc_diff": {
+   "logreg: barrier - onehot": [
+    0.0051,
+    [
+     -0.0091,
+     0.0182
+    ]
+   ],
+   "logreg: barrier - none": [
+    -0.0144,
+    [
+     -0.036,
+     0.0066
+    ]
+   ],
+   "gbm: barrier - onehot": [
+    -0.0068,
+    [
+     -0.0404,
+     0.024
+    ]
+   ],
+   "gbm: barrier - none": [
+    -0.0175,
+    [
+     -0.0463,
+     0.0073
+    ]
+   ]
+  },
+  "confirmed": {
+   "barrier_passes_all_gates": false,
+   "barrier_auc_not_credibly_worse": true,
+   "confirmed": false
+  }
+ },
+ "fresh_10k_seed20261929": {
+  "db": "/workspace/fhdic/r19_fresh/fresh_10k.db",
+  "as_of": "2026-10-21 04:09:40.741943",
+  "results": {
+   "logreg/onehot": {
+    "n_train": 6905,
+    "n_holdout": 2302,
+    "auc": 0.6961,
+    "ece": 0.0378,
+    "slope": 1.016,
+    "citl": 0.0314,
+    "bins": "8/10",
+    "recall_at_top": 0.5659,
+    "all_gates_passed": false,
+    "gates_failed": [
+     "fairness_recall:nationality_group"
+    ],
+    "language_recall_gap": 0.4815,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 731,
+      "n_pos": 108,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.3889,
+      "tpr_ci": [
+       0.2966,
+       0.4683
+      ],
+      "flag_rate": 0.2161,
+      "observed_rate": 0.1477
+     },
+     {
+      "group": "en",
+      "n": 693,
+      "n_pos": 96,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4896,
+      "tpr_ci": [
+       0.375,
+       0.5861
+      ],
+      "flag_rate": 0.2179,
+      "observed_rate": 0.1385
+     },
+     {
+      "group": "hi",
+      "n": 261,
+      "n_pos": 53,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.6038,
+      "tpr_ci": [
+       0.48,
+       0.735
+      ],
+      "flag_rate": 0.3257,
+      "observed_rate": 0.2031
+     },
+     {
+      "group": "ml",
+      "n": 201,
+      "n_pos": 54,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.8704,
+      "tpr_ci": [
+       0.7735,
+       0.954
+      ],
+      "flag_rate": 0.6766,
+      "observed_rate": 0.2687
+     },
+     {
+      "group": "tl",
+      "n": 141,
+      "n_pos": 27,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.7407,
+      "tpr_ci": [
+       0.5769,
+       0.8754
+      ],
+      "flag_rate": 0.6383,
+      "observed_rate": 0.1915
+     },
+     {
+      "group": "ur",
+      "n": 275,
+      "n_pos": 49,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.6327,
+      "tpr_ci": [
+       0.4917,
+       0.7551
+      ],
+      "flag_rate": 0.2618,
+      "observed_rate": 0.1782
+     }
+    ],
+    "failing_attribute_groups": {
+     "nationality_group": [
+      {
+       "group": "Emirati",
+       "n": 429,
+       "n_pos": 69,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.3623,
+       "tpr_ci": [
+        0.254,
+        0.4697
+       ],
+       "auc": 0.6246,
+       "auc_ci": [
+        0.5532,
+        0.6898
+       ],
+       "flag_rate": 0.2308,
+       "observed_rate": 0.1608,
+       "calibration_diff": 0.0107
+      },
+      {
+       "group": "Filipino",
+       "n": 245,
+       "n_pos": 43,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.6279,
+       "tpr_ci": [
+        0.4748,
+        0.7806
+       ],
+       "auc": 0.6468,
+       "auc_ci": [
+        0.5361,
+        0.7605
+       ],
+       "flag_rate": 0.4408,
+       "observed_rate": 0.1755,
+       "calibration_diff": 0.0662
+      },
+      {
+       "group": "Indian",
+       "n": 632,
+       "n_pos": 130,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.7462,
+       "tpr_ci": [
+        0.6667,
+        0.8135
+       ],
+       "auc": 0.7614,
+       "auc_ci": [
+        0.7102,
+        0.813
+       ],
+       "flag_rate": 0.4288,
+       "observed_rate": 0.2057,
+       "calibration_diff": 0.026
+      },
+      {
+       "group": "Other",
+       "n": 263,
+       "n_pos": 36,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.5833,
+       "tpr_ci": [
+        0.4375,
+        0.7301
+       ],
+       "auc": 0.7142,
+       "auc_ci": [
+        0.6102,
+        0.8196
+       ],
+       "flag_rate": 0.2319,
+       "observed_rate": 0.1369,
+       "calibration_diff": 0.0391
+      },
+      {
+       "group": "Other Arab",
+       "n": 334,
+       "n_pos": 45,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.3556,
+       "tpr_ci": [
+        0.2075,
+        0.4894
+       ],
+       "auc": 0.6372,
+       "auc_ci": [
+        0.542,
+        0.7472
+       ],
+       "flag_rate": 0.1766,
+       "observed_rate": 0.1347,
+       "calibration_diff": 0.0342
+      },
+      {
+       "group": "Pakistani",
+       "n": 269,
+       "n_pos": 51,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.6078,
+       "tpr_ci": [
+        0.475,
+        0.7401
+       ],
+       "auc": 0.7399,
+       "auc_ci": [
+        0.651,
+        0.8131
+       ],
+       "flag_rate": 0.2788,
+       "observed_rate": 0.1896,
+       "calibration_diff": 0.0187
+      },
+      {
+       "group": "Western",
+       "n": 130,
+       "n_pos": 13,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.1538,
+       "tpr_ci": [
+        0.0,
+        0.4003
+       ],
+       "auc": 0.5115,
+       "auc_ci": [
+        0.3635,
+        0.6735
+       ],
+       "flag_rate": 0.1462,
+       "observed_rate": 0.1,
+       "calibration_diff": 0.0645
+      }
+     ]
+    }
+   },
+   "logreg/none": {
+    "n_train": 6905,
+    "n_holdout": 2302,
+    "auc": 0.6836,
+    "ece": 0.0393,
+    "slope": 1.01,
+    "citl": 0.0319,
+    "bins": "7/10",
+    "recall_at_top": 0.5375,
+    "all_gates_passed": true,
+    "gates_failed": [],
+    "language_recall_gap": 0.2087,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 731,
+      "n_pos": 108,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4537,
+      "tpr_ci": [
+       0.3626,
+       0.535
+      ],
+      "flag_rate": 0.2627,
+      "observed_rate": 0.1477
+     },
+     {
+      "group": "en",
+      "n": 693,
+      "n_pos": 96,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5312,
+      "tpr_ci": [
+       0.4322,
+       0.6422
+      ],
+      "flag_rate": 0.3175,
+      "observed_rate": 0.1385
+     },
+     {
+      "group": "hi",
+      "n": 261,
+      "n_pos": 53,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.6038,
+      "tpr_ci": [
+       0.48,
+       0.735
+      ],
+      "flag_rate": 0.3333,
+      "observed_rate": 0.2031
+     },
+     {
+      "group": "ml",
+      "n": 201,
+      "n_pos": 54,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5926,
+      "tpr_ci": [
+       0.4889,
+       0.7322
+      ],
+      "flag_rate": 0.3433,
+      "observed_rate": 0.2687
+     },
+     {
+      "group": "tl",
+      "n": 141,
+      "n_pos": 27,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4444,
+      "tpr_ci": [
+       0.28,
+       0.6
+      ],
+      "flag_rate": 0.2908,
+      "observed_rate": 0.1915
+     },
+     {
+      "group": "ur",
+      "n": 275,
+      "n_pos": 49,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.6531,
+      "tpr_ci": [
+       0.5216,
+       0.7814
+      ],
+      "flag_rate": 0.3018,
+      "observed_rate": 0.1782
+     }
+    ],
+    "failing_attribute_groups": {}
+   },
+   "logreg/barrier": {
+    "n_train": 6905,
+    "n_holdout": 2302,
+    "auc": 0.6931,
+    "ece": 0.0377,
+    "slope": 1.008,
+    "citl": 0.0318,
+    "bins": "8/10",
+    "recall_at_top": 0.5556,
+    "all_gates_passed": false,
+    "gates_failed": [
+     "fairness_recall:nationality_group"
+    ],
+    "language_recall_gap": 0.4815,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 731,
+      "n_pos": 108,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.3889,
+      "tpr_ci": [
+       0.2966,
+       0.4683
+      ],
+      "flag_rate": 0.2175,
+      "observed_rate": 0.1477
+     },
+     {
+      "group": "en",
+      "n": 693,
+      "n_pos": 96,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5,
+      "tpr_ci": [
+       0.4037,
+       0.5979
+      ],
+      "flag_rate": 0.2511,
+      "observed_rate": 0.1385
+     },
+     {
+      "group": "hi",
+      "n": 261,
+      "n_pos": 53,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.566,
+      "tpr_ci": [
+       0.4338,
+       0.6853
+      ],
+      "flag_rate": 0.272,
+      "observed_rate": 0.2031
+     },
+     {
+      "group": "ml",
+      "n": 201,
+      "n_pos": 54,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.8704,
+      "tpr_ci": [
+       0.7735,
+       0.954
+      ],
+      "flag_rate": 0.6866,
+      "observed_rate": 0.2687
+     },
+     {
+      "group": "tl",
+      "n": 141,
+      "n_pos": 27,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.6667,
+      "tpr_ci": [
+       0.4799,
+       0.8217
+      ],
+      "flag_rate": 0.5887,
+      "observed_rate": 0.1915
+     },
+     {
+      "group": "ur",
+      "n": 275,
+      "n_pos": 49,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.6122,
+      "tpr_ci": [
+       0.4686,
+       0.7362
+      ],
+      "flag_rate": 0.24,
+      "observed_rate": 0.1782
+     }
+    ],
+    "failing_attribute_groups": {
+     "nationality_group": [
+      {
+       "group": "Emirati",
+       "n": 429,
+       "n_pos": 69,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.3623,
+       "tpr_ci": [
+        0.254,
+        0.4697
+       ],
+       "auc": 0.6252,
+       "auc_ci": [
+        0.5524,
+        0.6897
+       ],
+       "flag_rate": 0.2378,
+       "observed_rate": 0.1608,
+       "calibration_diff": 0.0115
+      },
+      {
+       "group": "Filipino",
+       "n": 245,
+       "n_pos": 43,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.5814,
+       "tpr_ci": [
+        0.4373,
+        0.7319
+       ],
+       "auc": 0.6402,
+       "auc_ci": [
+        0.531,
+        0.7544
+       ],
+       "flag_rate": 0.4367,
+       "observed_rate": 0.1755,
+       "calibration_diff": 0.0667
+      },
+      {
+       "group": "Indian",
+       "n": 632,
+       "n_pos": 130,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.7385,
+       "tpr_ci": [
+        0.6582,
+        0.8121
+       ],
+       "auc": 0.7538,
+       "auc_ci": [
+        0.7049,
+        0.8063
+       ],
+       "flag_rate": 0.4177,
+       "observed_rate": 0.2057,
+       "calibration_diff": 0.0251
+      },
+      {
+       "group": "Other",
+       "n": 263,
+       "n_pos": 36,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.5833,
+       "tpr_ci": [
+        0.4375,
+        0.7301
+       ],
+       "auc": 0.7188,
+       "auc_ci": [
+        0.6156,
+        0.8212
+       ],
+       "flag_rate": 0.2471,
+       "observed_rate": 0.1369,
+       "calibration_diff": 0.043
+      },
+      {
+       "group": "Other Arab",
+       "n": 334,
+       "n_pos": 45,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.3556,
+       "tpr_ci": [
+        0.2075,
+        0.4894
+       ],
+       "auc": 0.6418,
+       "auc_ci": [
+        0.5482,
+        0.7464
+       ],
+       "flag_rate": 0.1826,
+       "observed_rate": 0.1347,
+       "calibration_diff": 0.035
+      },
+      {
+       "group": "Pakistani",
+       "n": 269,
+       "n_pos": 51,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.5882,
+       "tpr_ci": [
+        0.4561,
+        0.72
+       ],
+       "auc": 0.7365,
+       "auc_ci": [
+        0.6453,
+        0.8104
+       ],
+       "flag_rate": 0.2602,
+       "observed_rate": 0.1896,
+       "calibration_diff": 0.0137
+      },
+      {
+       "group": "Western",
+       "n": 130,
+       "n_pos": 13,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.1538,
+       "tpr_ci": [
+        0.0,
+        0.4003
+       ],
+       "auc": 0.5161,
+       "auc_ci": [
+        0.3695,
+        0.6784
+       ],
+       "flag_rate": 0.1692,
+       "observed_rate": 0.1,
+       "calibration_diff": 0.0717
+      }
+     ]
+    }
+   },
+   "gbm/onehot": {
+    "n_train": 6905,
+    "n_holdout": 2302,
+    "auc": 0.6911,
+    "ece": 0.0416,
+    "slope": 1.015,
+    "citl": 0.0322,
+    "bins": "7/10",
+    "recall_at_top": 0.5452,
+    "all_gates_passed": true,
+    "gates_failed": [],
+    "language_recall_gap": 0.3981,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 731,
+      "n_pos": 108,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4167,
+      "tpr_ci": [
+       0.3333,
+       0.5
+      ],
+      "flag_rate": 0.2531,
+      "observed_rate": 0.1477
+     },
+     {
+      "group": "en",
+      "n": 693,
+      "n_pos": 96,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4792,
+      "tpr_ci": [
+       0.3695,
+       0.5938
+      ],
+      "flag_rate": 0.2107,
+      "observed_rate": 0.1385
+     },
+     {
+      "group": "hi",
+      "n": 261,
+      "n_pos": 53,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5472,
+      "tpr_ci": [
+       0.4166,
+       0.6909
+      ],
+      "flag_rate": 0.2835,
+      "observed_rate": 0.2031
+     },
+     {
+      "group": "ml",
+      "n": 201,
+      "n_pos": 54,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.8148,
+      "tpr_ci": [
+       0.7248,
+       0.9079
+      ],
+      "flag_rate": 0.6517,
+      "observed_rate": 0.2687
+     },
+     {
+      "group": "tl",
+      "n": 141,
+      "n_pos": 27,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.6667,
+      "tpr_ci": [
+       0.4799,
+       0.8217
+      ],
+      "flag_rate": 0.6383,
+      "observed_rate": 0.1915
+     },
+     {
+      "group": "ur",
+      "n": 275,
+      "n_pos": 49,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5918,
+      "tpr_ci": [
+       0.4481,
+       0.7202
+      ],
+      "flag_rate": 0.2364,
+      "observed_rate": 0.1782
+     }
+    ],
+    "failing_attribute_groups": {}
+   },
+   "gbm/none": {
+    "n_train": 6905,
+    "n_holdout": 2302,
+    "auc": 0.6789,
+    "ece": 0.038,
+    "slope": 0.986,
+    "citl": 0.0325,
+    "bins": "6/10",
+    "recall_at_top": 0.5349,
+    "all_gates_passed": true,
+    "gates_failed": [],
+    "language_recall_gap": 0.2087,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 731,
+      "n_pos": 108,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4444,
+      "tpr_ci": [
+       0.3465,
+       0.5213
+      ],
+      "flag_rate": 0.2886,
+      "observed_rate": 0.1477
+     },
+     {
+      "group": "en",
+      "n": 693,
+      "n_pos": 96,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5625,
+      "tpr_ci": [
+       0.4615,
+       0.66
+      ],
+      "flag_rate": 0.3059,
+      "observed_rate": 0.1385
+     },
+     {
+      "group": "hi",
+      "n": 261,
+      "n_pos": 53,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.566,
+      "tpr_ci": [
+       0.4336,
+       0.7038
+      ],
+      "flag_rate": 0.318,
+      "observed_rate": 0.2031
+     },
+     {
+      "group": "ml",
+      "n": 201,
+      "n_pos": 54,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5556,
+      "tpr_ci": [
+       0.4468,
+       0.7022
+      ],
+      "flag_rate": 0.3284,
+      "observed_rate": 0.2687
+     },
+     {
+      "group": "tl",
+      "n": 141,
+      "n_pos": 27,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4815,
+      "tpr_ci": [
+       0.2999,
+       0.6334
+      ],
+      "flag_rate": 0.2766,
+      "observed_rate": 0.1915
+     },
+     {
+      "group": "ur",
+      "n": 275,
+      "n_pos": 49,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.6531,
+      "tpr_ci": [
+       0.5192,
+       0.7858
+      ],
+      "flag_rate": 0.2945,
+      "observed_rate": 0.1782
+     }
+    ],
+    "failing_attribute_groups": {}
+   },
+   "gbm/barrier": {
+    "n_train": 6905,
+    "n_holdout": 2302,
+    "auc": 0.6934,
+    "ece": 0.0457,
+    "slope": 0.998,
+    "citl": 0.0329,
+    "bins": "7/10",
+    "recall_at_top": 0.5633,
+    "all_gates_passed": false,
+    "gates_failed": [
+     "fairness_recall:nationality_group"
+    ],
+    "language_recall_gap": 0.4537,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 731,
+      "n_pos": 108,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4167,
+      "tpr_ci": [
+       0.3267,
+       0.4915
+      ],
+      "flag_rate": 0.2312,
+      "observed_rate": 0.1477
+     },
+     {
+      "group": "en",
+      "n": 693,
+      "n_pos": 96,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5104,
+      "tpr_ci": [
+       0.4047,
+       0.6155
+      ],
+      "flag_rate": 0.2468,
+      "observed_rate": 0.1385
+     },
+     {
+      "group": "hi",
+      "n": 261,
+      "n_pos": 53,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5094,
+      "tpr_ci": [
+       0.3695,
+       0.6546
+      ],
+      "flag_rate": 0.2337,
+      "observed_rate": 0.2031
+     },
+     {
+      "group": "ml",
+      "n": 201,
+      "n_pos": 54,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.8704,
+      "tpr_ci": [
+       0.7857,
+       0.9489
+      ],
+      "flag_rate": 0.7065,
+      "observed_rate": 0.2687
+     },
+     {
+      "group": "tl",
+      "n": 141,
+      "n_pos": 27,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.7407,
+      "tpr_ci": [
+       0.5789,
+       0.8801
+      ],
+      "flag_rate": 0.6454,
+      "observed_rate": 0.1915
+     },
+     {
+      "group": "ur",
+      "n": 275,
+      "n_pos": 49,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.6122,
+      "tpr_ci": [
+       0.4808,
+       0.7501
+      ],
+      "flag_rate": 0.2327,
+      "observed_rate": 0.1782
+     }
+    ],
+    "failing_attribute_groups": {
+     "nationality_group": [
+      {
+       "group": "Emirati",
+       "n": 429,
+       "n_pos": 69,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.3768,
+       "tpr_ci": [
+        0.2686,
+        0.5002
+       ],
+       "auc": 0.6049,
+       "auc_ci": [
+        0.5364,
+        0.6767
+       ],
+       "flag_rate": 0.2494,
+       "observed_rate": 0.1608,
+       "calibration_diff": 0.0114
+      },
+      {
+       "group": "Filipino",
+       "n": 245,
+       "n_pos": 43,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.6279,
+       "tpr_ci": [
+        0.5104,
+        0.7729
+       ],
+       "auc": 0.6673,
+       "auc_ci": [
+        0.5622,
+        0.7761
+       ],
+       "flag_rate": 0.4612,
+       "observed_rate": 0.1755,
+       "calibration_diff": 0.0701
+      },
+      {
+       "group": "Indian",
+       "n": 632,
+       "n_pos": 130,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.7077,
+       "tpr_ci": [
+        0.626,
+        0.7837
+       ],
+       "auc": 0.7537,
+       "auc_ci": [
+        0.7071,
+        0.8042
+       ],
+       "flag_rate": 0.4066,
+       "observed_rate": 0.2057,
+       "calibration_diff": 0.0265
+      },
+      {
+       "group": "Other",
+       "n": 263,
+       "n_pos": 36,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.5833,
+       "tpr_ci": [
+        0.4241,
+        0.7408
+       ],
+       "auc": 0.7025,
+       "auc_ci": [
+        0.6003,
+        0.8196
+       ],
+       "flag_rate": 0.2586,
+       "observed_rate": 0.1369,
+       "calibration_diff": 0.0449
+      },
+      {
+       "group": "Other Arab",
+       "n": 334,
+       "n_pos": 45,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.3778,
+       "tpr_ci": [
+        0.2306,
+        0.5307
+       ],
+       "auc": 0.6129,
+       "auc_ci": [
+        0.5036,
+        0.7169
+       ],
+       "flag_rate": 0.2006,
+       "observed_rate": 0.1347,
+       "calibration_diff": 0.035
+      },
+      {
+       "group": "Pakistani",
+       "n": 269,
+       "n_pos": 51,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.6471,
+       "tpr_ci": [
+        0.5128,
+        0.7919
+       ],
+       "auc": 0.7669,
+       "auc_ci": [
+        0.6797,
+        0.844
+       ],
+       "flag_rate": 0.2528,
+       "observed_rate": 0.1896,
+       "calibration_diff": 0.0188
+      },
+      {
+       "group": "Western",
+       "n": 130,
+       "n_pos": 13,
+       "eligible_for_gate": true,
+       "tpr_at_top": 0.1538,
+       "tpr_ci": [
+        0.0,
+        0.4003
+       ],
+       "auc": 0.551,
+       "auc_ci": [
+        0.4039,
+        0.7038
+       ],
+       "flag_rate": 0.1385,
+       "observed_rate": 0.1,
+       "calibration_diff": 0.0646
+      }
+     ]
+    }
+   }
+  },
+  "paired_auc_diff": {
+   "logreg: barrier - onehot": [
+    -0.003,
+    [
+     -0.0062,
+     0.0001
+    ]
+   ],
+   "logreg: barrier - none": [
+    0.0095,
+    [
+     -0.0015,
+     0.0223
+    ]
+   ],
+   "gbm: barrier - onehot": [
+    0.0022,
+    [
+     -0.0037,
+     0.0085
+    ]
+   ],
+   "gbm: barrier - none": [
+    0.0145,
+    [
+     0.0008,
+     0.0297
+    ]
+   ]
+  },
+  "confirmed": {
+   "barrier_passes_all_gates": false,
+   "barrier_auc_not_credibly_worse": true,
+   "confirmed": false
+  }
+ },
+ "fresh_20k_realistic_seed20261939": {
+  "db": "/workspace/fhdic/r19_fresh/fresh_20k.db",
+  "as_of": "2026-10-21 04:13:26.787223",
+  "results": {
+   "logreg/onehot": {
+    "n_train": 4039,
+    "n_holdout": 1347,
+    "auc": 0.7027,
+    "ece": 0.0368,
+    "slope": 1.028,
+    "citl": 0.0234,
+    "bins": "7/10",
+    "recall_at_top": 0.561,
+    "all_gates_passed": true,
+    "gates_failed": [],
+    "language_recall_gap": 0.4941,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 479,
+      "n_pos": 88,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4091,
+      "tpr_ci": [
+       0.3066,
+       0.5174
+      ],
+      "flag_rate": 0.1608,
+      "observed_rate": 0.1837
+     },
+     {
+      "group": "en",
+      "n": 384,
+      "n_pos": 52,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5192,
+      "tpr_ci": [
+       0.4081,
+       0.654
+      ],
+      "flag_rate": 0.2161,
+      "observed_rate": 0.1354
+     },
+     {
+      "group": "hi",
+      "n": 153,
+      "n_pos": 34,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4412,
+      "tpr_ci": [
+       0.2498,
+       0.6455
+      ],
+      "flag_rate": 0.3072,
+      "observed_rate": 0.2222
+     },
+     {
+      "group": "ml",
+      "n": 106,
+      "n_pos": 31,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.9032,
+      "tpr_ci": [
+       0.7877,
+       1.0
+      ],
+      "flag_rate": 0.7925,
+      "observed_rate": 0.2925
+     },
+     {
+      "group": "tl",
+      "n": 78,
+      "n_pos": 14,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.7857,
+      "tpr_ci": [
+       0.5455,
+       1.0
+      ],
+      "flag_rate": 0.7179,
+      "observed_rate": 0.1795
+     },
+     {
+      "group": "ur",
+      "n": 147,
+      "n_pos": 27,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.7778,
+      "tpr_ci": [
+       0.588,
+       0.9287
+      ],
+      "flag_rate": 0.3878,
+      "observed_rate": 0.1837
+     }
+    ],
+    "failing_attribute_groups": {}
+   },
+   "logreg/none": {
+    "n_train": 4039,
+    "n_holdout": 1347,
+    "auc": 0.6975,
+    "ece": 0.0359,
+    "slope": 1.065,
+    "citl": 0.0254,
+    "bins": "9/10",
+    "recall_at_top": 0.5447,
+    "all_gates_passed": true,
+    "gates_failed": [],
+    "language_recall_gap": 0.2701,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 479,
+      "n_pos": 88,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4773,
+      "tpr_ci": [
+       0.3732,
+       0.5854
+      ],
+      "flag_rate": 0.2505,
+      "observed_rate": 0.1837
+     },
+     {
+      "group": "en",
+      "n": 384,
+      "n_pos": 52,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.6154,
+      "tpr_ci": [
+       0.4889,
+       0.7448
+      ],
+      "flag_rate": 0.3281,
+      "observed_rate": 0.1354
+     },
+     {
+      "group": "hi",
+      "n": 153,
+      "n_pos": 34,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4706,
+      "tpr_ci": [
+       0.2759,
+       0.6781
+      ],
+      "flag_rate": 0.3072,
+      "observed_rate": 0.2222
+     },
+     {
+      "group": "ml",
+      "n": 106,
+      "n_pos": 31,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5161,
+      "tpr_ci": [
+       0.3587,
+       0.6947
+      ],
+      "flag_rate": 0.3585,
+      "observed_rate": 0.2925
+     },
+     {
+      "group": "tl",
+      "n": 78,
+      "n_pos": 14,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5714,
+      "tpr_ci": [
+       0.2775,
+       0.8576
+      ],
+      "flag_rate": 0.3077,
+      "observed_rate": 0.1795
+     },
+     {
+      "group": "ur",
+      "n": 147,
+      "n_pos": 27,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.7407,
+      "tpr_ci": [
+       0.5524,
+       0.9005
+      ],
+      "flag_rate": 0.3333,
+      "observed_rate": 0.1837
+     }
+    ],
+    "failing_attribute_groups": {}
+   },
+   "logreg/barrier": {
+    "n_train": 4039,
+    "n_holdout": 1347,
+    "auc": 0.702,
+    "ece": 0.0373,
+    "slope": 1.033,
+    "citl": 0.0241,
+    "bins": "9/10",
+    "recall_at_top": 0.565,
+    "all_gates_passed": true,
+    "gates_failed": [],
+    "language_recall_gap": 0.5237,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 479,
+      "n_pos": 88,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4318,
+      "tpr_ci": [
+       0.3182,
+       0.5404
+      ],
+      "flag_rate": 0.1983,
+      "observed_rate": 0.1837
+     },
+     {
+      "group": "en",
+      "n": 384,
+      "n_pos": 52,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5385,
+      "tpr_ci": [
+       0.4259,
+       0.6745
+      ],
+      "flag_rate": 0.25,
+      "observed_rate": 0.1354
+     },
+     {
+      "group": "hi",
+      "n": 153,
+      "n_pos": 34,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4118,
+      "tpr_ci": [
+       0.2221,
+       0.6181
+      ],
+      "flag_rate": 0.2157,
+      "observed_rate": 0.2222
+     },
+     {
+      "group": "ml",
+      "n": 106,
+      "n_pos": 31,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.9355,
+      "tpr_ci": [
+       0.8233,
+       1.0
+      ],
+      "flag_rate": 0.8113,
+      "observed_rate": 0.2925
+     },
+     {
+      "group": "tl",
+      "n": 78,
+      "n_pos": 14,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.7857,
+      "tpr_ci": [
+       0.5455,
+       1.0
+      ],
+      "flag_rate": 0.7051,
+      "observed_rate": 0.1795
+     },
+     {
+      "group": "ur",
+      "n": 147,
+      "n_pos": 27,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.7037,
+      "tpr_ci": [
+       0.5305,
+       0.8667
+      ],
+      "flag_rate": 0.2857,
+      "observed_rate": 0.1837
+     }
+    ],
+    "failing_attribute_groups": {}
+   },
+   "gbm/onehot": {
+    "n_train": 4039,
+    "n_holdout": 1347,
+    "auc": 0.7061,
+    "ece": 0.0332,
+    "slope": 1.027,
+    "citl": 0.0249,
+    "bins": "9/10",
+    "recall_at_top": 0.565,
+    "all_gates_passed": true,
+    "gates_failed": [],
+    "language_recall_gap": 0.4941,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 479,
+      "n_pos": 88,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4091,
+      "tpr_ci": [
+       0.3029,
+       0.5133
+      ],
+      "flag_rate": 0.1691,
+      "observed_rate": 0.1837
+     },
+     {
+      "group": "en",
+      "n": 384,
+      "n_pos": 52,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4615,
+      "tpr_ci": [
+       0.3529,
+       0.577
+      ],
+      "flag_rate": 0.1979,
+      "observed_rate": 0.1354
+     },
+     {
+      "group": "hi",
+      "n": 153,
+      "n_pos": 34,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5294,
+      "tpr_ci": [
+       0.3788,
+       0.7188
+      ],
+      "flag_rate": 0.3137,
+      "observed_rate": 0.2222
+     },
+     {
+      "group": "ml",
+      "n": 106,
+      "n_pos": 31,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.9032,
+      "tpr_ci": [
+       0.7941,
+       1.0
+      ],
+      "flag_rate": 0.7642,
+      "observed_rate": 0.2925
+     },
+     {
+      "group": "tl",
+      "n": 78,
+      "n_pos": 14,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.8571,
+      "tpr_ci": [
+       0.6656,
+       1.0
+      ],
+      "flag_rate": 0.7564,
+      "observed_rate": 0.1795
+     },
+     {
+      "group": "ur",
+      "n": 147,
+      "n_pos": 27,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.7778,
+      "tpr_ci": [
+       0.588,
+       0.9287
+      ],
+      "flag_rate": 0.4014,
+      "observed_rate": 0.1837
+     }
+    ],
+    "failing_attribute_groups": {}
+   },
+   "gbm/none": {
+    "n_train": 4039,
+    "n_holdout": 1347,
+    "auc": 0.701,
+    "ece": 0.04,
+    "slope": 1.033,
+    "citl": 0.0269,
+    "bins": "10/10",
+    "recall_at_top": 0.561,
+    "all_gates_passed": true,
+    "gates_failed": [],
+    "language_recall_gap": 0.3005,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 479,
+      "n_pos": 88,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4773,
+      "tpr_ci": [
+       0.3695,
+       0.5864
+      ],
+      "flag_rate": 0.2693,
+      "observed_rate": 0.1837
+     },
+     {
+      "group": "en",
+      "n": 384,
+      "n_pos": 52,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5769,
+      "tpr_ci": [
+       0.4717,
+       0.7106
+      ],
+      "flag_rate": 0.2917,
+      "observed_rate": 0.1354
+     },
+     {
+      "group": "hi",
+      "n": 153,
+      "n_pos": 34,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5294,
+      "tpr_ci": [
+       0.3782,
+       0.7353
+      ],
+      "flag_rate": 0.3137,
+      "observed_rate": 0.2222
+     },
+     {
+      "group": "ml",
+      "n": 106,
+      "n_pos": 31,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.6129,
+      "tpr_ci": [
+       0.4478,
+       0.7937
+      ],
+      "flag_rate": 0.4057,
+      "observed_rate": 0.2925
+     },
+     {
+      "group": "tl",
+      "n": 78,
+      "n_pos": 14,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5714,
+      "tpr_ci": [
+       0.3333,
+       0.8333
+      ],
+      "flag_rate": 0.2692,
+      "observed_rate": 0.1795
+     },
+     {
+      "group": "ur",
+      "n": 147,
+      "n_pos": 27,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.7778,
+      "tpr_ci": [
+       0.588,
+       0.9287
+      ],
+      "flag_rate": 0.3605,
+      "observed_rate": 0.1837
+     }
+    ],
+    "failing_attribute_groups": {}
+   },
+   "gbm/barrier": {
+    "n_train": 4039,
+    "n_holdout": 1347,
+    "auc": 0.6988,
+    "ece": 0.035,
+    "slope": 0.987,
+    "citl": 0.0257,
+    "bins": "10/10",
+    "recall_at_top": 0.5528,
+    "all_gates_passed": true,
+    "gates_failed": [],
+    "language_recall_gap": 0.5168,
+    "language_groups": [
+     {
+      "group": "ar",
+      "n": 479,
+      "n_pos": 88,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.3864,
+      "tpr_ci": [
+       0.2842,
+       0.5002
+      ],
+      "flag_rate": 0.2129,
+      "observed_rate": 0.1837
+     },
+     {
+      "group": "en",
+      "n": 384,
+      "n_pos": 52,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.5192,
+      "tpr_ci": [
+       0.4165,
+       0.6477
+      ],
+      "flag_rate": 0.2396,
+      "observed_rate": 0.1354
+     },
+     {
+      "group": "hi",
+      "n": 153,
+      "n_pos": 34,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.4706,
+      "tpr_ci": [
+       0.3133,
+       0.667
+      ],
+      "flag_rate": 0.2222,
+      "observed_rate": 0.2222
+     },
+     {
+      "group": "ml",
+      "n": 106,
+      "n_pos": 31,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.9032,
+      "tpr_ci": [
+       0.8,
+       1.0
+      ],
+      "flag_rate": 0.7642,
+      "observed_rate": 0.2925
+     },
+     {
+      "group": "tl",
+      "n": 78,
+      "n_pos": 14,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.7857,
+      "tpr_ci": [
+       0.5455,
+       1.0
+      ],
+      "flag_rate": 0.6923,
+      "observed_rate": 0.1795
+     },
+     {
+      "group": "ur",
+      "n": 147,
+      "n_pos": 27,
+      "eligible_for_gate": true,
+      "tpr_at_top": 0.7407,
+      "tpr_ci": [
+       0.5651,
+       0.9093
+      ],
+      "flag_rate": 0.2789,
+      "observed_rate": 0.1837
+     }
+    ],
+    "failing_attribute_groups": {}
+   }
+  },
+  "paired_auc_diff": {
+   "logreg: barrier - onehot": [
+    -0.0007,
+    [
+     -0.0069,
+     0.0055
+    ]
+   ],
+   "logreg: barrier - none": [
+    0.0045,
+    [
+     -0.0094,
+     0.0192
+    ]
+   ],
+   "gbm: barrier - onehot": [
+    -0.0073,
+    [
+     -0.0172,
+     0.0015
+    ]
+   ],
+   "gbm: barrier - none": [
+    -0.0022,
+    [
+     -0.018,
+     0.0149
+    ]
+   ]
+  },
+  "confirmed": {
+   "barrier_passes_all_gates": true,
+   "barrier_auc_not_credibly_worse": true,
+   "confirmed": true
+  }
+ }
+}
