@@ -783,3 +783,57 @@ audited requests. This was reproduced, and is now fixed with per-database locks 
   * The demo server on :8000 was restarted on this code, and all 4 workers are heartbeating.
 * **Not covered.** A worker that keeps heartbeating but serves one request forever (one stuck thread out of 40) is
   not detected. Request-level timeouts would be the next step.
+
+### Round 23: per-request time budget (21 Oct 2026, ~12:27-12:40 IST)
+
+`wasl/request_timeout.py` adds a pure ASGI layer inside the audit middleware, so a cut-off request is still logged.
+It applies to `/api/` paths. The budget is `request_timeout_s` (30 s). The audit-verify, model-training, SLA-sweep
+and demo endpoints are exempt.
+
+**When a request runs past its budget:**
+* The client gets **503 + Retry-After at once**. The layer does not wait for the stuck thread; any late response
+  from that thread is discarded.
+* The request is marked timed out under a lock. From then on, every SQL statement, new transaction and COMMIT
+  from it raises `RequestTimedOut`, so it can never save anything later.
+* Its transaction is rolled back at once:
+  * if the thread is inside a SQL statement, the statement is interrupted (`sqlite3 interrupt`) and the thread
+    rolls back itself;
+  * if the thread is stuck in Python code, the session is rolled back from the handler.
+
+  Either way the audit writer lock and the SQLite write lock are released, so other writers continue.
+* The stuck thread's stack is logged. The count is shown on `/healthz` (`request_timeouts`), and an
+  `http.request_timeout` audit event is written (`saved: false`).
+
+**Never half-saved.** A request that has started or finished a commit is never cut off; it is allowed to finish and
+counted as `slow_committing_requests`. "Nothing was saved" is therefore always true, and a request either commits
+fully or saves nothing.
+
+**Test** (`tests/test_request_timeout.py`), using a test-only hanging endpoint:
+* it holds an open write (writer lock) and blocks in Python;
+* the client gets 503 + Retry-After in under 5 s (budget 0.5 s), and the stack dump names the stuck line;
+* another writer commits at once, and KPIs are still served;
+* `/healthz` counts the timeout;
+* when the stuck code resumes, its commit is refused;
+* the half-done write is absent, the timeout is in the audit log, and the hash chain verifies.
+
+**Checks:**
+* Tests: 3,236 passed.
+* Validator: 0 violations on the demo, 10k, 20k and edge databases.
+* Quick ramp on a fresh 10k copy:
+
+  | Users | Requests/s | p95 | Errors |
+  |---|---|---|---|
+  | 5 | 228 | 56 ms | 0 |
+  | 40 | 175 | 532 ms | 0 |
+  | 80 | 136 OK | 1.6 s OK | 20 % fast 503s (p95 235 ms) |
+
+  The audit chain stayed intact.
+
+**Residual gaps:**
+* Python cannot kill a thread. A request stuck in pure Python, or in a C call that ignores interrupt, keeps its
+  pool thread until it returns. It can no longer save anything, and the admission limit plus the round-22
+  thread-pool watchdog bound the damage.
+* On Postgres, a running statement is not cancelled: no `pg_cancel_backend` wiring. `lock_timeout` applies, and
+  the commit is still refused.
+* Exempt admin endpoints have no time budget.
+* A request that is streaming its response when the budget passes is allowed to finish.

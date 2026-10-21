@@ -40,7 +40,7 @@ Requires Python 3.11+ (tested on 3.13) and `make`. Everything is free and open s
 make setup          # venv + dependencies (~1 min)
 make seed           # 2,000 synthetic patients, 6 months of history, train + register models (~55 s)
 make run            # http://localhost:8000  (python -m wasl.serve: 4 SO_REUSEPORT worker processes; WORKERS=1 for one)
-make test           # 3,235 pytest tests (~60 s; the 20k cohort test is skipped until `make seed-large`)
+make test           # 3,236 pytest tests (~60 s; the 20k cohort test is skipped until `make seed-large`)
 ```
 
 Clinical-safety targets (Iteration 6):
@@ -154,12 +154,22 @@ HL7 writes. Columns: requests per second answered OK, p95 latency of those, shar
 * **Watchdog** (round 22): each worker heartbeats from its event loop through the request thread pool. The parent
   takes a thread dump of, then kills and replaces, any worker silent for more than 60 s (`WASL_HEARTBEAT_TIMEOUT_S`).
 * **PostgreSQL 17 smoke test:** passed (validator, ramp, audit chain).
+* **Per-request time budget** (round 23): an `/api/` request still running after 30 s (`WASL_REQUEST_TIMEOUT_S`;
+  long admin jobs are exempt) is handled as follows:
+  * the client gets 503 + Retry-After at once;
+  * the request's transaction is rolled back, releasing the audit writer lock;
+  * any later SQL statement or COMMIT from that request is refused;
+  * the stuck thread's stack is logged, the request is counted on `/healthz` and an `http.request_timeout` audit
+    event is written.
+
+  A request that has already started committing is never cut off, so the 503 "nothing was saved" is always true.
+  Re-checked after this change: 40 users, p95 532 ms, 0 errors.
 
 **Current verification:**
 
 | Check | Result |
 |---|---|
-| Tests | 3,235 passed |
+| Tests | 3,236 passed |
 | Validator | 60 invariants, 0 violations on demo / 10k / 20k / edge-case cohorts |
 | Differential, random inputs | 10M, 0 disagreements |
 | Differential, edge-cohort inputs | 1M, 0 disagreements |
@@ -239,5 +249,5 @@ deployment would need formal assessment.
 
 ## Repository map
 
-`wasl/` app · `tests/` pytest (3,235) · `wasl_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
+`wasl/` app · `tests/` pytest (3,236) · `wasl_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
 `scripts/ui_smoke.py` (optional Playwright) · `ITERATIONS.md` build log with self-assessments · `Makefile` · `Dockerfile` · `.env.example`
