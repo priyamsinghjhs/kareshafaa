@@ -596,3 +596,77 @@ Then each failure mode was probed and fixed, one commit each. Bugs found, clinic
   legacy 76.6 % / 89.6 %). The :8000 demo server was restarted the same way to load the new feature code.
 - **Open.** The 10k/20k language recall gaps are still wide point estimates (0.58 / 0.53) that pass only on CI
   width; continue subgroup monitoring on pilot data. Synthetic validation only: no clinical claim.
+
+### Round 19: fresh-seed re-check of the ML language input; human sign-off audit (21 Oct 2026, ~09:33-10:05 IST)
+- **Re-measured first (code at 8471c71), all green.**
+  - Full suite: 3,146 passed.
+  - Validator: 53 invariants, 0 violations on demo, 10k and 20k.
+  - Alert precision/recall (20k): 100 % / 100 % (5,233 TP, 0 FP, 3,178 true breaches, 0 missed).
+  - Safety, alerting and messages were already at their measured best, so this round took the round-18 open item
+    (decision support) and the human-in-the-loop audit.
+- **ML: is the round-18 feature choice confirmed on fresh data?** New script `scripts/ml_feature_revalidation.py`
+  trains logreg and gbm with three input sets on each cohort: one-hot language, no language, and the barrier flag
+  `language_unsupported`. Gates, tolerances and minimum group sizes are the production ones. The decision rule was
+  committed (a071c4a) before any fresh result was seen. The script reproduces the round-18 demo numbers exactly
+  (logreg 0.6763 -> 0.6842).
+  - **Check 1 (barrier as primary; new seeds 20261919 demo, 20261929 10k, 20261939 20k realistic): NOT CONFIRMED.**
+    `fairness_recall:nationality_group` failed for both algorithms on the fresh demo (Other Arab: 1 of 11 delayed
+    cases flagged) and on the fresh 10k (Western: 2 of 13). All gates passed on the fresh 20k.
+  - **Check 2 ("none" as primary).** It was pre-registered in 9aa178e before three more seeds were made
+    (20261949, 20261959, 20261969). Result: also **NOT CONFIRMED** under its own rule. "none" passed every gate on
+    the 10k and 20k, but on the 2,000-patient demo it failed `calibration_slope` (0.56-0.64). Every feature set
+    failed there: this is small-sample over-confidence, not a language effect.
+  - **Over the 6 fresh cohorts x 2 algorithms:**
+    - nationality recall failures: barrier 5/12, one-hot 4/12, none 0/12;
+    - candidates passing every gate: barrier 5/12, one-hot 6/12, none 10/12;
+    - language recall gap: barrier 0.35-0.65, none 0.19-0.27;
+    - AUC (none - barrier): -0.024 to +0.018, never credibly worse by more than 0.01.
+  - **Not gate noise.** New `scripts/fairness_gate_null_rate.py` permutes the group labels (no real difference). The
+    fairness gates then fail in 2.5 % of 200 permutations (95 % CI 0.3-4.7 %).
+  - **Mechanism.** The barrier flag puts Malayalam and Tagalog speakers at the top (fresh 10k flag rates 0.69/0.59
+    against observed delay rates 0.27/0.19). They fill the top-30 % capacity, so recall drops for Western, Emirati and
+    Other Arab patients. This also explains the wide 10k/20k language gaps that were left open in round 18.
+  - **Decision: no production input changed.** Neither pre-registered rule was met, and switching again after
+    looking at hold-outs would repeat the round-18 mistake. Production is protected: the gates refuse every failing
+    candidate, so there is no promotion and outreach falls back to rule order. The demo's production model (gbm v2) is
+    unchanged. Recommendation for the clinical lead / model governance: adopt "none", or pre-register a rule that
+    handles the small-demo slope failure. Full tables: `docs/ml_feature_revalidation.md/.json`. ML metrics on
+    demo/10k/20k are unchanged from round 18 (no ML code change).
+- **Human sign-off audit.** Every write endpoint was mapped to its service function and checked against
+  `wasl/signoff.py`. Two gaps were found by probe:
+  1. **Decisions recorded on the patient's behalf.** `record_consent` (staff) and `record_decline` (staff) checked
+     only `consent:write`. An automated job with a coordinator role could withdraw care-coordination consent, which
+     stops automated outreach in every programme, or record a decline, which stops the pathway. No rationale was
+     needed. They are now high-impact actions `consent.record` and `case.decline.record`: named person,
+     `consent:write`, rationale of at least 10 characters. The patient's own app decisions are unchanged; the UI
+     forms say so. Synthetic history already met the rule, so the data distribution did not change. Registry: 21
+     actions.
+  2. **Evidence from a closed episode re-used after a re-open.** On a re-opened case, a generic transition reached
+     `treatment_or_surveillance_started` on the OLD care plan, bypassing the `careplan.start` sign-off. The case could
+     also be closed on the old care plan, the old fulfilled appointment or the old negative confirmatory result
+     before the new result arrived. Now the pathway guards, the surveillance-plan check and closure evidence accept
+     only evidence recorded since the last re-open (`workflow.episode_start`). There are no re-opens in the seeded
+     data, so no re-seed was needed. New hazard H-37 in the safety case.
+  - Reviewed and judged adequate: attendance, booking, reconsider and the generic transitions (bots are limited to
+    triage, notification and acknowledgement), consults, lessons, sends, model training and proposal generation
+    (these create candidates only), the sweep and ingest (automated by design, with fail-safe review).
+- **Tests.** `tests/test_signoff_round19.py` has 11 tests; 9 fail on the round-18 code, and the 2 patient-path
+  regression tests pass on both. The registry tests are parametrised over the 2 new actions.
+  - **Full suite 3,161 tests, all passing.**
+  - Fault injection F55-F58 (`--only`): 4/4 killed. The full-report re-run is not repeated this round.
+- **Safety re-verification.**
+  - 10M differential, new seed 20261919: 0 safety-critical disagreements; observed rate 0, one-sided 95 % upper
+    bound 3.0e-7.
+  - Validator, 53 invariants, 0 violations on: demo, 10k, 20k and all six fresh cohorts.
+  - Alert precision/recall on the fresh 20k (seed 20261939): 100 % / 100 % (5,060 TP, 0 FP, 3,105 true breaches,
+    0 missed; legacy 78.5 % / 89.6 %).
+  - Demo server on :8000 restarted the same way to load the new code. Spot check: a staff consent without a
+    rationale now gets 422.
+  - Note: the first three fresh seeds ran with the default data dir, so they briefly shared the demo's audit-writer
+    lock file (write serialisation only, no data effect). The second set used a scratch `WASL_DATA_DIR`.
+- **Open.**
+  - ML input set: a human governance decision is needed (see above).
+  - A re-opened case keeps `care_reached_at` from its earlier episode, so no pathway-target alert fires for the new
+    episode. Step SLAs still alert. Whether re-opening should reset the target clock is a clinical decision, not
+    changed here.
+  - Synthetic validation only; no clinical claim.
