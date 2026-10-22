@@ -866,3 +866,18 @@ fully or saves nothing.
   never intercepted. The three PWA routes carry no data, so they skip the audit log and load-shedding.
 * Headless Chrome (CDP `Page.getInstallabilityErrors`) on localhost: no installability errors, SW active and
   controlling, cache holds only the shell. Tests: +7 (`tests/test_pwa.py`), 3,247 passed.
+
+### Round 26: public demo safety mode (22 Oct 2026, ~10:05-10:25 IST)
+* `KARESHAFAA_PUBLIC_DEMO=1` (`kareshafaa/public_demo.py`; off by default, normal mode unchanged and tested):
+  red "Synthetic data demo, not for clinical use" banner on every page; 403 for model training, approval, rejection
+  and rollback, rule proposals, content sign-off, SLA sweep and simulation re-run, plus any PUT/PATCH/DELETE or
+  admin/user/role/reset/seed endpoint (none exist today; blocked in advance). Refusals are still audited.
+  API writes are rate-limited per session token, or per client IP before login: 30 per 60 s per worker, then 429 +
+  Retry-After. The demo DB is restored from `data/kareshafaa_demo_seed.db` (SQLite online backup, taken under the
+  audit-chain writer lock) by `kareshafaa.serve` before workers start, by `python -m kareshafaa.public_demo` in the
+  Docker CMD, and nightly at 03:00 UAE by one elected worker. On first use the seed copy is snapshotted from the
+  current DB.
+* Limits: the rate limit is per process, so with N workers the effective limit is up to N x 30. The anonymous key
+  trusts the first X-Forwarded-For hop (tunnel/proxy). Restored data keeps its seed-time timestamps, so SLA clocks
+  move on (more cases overdue) as the seed copy ages. Re-seed and delete the seed copy to refresh it.
+* Tests: +22 (`tests/test_public_demo.py`), 3,269 passed.

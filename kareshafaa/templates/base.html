@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="/static/kareshafaa.css">
 </head>
 <body>
+  {% if public_demo %}<div class="public-demo-banner" role="note">{{ public_demo_banner }}</div>{% endif %}
   <div class="synthetic-banner">PROTOTYPE · SYNTHETIC DATA ONLY · all messages are simulated and never sent · not a medical device</div>
   <header class="container-fluid topbar">
     <nav>

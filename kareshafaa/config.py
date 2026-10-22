@@ -80,6 +80,13 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = Field(default_factory=list)
 
+    # public demo safety mode (kareshafaa/public_demo.py); off by default - normal mode is unchanged
+    public_demo: bool = False
+    demo_write_limit: int = 30  # API writes per session (or client IP) per window, per worker process
+    demo_write_window_s: float = 60.0
+    demo_seed_db: Path | None = None  # pristine copy restored on start and nightly; default data/kareshafaa_demo_seed.db
+    demo_reset_hour: int = 3  # nightly restore at this hour, UAE time (Asia/Dubai)
+
 
 def _resolve_secret(s: Settings) -> str:
     if s.secret_key:

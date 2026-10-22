@@ -21,9 +21,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 
-from . import __version__, audit, pwa
+from . import __version__, audit, public_demo, pwa
 from .api import auth, cases, demo_api, governance, ingest, me, ops
-from .api.deps import resolve_actor
+from .api.deps import COOKIE, resolve_actor
 from .config import get_settings
 from .db import init_db, session_factory, session_scope
 from .pwa import PUBLIC_PATHS as PWA_PUBLIC_PATHS
@@ -307,7 +307,10 @@ def create_app() -> FastAPI:
         sys.setswitchinterval(s.gil_switch_interval_ms / 1000)
         task = asyncio.create_task(_sweep_loop(s.sweep_interval_seconds)) if s.sweep_interval_seconds > 0 else None
         hb = asyncio.create_task(_heartbeat_loop()) if os.environ.get("KARESHAFAA_HEARTBEAT_DIR") else None
+        nightly = asyncio.create_task(public_demo.nightly_reset_loop()) if s.public_demo else None
         yield
+        if nightly:
+            nightly.cancel()
         if task:
             task.cancel()
         if hb:
@@ -321,6 +324,26 @@ def create_app() -> FastAPI:
     # Round 23: per-request time budget, a pure ASGI layer INSIDE the audit middleware (so a cut-off request is
     # still logged as 503). It answers without waiting for the stuck thread (kareshafaa/request_timeout.py).
     app.add_middleware(TimeBudgetMiddleware)
+
+    if s.public_demo:
+        limiter = public_demo.WriteRateLimiter(s.demo_write_limit, s.demo_write_window_s)
+
+        @app.middleware("http")
+        async def public_demo_guard(request: Request, call_next):
+            """KARESHAFAA_PUBLIC_DEMO=1: refuse admin-only/destructive actions and rate-limit writes per session.
+            Declared inside the audit middleware, so refused attempts are still audited."""
+            path, method = request.url.path, request.method
+            if path.startswith("/api/") and public_demo.is_blocked(method, path):
+                return JSONResponse({"detail": public_demo.BLOCKED_DETAIL}, status_code=403)
+            if path.startswith("/api/") and method in public_demo.WRITE_METHODS:
+                key = public_demo.client_key(request.headers, request.cookies,
+                                             request.client.host if request.client else None, COOKIE)
+                wait = limiter.check(key)
+                if wait:
+                    return JSONResponse({"detail": "too many changes in a short time on the public demo - nothing "
+                                                   "was saved; please wait a moment"}, status_code=429,
+                                        headers={"Retry-After": str(int(wait) + 1)})
+            return await call_next(request)
 
     @app.middleware("http")
     async def audit_every_request(request: Request, call_next):
@@ -430,11 +453,14 @@ def create_app() -> FastAPI:
         finally:
             db.close()
         from .request_timeout import TIMEOUTS
-        return {"status": "ok", "version": __version__, "request_timeouts": TIMEOUTS["count"],
+        return {"status": "ok", "version": __version__, "public_demo": s.public_demo,
+                "request_timeouts": TIMEOUTS["count"],
                 "slow_committing_requests": TIMEOUTS["slow_committing"]}
 
     def page(name: str, request: Request, **ctx) -> HTMLResponse:
-        return templates.TemplateResponse(request, name, {"demo_logins": s.demo_logins, "version": __version__, **ctx})
+        return templates.TemplateResponse(request, name, {"demo_logins": s.demo_logins, "version": __version__,
+                                                          "public_demo": s.public_demo,
+                                                          "public_demo_banner": public_demo.BANNER, **ctx})
 
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request):

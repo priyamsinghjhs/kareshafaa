@@ -43,12 +43,23 @@ def _child(host: str, port: int) -> None:
     server.run(sockets=[sock])
 
 
+def _public_demo_reset() -> None:
+    """KARESHAFAA_PUBLIC_DEMO=1: restore the demo DB from its seed copy once, in the parent, before any worker starts."""
+    from .config import get_settings
+
+    if get_settings().public_demo:
+        from .public_demo import reset_from_seed
+
+        print(f"kareshafaa.serve: public demo: {reset_from_seed()}", file=sys.stderr, flush=True)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--workers", type=int, default=4)
     a = ap.parse_args()
+    _public_demo_reset()
     if not hasattr(socket, "SO_REUSEPORT") or a.workers <= 1:
         import uvicorn
 
