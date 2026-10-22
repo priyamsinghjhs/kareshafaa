@@ -350,6 +350,26 @@ def provision_demo_accounts(db: Session, s: Settings | None = None) -> dict:
         if not u.team:
             u.team = ROLE_LABELS.get(u.role)
     env_any = any(_env_password_for(u.role, s) for u in users.values())
+    if s.mode == "production":
+        # Working system: the environment password only gives a FIRST password to staff accounts that have none.
+        # Passwords people have changed, or an admin has reset, are never overwritten on restart.
+        missing, set_now = [], 0
+        for u in users.values():
+            if u.password_hash:
+                continue
+            pw = _env_password_for(u.role, s)
+            if not pw or password_problems(pw):
+                missing.append(u.username)
+                continue
+            set_password(u, pw, must_change=False)
+            set_now += 1
+        db.commit()
+        if missing:
+            log.warning("STAFF ACCOUNTS WITHOUT A PASSWORD: %d account(s) have no password yet and "
+                        "KARESHAFAA_DEMO_PASSWORD is %s. They cannot sign in until it is set to a strong value "
+                        "(12+ characters, not a common password) and the service restarts, or an administrator "
+                        "resets their password.", len(missing), "unset" if not env_any else "blank or too weak")
+        return {"provisioned": set_now, "changed": set_now, "unusable": len(missing), "mode": "production"}
     if env_any or s.public_demo:
         weak, changed = [], 0
         for u in users.values():

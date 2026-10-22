@@ -37,7 +37,7 @@ SCENARIOS: dict[str, dict] = {
         "requirements": "R2 ownership/SLA · R5 escalation · R3 channel fallback · closure guard",
         "login": "fatima.al.mansoori",
         "next": ["Digital ladder failed (no smartphone) - a navigator phone task is at the top of the queue",
-                 "The demo clock was fast-forwarded: L1 -> L2 -> L3 -> L4 escalations are on the timeline",
+                 "The clock was fast-forwarded for this case: L1 -> L2 -> L3 -> L4 escalations are on the timeline",
                  "Try 'Close case' without evidence: it is blocked by the closure guard",
                  "Record the call (reached), then continue the pathway"],
     },
@@ -95,11 +95,11 @@ def run_scenario(db: Session, key: str, actor: Actor) -> dict:
 
     cfg = get_settings()
     if cfg.env == "prod" or not cfg.demo_logins:
-        raise Forbidden("demo scenarios are disabled outside demo mode")
+        raise Forbidden("the guided walkthrough is switched off on this server")
     if key not in SCENARIOS:
         raise NotFound("unknown scenario")
     if not actor.is_human or actor.role not in ("coordinator", "clinical_lead", "admin", "gp"):
-        raise Forbidden("demo scenarios can be started by staff roles")
+        raise Forbidden("the guided walkthrough can be started by staff roles")
     rng = random.Random()
     now = utcnow()
     t = now - timedelta(hours=6)

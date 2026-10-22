@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-head"><div><h1>Outcomes</h1>
-<p class="lede">How quickly patients reach care, and whether every group is served equally. All figures use <b>synthetic data</b>; groups smaller than 5 are hidden to protect privacy.</p></div></div>
+<p class="lede">How quickly patients reach care, and whether every group is served equally. Groups smaller than 5 are hidden to protect privacy.</p></div></div>
 <div class="tabs" role="tablist" aria-label="Outcome views"><button role="tab" aria-selected="true" data-t="sim">Before / after</button><button role="tab" aria-selected="false" class="secondary" data-t="live">Live figures</button><button role="tab" aria-selected="false" class="secondary" data-t="fair">Equity by group</button><button role="tab" aria-selected="false" class="secondary" data-t="lessons">Why cases are delayed</button></div>
 <div id="dash" role="tabpanel"><div class="loading" role="status">Loading…</div></div>
 {% endblock %}

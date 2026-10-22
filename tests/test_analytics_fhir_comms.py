@@ -19,7 +19,7 @@ def test_suppression_helpers():
 def test_analyst_aggregates_only(client, as_user):
     h = as_user("analyst")
     k = client.get("/api/analytics/kpis", headers=h).json()
-    assert "SIMULATED" in str(k).upper() or "SYNTHETIC" in str(k).upper()
+    assert k["label"]  # every KPI payload says where its figures come from
     s = str(k)
     assert "SYN-" not in s and "given_name" not in s
     f = client.get("/api/analytics/fairness", headers=h).json()

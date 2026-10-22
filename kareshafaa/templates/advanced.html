@@ -7,8 +7,9 @@
   <article class="card" data-perm="model:read"><div><h2 style="font-size:var(--fs-lg)">Outreach model internals</h2><p class="small muted">Model registry, safety and fairness gates, calibration, drift and the model card.</p></div><a role="button" class="secondary" href="/governance?tab=models">Open model registry</a></article>
   <article class="card" data-perm="sweep:run"><div><h2 style="font-size:var(--fs-lg)">Deadline check (SLA sweep)</h2><p class="small muted">Runs automatically every few minutes. Run it now to send due reminders and escalations immediately.</p></div><button id="sweep" class="secondary">Run the check now</button></article>
   <article class="card" data-perm="case:create"><div><h2 style="font-size:var(--fs-lg)">Raw HL7 / FHIR input</h2><p class="small muted">Paste an HL7 v2 ORU^R01 lab message, or post a FHIR R4 Bundle to <code>/api/ingest/fhir</code>.</p></div><a role="button" class="secondary" href="/ingest">Open results inbox</a></article>
-  <article class="card"><div><h2 style="font-size:var(--fs-lg)">Interoperability samples</h2><p class="small muted">Synthetic sample messages. Each case can be exported as a FHIR R4 Bundle from its page.</p></div>
+  <article class="card"><div><h2 style="font-size:var(--fs-lg)">Interoperability samples</h2><p class="small muted">Sample messages. Each case can be exported as a FHIR R4 Bundle from its page.</p></div>
     <div class="row"><a role="button" class="secondary sm" href="/static/samples/fhir_bundle_hba1c.json">FHIR R4 Bundle</a><a role="button" class="secondary sm" href="/static/samples/oru_r01_fit_positive.hl7">HL7 v2 ORU^R01</a></div></article>
+  {% if walkthrough %}<article class="card"><div><h2 style="font-size:var(--fs-lg)">Guided walkthrough</h2><p class="small muted">Step through typical cases (late result, unreachable patient, provider transfer) with new sample patient records.</p></div><a role="button" class="secondary" href="/walkthrough">Open guided walkthrough</a></article>{% endif %}
   <article class="card"><div><h2 style="font-size:var(--fs-lg)">API reference</h2><p class="small muted">OpenAPI documentation of every endpoint (permissions are enforced on each).</p></div><a role="button" class="secondary" href="/docs">Open API docs</a></article>
   <article class="card"><div><h2 style="font-size:var(--fs-lg)">Load and resilience tests</h2><p class="small muted">Run from the command line, never from the browser: <code>scripts/loadtest.py</code>, <code>scripts/loadtest_ramp.py</code>, <code>scripts/fault_injection.py</code>, <code>scripts/validate_data.py</code>.</p></div></article>
   <article class="card"><div><h2 style="font-size:var(--fs-lg)">System</h2><p class="small muted" id="sys">Checking…</p></div><a role="button" class="secondary" href="/healthz">Health check (JSON)</a></article>
@@ -26,7 +27,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       W.toast(`Checked ${r.checked} cases: ${r.reminders} reminders, ${r.supervisor + r.clinical_lead + (r.director || 0)} escalations`, "ok"); } catch (e) { W.toast(e.message, "err"); }
     sw.removeAttribute("aria-busy"); };
   try { const h = await fetch("/healthz").then(r => r.json());
-    document.getElementById("sys").textContent = `Status ${h.status} · version ${h.version} · public demo ${h.public_demo ? "on" : "off"} · timed-out requests ${h.request_timeouts}`; }
+    document.getElementById("sys").textContent = `Status ${h.status} · version ${h.version} · ${h.storage === "persistent" ? "data stored permanently" : "temporary storage"} · timed-out requests ${h.request_timeouts}`; }
   catch (e) { document.getElementById("sys").textContent = "Health check unavailable."; }
 });
 </script>

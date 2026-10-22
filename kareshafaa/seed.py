@@ -31,7 +31,7 @@ from .synth.directory import build_directory, build_users
 from .synth.history import Replayer, actor_from_user, add_patient
 from .synth.simulator import run_simulation
 
-SEED_ACTOR = Actor(user_id=None, role="system", display="Synthetic data seeder", is_human=False)
+SEED_ACTOR = Actor(user_id=None, role="system", display="Initial data load", is_human=False)
 
 
 def seed(n_patients: int | None = None, seed_value: int | None = None, *, train: bool = True, verbose: bool = True,
@@ -83,7 +83,7 @@ def seed(n_patients: int | None = None, seed_value: int | None = None, *, train:
             v1 = registry.train_candidate(db, admin_actor, "logreg", now=now)
             stats["v1"] = {"status": v1.status, "auc": v1.metrics["auc"], "ece": v1.metrics["ece"]}
             if v1.status == "awaiting_approval":
-                registry.approve(db, v1.version, lead, "Seed bootstrap: initial outreach-priority model reviewed (demo).",
+                registry.approve(db, v1.version, lead, "Seed bootstrap: initial outreach-priority model reviewed (initial setup).",
                                  now=now)
                 stats["v1"]["status"] = v1.status
             db.commit()
@@ -92,7 +92,7 @@ def seed(n_patients: int | None = None, seed_value: int | None = None, *, train:
             if v2.status == "awaiting_approval" and registry.production(db) is None:
                 # v1 failed a gate (e.g. calibration or fairness): the lead reviews the passing candidate instead
                 registry.approve(db, v2.version, lead, "Seed bootstrap: v1 failed a promotion gate; passing candidate "
-                                                       "reviewed (demo).", now=now)
+                                                       "reviewed (initial setup).", now=now)
                 stats["v2"]["status"] = v2.status
             db.commit()
             director = actor_from_user(users_by_pid[d["director"].id])

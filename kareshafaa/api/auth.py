@@ -104,7 +104,7 @@ def do_password_change(db: Session, request: Request, actor: Actor, current: str
     if u is None:
         return ["Account not found."]
     if s.public_demo and u.is_demo_account:
-        return ["Shared demo accounts cannot change their password on the public demo."]
+        return ["Shared accounts cannot change their password on this server."]
     if not accounts.verify_password(u.password_hash, current):
         audit.record(db, actor, "U", "user.password_change", entity_type="User", entity_id=u.id, outcome="failure",
                      detail={"reason": "current_password_wrong"})

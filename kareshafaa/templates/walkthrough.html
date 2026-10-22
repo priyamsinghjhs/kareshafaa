@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="page-head"><div><h1>Demo stories</h1>
-<p class="lede">Each story creates a <b>new synthetic patient</b> and runs the case through the real rules, checks and audit up to an interesting moment. Nothing is sent: every message is simulated.</p></div></div>
+<div class="page-head"><div><h1>Guided walkthrough</h1>
+<p class="lede">Each walkthrough adds a <b>new sample patient record</b> and takes the case through the real rules, checks and audit up to a key moment, so you can see how KareShafaa handles it. Messages are not sent to real phones.</p></div></div>
 <div id="result" aria-live="polite"></div>
 <div id="sc" class="grid-cards"><div class="loading" role="status">Loading…</div></div>
 {% endblock %}
@@ -13,7 +13,7 @@ async function load() {
   document.getElementById("sc").innerHTML = d.items.map(s => `<article class="card"><div><h2 style="font-size:var(--fs-lg)">${W.esc(s.title)}</h2>
     <p class="small muted">${W.esc(s.requirements)}</p>
     <p class="small">Best viewed as: <code>${W.esc(s.login)}</code></p></div>
-    <button ${canRun ? "" : "disabled"} onclick="run('${s.key}', this)">Start this story</button></article>`).join("");
+    <button ${canRun ? "" : "disabled"} onclick="run('${s.key}', this)">Start this walkthrough</button></article>`).join("");
 }
 window.run = async (key, btn) => {
   btn.setAttribute("aria-busy", "true"); btn.disabled = true;
@@ -22,7 +22,7 @@ window.run = async (key, btn) => {
     document.getElementById("result").innerHTML = `<div class="card ok" role="status"><h2 style="font-size:var(--fs-lg)">Ready: case #${r.case_id} (${W.esc(r.state)})</h2>
       <ol class="small">${r.next.map(n => `<li>${W.esc(n)}</li>`).join("")}</ol>
       <div class="row"><a role="button" href="/cases/${r.case_id}">Open case #${r.case_id}</a><span class="small muted">To continue as <code>${W.esc(r.login)}</code>, sign out and sign in with that account.</span></div></div>`;
-    document.getElementById("result").scrollIntoView({ behavior: "smooth" }); W.toast("Story ready", "ok");
+    document.getElementById("result").scrollIntoView({ behavior: "smooth" }); W.toast("Walkthrough ready", "ok");
   } catch (e) { W.toast(e.message, "err"); }
   btn.removeAttribute("aria-busy"); btn.disabled = false;
 };

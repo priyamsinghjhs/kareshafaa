@@ -9,19 +9,22 @@ from .security import has_perm
 from .programmes import WORKING_DAY_TIERS
 from .sla import load_default_hours
 
+FOOTER = ("KareShafaa v0.1 · Prototype software, not a certified medical device. "
+          "Clinical decisions remain with the treating clinician.")
+
 # icon keys refer to inline SVG symbols in templates/_icons.html
 NAV: dict[str, list[tuple[str, str, str]]] = {  # role -> [(href, label, icon)]
-    "coordinator": [("/queue", "Today's queue", "list"), ("/ingest", "Results inbox", "inbox"),
-                    ("/demo", "Demo stories", "play")],
+    "coordinator": [("/queue", "Today's queue", "list"), ("/ingest", "Results inbox", "inbox")],
     "gp": [("/queue?view=review", "Needs review", "check"), ("/queue", "All my cases", "list"),
-           ("/consults", "Ask a specialist", "chat"), ("/demo", "Demo stories", "play")],
+           ("/consults", "Ask a specialist", "chat")],
     "specialist": [("/queue?view=review", "Needs review", "check"), ("/queue", "My cases", "list"),
                    ("/consults", "Consult requests", "chat")],
     "clinical_lead": [("/overview", "Overview", "home"), ("/queue", "Work queue", "list"),
                       ("/governance", "Approvals", "shield"), ("/dashboard", "Outcomes", "chart"),
                       ("/advanced", "Advanced", "tools")],
     "analyst": [("/dashboard", "Outcomes", "chart"), ("/governance", "Models & rules", "shield")],
-    "admin": [("/admin/users", "Users", "users"), ("/dashboard", "Outcomes", "chart"), ("/advanced", "Advanced", "tools")],
+    "admin": [("/admin/users", "Users", "users"), ("/admin/system", "System", "home"), ("/dashboard", "Outcomes", "chart"),
+              ("/advanced", "Advanced", "tools")],
     "translator": [("/governance?tab=content", "Content sign-off", "shield")],
     "patient": [("/patient", "My results", "heart")],
 }
@@ -34,8 +37,8 @@ HOME: dict[str, str] = {"coordinator": "/queue", "gp": "/queue?view=review", "sp
 PAGE_PERMS: dict[str, tuple[str, ...] | None] = {
     "/queue": ("queue:read",), "/cases": ("case:read",), "/patient": ("self:read",),
     "/dashboard": ("analytics:read",), "/governance": ("model:read", "content:read"), "/audit": ("audit:read",),
-    "/demo": ("case:create", "sweep:run"), "/ingest": ("case:create",), "/consults": ("consult:respond",),
-    "/overview": ("proposal:decide",), "/advanced": ("audit:read",), "/admin/users": ("user:admin",),
+    "/walkthrough": ("proposal:decide", "user:admin"), "/ingest": ("case:create",), "/consults": ("consult:respond",),
+    "/overview": ("proposal:decide",), "/advanced": ("audit:read",), "/admin/users": ("user:admin",), "/admin/system": ("user:admin",),
     "/account/password": None,
 }
 
@@ -44,9 +47,8 @@ def home_for(role: str) -> str:
     return HOME.get(role, "/account/password")
 
 
-def nav_for(role: str, demo_mode: bool = True) -> list[dict]:
-    items = NAV.get(role, [])
-    return [{"href": h, "label": l, "icon": i} for h, l, i in items if demo_mode or h != "/demo"]
+def nav_for(role: str) -> list[dict]:
+    return [{"href": h, "label": l, "icon": i} for h, l, i in NAV.get(role, [])]
 
 
 def can_open(role: str, page: str) -> bool:

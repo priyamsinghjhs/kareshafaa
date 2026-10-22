@@ -31,13 +31,6 @@
       <button type="submit">Sign in</button>
     </form>
     <p class="xs muted" style="margin-top:var(--s-3)">Sessions end after 30 minutes without activity. Shared computer? Sign out when you finish.</p>
-    {% if demo_accounts %}
-    <details class="demo-accounts">
-      <summary>Demo accounts (one per role)</summary>
-      <p class="xs muted">All people and patients are synthetic. The demo password is supplied with the submission; it is never shown here.</p>
-      <ul>{% for a in demo_accounts %}<li><code>{{ a.username }}</code><span class="muted">{{ a.role }} · {{ a.name }}</span></li>{% endfor %}</ul>
-    </details>
-    {% endif %}
   </div>
 </div>
 {% endblock %}
