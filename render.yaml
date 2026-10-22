@@ -1,9 +1,16 @@
 # Render Blueprint (free plan): Dashboard -> New -> Blueprint -> pick this repo -> Apply.
-# Then set ONE secret in the dashboard (Environment): KARESHAFAA_DEMO_PASSWORD = a strong shared password (12+ chars,
-# not a common password) for the demo accounts. Without it the site still starts and shows the sign-in page, but the
-# demo accounts are not usable (a clear WARNING is logged). The password is never stored in this repo or shown on the site.
-# Free web services sleep after 15 min idle (about 1 min cold start) and have an ephemeral disk - fine here, because
-# the public demo restores its synthetic database from the seed copy baked into the image on every start.
+# Runs KareShafaa in production mode (KARESHAFAA_MODE=production; also the default whenever RENDER=true).
+# Set these in the dashboard (Environment) - they are secrets and are never stored in this repo:
+#   KARESHAFAA_DEMO_PASSWORD  first password for the existing staff accounts (12+ characters, not a common password).
+#                             Used only for accounts that have no password yet; it never overwrites a password that a
+#                             user or an administrator has changed. (Internal variable name.)
+#   DATABASE_URL              PostgreSQL connection string, e.g. a free Neon project:
+#                             postgresql://USER:PASSWORD@HOST/DB?sslmode=require
+#                             Without it the app runs on SQLite on the instance disk, which on the free plan is
+#                             TEMPORARY (lost on every restart/redeploy); a warning is logged and shown in Admin > System.
+# On first start with an empty database the initial records (organisations, programmes, sites, staff accounts, sample
+# patient records) are copied in once; after that the data is never reset or overwritten.
+# Free web services sleep after 15 min idle (about 1 min cold start).
 services:
   - type: web
     name: kareshafaa
@@ -14,15 +21,19 @@ services:
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
+      - key: KARESHAFAA_MODE
+        value: production
       - key: KARESHAFAA_PUBLIC_DEMO
-        value: "1"
+        value: "0"
       - key: KARESHAFAA_DEMO_LOGINS
-        value: "true"
+        value: "false"
       - key: KARESHAFAA_SECRET_KEY
         generateValue: true
       - key: KARESHAFAA_DEMO_PASSWORD   # secret: entered in the Render dashboard, never committed
         sync: false
-      - key: WEB_WORKERS          # 512 MB instance: one worker (~210 MB RSS each)
+      - key: DATABASE_URL               # secret: PostgreSQL connection string (e.g. Neon free tier), never committed
+        sync: false
+      - key: WEB_WORKERS                # 512 MB instance: one worker (~220 MB RSS)
         value: "1"
       - key: KARESHAFAA_SWEEP_INTERVAL_SECONDS
         value: "300"

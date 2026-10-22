@@ -72,7 +72,7 @@ def test_normal_mode_has_no_demo_banner_or_guard(client, as_user):
 
     assert get_settings().public_demo is False
     assert pd.BANNER not in client.get("/").text
-    assert client.get("/healthz").json()["public_demo"] is False
+    assert client.get("/healthz").json()["mode"] == "standard"
     # admin-only endpoints keep their normal behaviour (here: unauthenticated -> 401, not the demo 403)
     r = client.post("/api/governance/models/train", json={})
     assert r.status_code == 401
@@ -85,8 +85,9 @@ def test_normal_mode_has_no_demo_banner_or_guard(client, as_user):
 # ------------------------------------------------------------------------------------------------ public demo
 def test_public_demo_banner_and_health(demo_client):
     html = demo_client.get("/").text
-    assert 'class="public-demo-banner"' in html and "Synthetic data demo, not for clinical use" in html
-    assert demo_client.get("/healthz").json()["public_demo"] is True
+    # the old showcase banner is gone everywhere; the regulatory footer is on every page instead
+    assert "public-demo-banner" not in html and pd.BANNER not in html and "not a certified medical device" in html
+    assert demo_client.get("/healthz").json()["mode"] == "public_demo"
 
 
 @pytest.mark.parametrize("method,path,body", BLOCKED_CALLS)

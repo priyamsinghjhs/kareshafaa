@@ -163,6 +163,8 @@ def derive(s: Settings) -> Settings:
         s.database_url = os.environ["DATABASE_URL"]
     s.database_url = normalise_database_url(s.database_url)
     s.mode = (s.mode or "standard").strip().lower()
+    if "KARESHAFAA_MODE" not in os.environ and os.environ.get("RENDER"):
+        s.mode = "production"  # Render (RENDER=true) runs the working system unless a mode is set explicitly
     if s.mode == "production":
         s.env = "prod"
         s.public_demo = False
