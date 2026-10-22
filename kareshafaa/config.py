@@ -87,6 +87,21 @@ class Settings(BaseSettings):
     demo_seed_db: Path | None = None  # pristine copy restored on start and nightly; default data/kareshafaa_demo_seed.db
     demo_reset_hour: int = 3  # nightly restore at this hour, UAE time (Asia/Dubai)
 
+    # --- real per-user login (kareshafaa/accounts.py) --------------------------------------------------------
+    session_idle_minutes: int = 30  # a session unused this long expires (absolute limit: token_ttl_minutes)
+    cookie_secure: bool | None = None  # None = auto: Secure on https requests, in prod and in public demo mode
+    login_max_failures: int = 5  # failed attempts within login_window_minutes -> temporary lockout
+    login_window_minutes: int = 15
+    login_lockout_minutes: int = 15
+    login_ip_max_failures: int = 20  # per client IP across all usernames within the window -> 429
+    password_min_length: int = 12
+    # demo accounts (one per role + the staff the demo stories ask for). Passwords come ONLY from the environment
+    # (KARESHAFAA_DEMO_PASSWORD shared, or KARESHAFAA_DEMO_PASSWORD_<ROLE> per role); never from the repo.
+    # Outside public demo mode a missing password is generated at random and written to demo_credentials_file.
+    demo_password: str | None = None
+    provision_demo_accounts: bool = True
+    demo_credentials_file: Path | None = None  # default: <repo parent>/demo_credentials.txt, else data_dir
+
 
 def _resolve_secret(s: Settings) -> str:
     if s.secret_key:

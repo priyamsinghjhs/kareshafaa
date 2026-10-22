@@ -59,6 +59,40 @@ class User(Base):
     patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     practitioner: Mapped[Practitioner | None] = relationship()
+    # --- real per-user login (kareshafaa/accounts.py). Never serialised by any API (tests/test_auth_accounts.py).
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)  # argon2id; NULL = cannot log in
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
+    site: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    team: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=utcnow)
+    is_demo_account: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class UserSession(Base):
+    """Server-side login session. The cookie holds a random token; only its SHA-256 is stored."""
+    __tablename__ = "user_sessions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+
+class LoginAttempt(Base):
+    """One row per password login attempt (for rate limiting and temporary lockout). No passwords stored."""
+    __tablename__ = "login_attempts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(80), index=True)
+    ip: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    success: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 # --------------------------------------------------------------------------- patient

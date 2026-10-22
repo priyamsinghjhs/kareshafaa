@@ -141,6 +141,7 @@ def _init_db(drop: bool) -> None:
         else:
             Base.metadata.drop_all(eng)
     Base.metadata.create_all(eng)
+    _add_missing_columns(eng)
     # create_all skips indexes added later to existing tables: add any that are missing (idempotent)
     for table in Base.metadata.sorted_tables:
         for idx in table.indexes:
@@ -149,3 +150,25 @@ def _init_db(drop: bool) -> None:
     with eng.begin() as conn:
         for st in stmts:
             conn.execute(text(st))
+
+
+def _add_missing_columns(eng: Engine) -> None:
+    """create_all never alters an existing table: add columns introduced later (nullable or with a constant
+    default) so older databases keep working. Idempotent; only ever ADDs columns, never drops or rewrites data."""
+    from sqlalchemy import inspect
+
+    insp = inspect(eng)
+    for table in Base.metadata.sorted_tables:
+        if not insp.has_table(table.name):
+            continue
+        have = {c["name"] for c in insp.get_columns(table.name)}
+        for col in table.columns:
+            if col.name in have:
+                continue
+            ddl_type = col.type.compile(dialect=eng.dialect)
+            default = ""
+            if col.default is not None and getattr(col.default, "is_scalar", False):
+                v = col.default.arg
+                default = f" DEFAULT {('TRUE' if v else 'FALSE') if isinstance(v, bool) else repr(v)}"
+            with eng.begin() as conn:
+                conn.execute(text(f'ALTER TABLE {table.name} ADD COLUMN {col.name} {ddl_type}{default}'))

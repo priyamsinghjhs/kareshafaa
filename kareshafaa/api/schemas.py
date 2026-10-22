@@ -168,3 +168,38 @@ class SweepIn(_In):
     case_ids: list[int] | None = None
     # DEMO ONLY: evaluate SLAs as if the clock were N hours ahead (single case, demo mode, audited)
     hours_ahead: float = Field(default=0, ge=0, le=720)
+
+
+class PasswordLoginIn(_In):
+    username: str = Field(min_length=1, max_length=80)
+    password: str = Field(min_length=1, max_length=256)
+
+
+class PasswordChangeIn(BaseModel):  # not stripped: spaces are allowed in passwords
+    model_config = ConfigDict(extra="forbid")
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=1, max_length=256)
+
+
+class UserCreateIn(_In):
+    username: str = Field(min_length=3, max_length=80, pattern=r"^[a-z0-9][a-z0-9._-]{2,79}$")
+    display_name: str = Field(min_length=2, max_length=200)
+    role: str = Field(min_length=2, max_length=40)
+    site: str | None = Field(None, max_length=120)
+    team: str | None = Field(None, max_length=120)
+    practitioner_id: int | None = None
+    temporary_password: str | None = Field(None, max_length=256)
+
+
+class UserRoleIn(_In):
+    role: str = Field(min_length=2, max_length=40)
+    site: str | None = Field(None, max_length=120)
+    team: str | None = Field(None, max_length=120)
+
+
+class UserResetIn(_In):
+    temporary_password: str | None = Field(None, max_length=256)
+
+
+class UserNoteIn(_In):
+    reason: str | None = Field(None, max_length=500)

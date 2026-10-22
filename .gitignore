@@ -4,3 +4,5 @@ data/
 .pytest_cache/
 .env
 mutants/
+demo_credentials.txt
+*.credentials.txt

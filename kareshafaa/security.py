@@ -36,7 +36,8 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     # professional medical translator: attests that a translation says the same as the signed-off English
     "translator": frozenset({"content:read", "content:translation_review"}),
     "admin": frozenset({"audit:read", "model:read", "model:train", "sweep:run", "proposal:generate",
-                        "lesson:read", "config:read", "simulation:run", "analytics:read"}),
+                        "lesson:read", "config:read", "simulation:run", "analytics:read",
+                        "user:admin"}),  # user accounts: create, role, reset password, deactivate
 }
 # Roles that see every case in the programme; others see only cases their organisation is involved in.
 PROGRAMME_WIDE_ROLES = frozenset({"coordinator", "clinical_lead"})

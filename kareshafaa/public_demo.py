@@ -46,14 +46,21 @@ BLOCKED: tuple[tuple[str, re.Pattern[str]], ...] = tuple((m, re.compile(p)) for 
     ("POST", r"^/api/governance/content/signoff$"),
     ("POST", r"^/api/sla/sweep$"),
     ("POST", r"^/api/analytics/simulation/run$"),
-    ("*", r"^/api/(admin|users?|roles?|reset|seed)(/|$)"),
+    ("*", r"^/api/(admin|users?|roles?|reset|seed)(/|$)"),  # user creation/role/reset/deactivate included
+    ("POST", r"^/api/auth/password$"),  # shared demo accounts keep the password the organisers set
     ("PUT", r"^/api/"), ("PATCH", r"^/api/"), ("DELETE", r"^/api/"),
 ))
 BLOCKED_DETAIL = ("disabled in the public synthetic-data demo (model training/promotion, sweeps, data reset, "
                   "user/role edits and deletes are turned off here)")
+# also refused: password changes of the shared demo accounts (POST /api/auth/password)
+
+
+READ_ONLY_ALLOWED = frozenset({("GET", "/api/admin/users")})  # the user list stays viewable (read only)
 
 
 def is_blocked(method: str, path: str) -> bool:
+    if (method, path) in READ_ONLY_ALLOWED:
+        return False
     return any((m == "*" or m == method) and rx.search(path) for m, rx in BLOCKED)
 
 
@@ -175,8 +182,18 @@ async def nightly_reset_loop() -> None:
         await asyncio.sleep(max(1.0, (at - datetime.now(UAE)).total_seconds()))
         try:
             await asyncio.to_thread(reset_from_seed, s)
+            await asyncio.to_thread(_after_reset)
         except Exception:  # noqa: BLE001
             log.exception("public demo: nightly reset failed")
+
+
+def _after_reset() -> None:
+    """The seed copy may predate newer columns and holds no demo passwords: migrate, then re-provision."""
+    from .accounts import provision_on_startup
+    from .db import init_db
+
+    init_db()
+    provision_on_startup()
 
 
 def main() -> int:

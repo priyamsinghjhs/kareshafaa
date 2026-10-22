@@ -1,4 +1,7 @@
-# Render Blueprint (free plan): Dashboard -> New -> Blueprint -> pick this repo -> Apply. Nothing else to set.
+# Render Blueprint (free plan): Dashboard -> New -> Blueprint -> pick this repo -> Apply.
+# Then set ONE secret in the dashboard (Environment): KARESHAFAA_DEMO_PASSWORD = a strong shared password (12+ chars,
+# not a common password) for the demo accounts. Without it the site still starts and shows the sign-in page, but the
+# demo accounts are not usable (a clear WARNING is logged). The password is never stored in this repo or shown on the site.
 # Free web services sleep after 15 min idle (about 1 min cold start) and have an ephemeral disk - fine here, because
 # the public demo restores its synthetic database from the seed copy baked into the image on every start.
 services:
@@ -17,6 +20,8 @@ services:
         value: "true"
       - key: KARESHAFAA_SECRET_KEY
         generateValue: true
+      - key: KARESHAFAA_DEMO_PASSWORD   # secret: entered in the Render dashboard, never committed
+        sync: false
       - key: WEB_WORKERS          # 512 MB instance: one worker (~210 MB RSS each)
         value: "1"
       - key: KARESHAFAA_SWEEP_INTERVAL_SECONDS
