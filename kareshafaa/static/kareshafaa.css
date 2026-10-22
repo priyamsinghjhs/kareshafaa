@@ -73,3 +73,4 @@ pre.card-md { white-space: pre-wrap; font-size:.8rem; background:#fafafa; paddin
 .pager button { width:auto; margin:0; padding:.2rem .8rem; }
 .notice{background:#fff8e1;border-inline-start:4px solid #f0a500;padding:.6rem .9rem}
 .card ol,.card ul{padding-inline-start:1.2rem}.card li{margin-bottom:.35rem;list-style-position:outside}
+.install-btn { padding: .2rem .7rem; font-size: .82rem; margin: 0; }

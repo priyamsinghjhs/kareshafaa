@@ -21,11 +21,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 
-from . import __version__, audit
+from . import __version__, audit, pwa
 from .api import auth, cases, demo_api, governance, ingest, me, ops
 from .api.deps import resolve_actor
 from .config import get_settings
 from .db import init_db, session_factory, session_scope
+from .pwa import PUBLIC_PATHS as PWA_PUBLIC_PATHS
 from .security import Actor
 from .services.escalation import run_sweep
 from .services.errors import DomainError, ServiceBusy
@@ -327,7 +328,7 @@ def create_app() -> FastAPI:
         start = time.time()
         response = await call_next(request)
         path = request.url.path
-        if path.startswith("/static") or path in ("/favicon.ico", "/healthz"):
+        if path.startswith("/static") or path in ("/favicon.ico", "/healthz") or path in PWA_PUBLIC_PATHS:
             return response
         state_actor = getattr(request.state, "actor", None)
         shed, inflight["shed"] = inflight["shed"], 0
@@ -356,7 +357,7 @@ def create_app() -> FastAPI:
         (nothing read or saved) instead of queueing into 30 s connection waits. Shed requests are counted and
         written to the audit log as one aggregated `http.load_shed` event with the next audited request."""
         path = request.url.path
-        if path.startswith("/static") or path in ("/favicon.ico", "/healthz"):
+        if path.startswith("/static") or path in ("/favicon.ico", "/healthz") or path in PWA_PUBLIC_PATHS:
             return await call_next(request)
         if inflight["n"] >= s.max_inflight_requests:
             inflight["shed"] += 1
@@ -412,7 +413,8 @@ def create_app() -> FastAPI:
         errs = [{"loc": list(e.get("loc", [])), "msg": e.get("msg")} for e in exc.errors()]
         return JSONResponse({"detail": "invalid input", "errors": errs}, status_code=422)
 
-    for r in (auth.router, cases.router, me.router, ops.router, governance.router, ingest.router, demo_api.router):
+    for r in (auth.router, cases.router, me.router, ops.router, governance.router, ingest.router, demo_api.router,
+              pwa.router):
         app.include_router(r)
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
