@@ -226,6 +226,7 @@ a.stat:hover { border-color: var(--c-primary); color: var(--c-text); }
 /* touch screens (phones, tablets, phones in landscape): every tap target is at least 44 x 44 px */
 @media (max-width: 1024px), (pointer: coarse), (max-height: 500px) {
   .tabs button, .tabs a { min-height: var(--tap); }
+  button.sm, .button.sm { min-height: var(--tap); }
   td a { display: inline-flex; align-items: center; justify-content: center; min-height: var(--tap); min-width: var(--tap); }
 }
 
