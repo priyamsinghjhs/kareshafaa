@@ -3,16 +3,16 @@ from pathlib import Path
 
 import pytest
 
-from wasl.services.errors import Invalid
-from wasl.services.ingest import parse_fhir_bundle, parse_hl7v2
+from kareshafaa.services.errors import Invalid
+from kareshafaa.services.ingest import parse_fhir_bundle, parse_hl7v2
 
 SAMPLES = Path(__file__).resolve().parent.parent / "samples"
 
 
 def hl7(mrn: str, value: str, ctrl: str, code: str = "29771-3", dob: str = "19700101") -> str:
     return "\r".join([
-        f"MSH|^~\\&|LIS|LAB|WASL|PROG|20261020093000||ORU^R01^ORU_R01|{ctrl}|P|2.5.1",
-        f"PID|1||{mrn}^^^WASL^MR||SYNTHETIC^PATIENT||{dob}|F",
+        f"MSH|^~\\&|LIS|LAB|KARESHAFAA|PROG|20261020093000||ORU^R01^ORU_R01|{ctrl}|P|2.5.1",
+        f"PID|1||{mrn}^^^KARESHAFAA^MR||SYNTHETIC^PATIENT||{dob}|F",
         f"OBX|1|NM|{code}^test^LN||{value}|ug/g|||||F"])
 
 
@@ -38,7 +38,7 @@ def test_parse_errors():
 
 
 def test_hl7_ingest_idempotent_and_match(client, as_user, db, make_patient):
-    from wasl.models import Patient
+    from kareshafaa.models import Patient
 
     pid = make_patient()
     p = db.get(Patient, pid)
@@ -61,7 +61,7 @@ def test_hl7_ingest_idempotent_and_match(client, as_user, db, make_patient):
 
 
 def test_unmatched_goes_to_human_review(client, as_user, db, make_patient):
-    from wasl.models import Patient
+    from kareshafaa.models import Patient
 
     h = {**as_user("aisha.rahman"), "Content-Type": "text/plain"}
     r = client.post("/api/ingest/hl7v2", headers=h, content=hl7("NO-SUCH-MRN", "300", "T-CTRL-2")).json()
@@ -84,7 +84,7 @@ def test_unmatched_goes_to_human_review(client, as_user, db, make_patient):
 def test_fhir_bundle_ingest(client, as_user, db, make_patient):
     import json
 
-    from wasl.models import Patient
+    from kareshafaa.models import Patient
 
     pid = make_patient()
     b = json.loads((SAMPLES / "fhir_bundle_hba1c.json").read_text())

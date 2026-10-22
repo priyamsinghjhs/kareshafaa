@@ -11,16 +11,16 @@ Gaps found (each test fails on the round-18 code):
 import pytest
 from sqlalchemy import func, select
 
-from wasl.models import AuditEvent, CarePlan, Case, Consent, User
-from wasl.security import Actor
-from wasl.services.errors import Forbidden, Invalid
-from wasl.statemachine import TransitionError
+from kareshafaa.models import AuditEvent, CarePlan, Case, Consent, User
+from kareshafaa.security import Actor
+from kareshafaa.services.errors import Forbidden, Invalid
+from kareshafaa.statemachine import TransitionError
 
 BOT = Actor(user_id=7, role="coordinator", display="integration job with a coordinator role", is_human=False)
 
 
 def _user(db, username):
-    from wasl.api.deps import actor_from_user
+    from kareshafaa.api.deps import actor_from_user
 
     return actor_from_user(db.scalar(select(User).where(User.username == username)))
 
@@ -40,7 +40,7 @@ def _n_consents(db, pid):
 # ------------------------------------------------------------------ 1. consent / decline on the patient's behalf
 @pytest.mark.parametrize("scope", ["care_coordination", "comm_sms", "share_external"])
 def test_bot_cannot_record_consent_on_patients_behalf(db, new_case, scope):
-    from wasl.services import workflow as wf
+    from kareshafaa.services import workflow as wf
 
     c = db.get(Case, new_case(value=250)["id"])
     n0 = _n_consents(db, c.patient_id)
@@ -51,7 +51,7 @@ def test_bot_cannot_record_consent_on_patients_behalf(db, new_case, scope):
 
 
 def test_staff_consent_needs_rationale_and_is_attributed(db, new_case):
-    from wasl.services import workflow as wf
+    from kareshafaa.services import workflow as wf
 
     c = db.get(Case, new_case(value=250)["id"])
     co = _user(db, "aisha.rahman")
@@ -66,7 +66,7 @@ def test_staff_consent_needs_rationale_and_is_attributed(db, new_case):
 
 
 def test_patient_own_consent_decision_needs_no_staff_signoff(db, new_case):
-    from wasl.services import workflow as wf
+    from kareshafaa.services import workflow as wf
 
     c = db.get(Case, new_case(value=250)["id"])
     wf.record_consent(db, c.patient, _patient_actor(c.patient), "comm_sms", "deny")  # the patient's own choice
@@ -84,7 +84,7 @@ def test_api_staff_consent_without_rationale_refused(client, as_user, new_case):
 
 
 def test_bot_cannot_record_decline_and_staff_needs_rationale(db):
-    from wasl.services import workflow as wf
+    from kareshafaa.services import workflow as wf
 
     c = db.scalar(select(Case).where(Case.state == "patient_notified", Case.review_required.is_(False)).limit(1))
     assert c is not None
@@ -99,7 +99,7 @@ def test_bot_cannot_record_decline_and_staff_needs_rationale(db):
 
 
 def test_patient_own_decline_still_allowed(db):
-    from wasl.services import workflow as wf
+    from kareshafaa.services import workflow as wf
 
     c = db.scalar(select(Case).where(Case.state == "patient_notified", Case.review_required.is_(False)).limit(1))
     wf.record_decline(db, c, _patient_actor(c.patient), "not now")
@@ -109,7 +109,7 @@ def test_patient_own_decline_still_allowed(db):
 
 # ------------------------------------------------------------------ 2. stale evidence after a re-open
 def _reopen(db, c, lead):
-    from wasl.services import workflow as wf
+    from kareshafaa.services import workflow as wf
 
     wf.transition(db, c, "triaged", lead, note="re-opened: new information from the hospital")
     for dst in ("patient_notified", "acknowledged"):
@@ -117,7 +117,7 @@ def _reopen(db, c, lead):
 
 
 def test_reopened_case_cannot_start_treatment_on_the_old_care_plan(db):
-    from wasl.services import workflow as wf
+    from kareshafaa.services import workflow as wf
 
     c = db.scalar(select(Case).join(CarePlan, CarePlan.case_id == Case.id).where(
         Case.state == "closed", CarePlan.status == "active", Case.needs_confirmation.is_(False)).limit(1))
@@ -137,7 +137,7 @@ def test_reopened_case_cannot_start_treatment_on_the_old_care_plan(db):
 
 
 def test_reopened_case_cannot_close_on_the_old_negative_confirmatory_result(db):
-    from wasl.services import workflow as wf
+    from kareshafaa.services import workflow as wf
 
     c = db.scalar(select(Case).where(Case.state == "closed",
                                      Case.closure_evidence_type == "negative_confirmatory_result").limit(1))
@@ -160,8 +160,8 @@ def test_reopened_case_cannot_close_on_the_old_negative_confirmatory_result(db):
 def test_reopened_case_cannot_be_marked_attended_on_the_old_appointment(db):
     from datetime import timedelta
 
-    from wasl.models import Appointment, ServiceRequest, utcnow
-    from wasl.services import workflow as wf
+    from kareshafaa.models import Appointment, ServiceRequest, utcnow
+    from kareshafaa.services import workflow as wf
 
     c = db.scalar(select(Case).join(Appointment, Appointment.case_id == Case.id).where(
         Case.state == "closed", Appointment.status == "fulfilled", Case.needs_confirmation.is_(False)).limit(1))

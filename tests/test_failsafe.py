@@ -9,12 +9,12 @@ from datetime import timedelta
 
 import pytest
 
-from wasl.models import Case, Patient, Practitioner, TierDowngradeError, utcnow
-from wasl.security import SYSTEM
-from wasl.services import workflow as wf
-from wasl.services.errors import DomainError, Forbidden, Invalid
-from wasl.statemachine import S, TransitionError
-from wasl.clinical_rules import TIER_RANK
+from kareshafaa.models import Case, Patient, Practitioner, TierDowngradeError, utcnow
+from kareshafaa.security import SYSTEM
+from kareshafaa.services import workflow as wf
+from kareshafaa.services.errors import DomainError, Forbidden, Invalid
+from kareshafaa.statemachine import S, TransitionError
+from kareshafaa.clinical_rules import TIER_RANK
 
 
 def _patient(db, *, sex="female", age=50, **kw) -> Patient:
@@ -33,8 +33,8 @@ def _ingest(db, p, prog="colorectal_fit", value=250.0, text=None, unit="ug/g", *
 
 
 def _lead(db, prog):
-    from wasl.synth.history import actor_from_user
-    from wasl.models import User
+    from kareshafaa.synth.history import actor_from_user
+    from kareshafaa.models import User
 
     lead = wf.programme_clinical_lead(db, prog)
     return actor_from_user(db.query(User).filter(User.practitioner_id == lead.id).one())
@@ -183,7 +183,7 @@ def test_result_after_closure_opens_review_case(sdb):
 
 # H-05 review gate: nothing progresses until a clinician has reviewed --------------------------------------
 def test_review_case_cannot_progress_or_message_or_close_with_evidence(sdb):
-    from wasl.comms.service import send_with_ladder
+    from kareshafaa.comms.service import send_with_ladder
 
     p = _patient(sdb)
     _, c = _ingest(sdb, p, unit=None)
@@ -191,8 +191,8 @@ def test_review_case_cannot_progress_or_message_or_close_with_evidence(sdb):
         wf.transition(sdb, c, S.TRIAGED, SYSTEM)
     with pytest.raises(DomainError):
         send_with_ladder(sdb, c, "result_notification", SYSTEM)
-    coord_user = sdb.query(__import__("wasl.models", fromlist=["User"]).User).filter_by(username="aisha.rahman").one()
-    from wasl.synth.history import actor_from_user
+    coord_user = sdb.query(__import__("kareshafaa.models", fromlist=["User"]).User).filter_by(username="aisha.rahman").one()
+    from kareshafaa.synth.history import actor_from_user
     with pytest.raises(Forbidden):
         wf.close_case(sdb, c, actor_from_user(coord_user), "authorised_decision", reason="moved_abroad",
                       note="coordinator cannot bypass the clinical review")
@@ -211,7 +211,7 @@ def test_review_case_cannot_progress_or_message_or_close_with_evidence(sdb):
 
 
 def test_deceased_patient_never_messaged_and_needs_authorised_closure(sdb):
-    from wasl.comms.service import send_with_ladder
+    from kareshafaa.comms.service import send_with_ladder
 
     p = _patient(sdb, deceased=True)
     _, c = _ingest(sdb, p)
@@ -234,7 +234,7 @@ def test_tier_downgrade_interlock(sdb):
 
 
 def test_clinician_downgrade_is_explicit_and_audited(sdb):
-    from wasl.models import AuditEvent
+    from kareshafaa.models import AuditEvent
 
     _, c = _ingest(sdb, _patient(sdb, age=30), value=500)
     lead = _lead(sdb, "colorectal_fit")
@@ -244,7 +244,7 @@ def test_clinician_downgrade_is_explicit_and_audited(sdb):
 
 
 def test_ml_scoring_never_changes_tiers(sdb):
-    from wasl.ml import registry
+    from kareshafaa.ml import registry
 
     before = dict(sdb.query(Case.id, Case.tier).all())
     registry.score_open_cases(sdb)
@@ -255,18 +255,18 @@ def test_ml_scoring_never_changes_tiers(sdb):
 
 
 def test_ml_code_never_writes_tier():
-    """Static guard: no module under wasl/ml assigns or bulk-updates Case.tier."""
+    """Static guard: no module under kareshafaa/ml assigns or bulk-updates Case.tier."""
     import pathlib
     import re
 
-    root = pathlib.Path(__file__).resolve().parent.parent / "wasl" / "ml"
+    root = pathlib.Path(__file__).resolve().parent.parent / "kareshafaa" / "ml"
     for f in root.rglob("*.py"):
         src = f.read_text()
         assert not re.search(r"\.tier\s*=[^=]|Case\.tier\s*:", src), f
 
 
 def test_queue_ml_orders_only_within_tier():
-    from wasl.services.queue import sort_key
+    from kareshafaa.services.queue import sort_key
 
     rows = [{"sla_status": "green", "tier": t, "risk_score": r, "due_at": "2026", "review_required": False}
             for t in TIER_RANK for r in (0.0, 0.5, 0.99)]
@@ -278,8 +278,8 @@ def test_queue_ml_orders_only_within_tier():
 
 # H-07 ingest paths: unknown test codes, unmatched patients, units from HL7 --------------------------------
 def _hl7(mrn, value, ctrl, code="29771-3", unit="ug/g", status="F", dob="19760101", extra=""):
-    return "\r".join([f"MSH|^~\\&|LIS|LAB|WASL|PROG|20261020093000||ORU^R01^ORU_R01|{ctrl}|P|2.5.1",
-                      f"PID|1||{mrn}^^^WASL^MR||SYN^PAT||{dob}|F",
+    return "\r".join([f"MSH|^~\\&|LIS|LAB|KARESHAFAA|PROG|20261020093000||ORU^R01^ORU_R01|{ctrl}|P|2.5.1",
+                      f"PID|1||{mrn}^^^KARESHAFAA^MR||SYN^PAT||{dob}|F",
                       f"OBX|1|NM|{code}^test^LN||{value}|{unit}|||||{status}"] + ([extra] if extra else []))
 
 
@@ -341,8 +341,8 @@ def test_hpv_with_reflex_cytology_two_obx(client, as_user, db):
 @pytest.mark.parametrize("prog,value,text,unit", [("cervical", None, "HPV other hr", None),
                                                    ("diabetes_hba1c", 7.0, None, "%")])
 def test_negative_confirmatory_needs_surveillance_plan(sdb, prog, value, text, unit):
-    from wasl.synth.history import actor_from_user
-    from wasl.models import User
+    from kareshafaa.synth.history import actor_from_user
+    from kareshafaa.models import User
 
     p = _patient(sdb, sex="female", age=45)
     _, c = _ingest(sdb, p, prog, value, text, unit)
@@ -360,7 +360,7 @@ def test_negative_confirmatory_needs_surveillance_plan(sdb, prog, value, text, u
 
 
 def test_patient_question_reaches_a_clinician_when_gp_has_left(sdb):
-    from wasl.synth.history import patient_actor
+    from kareshafaa.synth.history import patient_actor
 
     p = _patient(sdb)
     _, c = _ingest(sdb, p)
@@ -395,7 +395,7 @@ def test_every_open_case_has_an_owner_even_without_a_clinical_lead(sdb):
     ("colorectal_fit", 250, None, None, 14),  # review case (missing unit -> urgent): tier default
 ])
 def test_pathway_target_caps_step_clocks(sdb, prog, value, text, unit, days):
-    from wasl.services.workflow import _capped_due
+    from kareshafaa.services.workflow import _capped_due
 
     now = utcnow()
     _, c = _ingest(sdb, _patient(sdb), prog, value, text, unit, now=now)

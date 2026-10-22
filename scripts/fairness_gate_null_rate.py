@@ -39,17 +39,17 @@ def main() -> int:
     src.backup(dst)
     src.close()
     dst.close()
-    os.environ["WASL_DATABASE_URL"] = f"sqlite:///{tmp / 'w.db'}"
-    os.environ["WASL_MODEL_DIR"] = str(tmp / "models")
+    os.environ["KARESHAFAA_DATABASE_URL"] = f"sqlite:///{tmp / 'w.db'}"
+    os.environ["KARESHAFAA_MODEL_DIR"] = str(tmp / "models")
     (tmp / "models").mkdir()
     import joblib  # noqa: PLC0415
     from sqlalchemy import func, select  # noqa: PLC0415
 
-    from wasl.config import get_settings  # noqa: PLC0415
-    from wasl.db import session_factory  # noqa: PLC0415
-    from wasl.ml import features, registry  # noqa: PLC0415
-    from wasl.models import AuditEvent, ModelVersion  # noqa: PLC0415
-    from wasl.security import Actor  # noqa: PLC0415
+    from kareshafaa.config import get_settings  # noqa: PLC0415
+    from kareshafaa.db import session_factory  # noqa: PLC0415
+    from kareshafaa.ml import features, registry  # noqa: PLC0415
+    from kareshafaa.models import AuditEvent, ModelVersion  # noqa: PLC0415
+    from kareshafaa.security import Actor  # noqa: PLC0415
 
     cfg = get_settings()
     assert str(tmp) in str(cfg.database_url)

@@ -49,14 +49,14 @@ FEATURE_SETS = {
 
 
 def _use(cat: list[str], num: list[str]) -> None:
-    from wasl.ml import calibration, features, registry  # noqa: PLC0415
+    from kareshafaa.ml import calibration, features, registry  # noqa: PLC0415
 
     for mod in (registry, calibration, features):
         mod.CAT_FEATURES, mod.NUM_FEATURES, mod.FEATURES = list(cat), list(num), list(cat) + list(num)
 
 
 def _paired_auc_diff(y: np.ndarray, pa: np.ndarray, pb: np.ndarray, reps: int = 1000, seed: int = 20261919):
-    from wasl.ml.registry import fast_auc  # noqa: PLC0415
+    from kareshafaa.ml.registry import fast_auc  # noqa: PLC0415
 
     rng = np.random.default_rng(seed)
     n, d = len(y), []
@@ -75,23 +75,23 @@ def run_cohort(db_path: str, primary: str = "barrier") -> dict:
     src.backup(dst)
     src.close()
     dst.close()
-    os.environ["WASL_DATABASE_URL"] = f"sqlite:///{tmp / 'w.db'}"
-    os.environ["WASL_MODEL_DIR"] = str(tmp / "models")
+    os.environ["KARESHAFAA_DATABASE_URL"] = f"sqlite:///{tmp / 'w.db'}"
+    os.environ["KARESHAFAA_MODEL_DIR"] = str(tmp / "models")
     (tmp / "models").mkdir()
     import joblib  # noqa: PLC0415
     from sqlalchemy import func, select  # noqa: PLC0415
 
-    from wasl import config as wcfg  # noqa: PLC0415
-    from wasl import db as wdb  # noqa: PLC0415
+    from kareshafaa import config as wcfg  # noqa: PLC0415
+    from kareshafaa import db as wdb  # noqa: PLC0415
 
     for f in (getattr(wcfg.get_settings, "cache_clear", None), getattr(wdb, "reset_engine", None)):
         if f:
             f()
-    from wasl.config import get_settings  # noqa: PLC0415
-    from wasl.db import session_factory  # noqa: PLC0415
-    from wasl.ml import features, registry  # noqa: PLC0415
-    from wasl.models import AuditEvent, ModelVersion  # noqa: PLC0415
-    from wasl.security import Actor  # noqa: PLC0415
+    from kareshafaa.config import get_settings  # noqa: PLC0415
+    from kareshafaa.db import session_factory  # noqa: PLC0415
+    from kareshafaa.ml import features, registry  # noqa: PLC0415
+    from kareshafaa.models import AuditEvent, ModelVersion  # noqa: PLC0415
+    from kareshafaa.security import Actor  # noqa: PLC0415
 
     cfg = get_settings()
     assert str(tmp) in str(cfg.database_url), "refusing to run against a non-scratch database"

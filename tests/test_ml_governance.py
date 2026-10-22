@@ -4,10 +4,10 @@ import pandas as pd
 import pytest
 from sqlalchemy import select
 
-from wasl.ml import registry
-from wasl.ml.features import EXCLUDED_FROM_INPUTS, FAIRNESS_ATTRS
-from wasl.models import Case, ModelVersion
-from wasl.services.errors import DomainError, Forbidden
+from kareshafaa.ml import registry
+from kareshafaa.ml.features import EXCLUDED_FROM_INPUTS, FAIRNESS_ATTRS
+from kareshafaa.models import Case, ModelVersion
+from kareshafaa.services.errors import DomainError, Forbidden
 
 
 def test_sensitive_attributes_not_model_inputs():
@@ -119,7 +119,7 @@ def test_promotion_lifecycle_and_rollback(client, as_user, db):
 
 
 def test_service_layer_approval_guards(db, seeded):
-    from wasl.security import ML_SERVICE, Actor
+    from kareshafaa.security import ML_SERVICE, Actor
 
     mv = db.scalar(select(ModelVersion).order_by(ModelVersion.version.desc()))
     with pytest.raises(Forbidden):

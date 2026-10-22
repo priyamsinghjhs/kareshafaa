@@ -1,6 +1,6 @@
 # Edge-case coverage matrix (round 20)
 
-Cohort: `data/wasl_edge.db`, 20,000 planned people (seed 2020), generated 2026-10-21T05:51 UTC by `python -m wasl.seed --edge`. Matrix built by `scripts/edge_coverage.py`.
+Cohort: `data/kareshafaa_edge.db`, 20,000 planned people (seed 2020), generated 2026-10-21T05:51 UTC by `python -m kareshafaa.seed --edge`. Matrix built by `scripts/edge_coverage.py`.
 
 A cell counts a person only when the **database** shows the scenario actually happened (e.g. a recorded no-show, a withdrawal Consent, a death audit event, the review reason on the case) **and** the result was recorded (never lost). Planned-but-not-realised people (e.g. the journey closed before the planned withdrawal) are not counted. `n/a` = combination the rules/pathways cannot produce (reason listed below). Severity = the tier the rules engine gives the clean result (T0 critical, T1 urgent, T2 high, T3 routine, negative = no case).
 

@@ -10,13 +10,13 @@ from sqlalchemy.orm import Session
 
 
 def test_hanging_request_is_cut_off_rolled_back_and_never_saves(app, client, as_user, monkeypatch, db, caplog):
-    from wasl import audit
-    from wasl.audit import verify_chain
-    from wasl.config import get_settings
-    from wasl.db import get_db, session_factory
-    from wasl.models import AuditEvent
-    from wasl.request_timeout import RequestTimedOut
-    from wasl.security import Actor
+    from kareshafaa import audit
+    from kareshafaa.audit import verify_chain
+    from kareshafaa.config import get_settings
+    from kareshafaa.db import get_db, session_factory
+    from kareshafaa.models import AuditEvent
+    from kareshafaa.request_timeout import RequestTimedOut
+    from kareshafaa.security import Actor
 
     monkeypatch.setattr(get_settings(), "request_timeout_s", 0.5)
     monkeypatch.setattr(get_settings(), "writer_lock_timeout_s", 2.0)

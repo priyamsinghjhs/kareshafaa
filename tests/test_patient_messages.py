@@ -5,12 +5,12 @@ import re
 import pytest
 from sqlalchemy import delete
 
-from wasl.comms import content as C
-from wasl.comms import governance as G
-from wasl.comms.readability import measure, sentences, words
-from wasl.models import ContentApproval
-from wasl.security import Actor
-from wasl.services.errors import DomainError, Forbidden
+from kareshafaa.comms import content as C
+from kareshafaa.comms import governance as G
+from kareshafaa.comms.readability import measure, sentences, words
+from kareshafaa.models import ContentApproval
+from kareshafaa.security import Actor
+from kareshafaa.services.errors import DomainError, Forbidden
 
 LANGS = ("ar", "hi", "ur")
 
@@ -91,7 +91,7 @@ def test_unreviewed_translations_are_not_used(db):
 
 
 def _actors(db):
-    from wasl.models import User
+    from kareshafaa.models import User
     from sqlalchemy import select
     lead = db.scalar(select(User).where(User.role == "clinical_lead"))
     tr = db.scalar(select(User).where(User.role == "translator"))
@@ -204,7 +204,7 @@ def test_every_rendered_message_is_one_language_and_passes_checks(lang, monkeypa
     message), and the inserted next step pushed reminders past the sentence-length limit."""
     from types import SimpleNamespace as NS
 
-    from wasl.comms.service import render_message
+    from kareshafaa.comms.service import render_message
     bad, n = [], 0
     for live_state in ("none", "en", "all"):
         for pw in [None, *C.PATHWAY_TEXT_EN]:
@@ -244,9 +244,9 @@ def test_pending_translation_sends_english_and_books_interpreter_call(db, new_ca
     coherent English message (Communication.language = en) plus an interpreter-supported navigator call task."""
     from sqlalchemy import select
 
-    from wasl.comms import service as comms
-    from wasl.models import AuditEvent, CallTask, Case, Communication
-    from wasl.security import SYSTEM
+    from kareshafaa.comms import service as comms
+    from kareshafaa.models import AuditEvent, CallTask, Case, Communication
+    from kareshafaa.security import SYSTEM
     c = db.get(Case, new_case(programme="diabetes_hba1c", value=6.0, language="ar", smartphone=True)["id"])
     assert c.pathway == "prediabetes_gp" and not c.review_required
     live = G.live_ids(db)
@@ -273,9 +273,9 @@ def test_pending_translation_sends_english_and_books_interpreter_call(db, new_ca
 
 
 def test_english_speaker_gets_no_interpreter_task(db, new_case):
-    from wasl.comms import service as comms
-    from wasl.models import Case
-    from wasl.security import SYSTEM
+    from kareshafaa.comms import service as comms
+    from kareshafaa.models import Case
+    from kareshafaa.security import SYSTEM
     c = db.get(Case, new_case(programme="diabetes_hba1c", value=6.0, language="en", smartphone=True)["id"])
     res = comms.send_with_ladder(db, c, "result_notification", SYSTEM)
     assert res["language"] == "en" and res["interpreter_call_task_id"] is None

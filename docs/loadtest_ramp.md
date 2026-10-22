@@ -4,7 +4,7 @@
 
 `scripts/loadtest_ramp.py http://127.0.0.1:8001 --steps 5,10,20,40,80,160 --step-seconds 20 --continue-past-break`
 
-* **Server:** `python -m wasl.serve --workers 4`, on a fresh copy of the largest database (`data/wasl_10k.db`,
+* **Server:** `python -m kareshafaa.serve --workers 4`, on a fresh copy of the largest database (`data/kareshafaa_10k.db`,
   122 MB) for each run.
 * **Clients:** closed-loop virtual users with zero think time. The mix is:
 
@@ -53,13 +53,13 @@ Column key:
 * **Not achieved: fast 503s at 160 users.** The server stays up and serves about 75–115 per second, but 503s take
   up to about 5 s (p95). At that point the event loops and the same-box load generator are CPU-saturated.
 
-**With 10 in-flight requests per worker** (`WASL_MAX_INFLIGHT_REQUESTS=10`):
+**With 10 in-flight requests per worker** (`KARESHAFAA_MAX_INFLIGHT_REQUESTS=10`):
 * At 80 users, p95 of the served requests is 763 ms (goodput 171 per second) and 503s are fast (283 ms p95).
 * The cost is shedding about a third of requests even at 40 users, because keep-alive connections spread unevenly
   across the SO_REUSEPORT workers.
 * The default stays at 16, which sheds nothing up to 40 users.
 
-**PostgreSQL 17 smoke test.** This used a small 300-patient database seeded with `wasl.seed`, so the absolute
+**PostgreSQL 17 smoke test.** This used a small 300-patient database seeded with `kareshafaa.seed`, so the absolute
 figures are not comparable with the 10k SQLite runs.
 * The validator found 0 violations and the audit chain stayed valid.
 * At 40 users p95 was 356 ms (211 per second), with no errors.

@@ -1,14 +1,14 @@
-"""Explicit human sign-off on every high-impact action (wasl/signoff.py)."""
+"""Explicit human sign-off on every high-impact action (kareshafaa/signoff.py)."""
 import importlib
 import inspect
 
 import pytest
 from sqlalchemy import select
 
-from wasl.models import Case, Escalation, ModelVersion, RuleProposal
-from wasl.security import ML_SERVICE, SYSTEM, Actor
-from wasl.services.errors import Forbidden, Invalid
-from wasl.signoff import HIGH_IMPACT, require_signoff
+from kareshafaa.models import Case, Escalation, ModelVersion, RuleProposal
+from kareshafaa.security import ML_SERVICE, SYSTEM, Actor
+from kareshafaa.services.errors import Forbidden, Invalid
+from kareshafaa.signoff import HIGH_IMPACT, require_signoff
 
 # automated actors, including a "bot" that carries a clinical lead's role: none may take a high-impact action
 BOTS = [SYSTEM, ML_SERVICE, Actor(user_id=None, role="clinical_lead", display="script with lead role", is_human=False),
@@ -54,9 +54,9 @@ def _any_case(db, **flt):
 
 
 def test_service_functions_refuse_bots_before_any_change(db):
-    from wasl.ml import registry
-    from wasl.services import escalation, improve, ingest
-    from wasl.services import workflow as wf
+    from kareshafaa.ml import registry
+    from kareshafaa.services import escalation, improve, ingest
+    from kareshafaa.services import workflow as wf
 
     open_case = _any_case(db, state="appointment_booked") or db.scalar(select(Case).where(Case.state != "closed"))
     closed = _any_case(db, state="closed")
@@ -101,7 +101,7 @@ def test_reopen_needs_human_with_permission_and_reason(client, as_user, db):
 
 
 def test_decline_transfer_requires_reason():
-    from wasl.services import workflow as wf
+    from kareshafaa.services import workflow as wf
 
     class _C:
         transfer_pending_owner_id = None

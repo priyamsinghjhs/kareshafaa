@@ -8,9 +8,9 @@ of true breaches:
   * target breach - the case's end-to-end pathway target passed before care was reached and before closure.
 Hard requirement: every true breach that lasts longer than one sweep interval gets an L2+ alert within one
 sweep interval (recall = 100 %). Precision = first alert per (true breach, level) / all L2+ alerts.
-Policies compared: LEGACY (Iteration 6: step clock only, repeat per step) vs CURRENT (wasl/alert_policy.py).
+Policies compared: LEGACY (Iteration 6: step clock only, repeat per step) vs CURRENT (kareshafaa/alert_policy.py).
 
-Usage: WASL_DATABASE_URL=sqlite:///./data/wasl_large.db python scripts/alert_eval.py [--out docs/alert_precision.md]
+Usage: KARESHAFAA_DATABASE_URL=sqlite:///./data/kareshafaa_large.db python scripts/alert_eval.py [--out docs/alert_precision.md]
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import create_engine, text  # noqa: E402
 
-from wasl.alert_policy import Ladder, decide, ladder_level  # noqa: E402
+from kareshafaa.alert_policy import Ladder, decide, ladder_level  # noqa: E402
 
 SWEEP = timedelta(minutes=5)
 LAD = Ladder()
@@ -141,7 +141,7 @@ NARRATIVE = """
 
 ## How truth is labelled
 
-The truth labelling in this script is written independently of `wasl/alert_policy.py`. From each stored case
+The truth labelling in this script is written independently of `kareshafaa/alert_policy.py`. From each stored case
 timeline it derives the breach events a human auditor would count: a pathway-target breach (target passed before
 care was reached) and step breaches for steps whose own deadline came before the target (or after care). A
 true breach is **detected** if an L2+ alert for it is raised within one sweep (5 min) of the breach. Precision
@@ -162,7 +162,7 @@ repeats for the same breach are false positives.
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", default=os.environ.get("WASL_DATABASE_URL", "sqlite:///./data/wasl_large.db"))
+    ap.add_argument("--db", default=os.environ.get("KARESHAFAA_DATABASE_URL", "sqlite:///./data/kareshafaa_large.db"))
     ap.add_argument("--out", default="docs/alert_precision.md")
     a = ap.parse_args()
     eng = create_engine(a.db)

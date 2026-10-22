@@ -9,7 +9,7 @@ from datetime import timedelta
 import pytest
 from hypothesis import HealthCheck, assume, event, given, settings, strategies as st
 
-from wasl.clinical_rules import (TIER_RANK, UNIT_ALIASES, PatientContext, ResultInput, evaluate)
+from kareshafaa.clinical_rules import (TIER_RANK, UNIT_ALIASES, PatientContext, ResultInput, evaluate)
 
 PROGS = ["colorectal_fit", "cervical", "breast", "diabetes_hba1c"]
 TEXTS = ["HPV16", "HPV18", "HPV other hr", "HPV negative", "HPV invalid", "NILM", "ASC-US", "LSIL", "HSIL", "ASC-H",
@@ -77,7 +77,7 @@ def test_diabetes_monotone_above_low_range(spec, x, y):
 @settings(max_examples=1000, deadline=None)
 @given(st.floats(3.0, 20.0))
 def test_hba1c_same_result_in_either_unit_never_less_urgent(pct):
-    from wasl.clinical_rules import hba1c_pct_to_mmol
+    from kareshafaa.clinical_rules import hba1c_pct_to_mmol
 
     ctx = PatientContext(age=50, sex="male")
     a = evaluate(ResultInput("diabetes_hba1c", round(pct, 1), unit="%"), ctx)
@@ -98,16 +98,16 @@ ACTIONS = ["ingest", "ingest_same", "transition", "transition", "resolve", "clos
 def test_random_event_sequences_preserve_invariants(ops, rs):
     from sqlalchemy import select
 
-    from wasl import audit
-    from wasl.db import session_factory
-    from wasl.ml import registry
-    from wasl.models import AuditEvent, Case, DiagnosticReport, Patient, StepTask, User, utcnow
-    from wasl.security import SYSTEM
-    from wasl.services import workflow as wf
-    from wasl.services.errors import DomainError
-    from wasl.services.escalation import run_sweep
-    from wasl.statemachine import S, TransitionError
-    from wasl.synth.history import actor_from_user
+    from kareshafaa import audit
+    from kareshafaa.db import session_factory
+    from kareshafaa.ml import registry
+    from kareshafaa.models import AuditEvent, Case, DiagnosticReport, Patient, StepTask, User, utcnow
+    from kareshafaa.security import SYSTEM
+    from kareshafaa.services import workflow as wf
+    from kareshafaa.services.errors import DomainError
+    from kareshafaa.services.escalation import run_sweep
+    from kareshafaa.statemachine import S, TransitionError
+    from kareshafaa.synth.history import actor_from_user
 
     db = session_factory()()
     try:
@@ -149,7 +149,7 @@ def test_random_event_sequences_preserve_invariants(ops, rs):
                         actor = (rnd.choice(clin) if rnd.random() < 0.6 else users[k % len(users)]) \
                             if rnd.random() < 0.85 else SYSTEM
                         if op == "transition":
-                            from wasl.statemachine import allowed_targets
+                            from kareshafaa.statemachine import allowed_targets
 
                             tgt = sorted(allowed_targets(c.state)) if rnd.random() < 0.75 else list(S)
                             if tgt:
@@ -216,6 +216,6 @@ def test_random_event_sequences_preserve_invariants(ops, rs):
 
 
 def test_audit_chain_valid_after_property_runs(db):
-    from wasl import audit
+    from kareshafaa import audit
 
     assert audit.verify_chain(db)["valid"]

@@ -6,9 +6,9 @@ from collections import Counter
 
 import pytest
 
-from wasl.clinical_rules import PatientContext, ResultInput, evaluate
-from wasl.synth import cohort as C
-from wasl.synth import results as R
+from kareshafaa.clinical_rules import PatientContext, ResultInput, evaluate
+from kareshafaa.synth import cohort as C
+from kareshafaa.synth import results as R
 
 
 def _tables():

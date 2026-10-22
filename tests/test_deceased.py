@@ -16,7 +16,7 @@ def test_close_as_deceased_requires_recorded_death(client, as_user, new_case):
 
 
 def test_record_death_stops_outreach_and_reviews_every_open_case(client, as_user, db, new_case):
-    from wasl.models import CallTask, Case, Patient
+    from kareshafaa.models import CallTask, Case, Patient
 
     c1 = new_case(value=250)  # no digital channels -> the ladder ends in a phone task
     pid = db.get(Case, c1["id"]).patient_id
@@ -58,7 +58,7 @@ def test_record_death_needs_authorised_named_clinician(client, as_user, new_case
 
 
 def test_death_recorded_in_error_can_be_revoked_by_lead_only(client, as_user, db, new_case):
-    from wasl.models import Case, Patient
+    from kareshafaa.models import Case, Patient
 
     cid = new_case(value=250)["id"]
     h = as_user(LEAD)
@@ -87,10 +87,10 @@ def test_reopen_keeps_original_target_by_default_and_is_refused_when_another_epi
 
     import pytest
 
-    from wasl.models import Case, User, utcnow
-    from wasl.api.deps import actor_from_user
-    from wasl.services import workflow as wf
-    from wasl.services.errors import Invalid
+    from kareshafaa.models import Case, User, utcnow
+    from kareshafaa.api.deps import actor_from_user
+    from kareshafaa.services import workflow as wf
+    from kareshafaa.services.errors import Invalid
 
     lead = actor_from_user(db.scalar(select(User).where(User.username == LEAD)))
     c = db.get(Case, new_case(value=250)["id"])
@@ -101,14 +101,14 @@ def test_reopen_keeps_original_target_by_default_and_is_refused_when_another_epi
     original = c.target_due_at
     wf.transition(db, c, "triaged", lead, note="Re-opened: new symptoms reported (test).")
     assert c.target_due_at == original  # default: not relaxed
-    from wasl.models import AuditEvent, StepTask
+    from kareshafaa.models import AuditEvent, StepTask
     assert db.scalar(select(AuditEvent).where(AuditEvent.event == "case.reopened_past_target",
                                               AuditEvent.case_id == c.id)) is not None
     running = db.scalar(select(StepTask).where(StepTask.case_id == c.id, StepTask.status == "in-progress"))
     assert running.inherited_breach  # flagged breached at once -> escalates
     assert running.due_at <= max(original, running.started_at)  # step clock capped by the kept target
     wf.close_case(db, c, lead, "authorised_decision", reason="clinically_not_indicated", note="Closed (test).")
-    from wasl.config import get_settings
+    from kareshafaa.config import get_settings
     monkeypatch.setattr(get_settings(), "reopen_restarts_target", True)
     wf.transition(db, c, "triaged", lead, note="Re-opened under the fresh-target option (test).")
     assert c.target_due_at > utcnow() + timedelta(days=1)

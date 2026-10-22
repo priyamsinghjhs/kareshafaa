@@ -12,18 +12,18 @@ N_TEST_PATIENTS = 400
 
 @pytest.fixture(scope="session", autouse=True)
 def _env(tmp_path_factory) -> Iterator[None]:
-    d = tmp_path_factory.mktemp("wasl")
+    d = tmp_path_factory.mktemp("kareshafaa")
     os.environ.update({
-        "WASL_ENV": "test",
-        "WASL_DATABASE_URL": f"sqlite:///{d / 'test.db'}",
-        "WASL_DATA_DIR": str(d),
-        "WASL_MODEL_DIR": str(d / "models"),
-        "WASL_SECRET_KEY": "test-only-secret-not-for-production",
-        "WASL_DEMO_LOGINS": "true",
-        "WASL_SWEEP_INTERVAL_SECONDS": "0",
+        "KARESHAFAA_ENV": "test",
+        "KARESHAFAA_DATABASE_URL": f"sqlite:///{d / 'test.db'}",
+        "KARESHAFAA_DATA_DIR": str(d),
+        "KARESHAFAA_MODEL_DIR": str(d / "models"),
+        "KARESHAFAA_SECRET_KEY": "test-only-secret-not-for-production",
+        "KARESHAFAA_DEMO_LOGINS": "true",
+        "KARESHAFAA_SWEEP_INTERVAL_SECONDS": "0",
     })
-    from wasl.config import get_settings
-    from wasl.db import reset_engine
+    from kareshafaa.config import get_settings
+    from kareshafaa.db import reset_engine
 
     get_settings.cache_clear()
     reset_engine()
@@ -33,14 +33,14 @@ def _env(tmp_path_factory) -> Iterator[None]:
 
 @pytest.fixture(scope="session")
 def seeded(_env) -> dict:
-    from wasl.seed import seed
+    from kareshafaa.seed import seed
 
     return seed(N_TEST_PATIENTS, 1234, train=True, verbose=False)
 
 
 @pytest.fixture(scope="session")
 def app(seeded):
-    from wasl.main import create_app
+    from kareshafaa.main import create_app
 
     return create_app()
 
@@ -55,7 +55,7 @@ def client(app):
 
 @pytest.fixture()
 def db(seeded):
-    from wasl.db import session_factory
+    from kareshafaa.db import session_factory
 
     s = session_factory()()
     try:
@@ -91,8 +91,8 @@ _counter = iter(range(10_000))
 @pytest.fixture()
 def make_patient(db) -> Callable[..., int]:
     """Create a fresh synthetic patient (deterministic channels) and return its id."""
-    from wasl.models import Consent, Patient
-    from wasl.models import utcnow
+    from kareshafaa.models import Consent, Patient
+    from kareshafaa.models import utcnow
 
     def _mk(org_id: int = 3, gp_id: int = 19, *, smartphone: bool = False, phone_valid: bool = False,
             whatsapp: bool = False, language: str = "en", share_external: str | None = None) -> int:

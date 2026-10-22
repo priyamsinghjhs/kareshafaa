@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from wasl.clinical_rules import PatientContext, ResultInput, evaluate, hba1c_mmol_to_pct, hba1c_pct_to_mmol
+from kareshafaa.clinical_rules import PatientContext, ResultInput, evaluate, hba1c_mmol_to_pct, hba1c_pct_to_mmol
 
 F50 = dict(age=50, sex="female")
 M50 = dict(age=50, sex="male")
@@ -220,7 +220,7 @@ def test_golden_rule(row):
     if d.disposition == "review":
         assert d.reasons, "every review decision carries a machine-readable reason"
     if d.clinical_tier and d.tier:  # review floors never LOWER the clinical tier
-        from wasl.clinical_rules import TIER_RANK
+        from kareshafaa.clinical_rules import TIER_RANK
         assert TIER_RANK[d.tier] <= TIER_RANK[d.clinical_tier]
 
 
@@ -231,8 +231,8 @@ def test_golden_owner_end_to_end(db, row):
     """Through the real ingest path (DB): owner is the coordinator for actionable, the clinical lead for review."""
     import random
 
-    from wasl.models import Patient, Practitioner, utcnow
-    from wasl.services import workflow as wf
+    from kareshafaa.models import Patient, Practitioner, utcnow
+    from kareshafaa.services import workflow as wf
 
     gid, prog, val, txt, unit, test, status, cyto, ctx, disp, tier, pathway, rule, owner = row
     now = utcnow()
@@ -268,7 +268,7 @@ def test_hba1c_conversion_ngsp_ifcc(pct, mmol):
 def test_hba1c_units_agree_on_category(pct):
     """For every 0.1 % step, the % result and the same result in mmol/mol (rounded to an integer as labs
     report it) never land in a LESS urgent category in mmol/mol than in %."""
-    from wasl.clinical_rules import TIER_RANK
+    from kareshafaa.clinical_rules import TIER_RANK
 
     ctx = PatientContext(age=50, sex="male")
     a = evaluate(ResultInput(DM, pct, unit="%"), ctx)
@@ -280,7 +280,7 @@ def test_hba1c_units_agree_on_category(pct):
 
 # ---- strengthening added after mutation testing (mutmut survivors) -----------------------------------------
 def test_is_downgrade_strict():
-    from wasl.clinical_rules import is_downgrade
+    from kareshafaa.clinical_rules import is_downgrade
 
     assert not is_downgrade("high", "high") and not is_downgrade("high", "urgent")
     assert is_downgrade("urgent", "high") and not is_downgrade(None, "high") and not is_downgrade("high", None)
@@ -330,7 +330,7 @@ def test_birads_numeric_values(val, expect):
     ("human_review", "DM-ERR", "critical", "critical", 1), ("repeat_sample", "CX-UNSAT", "routine", "routine", 120),
 ])
 def test_target_days(pathway, rule, tier, clin, days):
-    from wasl.clinical_rules import target_days
+    from kareshafaa.clinical_rules import target_days
 
     assert target_days(pathway, rule, tier, clin) == days
 
@@ -339,13 +339,13 @@ def test_target_days(pathway, rule, tier, clin, days):
                                           (["duplicate_result", "more_urgent_result"], "urgent"),
                                           (["not_a_known_reason"], "urgent"), ([], None)])
 def test_review_min_tier(reasons, tier):
-    from wasl.clinical_rules import review_min_tier
+    from kareshafaa.clinical_rules import review_min_tier
 
     assert review_min_tier(reasons) == tier
 
 
 # ---- full-output snapshot (Iteration 7): next-step and target wording is clinician-facing and must only change
-# deliberately. Regenerate with WASL_UPDATE_SNAPSHOT=1 after clinical-lead approval of the new wording.
+# deliberately. Regenerate with KARESHAFAA_UPDATE_SNAPSHOT=1 after clinical-lead approval of the new wording.
 SNAPSHOT = Path(__file__).parent / "snapshots" / "golden_decisions.json"
 
 
@@ -357,7 +357,7 @@ def _full(d):
 
 def test_golden_full_output_snapshot():
     got = {row[0]: _full(_decide(row)) for row in G}
-    if os.environ.get("WASL_UPDATE_SNAPSHOT") == "1":
+    if os.environ.get("KARESHAFAA_UPDATE_SNAPSHOT") == "1":
         SNAPSHOT.write_text(json.dumps(got, indent=1, sort_keys=True))
     want = json.loads(SNAPSHOT.read_text())
     diff = {k: (want.get(k), v) for k, v in got.items() if want.get(k) != v}

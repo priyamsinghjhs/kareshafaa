@@ -837,3 +837,20 @@ fully or saves nothing.
   the commit is still refused.
 * Exempt admin endpoints have no time budget.
 * A request that is streaming its response when the budget passes is allowed to finish.
+
+### Round 24: product renamed Wasl → KareShafaa (22 Oct 2026, ~09:30-10:30 IST)
+* **Name:** *KareShafaa* = Kare (care) + Shafaa (healing). Wordmark is Latin script only (no Arabic glyph in logo or
+  header; a neutral ✦ mark replaces the old وصل glyph) because Bristol-Myers Squibb holds UAE "SHEFA شفاء" marks.
+  Preliminary screen: no exact marks in US/India/UAE (WIPO); official UAE MoE search (AED 350) recommended before filing.
+* **How:** `scripts/rename_product.py` (package `wasl/` → `kareshafaa/`, `WASL_*` → `KARESHAFAA_*`, page title
+  `… · KareShafaa`, Dockerfile OCI labels, README name note). Data files renamed after a WAL checkpoint:
+  `data/kareshafaa{,_10k,_edge,_large}.db`, `data/kareshafaa_edge_manifest.json`.
+* **Compatibility:** legacy `WASL_*` env vars and `.env` keys still accepted (`KARESHAFAA_*` wins). **Bug the rename
+  caused:** model artifacts pickled before the rename reference `wasl.ml.calibration`; their SHA-256 is pinned in the
+  registry, so instead of re-pickling, `wasl.*` imports now alias to `kareshafaa.*` (tests/test_rename_compat.py).
+* **Demo DB reseeded** (`python -m kareshafaa.seed --patients 2000`; old copy in `../backup_pre_kareshafaa_reseed/`) so
+  audit actor names, patient-link host and model card show the new name. The 10k/edge/large analysis DBs keep their
+  historical "Wasl" strings (hash-chained audit and sent-message records are not rewritten).
+* Entries above are kept as written: their `wasl/...` paths and `WASL_*` variables correspond to `kareshafaa/...` and
+  `KARESHAFAA_*` today.
+* **Tests:** 3,240 passed (3,236 + 4 rename-compat). Validator: 0 violations on all 4 DBs.

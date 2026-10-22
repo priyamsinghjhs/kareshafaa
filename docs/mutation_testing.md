@@ -1,6 +1,6 @@
 # Mutation testing (mutmut 3.8)
 
-Config: `setup.cfg`. Modules mutated: `wasl/clinical_rules.py` and `wasl/statemachine.py`. Tests used for each mutant:
+Config: `setup.cfg`. Modules mutated: `kareshafaa/clinical_rules.py` and `kareshafaa/statemachine.py`. Tests used for each mutant:
 golden clinical cases (with a full-output snapshot), differential test, Hypothesis properties, and both state-machine
 test files. Database-backed tests are excluded so the run stays fast. Run: `.venv/bin/mutmut run --max-children 6`
 (about 10 minutes of mutation time on this box), then `.venv/bin/mutmut results`.

@@ -1,7 +1,7 @@
-"""Check every record in the Wasl database against the clinical and data-integrity invariants.
+"""Check every record in the KareShafaa database against the clinical and data-integrity invariants.
 
 Usage:  python scripts/validate_data.py [--json] [--max-examples 5]
-        (uses WASL_DATABASE_URL like the app; `make validate` / `make validate-large`)
+        (uses KARESHAFAA_DATABASE_URL like the app; `make validate` / `make validate-large`)
 Exit code 0 = zero violations. Each invariant is documented in docs/synthetic_data.md (section "Invariants")
 and referenced from the hazard log in docs/clinical_safety_case.md.
 """
@@ -19,14 +19,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy import select  # noqa: E402
 
-from wasl import audit  # noqa: E402
-from wasl.clinical_rules import (ELIGIBLE_AGE, HBA1C_RANGE_MMOL, HBA1C_RANGE_PCT, TIER_RANK, ResultInput,  # noqa: E402
+from kareshafaa import audit  # noqa: E402
+from kareshafaa.clinical_rules import (ELIGIBLE_AGE, HBA1C_RANGE_MMOL, HBA1C_RANGE_PCT, TIER_RANK, ResultInput,  # noqa: E402
                                  evaluate)
-from wasl.services.workflow import patient_context  # noqa: E402  # noqa: E402
-from wasl.db import session_scope  # noqa: E402
-from wasl.models import (Appointment, AuditEvent, CarePlan, Case, Communication, DiagnosticReport,  # noqa: E402
+from kareshafaa.services.workflow import patient_context  # noqa: E402  # noqa: E402
+from kareshafaa.db import session_scope  # noqa: E402
+from kareshafaa.models import (Appointment, AuditEvent, CarePlan, Case, Communication, DiagnosticReport,  # noqa: E402
                          Observation, Patient, Practitioner, ServiceRequest, StepTask, User)
-from wasl.statemachine import AUTHORISED_CLOSURE_REASONS, CLOSABLE_WITH_EVIDENCE, S  # noqa: E402
+from kareshafaa.statemachine import AUTHORISED_CLOSURE_REASONS, CLOSABLE_WITH_EVIDENCE, S  # noqa: E402
 
 AGE_REASONS = {"age_below_programme", "age_above_programme", "age_unknown"}
 
@@ -254,9 +254,9 @@ def run(max_examples: int = 5) -> dict:
             if len(ids) > 1:
                 bad("identity.one_open_case_per_emirates_id_programme", (k, ids))
         # automated SLA reminders reach patients only inside the UAE-local message window
-        from wasl.calendar_uae import to_local as _tl
-        from wasl.config import get_settings as _gs
-        from wasl.models import Communication as _Cm
+        from kareshafaa.calendar_uae import to_local as _tl
+        from kareshafaa.config import get_settings as _gs
+        from kareshafaa.models import Communication as _Cm
 
         _w0, _w1 = _gs().patient_message_window
         for cm in db.query(_Cm).filter(_Cm.category == "reminder", _Cm.channel.in_(("app", "sms", "whatsapp"))):
@@ -264,8 +264,8 @@ def run(max_examples: int = 5) -> dict:
             if not _w0 <= _tl(cm.sent_at).hour < _w1:
                 bad("comms.reminders_inside_patient_window", (cm.id, cm.sent_at.isoformat()))
         # clock sanity: attendance / no-show never recorded before the appointment (early arrival allowance)
-        from wasl.models import Appointment as _A
-        from wasl.services.workflow import ATTENDANCE_EARLY_HOURS as _EARLY
+        from kareshafaa.models import Appointment as _A
+        from kareshafaa.services.workflow import ATTENDANCE_EARLY_HOURS as _EARLY
 
         for a in db.query(_A).filter(_A.status.in_(("fulfilled", "noshow"))):
             checked["attendance"] += 1
@@ -275,15 +275,15 @@ def run(max_examples: int = 5) -> dict:
                 bad("dates.attendance_not_before_appointment", (a.id, a.status))
         from collections import Counter as _C
 
-        from wasl.models import Escalation as _E
+        from kareshafaa.models import Escalation as _E
         pw = _C((e.case_id, e.level) for e in db.query(_E).filter(_E.kind == "pathway"))
         for k, n in pw.items():
             if n > 1:
                 bad("alert.one_pathway_alert_per_case_per_level", (k, n))
         # patient content: only signed-off wording reaches patients; sign-offs respect separation of duties
-        from wasl.comms import governance as _G
-        from wasl.comms.content import PATHWAY_TEXT as _PT
-        from wasl.models import Communication as _Cm, ContentApproval as _CA
+        from kareshafaa.comms import governance as _G
+        from kareshafaa.comms.content import PATHWAY_TEXT as _PT
+        from kareshafaa.models import Communication as _Cm, ContentApproval as _CA
         live = _G.live_ids(db)
         drafts = {(lang, t["meaning"]) for lang, d in _PT.items() if lang != "en" for pw, t in d.items()
                   if f"pathway:{pw}:{lang}" not in live}
@@ -307,13 +307,13 @@ def run(max_examples: int = 5) -> dict:
             if n > 1:
                 bad("content.signoffs_by_different_people", k)
         # --- round 20 (edge cohort) invariants -----------------------------------------------------------
-        from wasl.models import Consent as _Cs, IngestMessage as _IM
+        from kareshafaa.models import Consent as _Cs, IngestMessage as _IM
 
         reopen_at: dict[int, datetime] = {}
         for e in db.scalars(select(AuditEvent).where(AuditEvent.event == "case.transition")):
             if (e.detail or {}).get("from") == "closed" and e.case_id:
                 reopen_at[e.case_id] = max(reopen_at.get(e.case_id, e.ts), e.ts)
-        from wasl.config import get_settings as _gs
+        from kareshafaa.config import get_settings as _gs
 
         restart = _gs().reopen_restarts_target  # CLINICAL LEAD TO CONFIRM; default False keeps the original target
         restarted = {e.case_id for e in db.scalars(select(AuditEvent).where(AuditEvent.event == "case.target_restarted"))}

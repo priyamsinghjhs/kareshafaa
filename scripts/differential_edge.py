@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from differential_test import compare, upper95  # noqa: E402
 
-from wasl.synth.edge import _mutate, plan_cohort  # noqa: E402
+from kareshafaa.synth.edge import _mutate, plan_cohort  # noqa: E402
 
 
 def main() -> None:

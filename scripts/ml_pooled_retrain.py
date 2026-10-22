@@ -1,14 +1,14 @@
 """Round 20: retrain the outreach-priority model on POOLED cohorts incl. the edge-case cohort; report hold-out
 discrimination, calibration and the fairness gates PER COHORT. Offline and read-only: nothing is registered or
-promoted (promotion stays a clinical-lead sign-off in the registry). Feature set = wasl.ml.features.FEATURES
+promoted (promotion stays a clinical-lead sign-off in the registry). Feature set = kareshafaa.ml.features.FEATURES
 (round-18 language-barrier input unchanged).
 
 Each cohort is split temporally (oldest 75 % train, most recent 25 % hold-out); the pooled model trains on the
 union of the train parts and is evaluated on each cohort's own hold-out, next to a model trained on that cohort
 alone (same split) so the effect of adding the edge cohort is visible.
 
-usage: python scripts/ml_pooled_retrain.py --db demo=data/wasl.db --db realistic_20k=data/wasl_large.db \
-          --db edge_20k=data/wasl_edge.db [--out docs/ml_pooled_retrain]
+usage: python scripts/ml_pooled_retrain.py --db demo=data/kareshafaa.db --db realistic_20k=data/kareshafaa_large.db \
+          --db edge_20k=data/kareshafaa_edge.db [--out docs/ml_pooled_retrain]
 """
 from __future__ import annotations
 
@@ -25,11 +25,11 @@ from sqlalchemy.orm import Session
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from wasl.config import get_settings  # noqa: E402
-from wasl.ml.calibration import CalibratedModel, calibration_stats  # noqa: E402
-from wasl.ml.features import FAIRNESS_ATTRS, FEATURES, training_frame  # noqa: E402
-from wasl.ml.registry import _pipeline, evaluate, gate_results  # noqa: E402
-from wasl.models import AuditEvent  # noqa: E402
+from kareshafaa.config import get_settings  # noqa: E402
+from kareshafaa.ml.calibration import CalibratedModel, calibration_stats  # noqa: E402
+from kareshafaa.ml.features import FAIRNESS_ATTRS, FEATURES, training_frame  # noqa: E402
+from kareshafaa.ml.registry import _pipeline, evaluate, gate_results  # noqa: E402
+from kareshafaa.models import AuditEvent  # noqa: E402
 
 
 def frame(path: str) -> pd.DataFrame:

@@ -1,9 +1,9 @@
 # Synthetic data: calibration, assumptions and invariants
 
-All people, results and events in Wasl are **synthetic**. Nothing describes a real person. Values come from a
+All people, results and events in KareShafaa are **synthetic**. Nothing describes a real person. Values come from a
 published source where one was found; anything else is an **ASSUMPTION (A)** chosen to be plausible and to
-exercise the safety paths. Code: `wasl/synth/cohort.py` (people), `wasl/synth/results.py` (results),
-`wasl/synth/history.py` (pathway journeys), `wasl/seed.py`.
+exercise the safety paths. Code: `kareshafaa/synth/cohort.py` (people), `kareshafaa/synth/results.py` (results),
+`kareshafaa/synth/history.py` (pathway journeys), `kareshafaa/seed.py`.
 
 ## Two modes
 
@@ -12,7 +12,7 @@ exercise the safety paths. Code: `wasl/synth/cohort.py` (people), `wasl/synth/re
 | People | 2,000 (+5 named demo stories) | 20,000 (+5) |
 | Ages | 25–84 (keeps the demo queue focused) | 18–84 (all adults) |
 | Results | **enriched**: drawn from the same distributions, kept only if they create a case (rejection sampling), defects × 5 | **realistic**: full distribution (most results negative), defects at base rates, duplicate re-sends, late results after closure |
-| Database | `data/wasl.db` | `data/wasl_large.db` (models in `data/models_large`, the demo is untouched) |
+| Database | `data/kareshafaa.db` | `data/kareshafaa_large.db` (models in `data/models_large`, the demo is untouched) |
 | Time | ~1 min incl. ML training | ~3 min, no ML training |
 
 ## Population (cohort.py)
@@ -52,13 +52,13 @@ exercise the safety paths. Code: `wasl/synth/cohort.py` (people), `wasl/synth/re
 
 | Parameter | Value | Source |
 |---|---|---|
-| Appointment no-show (with reminders) | emerges at ≈ 12–13 % in the 20k replay | UAE primary care 20.8 % → 10.3 % after an AI-reminder intervention (https://pmc.ncbi.nlm.nih.gov/articles/PMC11729783/); the replay represents "with Wasl" |
+| Appointment no-show (with reminders) | emerges at ≈ 12–13 % in the 20k replay | UAE primary care 20.8 % → 10.3 % after an AI-reminder intervention (https://pmc.ncbi.nlm.nih.gov/articles/PMC11729783/); the replay represents "with KareShafaa" |
 | Confirmatory step positive, by pathway | reflex cytology 34 %, reflex HPV 45 %, breast assessment 25 %, diabetes confirmation 80 %, repeat FIT 10 %, repeat sample 15 % | A |
 | Pathway logic | prediabetes and HPV-other/NILM → GP surveillance care plan (no specialist referral); critical diabetes → same-day review; negative follow-up for cervical/diabetes → surveillance plan, never a bare closure | clinical rules doc |
 | Review queue | clinical lead resolves review cases; deceased → authorised closure; under-specialist-care → "care elsewhere verified" closure | prototype workflow |
 
-The simulator used for the KPI comparison (`wasl/synth/simulator.py`) has its own baseline parameters; the
-Abu Dhabi 2015–16 study (30.5 % colonoscopy completion, median 72 days) is the reference for the "no Wasl"
+The simulator used for the KPI comparison (`kareshafaa/synth/simulator.py`) has its own baseline parameters; the
+Abu Dhabi 2015–16 study (30.5 % colonoscopy completion, median 72 days) is the reference for the "no KareShafaa"
 baseline. KPIs from the simulator are **simulated**, not evidence of real-world effect.
 
 Since Iteration 6 the simulator draws results with the same generator and classifies them with the **same rules
@@ -107,17 +107,17 @@ that every distribution table sums to 1.
 
 Result on the 20k cohort: **0 violations** (see ITERATIONS.md, Iteration 6).
 
-## Edge-case cohort (round 20): `python -m wasl.seed --edge`
+## Edge-case cohort (round 20): `python -m kareshafaa.seed --edge`
 
 | | `--edge` (stratified edge cases) |
 |---|---|
 | People | 20,000 planned (+ second records for the duplicate-identity scenario) |
-| Database | `data/wasl_edge.db`; per-person plan in `data/wasl_edge_manifest.json` (seed 2020) |
+| Database | `data/kareshafaa_edge.db`; per-person plan in `data/kareshafaa_edge_manifest.json` (seed 2020) |
 | Purpose | exercise every supported **disease × severity × scenario** combination through the real service layer, for testing, validation, alert evaluation and ML robustness checks |
 | NOT for | prevalence, KPIs or calibration claims: the mix is **stratified by design**, not epidemiological |
 | Coverage | `docs/edge_case_coverage.md` (built from the database by `scripts/edge_coverage.py`) |
 
-**Design (code: `wasl/synth/edge.py`).**
+**Design (code: `kareshafaa/synth/edge.py`).**
 
 * **Programme** is balanced across the four supported programmes (diabetes HbA1c/FPG, breast, cervical, colorectal
   FIT). No new disease or pathway is added: every category below is an input the existing rules

@@ -1,8 +1,8 @@
 """Coverage matrix for the edge-case cohort (round 20): disease x severity x scenario, counted only where the
 DATABASE shows the scenario actually happened (not just that it was planned).
 
-Usage: WASL_DATABASE_URL=sqlite:///./data/wasl_edge.db python scripts/edge_coverage.py \
-           --manifest data/wasl_edge_manifest.json --out docs/edge_case_coverage.md
+Usage: KARESHAFAA_DATABASE_URL=sqlite:///./data/kareshafaa_edge.db python scripts/edge_coverage.py \
+           --manifest data/kareshafaa_edge_manifest.json --out docs/edge_case_coverage.md
 """
 from __future__ import annotations
 
@@ -17,12 +17,12 @@ sys.path.insert(0, str(ROOT))
 
 from sqlalchemy import select  # noqa: E402
 
-from wasl.calendar_uae import is_ramadan, to_local  # noqa: E402
-from wasl.db import session_scope  # noqa: E402
-from wasl.models import (Appointment, AuditEvent, Case, Consent, DiagnosticReport, IngestMessage,  # noqa: E402
+from kareshafaa.calendar_uae import is_ramadan, to_local  # noqa: E402
+from kareshafaa.db import session_scope  # noqa: E402
+from kareshafaa.models import (Appointment, AuditEvent, Case, Consent, DiagnosticReport, IngestMessage,  # noqa: E402
                          Patient)
-from wasl.clinical_rules import ELIGIBLE_AGE  # noqa: E402
-from wasl.synth.edge import PROGRAMMES, SCENARIOS, TIERS, not_applicable  # noqa: E402
+from kareshafaa.clinical_rules import ELIGIBLE_AGE  # noqa: E402
+from kareshafaa.synth.edge import PROGRAMMES, SCENARIOS, TIERS, not_applicable  # noqa: E402
 
 REVIEW_EVIDENCE = {
     "missing_value": {"missing_value"}, "unknown_value": {"malformed_value", "unknown_test", "missing_value"},
@@ -152,8 +152,8 @@ def main() -> None:
     scen = [s for s, _ in SCENARIOS]
     gaps, na, total_supported = [], 0, 0
     lines = ["# Edge-case coverage matrix (round 20)", "",
-             f"Cohort: `data/wasl_edge.db`, {len(recs):,} planned people (seed {man['seed']}), generated "
-             f"{man['now'][:16]} UTC by `python -m wasl.seed --edge`. Matrix built by `scripts/edge_coverage.py`.",
+             f"Cohort: `data/kareshafaa_edge.db`, {len(recs):,} planned people (seed {man['seed']}), generated "
+             f"{man['now'][:16]} UTC by `python -m kareshafaa.seed --edge`. Matrix built by `scripts/edge_coverage.py`.",
              "", "A cell counts a person only when the **database** shows the scenario actually happened (e.g. a "
              "recorded no-show, a withdrawal Consent, a death audit event, the review reason on the case) **and** "
              "the result was recorded (never lost). Planned-but-not-realised people (e.g. the journey closed before "

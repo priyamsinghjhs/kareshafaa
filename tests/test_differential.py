@@ -1,4 +1,4 @@
-"""Differential testing against the independent reference implementation (wasl_reference/rules.py).
+"""Differential testing against the independent reference implementation (kareshafaa_reference/rules.py).
 The full 1M+ run is `make differential`; this keeps a 60k-case seeded sample in the normal suite."""
 import random
 import sys
@@ -10,8 +10,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import differential_test as dt  # noqa: E402
 
-from wasl.clinical_rules import PatientContext, ResultInput, evaluate  # noqa: E402
-from wasl_reference.rules import reference  # noqa: E402
+from kareshafaa.clinical_rules import PatientContext, ResultInput, evaluate  # noqa: E402
+from kareshafaa_reference.rules import reference  # noqa: E402
 
 F = dict(age=50, sex="female")
 

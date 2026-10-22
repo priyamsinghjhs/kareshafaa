@@ -5,12 +5,12 @@ import pandas as pd
 import pytest
 from sqlalchemy import select
 
-from wasl.ml import registry
-from wasl.ml.calibration import _label
-from wasl.ml.features import CAT_FEATURES, FAIRNESS_ATTRS, FEATURES, NUM_FEATURES, case_frame, language_unsupported
-from wasl.models import Case, ModelVersion, User
-from wasl.security import Actor
-from wasl.services.errors import DomainError
+from kareshafaa.ml import registry
+from kareshafaa.ml.calibration import _label
+from kareshafaa.ml.features import CAT_FEATURES, FAIRNESS_ATTRS, FEATURES, NUM_FEATURES, case_frame, language_unsupported
+from kareshafaa.models import Case, ModelVersion, User
+from kareshafaa.security import Actor
+from kareshafaa.services.errors import DomainError
 
 
 def _groups(lang: np.ndarray) -> pd.DataFrame:

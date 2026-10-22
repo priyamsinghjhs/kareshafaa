@@ -7,10 +7,10 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from wasl.ml import registry
-from wasl.ml.calibration import CalibratedModel, _label, calibration_stats, explain, reference_profile, wilson
-from wasl.ml.features import CAT_FEATURES, FEATURES, NUM_FEATURES
-from wasl.models import Case, ModelVersion
+from kareshafaa.ml import registry
+from kareshafaa.ml.calibration import CalibratedModel, _label, calibration_stats, explain, reference_profile, wilson
+from kareshafaa.ml.features import CAT_FEATURES, FEATURES, NUM_FEATURES
+from kareshafaa.models import Case, ModelVersion
 
 
 def test_wilson_interval():
@@ -160,9 +160,9 @@ def test_model_with_older_feature_set_still_scores_and_explains(monkeypatch):
     import numpy as np
     import pandas as pd
 
-    import wasl.ml.registry as R
-    from wasl.ml.calibration import CalibratedModel, explain
-    from wasl.ml.features import CAT_FEATURES, FEATURES, NUM_FEATURES
+    import kareshafaa.ml.registry as R
+    from kareshafaa.ml.calibration import CalibratedModel, explain
+    from kareshafaa.ml.features import CAT_FEATURES, FEATURES, NUM_FEATURES
 
     rng = np.random.default_rng(0)
     n = 300

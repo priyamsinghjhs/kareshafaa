@@ -8,7 +8,7 @@ import itertools
 
 import pytest
 
-from wasl.statemachine import (AUTHORISED_CLOSURE_REASONS, S, TransitionError, allowed_targets, check_closure,
+from kareshafaa.statemachine import (AUTHORISED_CLOSURE_REASONS, S, TransitionError, allowed_targets, check_closure,
                                check_transition)
 
 EXPECTED = {

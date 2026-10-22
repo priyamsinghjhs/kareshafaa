@@ -1,10 +1,10 @@
 {
   "resourceType": "Bundle",
   "type": "message",
-  "identifier": {"system": "urn:wasl:lab-message", "value": "FHIR-LAB-20261020-000777"},
+  "identifier": {"system": "urn:kareshafaa:lab-message", "value": "FHIR-LAB-20261020-000777"},
   "entry": [
     {"resource": {"resourceType": "Patient", "id": "p1",
-      "identifier": [{"system": "urn:wasl:mrn", "value": "SYN-100002"}]}},
+      "identifier": [{"system": "urn:kareshafaa:mrn", "value": "SYN-100002"}]}},
     {"resource": {"resourceType": "Observation", "status": "final",
       "code": {"coding": [{"system": "http://loinc.org", "code": "4548-4", "display": "Hemoglobin A1c"}]},
       "subject": {"reference": "Patient/p1"},

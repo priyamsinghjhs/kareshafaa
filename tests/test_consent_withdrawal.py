@@ -7,17 +7,17 @@ from sqlalchemy import select
 
 
 def _patient_actor(p):
-    from wasl.security import Actor
+    from kareshafaa.security import Actor
 
     return Actor(user_id=None, role="patient", display="patient", patient_id=p.id)
 
 
 def test_withdrawal_flags_open_case_and_stops_automated_messages(db, new_case):
-    from wasl.comms.service import send_with_ladder
-    from wasl.models import Case
-    from wasl.security import SYSTEM
-    from wasl.services import workflow as wf
-    from wasl.services.errors import DomainError
+    from kareshafaa.comms.service import send_with_ladder
+    from kareshafaa.models import Case
+    from kareshafaa.security import SYSTEM
+    from kareshafaa.services import workflow as wf
+    from kareshafaa.services.errors import DomainError
 
     c = db.get(Case, new_case(value=250, smartphone=True)["id"])
     tier = c.tier
@@ -31,10 +31,10 @@ def test_withdrawal_flags_open_case_and_stops_automated_messages(db, new_case):
 
 def test_clinician_may_still_contact_after_withdrawal(db, new_case):
     """Duty of care: a named clinician can still make contact (audited); only AUTOMATED outreach stops."""
-    from wasl.api.deps import actor_from_user
-    from wasl.comms.service import send_with_ladder
-    from wasl.models import Case, User
-    from wasl.services import workflow as wf
+    from kareshafaa.api.deps import actor_from_user
+    from kareshafaa.comms.service import send_with_ladder
+    from kareshafaa.models import Case, User
+    from kareshafaa.services import workflow as wf
 
     c = db.get(Case, new_case(value=250, smartphone=True)["id"])
     wf.record_consent(db, c.patient, _patient_actor(c.patient), "care_coordination", "deny")
@@ -44,10 +44,10 @@ def test_clinician_may_still_contact_after_withdrawal(db, new_case):
 
 
 def test_phone_consent_denied_creates_no_call_task(db, new_case):
-    from wasl.comms.service import send_with_ladder
-    from wasl.models import CallTask, Case
-    from wasl.security import SYSTEM
-    from wasl.services import workflow as wf
+    from kareshafaa.comms.service import send_with_ladder
+    from kareshafaa.models import CallTask, Case
+    from kareshafaa.security import SYSTEM
+    from kareshafaa.services import workflow as wf
 
     c = db.get(Case, new_case(value=250)["id"])  # no digital channels -> ladder ends at phone
     wf.record_consent(db, c.patient, _patient_actor(c.patient), "comm_phone", "deny")
@@ -60,10 +60,10 @@ def test_phone_consent_denied_creates_no_call_task(db, new_case):
 def test_sweep_sends_no_reminder_after_withdrawal(db, new_case):
     from datetime import timedelta
 
-    from wasl.calendar_uae import to_local
-    from wasl.models import Case, Communication, StepTask
-    from wasl.services import workflow as wf
-    from wasl.services.escalation import run_sweep
+    from kareshafaa.calendar_uae import to_local
+    from kareshafaa.models import Case, Communication, StepTask
+    from kareshafaa.services import workflow as wf
+    from kareshafaa.services.escalation import run_sweep
 
     cid = new_case("diabetes_hba1c", 7.5, smartphone=True)["id"]
     c = db.get(Case, cid)

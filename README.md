@@ -1,11 +1,13 @@
-# Wasl (وصل) – Closing the Screening-to-Care Loop
+# KareShafaa – Closing the Screening-to-Care Loop
+
+> **Name.** *KareShafaa*: Kare (care) + Shafaa (healing). Renamed from "Wasl" on 2026-10-22 ("wasl" is also the brand of a Dubai real-estate developer). "KareShafaa" still needs UAE and India trademark clearance. The brand name is never translated in patient messages.
 
 > **Prototype on synthetic data only.** Not a medical device and not validated for clinical use. No real person,
 > result or message exists in this system. Every patient message is **simulated and never sent**. Every KPI on the
-> dashboard that compares "baseline vs with Wasl" comes from a **simulation** with assumed parameters. It is not real-world
+> dashboard that compares "baseline vs with KareShafaa" comes from a **simulation** with assumed parameters. It is not real-world
 > evidence.
 
-Wasl turns every actionable screening result into a **tracked case** that carries it to care, across four programmes:
+KareShafaa turns every actionable screening result into a **tracked case** that carries it to care, across four programmes:
 bowel (FIT), cervical (HPV), breast (mammogram) and diabetes (HbA1c). Built for Future Health Digital Innovation
 Challenge 05 and aligned with `../Challenge05_Solution_Design.md`.
 
@@ -17,7 +19,7 @@ Challenge 05 and aligned with `../Challenge05_Solution_Design.md`.
 * **Patient communication** in English, Arabic (RTL), Hindi and Urdu, with result-specific wording, a teach-back
   check and a channel fallback ladder (app → SMS → WhatsApp → navigator phone call; order is governed config per language). Tagalog and Malayalam
   speakers get English plus an interpreter-supported call, and a notice in their own language says so.
-* **Clinically grounded rules engine** (`wasl/clinical_rules.py`, documented with sources in `docs/clinical_rules.md`):
+* **Clinically grounded rules engine** (`kareshafaa/clinical_rules.py`, documented with sources in `docs/clinical_rules.md`):
   FIT, HPV/cytology (ASCCP), BI-RADS (ACR) and HbA1c/FPG (ADA, % and mmol/mol). It is deterministic with no ML. Anything
   unknown, malformed, out of range, conflicting, amended, duplicated, out of age range, pregnant, deceased, under specialist
   care or arriving after closure goes to a **clinical review queue** at a safe minimum tier with a reason. It is never
@@ -39,14 +41,14 @@ Requires Python 3.11+ (tested on 3.13) and `make`. Everything is free and open s
 ```bash
 make setup          # venv + dependencies (~1 min)
 make seed           # 2,000 synthetic patients, 6 months of history, train + register models (~55 s)
-make run            # http://localhost:8000  (python -m wasl.serve: 4 SO_REUSEPORT worker processes; WORKERS=1 for one)
+make run            # http://localhost:8000  (python -m kareshafaa.serve: 4 SO_REUSEPORT worker processes; WORKERS=1 for one)
 make test           # 3,236 pytest tests (~60 s; the 20k cohort test is skipped until `make seed-large`)
 ```
 
 Clinical-safety targets (Iteration 6):
 
 ```bash
-make seed-large      # 20,000 realistic synthetic people -> data/wasl_large.db (~3 min, no model training)
+make seed-large      # 20,000 realistic synthetic people -> data/kareshafaa_large.db (~3 min, no model training)
 make validate        # 60 data invariants on the demo DB (exit 1 on any violation)
 make validate-large  # same on the 20k cohort
 make test-clinical   # golden cases, fail-safe, Hypothesis properties, exhaustive state machine
@@ -56,7 +58,7 @@ make differential    # 2M randomised results: rules engine vs independent refere
 ```
 
 Open http://localhost:8000. To start, click **“Open demo scenarios”** or pick a demo user in the role switcher.
-Demo logins have no password and can be turned off with `WASL_DEMO_LOGINS=false`.
+Demo logins have no password and can be turned off with `KARESHAFAA_DEMO_LOGINS=false`.
 
 | Demo user | Role | Try |
 |---|---|---|
@@ -79,9 +81,9 @@ patient and runs through the real service layer, guards and audit:
 that builds an ORU for a real synthetic patient, because the deterministic matcher correctly refuses a birth-year
 mismatch.
 
-Configuration: environment variables (prefix `WASL_`) override `.env`; see `.env.example`.
+Configuration: environment variables (prefix `KARESHAFAA_`) override `.env`; see `.env.example`.
 
-Docker: `docker build -t wasl . && docker run -p 8000:8000 wasl`. It runs as a non-root user and seeds on first start.
+Docker: `docker build -t kareshafaa . && docker run -p 8000:8000 kareshafaa`. It runs as a non-root user and seeds on first start.
 
 ## Architecture
 
@@ -93,24 +95,24 @@ FastAPI ─┬─ api/        auth, cases, actions, queue/ops, me (patient), gov
          │              analytics (+cache, suppression), improve (lessons → proposals), access (RBAC scope)
          ├─ comms/      templates en/ar/hi/ur, teach-back, channel ladder (SIMULATED only)
          ├─ ml/         features, registry (gates, approval, drift, rollback, model cards)
-         ├─ synth/      cohort (UAE mix), provider directory, history replay, baseline-vs-Wasl simulator
+         ├─ synth/      cohort (UAE mix), provider directory, history replay, baseline-vs-KareShafaa simulator
          ├─ audit.py    append-only hash chain (DB triggers + ORM guard + writer lock)
          └─ fhir.py     FHIR R4 export (Patient, DiagnosticReport, Task, ServiceRequest, Appointment, CarePlan…)
-SQLAlchemy 2 → SQLite (WAL, default) or PostgreSQL (WASL_DATABASE_URL; add `psycopg[binary]`)
-Background: one elected worker runs the SLA/escalation sweep every WASL_SWEEP_INTERVAL_SECONDS (default 300)
+SQLAlchemy 2 → SQLite (WAL, default) or PostgreSQL (KARESHAFAA_DATABASE_URL; add `psycopg[binary]`)
+Background: one elected worker runs the SLA/escalation sweep every KARESHAFAA_SWEEP_INTERVAL_SECONDS (default 300)
 ```
 
 **Data model (FHIR-shaped):** Patient, Organization, Practitioner, DiagnosticReport, Case (≈ EpisodeOfCare), StepTask
 (≈ Task with SLA), ServiceRequest, Appointment, CarePlan, Communication, QuestionnaireResponse (teach-back), Consent,
 ConsultRequest, Escalation, AuditEvent, ModelVersion, Lesson / Proposal, IngestMessage.
 
-**Tiers and SLAs** (`wasl/sla.py`, overridable by JSON config). T0 Critical (HbA1c ≥ 15 %), T1 Urgent (BI-RADS 4/5,
+**Tiers and SLAs** (`kareshafaa/sla.py`, overridable by JSON config). T0 Critical (HbA1c ≥ 15 %), T1 Urgent (BI-RADS 4/5,
 FIT ≥ 400), T2 Soon (e.g. FIT+, HPV16/18, BI-RADS 0, HbA1c ≥ 10 %) and T3 Routine. T0/T1 clocks run 24/7 and need clinician-confirmed triage. T2/T3
 clocks count UAE working days (Mon–Fri, public holidays, Ramadan windows; Islamic dates approximate).
 **Ladder:** L1 owner nudge plus patient reminder at 50 % of the SLA, L2 programme coordinator at breach, L3 clinical
 lead at 1.5× (T0 goes straight to L3), L4 medical director at 2× (T0/T1 only). Inactive owners are auto-pooled.
 
-**Pathways** (`wasl/programmes.py`):
+**Pathways** (`kareshafaa/programmes.py`):
 * FIT+ goes straight to colonoscopy.
 * HPV16/18 goes to direct colposcopy; other high-risk HPV gets reflex cytology first.
 * BI-RADS 0 gets diagnostic recall; BI-RADS 4/5 goes to direct biopsy.
@@ -118,7 +120,7 @@ lead at 1.5× (T0 goes straight to L3), L4 medical director at 2× (T0/T1 only).
 
 ## Performance (10,005 cases, 1,509 open; 160k audit events; 10 concurrent clients)
 
-| Endpoint | p50 / p95 before (iteration 3) | iteration 4 (4 workers) | iteration 6 (rules engine, review gate; warm) | iteration 7 (wasl.serve, row-version locks) |
+| Endpoint | p50 / p95 before (iteration 3) | iteration 4 (4 workers) | iteration 6 (rules engine, review gate; warm) | iteration 7 (kareshafaa.serve, row-version locks) |
 |---|---|---|---|---|
 | Work queue, page of 50 (coordinator) | 4,297 / 4,527 ms | **29 / 448 ms** | 28 / 258 ms | 62 / 154 ms |
 | Work queue, GP (org-scoped) | 14,553 / 15,109 ms | **32 / 599 ms** | 32 / 304 ms | 77 / 163 ms |
@@ -133,7 +135,7 @@ Iteration 7 run: fresh 10k DB (1,215 open cases, 155k audit events), 10 concurre
 
 ### Capacity and resilience (rounds 20–22, 21 Oct 2026; `docs/loadtest_ramp.md`)
 
-**Load ramp.** Fresh 10k database, `wasl.serve --workers 4`, zero-think-time virtual users, mixed reads with 8 %
+**Load ramp.** Fresh 10k database, `kareshafaa.serve --workers 4`, zero-think-time virtual users, mixed reads with 8 %
 HL7 writes. Columns: requests per second answered OK, p95 latency of those, share answered 503.
 
 | Concurrent users | Round 20 | Round 21 (current) |
@@ -152,9 +154,9 @@ HL7 writes. Columns: requests per second answered OK, p95 latency of those, shar
   * 2 s work-queue cache, dropped on any local write.
 * **Locks are per database.** Before round 21, a load test on another database could stall the demo server.
 * **Watchdog** (round 22): each worker heartbeats from its event loop through the request thread pool. The parent
-  takes a thread dump of, then kills and replaces, any worker silent for more than 60 s (`WASL_HEARTBEAT_TIMEOUT_S`).
+  takes a thread dump of, then kills and replaces, any worker silent for more than 60 s (`KARESHAFAA_HEARTBEAT_TIMEOUT_S`).
 * **PostgreSQL 17 smoke test:** passed (validator, ramp, audit chain).
-* **Per-request time budget** (round 23): an `/api/` request still running after 30 s (`WASL_REQUEST_TIMEOUT_S`;
+* **Per-request time budget** (round 23): an `/api/` request still running after 30 s (`KARESHAFAA_REQUEST_TIMEOUT_S`;
   long admin jobs are exempt) is handled as follows:
   * the client gets 503 + Retry-After at once;
   * the request's transaction is rolled back, releasing the audit writer lock;
@@ -179,7 +181,7 @@ HL7 writes. Columns: requests per second answered OK, p95 latency of those, shar
 
 ## Simulated KPIs (SIMULATED – 20,000 synthetic people × 5 replications, same rules engine)
 
-| KPI | Baseline (no Wasl) | With Wasl |
+| KPI | Baseline (no KareShafaa) | With KareShafaa |
 |---|---|---|
 | Median days result → patient notified | 8.0 | 1.3 |
 | Median days result → care | 48.3 | 24.6 |
@@ -194,7 +196,7 @@ These numbers come from model assumptions (`docs/synthetic_data.md`, `docs/simul
 
 ## Governance – alignment, not certification
 
-Wasl is designed to **align with** the frameworks below. It is **not certified** against any of them, and a real
+KareShafaa is designed to **align with** the frameworks below. It is **not certified** against any of them, and a real
 deployment would need formal assessment.
 
 | Framework | How the prototype aligns |
@@ -216,7 +218,7 @@ deployment would need formal assessment.
 ## Assumptions
 
 * Population mix, channel availability, no-show and unreachable rates, Ramadan and holiday effects are **illustrative
-  assumptions**, not official statistics. They are documented in `wasl/synth/cohort.py` and `history.py`.
+  assumptions**, not official statistics. They are documented in `kareshafaa/synth/cohort.py` and `history.py`.
 * Thresholds, pathways and targets follow the published guidelines cited in `docs/clinical_rules.md`. Items marked
   **clinical lead to confirm** default to the safer option. **Programme clinical leads must sign off every rule.**
 * All patient-facing text is prototype wording. It needs clinical review and professional translation and patient testing.
@@ -231,7 +233,7 @@ deployment would need formal assessment.
 * Authentication is demo-grade: HMAC tokens with role-switcher logins. Production needs OIDC/SSO (UAE PASS for patients), MFA and secret management.
 * The queue still orders all open cases in Python (SLA status depends on the working-day calendar). It is fine at 10k
   cases with ~1.5k open, but beyond that it should use a materialised due/RAG column with SQL ORDER BY/LIMIT.
-* SQLite is for the demo. Multi-host deployment needs PostgreSQL (pool settings in `wasl/config.py`, driver in
+* SQLite is for the demo. Multi-host deployment needs PostgreSQL (pool settings in `kareshafaa/config.py`, driver in
   `requirements-postgres.txt`, smoke-tested in round 21); the audit writer lock uses `pg_advisory_xact_lock` there.
 * The Islamic holiday and Ramadan dates are approximate. Tagalog and Malayalam content is not translated yet.
 * Docker build is written but could not be tested on the build box (no Docker daemon available).
@@ -249,5 +251,5 @@ deployment would need formal assessment.
 
 ## Repository map
 
-`wasl/` app · `tests/` pytest (3,236) · `wasl_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
+`kareshafaa/` app · `tests/` pytest (3,236) · `kareshafaa_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
 `scripts/ui_smoke.py` (optional Playwright) · `ITERATIONS.md` build log with self-assessments · `Makefile` · `Dockerfile` · `.env.example`

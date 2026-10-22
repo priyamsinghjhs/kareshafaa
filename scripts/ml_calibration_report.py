@@ -5,7 +5,7 @@ and 'auto' (Platt, chosen on a temporal tuning slice), and reports held-out (mos
 calibration (ECE, Brier, calibration-in-the-large, slope, reliability bins with Wilson 95 % CIs) and the fairness
 gates. Nothing is promoted; the source database is not modified.
 
-usage: python scripts/ml_calibration_report.py --db data/wasl_large.db --name large [--out docs/ml_calibration]
+usage: python scripts/ml_calibration_report.py --db data/kareshafaa_large.db --name large [--out docs/ml_calibration]
 """
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ def render(data: dict) -> str:
           "construction; on the 2,000-patient demo cohort, Platt recalibration (fitted on out-of-fold predictions and "
           "chosen on a temporal tuning slice) *over-corrected* on the newer hold-out (slope 1.11 -> 1.40) and would "
           "fail the slope gate. On the 20k realistic cohort it was roughly neutral. 'auto' remains available "
-          "(`WASL_ML_RECALIBRATION=auto`) once pilot volumes allow it.",
+          "(`KARESHAFAA_ML_RECALIBRATION=auto`) once pilot volumes allow it.",
           "* **New promotion gates:** hold-out calibration slope within 0.7-1.3 and |CITL| <= 0.05, in addition to "
           "AUC floor, ECE <= 0.10, beats-current on the same hold-out and the fairness gates. A clinical lead must "
           "still approve every promotion (human sign-off); the person who trained a model cannot approve it.",
@@ -102,15 +102,15 @@ def main() -> int:
     src.backup(dst)  # consistent copy even with a WAL file; the source is opened read-only
     src.close()
     dst.close()
-    os.environ["WASL_DATABASE_URL"] = f"sqlite:///{tmp / 'w.db'}"
-    os.environ["WASL_MODEL_DIR"] = str(tmp / "models")
+    os.environ["KARESHAFAA_DATABASE_URL"] = f"sqlite:///{tmp / 'w.db'}"
+    os.environ["KARESHAFAA_MODEL_DIR"] = str(tmp / "models")
     from sqlalchemy import func, select  # noqa: PLC0415
 
-    from wasl.config import get_settings  # noqa: PLC0415
-    from wasl.db import session_factory  # noqa: PLC0415
-    from wasl.ml import registry  # noqa: PLC0415
-    from wasl.models import AuditEvent, ModelVersion  # noqa: PLC0415
-    from wasl.security import Actor  # noqa: PLC0415
+    from kareshafaa.config import get_settings  # noqa: PLC0415
+    from kareshafaa.db import session_factory  # noqa: PLC0415
+    from kareshafaa.ml import registry  # noqa: PLC0415
+    from kareshafaa.models import AuditEvent, ModelVersion  # noqa: PLC0415
+    from kareshafaa.security import Actor  # noqa: PLC0415
 
     cfg = get_settings()
     db = session_factory()()

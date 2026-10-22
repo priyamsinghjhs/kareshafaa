@@ -11,7 +11,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8000"
-OUT = Path(sys.argv[2] if len(sys.argv) > 2 else "/tmp/wasl_shots")
+OUT = Path(sys.argv[2] if len(sys.argv) > 2 else "/tmp/kareshafaa_shots")
 OUT.mkdir(parents=True, exist_ok=True)
 PLAN = {
     "aisha.rahman": ["/queue", "/cases/2001", "/cases/5", "/ingest", "/demo"],

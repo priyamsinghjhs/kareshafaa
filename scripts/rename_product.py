@@ -1,4 +1,4 @@
-"""Rename the product (currently "Wasl") in one repeatable step. Paused rename attempt: branch wip/rename-dhruva-health.
+"""Rename the product in one repeatable step (used 2026-10-22 for Wasl -> KareShafaa; OLD_* below are the pre-rename names). Paused earlier attempt: branch wip/rename-dhruva-health.
 
 usage (clean git tree, servers stopped):
   python scripts/rename_product.py --brand "Dhruva Health" --short Dhruva --package dhruva --env-prefix DHRUVA \

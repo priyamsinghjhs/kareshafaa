@@ -5,13 +5,13 @@ import time
 
 from sqlalchemy import func, select
 
-from wasl.api.serializers import case_detail
-from wasl.db import session_factory
-from wasl.models import Case, StepTask, User
-from wasl.services import analytics
-from wasl.services.escalation import run_sweep
-from wasl.services.queue import work_queue
-from wasl.synth.history import actor_from_user
+from kareshafaa.api.serializers import case_detail
+from kareshafaa.db import session_factory
+from kareshafaa.models import Case, StepTask, User
+from kareshafaa.services import analytics
+from kareshafaa.services.escalation import run_sweep
+from kareshafaa.services.queue import work_queue
+from kareshafaa.synth.history import actor_from_user
 
 
 def t(label, fn, n=5):

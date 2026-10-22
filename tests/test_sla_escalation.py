@@ -3,9 +3,9 @@ from datetime import timedelta
 
 from sqlalchemy import select
 
-from wasl.models import Case, Escalation, Practitioner, StepTask
-from wasl.security import SYSTEM
-from wasl.services.escalation import run_sweep
+from kareshafaa.models import Case, Escalation, Practitioner, StepTask
+from kareshafaa.security import SYSTEM
+from kareshafaa.services.escalation import run_sweep
 
 
 def _step(db, cid):
@@ -104,8 +104,8 @@ def test_escalation_ack(client, as_user, db):
 def test_system_cannot_triage_urgent(db, new_case):
     import pytest
 
-    from wasl.services import workflow as wf
-    from wasl.services.errors import Forbidden
+    from kareshafaa.services import workflow as wf
+    from kareshafaa.services.errors import Forbidden
 
     cid = new_case("breast", None, "BI-RADS 5")["id"]
     case = db.get(Case, cid)
@@ -118,8 +118,8 @@ def test_system_cannot_triage_urgent(db, new_case):
 def test_working_day_calendar():
     from datetime import datetime
 
-    from wasl.calendar_uae import add_working_hours, is_working_day, next_working_slot
-    from wasl.sla import due_at
+    from kareshafaa.calendar_uae import add_working_hours, is_working_day, next_working_slot
+    from kareshafaa.sla import due_at
 
     fri = datetime(2026, 10, 23, 10, 0)  # Friday
     assert is_working_day(fri.date()) and not is_working_day(datetime(2026, 10, 24).date())  # Sat weekend
@@ -131,7 +131,7 @@ def test_working_day_calendar():
 
 
 def test_pathway_specific_confirmation():
-    from wasl.programmes import needs_confirmation, triage_tier
+    from kareshafaa.programmes import needs_confirmation, triage_tier
 
     assert not needs_confirmation("cervical", None, "HPV16") and needs_confirmation("cervical", None, "HPV other hr")
     assert not needs_confirmation("breast", None, "BI-RADS 4") and needs_confirmation("breast", None, "BI-RADS 0")
@@ -144,9 +144,9 @@ def test_patient_reminders_respect_uae_message_window(db, new_case):
     once by the first sweep inside the window (failure mode found in Iteration 7: 2 a.m. SMS from the SLA job)."""
     from datetime import datetime
 
-    from wasl.calendar_uae import to_utc
-    from wasl.models import Communication
-    from wasl.services.escalation import in_patient_window
+    from kareshafaa.calendar_uae import to_utc
+    from kareshafaa.models import Communication
+    from kareshafaa.services.escalation import in_patient_window
 
     assert not in_patient_window(to_utc(datetime(2026, 10, 21, 2, 0)))
     assert in_patient_window(to_utc(datetime(2026, 10, 21, 8, 0)))
@@ -159,7 +159,7 @@ def test_patient_reminders_respect_uae_message_window(db, new_case):
     t0 = step.started_at
     sla_h = (step.due_at - t0).total_seconds() / 3600
     # choose an L1 moment (50-95 % of the SLA) at 02:00 UAE time
-    from wasl.calendar_uae import to_local
+    from kareshafaa.calendar_uae import to_local
     cands = [t0 + timedelta(minutes=m) for m in range(int(sla_h * 30), int(sla_h * 57), 10)]
     night = next(t for t in cands if to_local(t).hour == 2)
     assert night < step.due_at

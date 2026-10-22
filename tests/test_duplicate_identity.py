@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 
 
 def _twin(db, pid):
-    from wasl.models import Patient
+    from kareshafaa.models import Patient
 
     p = db.get(Patient, pid)
     p.national_id = f"784-1970-{9500000 + pid:07d}-1"
@@ -26,7 +26,7 @@ def _result(client, as_user, pid, value):
 
 
 def test_second_record_result_links_to_open_case(client, as_user, db, make_patient):
-    from wasl.models import Case
+    from kareshafaa.models import Case
 
     a, b = _twin(db, make_patient())
     first = _result(client, as_user, a.id, 250)["case"]
@@ -48,7 +48,7 @@ def test_no_twin_no_flag(client, as_user, make_patient):
 
 
 def test_hl7_emirates_id_match_and_ambiguity(client, as_user, db, make_patient):
-    from wasl.models import Patient
+    from kareshafaa.models import Patient
 
     solo = db.get(Patient, make_patient())
     solo.national_id = f"784-1970-{9600000 + solo.id:07d}-2"
@@ -56,7 +56,7 @@ def test_hl7_emirates_id_match_and_ambiguity(client, as_user, db, make_patient):
     h = {**as_user("aisha.rahman"), "Content-Type": "text/plain"}
 
     def msg(ids, ctrl):
-        return "\r".join([f"MSH|^~\\&|LIS|LAB|WASL|PROG|20261020093000||ORU^R01^ORU_R01|{ctrl}|P|2.5.1",
+        return "\r".join([f"MSH|^~\\&|LIS|LAB|KARESHAFAA|PROG|20261020093000||ORU^R01^ORU_R01|{ctrl}|P|2.5.1",
                           f"PID|1||{ids}||SYN^PAT||19700101|F", "OBX|1|NM|29771-3^FIT^LN||300|ug/g|||||F"])
 
     r = client.post("/api/ingest/hl7v2", headers=h, content=msg(f"UNKNOWN-MRN~{solo.national_id}^^^ICA^NI", "EID-1")).json()
@@ -67,7 +67,7 @@ def test_hl7_emirates_id_match_and_ambiguity(client, as_user, db, make_patient):
 
 
 def test_synthetic_emirates_id_format():
-    from wasl.synth.history import synthetic_emirates_id
+    from kareshafaa.synth.history import synthetic_emirates_id
 
     eid = synthetic_emirates_id(1974, 42)
     parts = eid.split("-")

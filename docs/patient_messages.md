@@ -2,7 +2,7 @@
 
 ## What is checked (every language, every patient-facing text)
 
-`wasl/comms/readability.py` measures each of the 109 patient-facing texts (programme, direct-pathway and pathway
+`kareshafaa/comms/readability.py` measures each of the 109 patient-facing texts (programme, direct-pathway and pathway
 wording, message templates in both variants, teach-back texts, and the neutral fallback). `tests/test_patient_messages.py`
 fails the build if any text breaks a check.
 
@@ -32,7 +32,7 @@ no blame for missed appointments; an offer to talk to a clinician.
 ## Translations (Arabic, Hindi, Urdu) - DRAFTS, need professional translator review
 
 The five pathway texts added in Iteration 6 (repeat_fit, repeat_sample, prediabetes_gp, surveillance_1y,
-colposcopy_urgent) now have Arabic, Hindi and Urdu drafts (`PATHWAY_TEXT` in `wasl/comms/content.py`), marked
+colposcopy_urgent) now have Arabic, Hindi and Urdu drafts (`PATHWAY_TEXT` in `kareshafaa/comms/content.py`), marked
 `TRANSLATION_STATUS = "draft - needs professional medical translator review"`. Numbers and test names (12 months,
 2 weeks, HPV) are checked to survive translation. **They are not shown to patients** until signed off (below);
 until then those patients receive the English wording plus an interpreter-supported navigator call - never an

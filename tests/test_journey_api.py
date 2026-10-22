@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from sqlalchemy import func, select
 
-from wasl.models import Case, StepTask, utcnow
+from kareshafaa.models import Case, StepTask, utcnow
 
 CORRECT = {"q1": "a", "q2": "b", "q3": "a"}
 SUMMARY = "FIT 250 ug/g, no red flags, fit for colonoscopy; anticoagulants: none. Synthetic."
@@ -112,10 +112,10 @@ def test_authorised_closure_needs_permission_reason_and_note(client, as_user, ne
 def test_system_actor_cannot_close_and_risk_score_is_irrelevant(db, new_case):
     import pytest
 
-    from wasl.security import ML_SERVICE, SYSTEM
-    from wasl.services import workflow as wf
-    from wasl.services.errors import Forbidden
-    from wasl.statemachine import TransitionError
+    from kareshafaa.security import ML_SERVICE, SYSTEM
+    from kareshafaa.services import workflow as wf
+    from kareshafaa.services.errors import Forbidden
+    from kareshafaa.statemachine import TransitionError
 
     cid = new_case()["id"]
     case = db.get(Case, cid)
@@ -240,7 +240,7 @@ def test_validation_errors_are_422(client, as_user, new_case):
 def test_booking_beyond_target_needs_reason_and_year_typo_refused(client, as_user, new_case, db):
     """Round 14: an appointment after the pathway target (or a year-typo date) used to be accepted silently; the
     breach only surfaced weeks later when the target alert fired."""
-    from wasl.models import AuditEvent
+    from kareshafaa.models import AuditEvent
 
     cid = new_case()["id"]
     notify_and_ack(client, as_user, cid)

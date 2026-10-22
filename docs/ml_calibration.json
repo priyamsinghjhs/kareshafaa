@@ -1,6 +1,6 @@
 {
  "demo_2000": {
-  "db": "data/wasl.db",
+  "db": "data/kareshafaa.db",
   "as_of": "2026-10-21 02:10:40.301180",
   "results": [
    {
@@ -902,7 +902,7 @@
   ]
  },
  "realistic_20k": {
-  "db": "data/wasl_large.db",
+  "db": "data/kareshafaa_large.db",
   "as_of": "2026-10-21 00:16:50.672128",
   "results": [
    {
@@ -1804,7 +1804,7 @@
   ]
  },
  "realistic_10k": {
-  "db": "data/wasl_10k.db",
+  "db": "data/kareshafaa_10k.db",
   "as_of": "2026-10-21 00:21:25.671524",
   "results": [
    {

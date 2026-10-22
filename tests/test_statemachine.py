@@ -1,7 +1,7 @@
 """Unit tests: deterministic state machine and the closure guard."""
 import pytest
 
-from wasl.statemachine import (AUTHORISED_CLOSURE_REASONS, MAIN_PATH, S, TRANSITIONS, TransitionError,
+from kareshafaa.statemachine import (AUTHORISED_CLOSURE_REASONS, MAIN_PATH, S, TRANSITIONS, TransitionError,
                                check_closure, check_transition)
 
 

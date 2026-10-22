@@ -8,9 +8,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from wasl.calendar_uae import (add_working_hours, add_working_hours_utc, as_utc_naive, local_display, to_local,
+from kareshafaa.calendar_uae import (add_working_hours, add_working_hours_utc, as_utc_naive, local_display, to_local,
                                to_utc)
-from wasl.sla import due_at
+from kareshafaa.sla import due_at
 
 
 def test_local_round_trip_and_no_dst():
@@ -54,7 +54,7 @@ def test_appointment_offset_and_patient_time(client, as_user, db, new_case):
     from sqlalchemy import select
 
     from tests.test_journey_api import SUMMARY, _post, notify_and_ack
-    from wasl.models import Appointment, Communication
+    from kareshafaa.models import Appointment, Communication
 
     cid = new_case("colorectal_fit", 250)["id"]
     co, gp, sp = as_user("aisha.rahman"), as_user("omar.haddad"), as_user("vikram.mehta")
@@ -79,13 +79,13 @@ def test_appointment_offset_and_patient_time(client, as_user, db, new_case):
 
 
 def test_attendance_timing_rules(db, new_case):
-    from wasl.models import Appointment, Case
-    from wasl.security import Actor
-    from wasl.services import workflow as wf
-    from wasl.services.errors import Invalid
+    from kareshafaa.models import Appointment, Case
+    from kareshafaa.security import Actor
+    from kareshafaa.services import workflow as wf
+    from kareshafaa.services.errors import Invalid
 
     c = db.get(Case, new_case(value=250)["id"])
-    from wasl.models import ServiceRequest
+    from kareshafaa.models import ServiceRequest
 
     c.state = "appointment_booked"
     sr = ServiceRequest(case_id=c.id, kind="referral", code="colonoscopy", requester_id=c.owner_id, status="accepted",
@@ -107,11 +107,11 @@ def test_attendance_timing_rules(db, new_case):
 
 
 def test_hl7_ack_timestamp_carries_offset(client, as_user, db, make_patient):
-    from wasl.models import Patient
+    from kareshafaa.models import Patient
 
     mrn = db.get(Patient, make_patient()).mrn
-    m = "\r".join(["MSH|^~\\&|LIS|LAB|WASL|PROG|20261020093000||ORU^R01^ORU_R01|TZ-1|P|2.5.1",
-                   f"PID|1||{mrn}^^^WASL^MR||SYN^PAT||19700101|F", "OBX|1|NM|29771-3^FIT^LN||5|ug/g|||||F"])
+    m = "\r".join(["MSH|^~\\&|LIS|LAB|KARESHAFAA|PROG|20261020093000||ORU^R01^ORU_R01|TZ-1|P|2.5.1",
+                   f"PID|1||{mrn}^^^KARESHAFAA^MR||SYN^PAT||19700101|F", "OBX|1|NM|29771-3^FIT^LN||5|ug/g|||||F"])
     ack = client.post("/api/ingest/hl7v2", headers={**as_user("aisha.rahman"), "Content-Type": "text/plain"},
                       content=m).json()["ack"]
     assert ack.split("|")[6].endswith("+0000")

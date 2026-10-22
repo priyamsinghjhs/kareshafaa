@@ -6,12 +6,12 @@ from datetime import datetime, timedelta
 import pytest
 from sqlalchemy import select
 
-from wasl.alert_policy import Ladder, decide, ladder_level
-from wasl.models import Case, Escalation, Lesson, StepTask
-from wasl.security import SYSTEM
-from wasl.services import workflow as wf
-from wasl.services.escalation import run_sweep
-from wasl.statemachine import S
+from kareshafaa.alert_policy import Ladder, decide, ladder_level
+from kareshafaa.models import Case, Escalation, Lesson, StepTask
+from kareshafaa.security import SYSTEM
+from kareshafaa.services import workflow as wf
+from kareshafaa.services.escalation import run_sweep
+from kareshafaa.statemachine import S
 
 T0 = datetime(2026, 1, 1)
 L = Ladder()

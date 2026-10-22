@@ -1,7 +1,7 @@
-# Wasl clinical decision rules (prototype)
+# KareShafaa clinical decision rules (prototype)
 
 > **Status: DRAFT for clinical-lead review. Not approved for clinical use.**
-> These rules are implemented in `wasl/clinical_rules.py` (pure, deterministic, no ML) and tested by
+> These rules are implemented in `kareshafaa/clinical_rules.py` (pure, deterministic, no ML) and tested by
 > `tests/test_clinical_golden.py` (130 hand-written golden cases), `tests/test_properties.py` (Hypothesis) and
 > `tests/test_failsafe.py`. Each rule has an ID that appears on the case (`Case.rule_id`), in the audit trail
 > and in the case page ("Rule CRC-FIT-POS · pathway colonoscopy · target ...").
@@ -19,11 +19,11 @@
    under every plausible unit and the **most urgent** interpretation sets the review tier (e.g. HbA1c "16" with
    no unit: 16 % would be critical, so the review is critical).
 3. **Tiers only go up automatically.** `max_tier()` combines rule tier and review floors. A database-level
-   interlock (`TierDowngradeError`, `wasl/models.py`) blocks any lowering of `Case.tier` except inside
+   interlock (`TierDowngradeError`, `kareshafaa/models.py`) blocks any lowering of `Case.tier` except inside
    `resolve_review()`, which needs a clinician, a written rationale (≥10 characters) and writes an audited
    `downgrade: true` event.
 4. **The ML score never touches the tier.** It orders cases only *within* the same SLA status and tier
-   (`wasl/services/queue.py: sort_key`).
+   (`kareshafaa/services/queue.py: sort_key`).
 5. **Nothing progresses before review.** A review case cannot be triaged by the system, cannot message the
    patient and cannot be closed with evidence until a clinician has resolved the review (or closed it with an
    authorised decision, e.g. deceased).
@@ -37,7 +37,7 @@
 | high | T2 | Positive screen needing diagnostic test | 31 days (**CONFIRM**) |
 | routine | T3 | Surveillance, prevention, repeat sample | 90 days (**CONFIRM**) |
 
-Per-step SLA clocks (hours per state and tier) are configuration in `wasl/sla.py` and are illustrative, not
+Per-step SLA clocks (hours per state and tier) are configuration in `kareshafaa/sla.py` and are illustrative, not
 guidance. Since Iteration 6 every case also carries an **end-to-end pathway target** (`Case.target_due_at`,
 from the pathway table below). No step clock may run past it: a step's due time is `min(step SLA, pathway
 target)`, so the escalation sweep fires before a guideline timeframe is missed.

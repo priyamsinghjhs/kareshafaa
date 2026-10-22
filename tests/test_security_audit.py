@@ -2,7 +2,7 @@
 import pytest
 from sqlalchemy import func, select, text
 
-from wasl.models import AuditEvent
+from kareshafaa.models import AuditEvent
 
 
 def test_unauthenticated_is_401(client):
@@ -154,8 +154,8 @@ def test_queue_pagination_and_search(client, as_user):
 
 
 def test_gp_queue_is_org_scoped(client, as_user, db):
-    from wasl.models import Case
-    from wasl.services.access import involved_org_ids
+    from kareshafaa.models import Case
+    from kareshafaa.services.access import involved_org_ids
 
     h = as_user("omar.haddad")
     items = client.get("/api/queue?limit=1000", headers=h).json()["items"]

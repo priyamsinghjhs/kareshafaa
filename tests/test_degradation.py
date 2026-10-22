@@ -12,9 +12,9 @@ from sqlalchemy import select
 
 
 def test_writer_lock_wait_is_bounded_and_answers_busy(db, monkeypatch):
-    from wasl import audit
-    from wasl.config import get_settings
-    from wasl.services.errors import ServiceBusy
+    from kareshafaa import audit
+    from kareshafaa.config import get_settings
+    from kareshafaa.services.errors import ServiceBusy
 
     monkeypatch.setattr(get_settings(), "writer_lock_timeout_s", 0.2)
     held = threading.Event()
@@ -42,7 +42,7 @@ def test_writer_lock_wait_is_bounded_and_answers_busy(db, monkeypatch):
 
 
 def test_lock_files_are_per_database(tmp_path):
-    from wasl.audit import lock_key
+    from kareshafaa.audit import lock_key
 
     a, b = str(tmp_path / "a.db"), str(tmp_path / "b.db")
     assert lock_key(a) != lock_key(b)
@@ -50,20 +50,20 @@ def test_lock_files_are_per_database(tmp_path):
 
 
 def test_busy_maps_to_503_with_retry_after(app, client, as_user, monkeypatch):
-    from wasl.services import errors
+    from kareshafaa.services import errors
 
     def boom(*_a, **_k):
         raise errors.ServiceBusy()
 
-    from wasl.api import ops
+    from kareshafaa.api import ops
     monkeypatch.setattr(ops.analytics, "cached", boom)
     r = client.get("/api/analytics/kpis", headers=as_user("analyst"))
     assert r.status_code == 503 and r.headers.get("Retry-After")
 
 
 def test_admission_control_sheds_fast_and_audits_the_count(app, client, as_user, monkeypatch, db):
-    from wasl.config import get_settings
-    from wasl.models import AuditEvent
+    from kareshafaa.config import get_settings
+    from kareshafaa.models import AuditEvent
 
     h = as_user("analyst")
     monkeypatch.setattr(get_settings(), "max_inflight_requests", 0)
@@ -82,8 +82,8 @@ def test_read_is_refused_when_its_access_cannot_be_logged(app, client, as_user, 
     unlogged."""
     import concurrent.futures
 
-    from wasl import main
-    from wasl.services.errors import ServiceBusy
+    from kareshafaa import main
+    from kareshafaa.services.errors import ServiceBusy
 
     h = as_user("analyst")
 

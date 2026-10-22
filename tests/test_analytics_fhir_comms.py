@@ -2,9 +2,9 @@
 import pytest
 from sqlalchemy import select
 
-from wasl.comms.content import SUPPORTED_LANGUAGES, TEMPLATES
-from wasl.models import Communication, RuleProposal
-from wasl.services.analytics import secondary_suppress, suppress_count, suppress_rate
+from kareshafaa.comms.content import SUPPORTED_LANGUAGES, TEMPLATES
+from kareshafaa.models import Communication, RuleProposal
+from kareshafaa.services.analytics import secondary_suppress, suppress_count, suppress_rate
 
 
 def test_suppression_helpers():
@@ -143,7 +143,7 @@ def test_pages_render(client, path):
 
 
 def test_kpi_cache_invalidates_on_new_data(client, as_user, new_case, monkeypatch):
-    from wasl.services import analytics
+    from kareshafaa.services import analytics
 
     monkeypatch.setattr(analytics, "MIN_REFRESH_S", 0.0)  # disable the bounded-staleness window
     analytics.clear_cache()
@@ -158,7 +158,7 @@ def test_kpi_cache_invalidates_on_new_data(client, as_user, new_case, monkeypatc
 
 
 def test_kpi_cache_bounded_staleness(client, as_user, new_case):
-    from wasl.services import analytics
+    from kareshafaa.services import analytics
 
     analytics.clear_cache()
     h = as_user("analyst")
@@ -171,7 +171,7 @@ def test_kpi_cache_bounded_staleness(client, as_user, new_case):
 
 def test_direct_pathway_wording_matches_result(client, as_user, make_patient):
     """BI-RADS 4 goes straight to biopsy, so the patient must not be told 'more pictures' (BI-RADS 0 wording)."""
-    from wasl.comms.content import programme_text
+    from kareshafaa.comms.content import programme_text
 
     class C:  # minimal stand-in for a Case
         programme, needs_confirmation = "breast", False
@@ -198,8 +198,8 @@ FHIR_COMM_STATUS = {"preparation", "in-progress", "not-done", "on-hold", "stoppe
 def test_fhir_export_handles_every_communication_status(db, new_case, status):
     """Round 17: a case holding a queued night-time reminder (on-hold, round 10) or a dispatched/cancelled
     placeholder (stopped) could not be exported: KeyError -> HTTP 500 (found by the 10k load test)."""
-    from wasl.fhir import export_case
-    from wasl.models import Case, Communication
+    from kareshafaa.fhir import export_case
+    from kareshafaa.models import Case, Communication
     c = db.get(Case, new_case(value=250)["id"])
     db.add(Communication(case_id=c.id, patient_id=c.patient_id, category="reminder", channel="scheduled",
                          language="en", template_key="reminder", content="[SIMULATED - not sent] queued",

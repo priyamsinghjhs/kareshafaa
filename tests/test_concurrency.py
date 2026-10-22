@@ -13,22 +13,22 @@ from sqlalchemy.orm.exc import StaleDataError
 
 
 def _sessions():
-    from wasl.db import session_factory
+    from kareshafaa.db import session_factory
 
     sf = session_factory()
     return sf(), sf()
 
 
 def _actor(db, username="aisha.rahman"):
-    from wasl.api.deps import actor_from_user
-    from wasl.models import User
+    from kareshafaa.api.deps import actor_from_user
+    from kareshafaa.models import User
 
     return actor_from_user(db.scalar(select(User).where(User.username == username)))
 
 
 def test_stale_transition_is_rejected(new_case):
-    from wasl.models import Case, StepTask
-    from wasl.services import workflow as wf
+    from kareshafaa.models import Case, StepTask
+    from kareshafaa.services import workflow as wf
 
     cid = new_case()["id"]  # FIT 250 -> auto-triaged
     a, b = _sessions()
@@ -54,14 +54,14 @@ def test_stale_transition_is_rejected(new_case):
 
 
 def test_action_on_case_closed_meanwhile_is_rejected(new_case):
-    from wasl.models import Case
-    from wasl.services import workflow as wf
+    from kareshafaa.models import Case
+    from kareshafaa.services import workflow as wf
 
     cid = new_case()["id"]
     a, b = _sessions()
     try:
         ca, cb = a.get(Case, cid), b.get(Case, cid)
-        from wasl.security import Actor
+        from kareshafaa.security import Actor
 
         lead = Actor(user_id=1, role="clinical_lead", display="Named Person")
         wf.close_case(a, ca, lead, "authorised_decision", reason="moved_abroad",
@@ -83,14 +83,14 @@ def test_action_on_case_closed_meanwhile_is_rejected(new_case):
 
 def test_stale_action_over_http_is_409(client, as_user, new_case, monkeypatch):
     """The API maps the stale-write error to 409 with a plain message (nothing saved)."""
-    from wasl.api import cases as cases_api
+    from kareshafaa.api import cases as cases_api
 
     cid = new_case()["id"]
     real = cases_api.wf.assign
 
     def racing(db, case, *args, **kw):  # another user changes the case between our read and our write
-        from wasl.db import session_factory
-        from wasl.models import Case
+        from kareshafaa.db import session_factory
+        from kareshafaa.models import Case
 
         with session_factory()() as other:
             oc = other.get(Case, case.id)
@@ -99,9 +99,9 @@ def test_stale_action_over_http_is_409(client, as_user, new_case, monkeypatch):
         return real(db, case, *args, **kw)
 
     monkeypatch.setattr(cases_api.wf, "assign", racing)
-    from wasl.db import session_factory
-    from wasl.models import Case
-    from wasl.services import workflow as wf
+    from kareshafaa.db import session_factory
+    from kareshafaa.models import Case
+    from kareshafaa.services import workflow as wf
 
     with session_factory()() as s:
         pool = wf.programme_pool(s, s.get(Case, cid).programme).id
@@ -111,7 +111,7 @@ def test_stale_action_over_http_is_409(client, as_user, new_case, monkeypatch):
 
 
 def test_one_open_case_per_patient_programme_enforced_by_db(db, new_case):
-    from wasl.models import Case
+    from kareshafaa.models import Case
 
     c = db.get(Case, new_case()["id"])
     dup = Case(patient_id=c.patient_id, report_id=c.report_id, programme=c.programme, tier=c.tier, state="issued",
@@ -123,7 +123,7 @@ def test_one_open_case_per_patient_programme_enforced_by_db(db, new_case):
 
 
 def test_concurrent_results_for_one_patient_never_open_two_cases(client, as_user, db, make_patient):
-    from wasl.models import Case
+    from kareshafaa.models import Case
 
     pid = make_patient()
     h = as_user("aisha.rahman")
@@ -142,11 +142,11 @@ def test_concurrent_results_for_one_patient_never_open_two_cases(client, as_user
 
 
 def test_concurrent_duplicate_hl7_deliveries_are_idempotent(client, as_user, db, make_patient):
-    from wasl.models import IngestMessage, Patient
+    from kareshafaa.models import IngestMessage, Patient
 
     mrn = db.get(Patient, make_patient()).mrn
-    m = "\r".join(["MSH|^~\\&|LIS|LAB|WASL|PROG|20261020093000||ORU^R01^ORU_R01|CONC-1|P|2.5.1",
-                   f"PID|1||{mrn}^^^WASL^MR||SYN^PAT||19700101|F", "OBX|1|NM|29771-3^FIT^LN||300|ug/g|||||F"])
+    m = "\r".join(["MSH|^~\\&|LIS|LAB|KARESHAFAA|PROG|20261020093000||ORU^R01^ORU_R01|CONC-1|P|2.5.1",
+                   f"PID|1||{mrn}^^^KARESHAFAA^MR||SYN^PAT||19700101|F", "OBX|1|NM|29771-3^FIT^LN||300|ug/g|||||F"])
     h = {**as_user("aisha.rahman"), "Content-Type": "text/plain"}
     with ThreadPoolExecutor(8) as ex:
         rs = list(ex.map(lambda _: client.post("/api/ingest/hl7v2", headers=h, content=m), range(8)))

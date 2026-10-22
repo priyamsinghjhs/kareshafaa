@@ -17,9 +17,9 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-R, SM, WF, CM = "wasl/clinical_rules.py", "wasl/statemachine.py", "wasl/services/workflow.py", "wasl/comms/service.py"
-IN, MO, CAL = "wasl/services/ingest.py", "wasl/models.py", "wasl/calendar_uae.py"
-REG = "wasl/ml/registry.py"
+R, SM, WF, CM = "kareshafaa/clinical_rules.py", "kareshafaa/statemachine.py", "kareshafaa/services/workflow.py", "kareshafaa/comms/service.py"
+IN, MO, CAL = "kareshafaa/services/ingest.py", "kareshafaa/models.py", "kareshafaa/calendar_uae.py"
+REG = "kareshafaa/ml/registry.py"
 
 FAULTS = [
     # id, file, original, replacement, description
@@ -122,7 +122,7 @@ TESTS = ["tests/test_clinical_golden.py", "tests/test_failsafe.py", "tests/test_
 
 def run_tests() -> tuple[bool, str]:
     t = [x for x in TESTS if (ROOT / x).exists()]
-    for c in (ROOT / "wasl").rglob("__pycache__"):  # never let a stale .pyc hide (or fake) a fault
+    for c in (ROOT / "kareshafaa").rglob("__pycache__"):  # never let a stale .pyc hide (or fake) a fault
         shutil.rmtree(c, ignore_errors=True)
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     p = subprocess.run([sys.executable, "-m", "pytest", "-x", "-q", "-p", "no:warnings", "-p", "no:cacheprovider", *t],

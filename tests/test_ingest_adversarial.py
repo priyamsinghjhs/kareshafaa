@@ -10,15 +10,15 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from wasl.services.errors import Invalid
-from wasl.services.ingest import parse_fhir_bundle, parse_hl7v2
+from kareshafaa.services.errors import Invalid
+from kareshafaa.services.ingest import parse_fhir_bundle, parse_hl7v2
 
 SAMPLES = Path(__file__).resolve().parent.parent / "samples"
-MSH = "MSH|^~\\&|LIS|LAB|WASL|PROG|20261020093000||ORU^R01^ORU_R01|{ctrl}|P|2.5.1"
+MSH = "MSH|^~\\&|LIS|LAB|KARESHAFAA|PROG|20261020093000||ORU^R01^ORU_R01|{ctrl}|P|2.5.1"
 
 
 def msg(mrn: str, *obx: str, ctrl: str = "ADV-1", dob: str = "19700101", extra_pid: str | None = None) -> str:
-    segs = [MSH.format(ctrl=ctrl), f"PID|1||{mrn}^^^WASL^MR||SYN^PAT||{dob}|F"]
+    segs = [MSH.format(ctrl=ctrl), f"PID|1||{mrn}^^^KARESHAFAA^MR||SYN^PAT||{dob}|F"]
     segs += [f"OBX|{i}|{o}" for i, o in enumerate(obx, 1)]
     if extra_pid:
         segs.append(extra_pid)
@@ -60,7 +60,7 @@ def test_two_cytology_results_use_most_severe():
 
 
 def test_more_than_one_pid_goes_to_review_not_merged():
-    r = parse_hl7v2(msg("A", FIT.format(v="5"), extra_pid="PID|2||B^^^WASL^MR||X^Y||19600101|F"))
+    r = parse_hl7v2(msg("A", FIT.format(v="5"), extra_pid="PID|2||B^^^KARESHAFAA^MR||X^Y||19600101|F"))
     assert r.programme is None and "more than one patient" in r.problem
 
 
@@ -84,7 +84,7 @@ def test_structured_numeric_plain_value():
 
 
 def test_comparator_value_goes_to_urgent_review():
-    from wasl.clinical_rules import PatientContext, ResultInput, evaluate
+    from kareshafaa.clinical_rules import PatientContext, ResultInput, evaluate
 
     d = evaluate(ResultInput(programme="colorectal_fit", value=None, value_text=">9.9", unit="ug/g", test="FIT"),
                  PatientContext(age=55))
@@ -103,7 +103,7 @@ def test_escape_sequences_decoded():
 
 
 def test_pid3_repetitions_split():
-    m = msg("M", FIT.format(v="300")).replace("PID|1||M^^^WASL^MR", "PID|1||MRN1^^^WASL^MR~EID9^^^ICA^NI")
+    m = msg("M", FIT.format(v="300")).replace("PID|1||M^^^KARESHAFAA^MR", "PID|1||MRN1^^^KARESHAFAA^MR~EID9^^^ICA^NI")
     r = parse_hl7v2(m)
     assert r.patient_identifier == "MRN1" and r.alt_identifiers == ["EID9"]
 
@@ -149,7 +149,7 @@ def _post(client, as_user, m):
 
 
 def test_bilateral_birads_creates_review_case_with_both_values(client, as_user, db, make_patient):
-    from wasl.models import Case, DiagnosticReport, Patient
+    from kareshafaa.models import Case, DiagnosticReport, Patient
 
     p = db.get(Patient, make_patient())
     body = _post(client, as_user, msg(p.mrn, MAMMO.format(side="L", v="BI-RADS 1"),
@@ -163,7 +163,7 @@ def test_bilateral_birads_creates_review_case_with_both_values(client, as_user, 
 
 
 def test_two_negative_values_differ_still_reviewed(client, as_user, db, make_patient):
-    from wasl.models import Patient
+    from kareshafaa.models import Patient
 
     p = db.get(Patient, make_patient())
     body = _post(client, as_user, msg(p.mrn, FIT.format(v="3"), FIT.format(v="7"), ctrl="ADV-NN"))
@@ -171,7 +171,7 @@ def test_two_negative_values_differ_still_reviewed(client, as_user, db, make_pat
 
 
 def test_reused_control_id_with_different_content_is_not_silently_dropped(client, as_user, db, make_patient):
-    from wasl.models import Patient
+    from kareshafaa.models import Patient
 
     p = db.get(Patient, make_patient())
     first = _post(client, as_user, msg(p.mrn, FIT.format(v="5"), ctrl="ADV-DUP"))
@@ -184,24 +184,24 @@ def test_reused_control_id_with_different_content_is_not_silently_dropped(client
     assert corrected["case"]["tier"] in ("high", "urgent", "critical")  # FIT 300 (positive >= 80): high
     again = _post(client, as_user, msg(p.mrn, FIT.format(v="300"), ctrl="ADV-DUP"))
     assert again["message_id"] == corrected["message_id"]
-    from wasl.models import IngestMessage
+    from kareshafaa.models import IngestMessage
     assert db.query(IngestMessage).filter(IngestMessage.message_id.like("ADV-DUP%")).count() == 2
 
 
 def test_identifiers_pointing_to_two_patients_go_to_review(client, as_user, db, make_patient):
-    from wasl.models import Patient
+    from kareshafaa.models import Patient
 
     a, b = db.get(Patient, make_patient()), db.get(Patient, make_patient())
-    m = msg("X", FIT.format(v="300"), ctrl="ADV-2ID").replace("PID|1||X^^^WASL^MR", f"PID|1||{a.mrn}~{b.mrn}")
+    m = msg("X", FIT.format(v="300"), ctrl="ADV-2ID").replace("PID|1||X^^^KARESHAFAA^MR", f"PID|1||{a.mrn}~{b.mrn}")
     body = _post(client, as_user, m)
     assert body["status"] == "needs_match_review" and "different patients" in body["reason"]
 
 
 def test_alternative_identifier_matches(client, as_user, db, make_patient):
-    from wasl.models import Patient
+    from kareshafaa.models import Patient
 
     a = db.get(Patient, make_patient())
-    m = msg("X", FIT.format(v="300"), ctrl="ADV-ALT").replace("PID|1||X^^^WASL^MR", f"PID|1||UNKNOWN-1~{a.mrn}")
+    m = msg("X", FIT.format(v="300"), ctrl="ADV-ALT").replace("PID|1||X^^^KARESHAFAA^MR", f"PID|1||UNKNOWN-1~{a.mrn}")
     body = _post(client, as_user, m)
     assert body["status"] == "processed" and body["case"]["patient"]["id"] == a.id
 
@@ -273,7 +273,7 @@ def test_bom_and_mllp_framing_tolerated():
 def test_sweep_skips_when_clock_moves_backwards(monkeypatch):
     from datetime import datetime
 
-    import wasl.main as m
+    import kareshafaa.main as m
 
     calls = []
     monkeypatch.setattr(m, "run_sweep", lambda db: calls.append(1) or {"ok": 1})
@@ -285,7 +285,7 @@ def test_sweep_skips_when_clock_moves_backwards(monkeypatch):
 def _ts(delta_days: float) -> str:
     from datetime import timedelta
 
-    from wasl.models import utcnow
+    from kareshafaa.models import utcnow
 
     return (utcnow() + timedelta(days=delta_days)).strftime("%Y%m%d%H%M") + "+0000"
 
@@ -294,14 +294,14 @@ def _ts(delta_days: float) -> str:
                                       ("20261020153000-0100", (2026, 10, 20, 16, 30)), ("2026-13-40", None),
                                       ("garbage", None), ("", None)])
 def test_hl7_collection_time_parsing(v, expect):
-    from wasl.services.ingest import parse_collection_time
+    from kareshafaa.services.ingest import parse_collection_time
 
     t = parse_collection_time(v, True)
     assert (t.timetuple()[:5] if t else None) == expect  # no offset = UAE local (UTC+4)
 
 
 def test_fhir_collection_time_parsing():
-    from wasl.services.ingest import parse_collection_time
+    from kareshafaa.services.ingest import parse_collection_time
 
     assert parse_collection_time("2026-10-20T08:00:00Z", False).hour == 8
     assert parse_collection_time("2026-10-20T08:00:00", False).hour == 4  # naive = UAE local
@@ -311,7 +311,7 @@ def test_fhir_collection_time_parsing():
 
 @pytest.mark.parametrize("days,reason", [(-400, "stale_result"), (5, "collection_date_in_future")])
 def test_specimen_timing_sends_positive_to_review_tier_kept(client, as_user, db, make_patient, days, reason):
-    from wasl.models import Patient
+    from kareshafaa.models import Patient
 
     p = db.get(Patient, make_patient())
     body = _post(client, as_user, msg(p.mrn, FIT.format(v="300") + f"|||{_ts(days)}", ctrl=f"ADV-T{days}"))
@@ -324,7 +324,7 @@ def test_specimen_timing_sends_positive_to_review_tier_kept(client, as_user, db,
 
 @pytest.mark.parametrize("days,reason", [(-400, "stale_result"), (5, "collection_date_in_future")])
 def test_specimen_timing_negative_is_not_silently_filed(client, as_user, db, make_patient, days, reason):
-    from wasl.models import Patient
+    from kareshafaa.models import Patient
 
     p = db.get(Patient, make_patient())
     body = _post(client, as_user, msg(p.mrn, FIT.format(v="3") + f"|||{_ts(days)}", ctrl=f"ADV-TN{days}"))
@@ -333,7 +333,7 @@ def test_specimen_timing_negative_is_not_silently_filed(client, as_user, db, mak
 
 @pytest.mark.parametrize("days", [-30, 0.5, -0.01])
 def test_recent_or_slightly_ahead_specimen_is_normal(client, as_user, db, make_patient, days):
-    from wasl.models import Patient
+    from kareshafaa.models import Patient
 
     p = db.get(Patient, make_patient())
     body = _post(client, as_user, msg(p.mrn, FIT.format(v="300") + f"|||{_ts(days)}", ctrl=f"ADV-OK{days}"))

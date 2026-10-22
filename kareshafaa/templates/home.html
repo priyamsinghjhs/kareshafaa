@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid-2">
+  <section>
+    <hgroup>
+      <h2>Every actionable result, carried all the way to care.</h2>
+      <p>KareShafaa turns each actionable screening result into a tracked case with <b>one accountable owner</b>, an <b>SLA clock</b>,
+      plain-language patient messages with a <b>teach-back check</b>, cross-provider referrals and consultations, and
+      <b>closure only with evidence or an authorised human decision</b>.</p>
+    </hgroup>
+    <h4>Choose a demo user</h4>
+    <div class="home-roles" id="roles"><div class="muted">Loading demo users…</div></div>
+    <p class="small muted" style="margin-top:1rem">Demo logins are for the hackathon prototype only (<code>KARESHAFAA_DEMO_LOGINS=false</code> disables them). All people, patients and results are synthetic.</p>
+  </section>
+  <aside>
+    <div class="card notice"><h4 style="margin-bottom:.4rem">New here? Start with a story</h4>
+      <p class="small">One click creates a synthetic patient and plays a realistic journey through the real workflow
+      (HL7 result → Arabic teach-back → rejected referral; T1 escalation to L4; two-key transfer; unreachable ladder;
+      Ramadan no-show).</p>
+      <button id="go-demo" style="width:auto">Open demo scenarios (as coordinator)</button>
+      <button id="go-ingest" class="secondary outline" style="width:auto">Ingest a sample HL7 result</button>
+    </div>
+    <div class="card"><h4>Suggested 5-minute demo</h4>
+      <ol class="small">
+        <li><b>Coordinator</b> (Aisha): work queue sorted by SLA → urgency → ML outreach priority; open an overdue case, see the timeline, owner and audit.</li>
+        <li><b>Patient</b> (Arabic / Hindi / Urdu / English; Tagalog speaker sees the interpreter notice): read the result in plain language, pass the teach-back, ask to talk to a clinician.</li>
+        <li><b>GP</b> (Dr Omar): order a confirmatory test, refer, answer an e-consult; try to close without evidence – it is blocked.</li>
+        <li><b>Specialist</b>: accept or reject a referral with a reason; book; mark attended / no-show.</li>
+        <li><b>Clinical lead</b>: dashboard (before/after simulation, fairness), governance (approve or roll back a model, approve rule changes).</li>
+        <li><b>Analyst</b>: aggregates only, small cells (&lt;5) suppressed.</li>
+      </ol>
+    </div>
+    <div class="card small"><h4>Safety by design</h4>
+      <ul><li>The state machine is deterministic; AI never changes a case state or closes a case.</li>
+      <li>Every read and write is in an append-only, hash-chained audit trail.</li>
+      <li>Model promotion and rule changes need a clinical lead's approval.</li>
+      <li>Messages are simulated and never sent.</li></ul>
+    </div>
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const BLURB = { coordinator: "Work queue, outreach, calls, escalations", gp: "Confirmations, referrals, e-consults, closure", specialist: "Accept/reject referrals, appointments, care plans",
+  clinical_lead: "Escalations, approvals, governance, KPIs", analyst: "Aggregate KPIs only (suppressed)", admin: "Audit, model training, configuration", patient: "Plain-language result + teach-back" };
+document.addEventListener("DOMContentLoaded", async () => {
+  await W.ready;
+  try {
+    const d = await W.api("/api/auth/demo-users");
+    document.getElementById("roles").innerHTML = d.users.filter(u => u.featured).map(u =>
+      `<button class="${u.role === 'patient' ? 'secondary' : ''}" data-u="${W.esc(u.username)}"><b>${W.esc(u.role.replace('_', ' '))}</b> · ${W.esc(u.display_name.split(' (')[0])}<small>${BLURB[u.role] || ""}${u.role === 'patient' ? ' · ' + W.esc(u.username.split('.')[1]) : ''}</small></button>`).join("");
+    document.querySelectorAll("#roles button").forEach(b => b.onclick = async () => { const r = await W.login(b.dataset.u); location.href = W.homeFor(r.user.role); });
+  } catch (e) { document.getElementById("roles").innerHTML = `<div class="muted">Demo logins are disabled.</div>`; }
+  const go = (url) => async () => { try { await W.login("aisha.rahman"); location.href = url; } catch (e) { W.toast("Demo logins are disabled", "err"); } };
+  document.getElementById("go-demo").onclick = go("/demo");
+  document.getElementById("go-ingest").onclick = go("/ingest");
+});
+</script>
+{% endblock %}
