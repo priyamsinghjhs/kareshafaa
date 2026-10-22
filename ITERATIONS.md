@@ -881,3 +881,12 @@ fully or saves nothing.
   trusts the first X-Forwarded-For hop (tunnel/proxy). Restored data keeps its seed-time timestamps, so SLA clocks
   move on (more cases overdue) as the seed copy ages. Re-seed and delete the seed copy to refresh it.
 * Tests: +22 (`tests/test_public_demo.py`), 3,269 passed.
+
+### Round 27: free permanent hosting prep (22 Oct 2026, ~10:25-10:35 IST)
+* Dockerfile: listens on `$PORT`; seeds the synthetic DB and the public-demo seed copy at **build** time
+  (`SEED_AT_BUILD=1`, a build-only secret, so no key is baked in); HEALTHCHECK on `/healthz`; uvicorn
+  `--proxy-headers`. `render.yaml` (Render free Blueprint: public demo on, generated secret, one worker for 512 MB),
+  `deploy/huggingface/README.md` (Space config; Docker Spaces now need HF PRO), `DEPLOY.md` (comparison of options).
+* No Docker daemon on the build box. The build RUN step and the CMD were run as-is outside a container on a clean
+  copy: seed + seed copy OK, restore on start OK, `$PORT` honoured, banner shown, `/api/governance/models/train`
+  refused with 403, about 215 MB RSS for one worker.

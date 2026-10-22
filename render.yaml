@@ -1,0 +1,23 @@
+# Render Blueprint (free plan): Dashboard -> New -> Blueprint -> pick this repo -> Apply. Nothing else to set.
+# Free web services sleep after 15 min idle (about 1 min cold start) and have an ephemeral disk - fine here, because
+# the public demo restores its synthetic database from the seed copy baked into the image on every start.
+services:
+  - type: web
+    name: kareshafaa
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: KARESHAFAA_PUBLIC_DEMO
+        value: "1"
+      - key: KARESHAFAA_DEMO_LOGINS
+        value: "true"
+      - key: KARESHAFAA_SECRET_KEY
+        generateValue: true
+      - key: WEB_WORKERS          # 512 MB instance: one worker (~210 MB RSS each)
+        value: "1"
+      - key: KARESHAFAA_SWEEP_INTERVAL_SECONDS
+        value: "300"

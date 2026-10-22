@@ -83,7 +83,9 @@ mismatch.
 
 Configuration: environment variables (prefix `KARESHAFAA_`) override `.env`; see `.env.example`.
 
-Docker: `docker build -t kareshafaa . && docker run -p 8000:8000 kareshafaa`. It runs as a non-root user and seeds on first start.
+Docker: `docker build -t kareshafaa . && docker run -p 8000:8000 kareshafaa`. It runs as a non-root user, listens on `$PORT` (default 8000) and seeds the synthetic database at build time (`--build-arg SEED_AT_BUILD=0` to seed on first start instead).
+Public demo: set `KARESHAFAA_PUBLIC_DEMO=1` (banner, destructive admin actions off, write rate limit, DB restored from a seed copy on start and nightly). Free permanent hosting: see `DEPLOY.md` (Render Blueprint in `render.yaml`).
+Installable PWA: `/manifest.webmanifest` and `/sw.js`. The service worker caches only static assets and the offline page, never API responses or pages.
 
 ## Architecture
 
