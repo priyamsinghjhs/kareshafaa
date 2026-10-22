@@ -236,6 +236,50 @@ def care_plan(case_id: int, body: sch.CarePlanIn, actor: Actor = Depends(require
     return _done(db, c, actor, care_plan_id=cp.id)
 
 
+@router.get("/cases/{case_id}/record")
+def clinical_record(case_id: int, actor: Actor = Depends(require("case:read")), db: Session = Depends(get_db)) -> dict:
+    """Complete clinical record of the case's patient for the doctor's screen (staff only)."""
+    from ..services.clinical_record import build_record
+    c = _load(db, actor, case_id)  # every request is already audited by the request middleware
+    return build_record(db, c, actor)
+
+
+@router.post("/cases/{case_id}/encounters")
+def add_encounter(case_id: int, body: sch.EncounterIn, actor: Actor = Depends(require("record:write")),
+                  db: Session = Depends(get_db)) -> dict:
+    from ..calendar_uae import as_utc_naive
+    from ..services.clinical_record import add_encounter as _add
+    c = _load(db, actor, case_id)
+    e = _add(db, c, actor, kind=body.kind, start=as_utc_naive(body.start), notes=body.notes, reason=body.reason,
+             outcome=body.outcome)
+    db.commit()
+    return {"ok": True, "encounter_id": e.id}
+
+
+@router.post("/cases/{case_id}/medications")
+def add_medication(case_id: int, body: sch.MedicationIn, actor: Actor = Depends(require("record:write")),
+                   db: Session = Depends(get_db)) -> dict:
+    from ..calendar_uae import as_utc_naive
+    from ..services.clinical_record import add_medication as _add
+    c = _load(db, actor, case_id)
+    m = _add(db, c, actor, name=body.name, dose=body.dose, frequency=body.frequency, route=body.route,
+             start_date=as_utc_naive(body.start_date) if body.start_date else None,
+             end_date=as_utc_naive(body.end_date) if body.end_date else None, status=body.status,
+             reason=body.reason, note=body.note)
+    db.commit()
+    return {"ok": True, "medication_id": m.id}
+
+
+@router.post("/cases/{case_id}/medications/{med_id}/stop")
+def stop_medication(case_id: int, med_id: int, body: sch.MedicationStopIn,
+                    actor: Actor = Depends(require("record:write")), db: Session = Depends(get_db)) -> dict:
+    from ..services.clinical_record import stop_medication as _stop
+    c = _load(db, actor, case_id)
+    _stop(db, c, actor, med_id, body.reason)
+    db.commit()
+    return {"ok": True}
+
+
 @router.post("/cases/{case_id}/decline")
 def decline(case_id: int, body: sch.NoteIn, actor: Actor = Depends(require("consent:write")), db: Session = Depends(get_db)) -> dict:
     c = _load(db, actor, case_id)

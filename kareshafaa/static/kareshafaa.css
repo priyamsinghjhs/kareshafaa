@@ -286,6 +286,33 @@ td .sub { display: block; color: var(--c-muted); font-size: var(--fs-xs); }
 .facts div { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-md); padding: var(--s-2) var(--s-3); min-width: 0; }
 .facts dt { font-size: var(--fs-xs); color: var(--c-muted); font-weight: 650; text-transform: uppercase; letter-spacing: .03em; }
 .facts dd { margin: 2px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.sec-title { font-size: var(--fs-lg); margin: var(--s-4) 0 var(--s-3); }
+.overdue-text { color: var(--c-danger); font-weight: 650; }
+/* clinical record (doctor view) */
+.record { margin-bottom: var(--s-4); }
+.rec-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s-2); margin-bottom: var(--s-3); }
+.rec-head h2 { margin: 0; font-size: var(--fs-lg); }
+.rec-head a { min-height: var(--tap); display: inline-flex; align-items: center; }
+.rec-summary h3, .rec-sec h3 { font-size: var(--fs-base); margin: 0; }
+.rec-facts { margin: var(--s-3) 0 0; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.rec-facts .wide { grid-column: 1 / -1; }
+.rec-facts dd .chip { white-space: normal; margin: 2px 0; }
+.rec-facts .sub { display: block; font-weight: 400; }
+.rec-sec { padding: 0 var(--s-4); }
+.rec-sec > summary { padding: var(--s-2) 0; }
+.rec-sec > summary .count { margin-inline-start: auto; background: var(--c-neutral-bg); color: var(--c-neutral); border-radius: var(--r-pill); padding: 0 8px; font-size: var(--fs-xs); font-weight: 650; }
+.rec-body { padding-bottom: var(--s-3); }
+.rec-body h4 { margin: var(--s-3) 0 var(--s-2); }
+.rec-tools { display: flex; justify-content: flex-end; margin-bottom: var(--s-2); }
+.rec-table tr.trigger td { background: var(--c-warning-bg); }
+.rec-table tr.inactive td { color: var(--c-muted); }
+.rec-table td .chip { white-space: normal; }
+.rec-table .note { white-space: pre-line; }
+.resp { border-bottom: 1px solid var(--c-border); padding: var(--s-2) 0; } .resp:last-child { border-bottom: 0; }
+.tb-ans { margin: var(--s-1) 0; padding-inline-start: var(--s-4); } .tb-ans .muted { display: block; }
+.docs { list-style: none; padding: 0; margin: 0; } .docs li { padding: var(--s-2) 0; border-bottom: 1px solid var(--c-border); } .docs li:last-child { border-bottom: 0; }
+.form-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0 var(--s-3); }
+@media (max-width: 599px) { .rec-table tr.trigger { border-color: var(--c-warning); background: var(--c-warning-bg); } .rec-table tr.trigger td { background: transparent; } .rec-sec { padding: 0 var(--s-3); } }
 .next-step { border: 2px solid var(--c-primary); background: var(--c-primary-soft); }
 .next-step button.primary-action { width: 100%; min-height: 52px; font-size: var(--fs-lg); }
 .more-actions summary { cursor: pointer; min-height: var(--tap); display: flex; align-items: center; font-weight: 600; color: var(--c-primary); }
@@ -394,3 +421,6 @@ footer.site-foot { font-size: var(--fs-xs); color: var(--c-muted); padding: var(
 .stepper-count { margin: 0 0 var(--s-2); }
 @media (max-width: 599px) { .stepper .st:not(.current):not(.side) { display: none; } .stepper .st { flex-basis: 100%; } }
 @media (max-width: 899px) { .case-grid > aside { order: -1; } }
+@media (max-width: 600px) {
+  .rec-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); }
+}

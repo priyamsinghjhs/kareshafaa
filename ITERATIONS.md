@@ -978,3 +978,31 @@ deadline, closure guard or audit semantics changed.**
   "patient changed answers" and which response it replaces.
 * **Verification:** 3,350 tests passed (13 new in `tests/test_patient_answer_lock.py`); validator 0 violations;
   flow re-checked on PostgreSQL (existing database upgraded in place); responsive check 0 problems.
+
+## Doctor's clinical record on the case screen
+
+* **What the doctor sees:** GP, specialist and clinical lead case screens now open with a "Clinical record" block
+  above "Current step on the care pathway": patient summary (name, MRN, age/sex, language, contact preference,
+  family doctor, allergies or NKDA, key conditions); tests and investigations (date, result + reference range, flag,
+  source; the result that opened the case highlighted); consultations and encounters (recorded notes plus completed
+  calls, consult requests and attended appointments); medicines (dose, frequency, start/stop, prescriber, status);
+  referrals and appointments; outreach and patient responses (teach-back answers in words); documents (FHIR export,
+  referral letters, care plans, source messages) and a link to the case timeline. Collapsible card sections; tables
+  on desktop, stacked cards on phones; "None recorded" for empty values. The step deadline reads "overdue by …" /
+  "due in …".
+* **Data:** new tables `encounters`, `medication_requests`, `allergy_intolerances`, `conditions`, `investigations`,
+  `data_migrations` (auto-created on existing databases). FHIR export includes them; `POST /api/ingest/fhir-history`
+  imports Encounter / MedicationRequest / MedicationStatement / AllergyIntolerance / Condition / Observation
+  (programme screening codes are left to the normal result ingest), idempotent per resource id.
+* **Forms:** "Add consultation note", "Add medicine", "Stop" (new permission `record:write`: GP, specialist, clinical
+  lead). CSRF enforced; audited as `encounter.recorded`, `medication.recorded`, `medication.stopped`. Coordinators can
+  read the record; patients never receive it (`/api/cases/*` is staff-only and `/api/me/case` has no clinician notes).
+* **One-time data steps** (`services/sample_data.py`, run by bootstrap under the start-up lock, each recorded in
+  `data_migrations` so it runs once): `reanchor_sample_case_dates_v1` moves open SYN- sample cases whose current step
+  was more than 21 days overdue to a realistic 3–16 days overdue, shifting all of that case's dates by one monotonic
+  map (order kept; nothing from the last 2 days moved; age eligibility re-checked), each audited
+  `sample.dates_reanchored`; `backfill_sample_clinical_history_v1` adds deterministic synthetic history for SYN-
+  patients only (source `sample_backfill`, never in the future), audited `sample.history_backfilled`. Real (non-SYN)
+  records are never touched; the audit log is never rewritten.
+* **Verification:** 3,359 tests passed (9 new in `tests/test_clinical_record.py`); validator 0 violations; responsive
+  check 0 problems; upgrade verified on a PostgreSQL copy (second start: "already applied").

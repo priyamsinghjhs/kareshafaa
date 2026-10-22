@@ -1,6 +1,7 @@
 // Case timeline + context-aware actions.
 const CASE_ID = document.getElementById("case-root").dataset.case;
-let C = null, META = null, DIR = { prac: null, orgs: null };
+let C = null, META = null, REC = null, DIR = { prac: null, orgs: null };
+const REC_OPEN = new Set();  // record sections the user opened/closed survive a re-render
 const root = () => document.getElementById("case-root");
 
 async function dir() {
@@ -11,7 +12,8 @@ const opts = (arr, v = x => x.id, l = x => x.name) => arr.map(x => `<option valu
 const kv = obj => Object.entries(obj).map(([k, v]) => `<option value="${k}">${W.esc(v)}</option>`).join("");
 
 async function load() {
-  [C, META] = await Promise.all([W.api(`/api/cases/${CASE_ID}`), W.api(`/api/cases/${CASE_ID}/actions`)]);
+  [C, META, REC] = await Promise.all([W.api(`/api/cases/${CASE_ID}`), W.api(`/api/cases/${CASE_ID}/actions`),
+    W.api(`/api/cases/${CASE_ID}/record`).catch(e => ({ error: e.message }))]);
   render();
 }
 
@@ -27,10 +29,12 @@ function header() {
    <div class="case-head"><h1>${W.esc(C.patient.name)}</h1>
    <p class="muted small" style="margin:0">Case #${C.id} · ${W.esc(C.patient.mrn)} · ${W.prog(C.programme)} screening</p>
    <div class="case-meta">${W.tier(C.tier)} ${W.sla(C.sla.status, C.sla.fraction)} ${C.sla.escalation_level ? `<span class="chip sla-red">Escalated (level ${C.sla.escalation_level})</span>` : ""}</div></div>
-   <dl class="facts">
+   ${record()}
+   <h2 class="sec-title" id="step-h">Current step on the care pathway</h2>
+   <dl class="facts" aria-labelledby="step-h">
      <div><dt>Current step</dt><dd>${W.esc(C.state_label)}</dd></div>
      <div><dt>Accountable owner</dt><dd>${owner}</dd></div>
-     <div><dt>Step deadline</dt><dd>${C.sla.due_at ? W.dt(C.sla.due_at) + ` <span class="small muted">(${W.ago(C.sla.due_at)})</span>` : "No deadline"}</dd></div>
+     <div><dt>Step deadline</dt><dd>${deadline()}</dd></div>
      <div><dt>Urgency</dt><dd class="small">${W.esc(W.tierText(C.tier))}</dd></div>
    </dl>
    <p class="small muted stepper-count">Step ${Math.max(1, C.journey.findIndex(j => j.status === "current") + 1)} of ${C.journey.filter(j => j.status !== "side").length} on the care pathway</p>
@@ -38,6 +42,99 @@ function header() {
    ${C.review_required ? `<div class="card alert" role="alert"><h3>Clinical review needed</h3><p>This result cannot move on automatically until a clinician reviews it: ${(C.review_reasons || []).map(x => `<span class="chip sla-red">${W.esc(x.replace(/_/g, " "))}</span>`).join(" ")}</p><p class="small" style="margin:0">Rule ${W.esc(C.rule_id || "–")} · pathway <b>${W.esc((C.pathway || "–").replace(/_/g, " "))}</b>${C.target ? " · target " + W.esc(C.target) : ""}. Urgency was set to the safer level; lowering it needs a clinician's reason (recorded).</p></div>` : (C.rule_id ? `<p class="small muted">Clinical rule ${W.esc(C.rule_id)} · pathway ${W.esc((C.pathway || "").replace(/_/g, " "))}${C.target ? " · target " + W.esc(C.target) : ""}${C.target_due_at ? ` · pathway target date <b>${W.dt(C.target_due_at)}</b>` : ""}</p>` : "")}
    ${C.transfer_pending ? `<div class="card notice">Transfer waiting for <b>${W.esc(C.transfer_pending.to_owner)}</b> to accept. The current owner stays accountable until then. <span class="small muted">${W.esc(C.transfer_pending.note || "")}</span></div>` : ""}
    ${C.closure ? `<div class="card ok"><b>Closed</b> (${W.esc(C.closure.type.replace(/_/g, " "))}: <b>${W.esc(C.closure.reason)}</b>) on ${W.dt(C.closure.closed_at)}. ${W.esc(C.closure.note || "")} ${C.closure.evidence_id ? `· evidence #${C.closure.evidence_id}` : ""}</div>` : ""}`;
+}
+
+function deadline() {
+  const d = C.sla.due_at; if (!d) return "No deadline";
+  const t = new Date(/Z|[+-]\d\d:?\d\d$/.test(d) ? d : d + "Z"), ms = t - Date.now(), days = Math.abs(ms) / 864e5;
+  const span = days < 1 ? Math.max(1, Math.round(Math.abs(ms) / 36e5)) + " h" : Math.round(days) + (Math.round(days) === 1 ? " day" : " days");
+  return `${W.dt(d)} <span class="small ${ms < 0 ? "overdue-text" : "muted"}">(${ms < 0 ? "overdue by " + span : "due in " + span})</span>`;
+}
+
+// ---------------------------------------------------------------- clinical record (doctor view)
+const NR = () => `<span class="muted">${W.esc((REC && REC.none) || "None recorded")}</span>`;
+const val = v => (v === null || v === undefined || v === "") ? NR() : W.esc(v);
+const day = s => s ? new Date(/Z|[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z").toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : NR();
+const flagChip = (abn, txt) => abn ? `<span class="chip sla-red"><span class="shape" aria-hidden="true">▲</span>${W.esc(txt || "Abnormal")}</span>` : `<span class="chip sla-green"><span class="shape" aria-hidden="true">✓</span>${W.esc(txt || "Normal")}</span>`;
+const tbl = (heads, rows) => rows.length ? `<div class="table-scroll"><table class="compact rec-table"><thead><tr>${heads.map(h => `<th scope="col">${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>` : `<p class="small">${NR()}</p>`;
+function sec(id, title, count, body, defOpen) {
+  const open = REC_OPEN.has(id) ? true : REC_OPEN.has("!" + id) ? false : defOpen && matchMedia("(min-width: 900px)").matches;
+  return `<details class="card rec-sec" data-sec="${id}" ${open ? "open" : ""}><summary><h3>${title}</h3><span class="count">${count}</span></summary><div class="rec-body">${body}</div></details>`;
+}
+function record() {
+  if (!REC) return "";
+  if (REC.error) return `<div class="card notice">The clinical record could not be loaded: ${W.esc(REC.error)}</div>`;
+  const R = REC, S = R.summary, w = R.can_write;
+  const alg = S.allergies.length ? S.allergies.map(a => a.nkda ? `<span class="chip sla-green">${W.esc(a.substance)}</span>` : `<span class="chip sla-red" title="${W.esc([a.reaction, a.severity].filter(Boolean).join(" · "))}"><span class="shape" aria-hidden="true">!</span>${W.esc(a.substance)}${a.reaction ? " – " + W.esc(a.reaction) : ""}</span>`).join(" ") : NR();
+  const cond = S.conditions.length ? S.conditions.map(c => `<span class="chip ${c.status === "active" ? "sla-none" : ""}">${W.esc(c.display)}${c.status && c.status !== "active" ? " (" + W.esc(c.status) + ")" : ""}</span>`).join(" ") : NR();
+  const summary = `<section class="card rec-summary" aria-labelledby="rs-h"><h3 id="rs-h">Patient summary</h3><dl class="facts rec-facts">
+     <div><dt>Name</dt><dd>${W.esc(S.name)}</dd></div><div><dt>MRN</dt><dd>${W.esc(S.mrn)}</dd></div>
+     <div><dt>Age / sex</dt><dd>${S.age} · ${W.esc(S.sex)}</dd></div><div><dt>Language</dt><dd>${val(S.language)}</dd></div>
+     <div><dt>Contact preference</dt><dd>${val(S.contact_preference)}</dd></div><div><dt>Family doctor</dt><dd>${val(S.gp)}<span class="sub small muted">${W.esc(S.managing_org || "")}</span></dd></div>
+     <div class="wide"><dt>Allergies</dt><dd>${alg}</dd></div><div class="wide"><dt>Key conditions</dt><dd>${cond}</dd></div></dl>
+     ${S.deceased ? `<p class="notice-inline err">Recorded as deceased.</p>` : ""}</section>`;
+  const tests = tbl(["Date", "Test", "Result", "Flag", "Source"], R.tests.map(t => `<tr class="${t.triggering ? "trigger" : ""}">
+     <td>${day(t.date)}</td><td><b>${W.esc(t.name)}</b>${t.triggering ? ` <span class="chip sla-amber">Result that opened this case</span>` : ""}<span class="sub">${W.esc(t.category === "investigation" ? "Investigation" : t.category === "confirmatory" ? "Confirmatory test" : "Screening test")}</span></td>
+     <td>${val(t.result)}${t.reference_range ? `<span class="sub">Reference ${W.esc(t.reference_range)}</span>` : ""}</td><td>${flagChip(t.abnormal, t.interpretation && t.interpretation.charAt(0).toUpperCase() + t.interpretation.slice(1))}</td>
+     <td>${val(t.source)}<span class="sub">${t.ordered_by ? "Ordered by: " + W.esc(t.ordered_by) : W.esc(t.record_source || "")}</span></td></tr>`));
+  const encs = tbl(["Date", "Type", "Clinician", "Reason", "Notes / outcome"], R.encounters.map(e => `<tr>
+     <td>${day(e.date)}</td><td><b>${W.esc(e.type)}</b>${e.org ? `<span class="sub">${W.esc(e.org)}</span>` : ""}</td><td>${val(e.clinician)}${e.role ? `<span class="sub">${W.esc(e.role)}</span>` : ""}</td>
+     <td>${val(e.reason)}</td><td>${e.notes ? `<div class="note">${W.esc(e.notes)}</div>` : ""}${e.outcome ? `<div><b>Outcome:</b> ${W.esc(e.outcome)}</div>` : (e.notes ? "" : NR())}</td></tr>`));
+  const meds = tbl(["Medicine", "Dose", "Frequency", "Start", "Stop", "Prescriber", "Status"], R.medications.map(m => `<tr class="${m.status === "active" ? "" : "inactive"}">
+     <td><b>${W.esc(m.name)}</b>${m.reason ? `<span class="sub">${W.esc(m.reason)}</span>` : ""}${m.route ? `<span class="sub">${W.esc(m.route)}</span>` : ""}</td><td>${val(m.dose)}</td><td>${val(m.frequency)}</td>
+     <td>${day(m.start)}</td><td>${m.end ? day(m.end) : NR()}${m.stop_reason ? `<span class="sub">${W.esc(m.stop_reason)}</span>` : ""}</td><td>${val(m.prescriber)}</td>
+     <td><span class="chip ${m.status === "active" ? "sla-green" : "sla-none"}">${W.esc(m.status.charAt(0).toUpperCase() + m.status.slice(1))}</span>${w && m.status === "active" ? ` <button class="secondary sm" data-stop="${m.id}" data-name="${W.esc(m.name)}">Stop</button>` : ""}</td></tr>`));
+  const refs = tbl(["Date", "Request", "To", "Status", "Detail"], R.referrals.map(r => `<tr><td>${day(r.date)}</td><td><b>${W.esc(r.service)}</b><span class="sub">${r.kind === "referral" ? "Referral" : "Confirmatory test"} · requested by ${W.esc(r.requester || "–")}</span></td>
+     <td>${val(r.to)}${r.specialist ? `<span class="sub">${W.esc(r.specialist)}</span>` : ""}</td><td><span class="chip sla-none">${W.esc(r.status)}</span>${r.result ? ` <span class="chip ${r.result === "positive" ? "sla-red" : "sla-green"}">${W.esc(r.result)}</span>` : ""}</td>
+     <td class="small">${r.summary ? W.esc(r.summary) : ""}${r.reason ? `<div>Reason: ${W.esc(r.reason)}</div>` : ""}${!r.summary && !r.reason ? NR() : ""}</td></tr>`));
+  const apps = tbl(["Date", "Where", "Clinician", "Status"], R.appointments.map(a => `<tr><td>${a.date ? W.dt(a.date) : NR()}</td><td>${val(a.org)}</td><td>${val(a.clinician)}</td>
+     <td><span class="chip ${a.status === "fulfilled" ? "sla-green" : a.status === "noshow" ? "sla-red" : "sla-none"}">${W.esc(a.upcoming ? "Booked (upcoming)" : a.status_label)}</span>${a.barrier ? `<span class="sub">Barrier: ${W.esc(a.barrier)}</span>` : ""}</td></tr>`));
+  const resp = R.responses.length ? R.responses.map(r => `<div class="resp"><div><b>${W.esc(r.title)}</b> <span class="small muted">${W.dt(r.date)}</span> ${r.kind === "teach_back" ? flagChip(!r.passed, r.result) : ""}</div>
+     ${r.kind === "teach_back" ? `<ul class="small tb-ans">${r.answers.map(a => `<li><span class="muted">${W.esc(a.question)}</span> ${W.esc(a.answer)}</li>`).join("")}</ul>${r.confidence ? `<div class="small">Confidence ${r.confidence}/5</div>` : ""}` : `<div class="small">${W.esc(r.result)}</div>`}</div>`).join("") : `<p class="small">${NR()}</p>`;
+  const out = tbl(["Date", "Contact", "Channel", "Status"], R.outreach.slice(0, 20).map(o => `<tr><td>${W.dt(o.date)}</td><td>${W.esc(o.what)}${o.attempt > 1 ? ` <span class="sub">attempt ${o.attempt}</span>` : ""}</td><td>${W.esc(o.channel)}</td>
+     <td><span class="chip ${/completed|reached/.test(o.status) ? "sla-green" : /fail|no answer|wrong/.test(o.status) ? "sla-red" : "sla-none"}">${W.esc(o.status)}</span></td></tr>`)) + (R.outreach_total > 20 ? `<p class="small muted">Showing the latest 20 of ${R.outreach_total}. All messages are in the case timeline below.</p>` : "");
+  const docs = R.documents.length ? `<ul class="docs">${R.documents.map(d => `<li><b>${d.href ? `<a href="${W.esc(d.href)}" target="_blank" rel="noopener">${W.esc(d.title)}</a>` : W.esc(d.title)}</b> <span class="small muted">${day(d.date)} · ${W.esc(d.kind)}</span>${d.text ? `<div class="small">${W.esc(d.text)}</div>` : ""}</li>`).join("")}</ul>` : `<p class="small">${NR()}</p>`;
+  const others = R.cases.length > 1 ? `<p class="small">Screening cases for this patient: ${R.cases.map(c => c.current ? `<b>#${c.id} ${W.esc(W.progText(c.programme))} (this case)</b>` : `<a href="/cases/${c.id}">#${c.id} ${W.esc(W.progText(c.programme))}</a> <span class="muted">${W.esc(c.state.replace(/_/g, " "))}</span>`).join(" · ")}</p>` : "";
+  return `<section class="record" aria-labelledby="rec-h"><div class="rec-head"><h2 id="rec-h">Clinical record</h2><a class="small" href="#case-timeline">Case timeline ↓</a></div>
+    ${summary}${others}${R.hidden_cases ? `<p class="small muted">${R.hidden_cases} other case(s) for this patient are outside your organisation's access and are not shown.</p>` : ""}
+    ${sec("tests", "Tests and investigations", R.tests.length, tests, true)}
+    ${sec("enc", "Consultations and encounters", R.encounters.length, (w ? `<div class="rec-tools"><button class="secondary sm" data-rec="encounter">Add consultation note</button></div><div id="rec-form-encounter"></div>` : "") + encs, true)}
+    ${sec("meds", "Medicines", R.medications.filter(m => m.status === "active").length + " active", (w ? `<div class="rec-tools"><button class="secondary sm" data-rec="medication">Add medicine</button></div><div id="rec-form-medication"></div>` : "") + meds, true)}
+    ${sec("refs", "Referrals and appointments", R.referrals.length + R.appointments.length, `<h4>Referrals and test requests</h4>${refs}<h4>Appointments</h4>${apps}`, true)}
+    ${sec("out", "Outreach and patient responses", R.outreach_total + R.responses.length, `<h4>Patient responses</h4>${resp}<h4>Outreach attempts</h4>${out}`, false)}
+    ${sec("docs", "Care plans and documents", R.documents.length, docs, false)}</section>`;
+}
+function localNow() { const t = new Date(); t.setSeconds(0, 0); return new Date(t - t.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); }
+function recForm(kind) {
+  const el = document.getElementById("rec-form-" + kind); if (!el) return;
+  if (el.innerHTML) { el.innerHTML = ""; return; }
+  const kinds = Object.entries(REC.encounter_kinds).filter(([k]) => k !== "e_consult").map(([k, v]) => `<option value="${k}">${W.esc(v)}</option>`).join("");
+  el.innerHTML = kind === "encounter" ? `<form class="action-form" aria-label="Add consultation note"><h3>Add consultation note</h3><p class="small muted">Visible to the care team only – never shown to the patient.</p>
+      <label>Type<select name="kind">${kinds}</select></label><label>Date and time<input type="datetime-local" name="start" value="${localNow()}" max="${localNow()}" required></label>
+      <label>Reason<input name="reason" maxlength="300"></label><label>Clinical note<textarea name="notes" rows="4" minlength="5" maxlength="5000" required></textarea></label>
+      <label>Outcome / plan<input name="outcome" maxlength="300"></label><div class="form-buttons"><button type="submit">Save note</button><button type="button" class="secondary" data-cancel>Cancel</button></div></form>`
+    : `<form class="action-form" aria-label="Add medicine"><h3>Add medicine</h3>
+      <label>Medicine<input name="name" minlength="2" maxlength="200" required placeholder="e.g. Metformin"></label>
+      <div class="form-pair"><label>Dose<input name="dose" maxlength="80" placeholder="e.g. 500 mg"></label><label>Frequency<input name="frequency" maxlength="80" placeholder="e.g. Twice daily with meals"></label></div>
+      <div class="form-pair"><label>Route<input name="route" maxlength="40" value="oral"></label><label>Start date<input type="date" name="start_date" value="${localNow().slice(0, 10)}"></label></div>
+      <label>Status<select name="status"><option value="active">Active</option><option value="completed">Completed course</option><option value="stopped">Stopped</option></select></label>
+      <label>Reason / indication<input name="reason" maxlength="300"></label><label>Note<textarea name="note" rows="2" maxlength="2000"></textarea></label>
+      <div class="form-buttons"><button type="submit">Save medicine</button><button type="button" class="secondary" data-cancel>Cancel</button></div></form>`;
+  const f = el.querySelector("form"); f.querySelector("[data-cancel]").onclick = () => { el.innerHTML = ""; }; f.querySelector("select, input").focus();
+  f.onsubmit = async ev => { ev.preventDefault(); const b = f.querySelector("button[type=submit]"); b.disabled = true; const fd = Object.fromEntries(new FormData(f));
+    try {
+      if (kind === "encounter") await W.api(`/api/cases/${CASE_ID}/encounters`, { method: "POST", body: { kind: fd.kind, start: new Date(fd.start).toISOString(), reason: fd.reason || null, notes: fd.notes, outcome: fd.outcome || null } });
+      else await W.api(`/api/cases/${CASE_ID}/medications`, { method: "POST", body: { name: fd.name, dose: fd.dose || null, frequency: fd.frequency || null, route: fd.route || null, start_date: fd.start_date ? new Date(fd.start_date + "T12:00:00").toISOString() : null, status: fd.status, reason: fd.reason || null, note: fd.note || null } });
+      REC_OPEN.add(kind === "encounter" ? "enc" : "meds"); W.toast(kind === "encounter" ? "Consultation note saved" : "Medicine saved", "ok"); await load();
+    } catch (e) { W.toast(e.message, "err"); b.disabled = false; } };
+}
+function wireRecord() {
+  const r = root();
+  r.querySelectorAll("details.rec-sec").forEach(d => d.addEventListener("toggle", () => { const id = d.dataset.sec; REC_OPEN.delete(id); REC_OPEN.delete("!" + id); REC_OPEN.add(d.open ? id : "!" + id); }));
+  r.querySelectorAll("[data-rec]").forEach(b => b.onclick = () => recForm(b.dataset.rec));
+  r.querySelectorAll("[data-stop]").forEach(b => b.onclick = async () => {
+    const why = await W.ask(`Stop ${b.dataset.name}?`, "Reason for stopping", { ok: "Stop medicine", min: 3, danger: true }); if (!why) return;
+    try { await W.api(`/api/cases/${CASE_ID}/medications/${b.dataset.stop}/stop`, { method: "POST", body: { reason: why } }); REC_OPEN.add("meds"); W.toast("Medicine stopped", "ok"); await load(); } catch (e) { W.toast(e.message, "err"); } });
 }
 
 function patientCard() {
@@ -57,7 +154,7 @@ function patientCard() {
 function render() {
   const acts = C.actions, primary = acts.find(a => a.primary) || null, others = acts.filter(a => a !== primary);
   root().innerHTML = header() + `<div class="grid-2 case-grid"><div>
-    <div class="tabs" role="tablist" aria-label="Case details"><button role="tab" aria-selected="true" data-t="steps">Timeline</button><button role="tab" aria-selected="false" class="secondary" data-t="events">Messages &amp; events</button><button role="tab" aria-selected="false" class="secondary" data-t="audit">Audit (${C.audit.length})</button></div>
+    <div class="tabs" role="tablist" aria-label="Case details" id="case-timeline"><button role="tab" aria-selected="true" data-t="steps">Timeline</button><button role="tab" aria-selected="false" class="secondary" data-t="events">Messages &amp; events</button><button role="tab" aria-selected="false" class="secondary" data-t="audit">Audit (${C.audit.length})</button></div>
     <div id="tabbody" role="tabpanel"></div></div>
     <aside aria-label="Actions and patient details"><section class="card ${primary ? "next-step" : ""}" aria-labelledby="act-h"><h2 id="act-h" style="font-size:var(--fs-lg)">${primary ? "Next step" : "Actions"}</h2>
       ${primary ? `<button class="primary-action" data-k="${primary.key}" data-ev="${primary.evidence_type || ""}">${W.esc(primary.label)}</button>` : ""}
@@ -70,6 +167,7 @@ function render() {
   });
   document.getElementById("tabbody").innerHTML = steps();
   root().querySelectorAll("[data-k]").forEach(b => b.onclick = () => openForm(b.dataset.k, b.dataset.ev));
+  wireRecord();
 }
 const btn = a => `<button class="secondary" data-k="${a.key}" data-ev="${a.evidence_type || ""}">${W.esc(a.label)}</button>`;
 

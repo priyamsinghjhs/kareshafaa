@@ -180,6 +180,54 @@ def export_case(db: Session, case: Case, include_audit: bool = True) -> dict:
                     "category": [{"coding": [{"system": SYS + "/consent-scope", "code": c.scope}]}],
                     "patient": _ref("Patient", p.id), "dateTime": _ts(c.recorded_at),
                     "provision": {"type": c.decision}})
+    # patient-level clinical record (doctor view): consultations, medicines, allergies, conditions, investigations
+    from .models import AllergyIntolerance, Condition, Encounter, Investigation, MedicationRequest
+    for e in db.scalars(select(Encounter).where(Encounter.patient_id == p.id).order_by(Encounter.start)):
+        if e.practitioner_id:
+            prac_ids.add(e.practitioner_id)
+        res.append({"resourceType": "Encounter", "id": f"enc-{e.id}", "status": e.status or "finished",
+                    "class": {"system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+                              "code": "VR" if e.kind in ("teleconsult", "phone_call") else "AMB"},
+                    "type": [{"text": e.kind}], "subject": _ref("Patient", p.id), "period": {"start": _ts(e.start)},
+                    **({"participant": [{"individual": _ref("Practitioner", e.practitioner_id)}]} if e.practitioner_id else
+                       ({"participant": [{"individual": {"display": e.clinician_display}}]} if e.clinician_display else {})),
+                    **({"reasonCode": [{"text": e.reason}]} if e.reason else {}),
+                    **({"extension": [{"url": BASE + "/StructureDefinition/clinical-note", "valueString": e.notes}]}
+                       if e.notes else {})})
+    for m in db.scalars(select(MedicationRequest).where(MedicationRequest.patient_id == p.id)):
+        if m.prescriber_id:
+            prac_ids.add(m.prescriber_id)
+        res.append({"resourceType": "MedicationRequest", "id": f"med-{m.id}",
+                    "status": {"active": "active", "stopped": "stopped", "completed": "completed"}.get(m.status, "unknown"),
+                    "intent": "order", "medicationCodeableConcept": {"text": m.name}, "subject": _ref("Patient", p.id),
+                    "authoredOn": _ts(m.start_date),
+                    **({"requester": _ref("Practitioner", m.prescriber_id)} if m.prescriber_id else {}),
+                    "dosageInstruction": [{"text": " ".join(x for x in (m.dose, m.frequency, m.route) if x) or None}],
+                    **({"dispenseRequest": {"validityPeriod": {"end": _ts(m.end_date)}}} if m.end_date else {})})
+    for a in db.scalars(select(AllergyIntolerance).where(AllergyIntolerance.patient_id == p.id)):
+        res.append({"resourceType": "AllergyIntolerance", "id": f"alg-{a.id}", "patient": _ref("Patient", p.id),
+                    "clinicalStatus": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical",
+                                                   "code": "active" if a.status == "active" else "inactive"}]},
+                    "code": ({"coding": [{"system": "http://snomed.info/sct", "code": "716186003",
+                                          "display": "No known allergy"}], "text": a.substance}
+                             if a.substance.lower().startswith("no known") else {"text": a.substance}),
+                    "recordedDate": _ts(a.recorded_at),
+                    **({"reaction": [{"manifestation": [{"text": a.reaction}], **({"severity": a.severity} if a.severity else {})}]}
+                       if a.reaction else {})})
+    for c in db.scalars(select(Condition).where(Condition.patient_id == p.id)):
+        res.append({"resourceType": "Condition", "id": f"cond-{c.id}", "subject": _ref("Patient", p.id),
+                    "clinicalStatus": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+                                                   "code": c.clinical_status}]},
+                    "code": {"text": c.display, **({"coding": [{"system": "http://hl7.org/fhir/sid/icd-10", "code": c.code}]}
+                                                    if c.code else {})}, "onsetDateTime": _ts(c.onset)})
+    for i in db.scalars(select(Investigation).where(Investigation.patient_id == p.id)):
+        res.append({"resourceType": "Observation", "id": f"inv-{i.id}", "status": "final",
+                    "code": {"text": i.name, **({"coding": [{"system": "http://loinc.org", "code": i.code}]} if i.code else {})},
+                    "subject": _ref("Patient", p.id), "effectiveDateTime": _ts(i.effective_at),
+                    "valueString": f"{i.value or ''} {i.unit or ''}".strip(),
+                    "interpretation": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
+                                                    "code": i.flag}]}],
+                    **({"referenceRange": [{"text": i.reference_range}]} if i.reference_range else {})})
     for pid in prac_ids:  # PractitionerRole references the practitioner's organisation
         pr = db.get(Practitioner, pid)
         if pr:

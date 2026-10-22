@@ -142,6 +142,10 @@ def run() -> dict:
                 out["seconds"] = round(time.time() - t0, 1)
                 init_db()  # indexes/triggers after a bulk copy (idempotent)
             out["model_files_saved_to_database"] = backfill_model_artifacts()
+            # one-time data steps for SYN- sample patients only (guarded by data_migrations; never real records)
+            from .db import session_factory
+            from .services.sample_data import run_pending
+            out["data_steps"] = run_pending(session_factory())
         finally:
             if lock_conn is not None:
                 lock_conn.execute(text("SELECT pg_advisory_unlock(727001)"))

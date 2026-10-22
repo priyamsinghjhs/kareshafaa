@@ -53,7 +53,7 @@ const W = {
   loading(text = "Loading…") { return `<div class="loading" role="status">${W.esc(text)}</div>`; },
   empty(title, text = "", action = "") { return `<div class="empty"><h3>${W.esc(title)}</h3>${text ? `<p>${text}</p>` : ""}${action}</div>`; },
   dt(s) { if (!s) return "–"; const d = new Date(s.endsWith("Z") || s.includes("+") ? s : s + "Z");
-    return d.toLocaleString(undefined, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); },
+    return d.toLocaleString(undefined, { day: "2-digit", month: "short", ...(d.getFullYear() !== new Date().getFullYear() ? { year: "numeric" } : {}), hour: "2-digit", minute: "2-digit" }); },
   ago(s) { if (!s) return "–"; const d = new Date(s.endsWith("Z") ? s : s + "Z"); const h = (d - Date.now()) / 36e5;
     const a = Math.abs(h); const txt = a < 1 ? Math.round(a * 60) + " min" : a < 48 ? Math.round(a) + " h" : Math.round(a / 24) + " days";
     return h < 0 ? txt + " ago" : "in " + txt; },

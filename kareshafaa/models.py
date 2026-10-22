@@ -364,6 +364,105 @@ class AnswerReopen(Base):  # patient asked to change answers they already sent (
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+# --------------------------------------------------------------------------- clinical record (doctor view)
+# source: "manual" (entered by a clinician in the app) | "fhir" (imported FHIR R4 resource) |
+# "sample_backfill" (synthetic history for SYN- sample patients only, see services/sample_data.py)
+class Encounter(Base):  # FHIR Encounter - consultation / visit / call with clinical notes (staff-only)
+    __tablename__ = "encounters"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True, index=True)
+    appointment_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    kind: Mapped[str] = mapped_column(String(30))  # gp_visit | specialist_visit | colonoscopy | colposcopy | ...
+    start: Mapped[datetime] = mapped_column(DateTime)
+    practitioner_id: Mapped[int | None] = mapped_column(ForeignKey("practitioners.id"), nullable=True)
+    clinician_display: Mapped[str | None] = mapped_column(String(200), nullable=True)  # imported, not in directory
+    org_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)  # clinician note: never shown to the patient
+    outcome: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="finished")
+    source: Mapped[str] = mapped_column(String(20), default="manual")
+    external_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    recorded_by_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class MedicationRequest(Base):  # FHIR MedicationRequest / MedicationStatement
+    __tablename__ = "medication_requests"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    dose: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    frequency: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    route: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    start_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    end_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active | stopped | completed
+    prescriber_id: Mapped[int | None] = mapped_column(ForeignKey("practitioners.id"), nullable=True)
+    prescriber_display: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stop_reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    source: Mapped[str] = mapped_column(String(20), default="manual")
+    external_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    recorded_by_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class AllergyIntolerance(Base):  # FHIR AllergyIntolerance (substance "No known drug allergies" = NKDA recorded)
+    __tablename__ = "allergy_intolerances"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    substance: Mapped[str] = mapped_column(String(200))
+    reaction: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    severity: Mapped[str | None] = mapped_column(String(20), nullable=True)  # mild | moderate | severe
+    status: Mapped[str] = mapped_column(String(20), default="active")
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    source: Mapped[str] = mapped_column(String(20), default="manual")
+    external_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+
+class Condition(Base):  # FHIR Condition - key conditions / problem list
+    __tablename__ = "conditions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    display: Mapped[str] = mapped_column(String(200))
+    code: Mapped[str | None] = mapped_column(String(40), nullable=True)  # ICD-10
+    clinical_status: Mapped[str] = mapped_column(String(20), default="active")  # active | resolved
+    onset: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    source: Mapped[str] = mapped_column(String(20), default="manual")
+    external_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+
+class Investigation(Base):  # FHIR Observation outside the screening programme (e.g. lipids, eGFR, histology)
+    __tablename__ = "investigations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    code: Mapped[str | None] = mapped_column(String(40), nullable=True)  # LOINC
+    value: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    unit: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    reference_range: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    flag: Mapped[str] = mapped_column(String(10), default="N")  # N normal | H high | L low | A abnormal
+    effective_at: Mapped[datetime] = mapped_column(DateTime)
+    performer: Mapped[str | None] = mapped_column(String(200), nullable=True)  # ordering/reporting source
+    source: Mapped[str] = mapped_column(String(20), default="manual")
+    external_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class DataMigration(Base):  # one-time data steps already applied to this database (guard: run once)
+    __tablename__ = "data_migrations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(80), unique=True)
+    applied_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
 class ConsultRequest(Base):  # FHIR CommunicationRequest/ServiceRequest(e-consult)
     __tablename__ = "consult_requests"
     id: Mapped[int] = mapped_column(primary_key=True)

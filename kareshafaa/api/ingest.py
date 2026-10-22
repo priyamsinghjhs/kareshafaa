@@ -87,6 +87,32 @@ async def fhir_bundle(request: Request, actor: Actor = Depends(require("case:cre
     return await run_in_threadpool(work)
 
 
+@router.post("/fhir-history")
+async def fhir_history(request: Request, actor: Actor = Depends(require("record:write")),
+                       db: Session = Depends(get_db)) -> dict:
+    """Import a patient's clinical history (Encounter, MedicationRequest/Statement, AllergyIntolerance, Condition,
+    non-programme Observation) from a FHIR R4 Bundle into an EXISTING patient record. Idempotent per resource id."""
+    raw = await request.body()
+    if len(raw) > MAX_BYTES:
+        raise Invalid("bundle too large")
+    import json
+
+    try:
+        bundle = json.loads(raw)
+    except (ValueError, RecursionError) as e:
+        raise Invalid("body must be JSON (and not nested absurdly deep)") from e
+    from ..services.clinical_record import import_fhir_history
+
+    def work() -> dict:
+        try:
+            out = import_fhir_history(db, bundle, actor)
+        except (AttributeError, TypeError, KeyError, IndexError) as e:
+            raise Invalid(f"malformed FHIR Bundle structure ({type(e).__name__})") from e
+        db.commit()
+        return {"ok": True, **out}
+    return await run_in_threadpool(work)
+
+
 @router.get("/sample", response_class=PlainTextResponse)
 def sample(actor: Actor = Depends(require("case:create")), db: Session = Depends(get_db)) -> str:
     """A ready-to-ingest synthetic ORU^R01 (positive FIT) for a real synthetic patient without an open FIT case."""

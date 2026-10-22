@@ -207,3 +207,28 @@ class UserResetIn(_In):
 
 class UserNoteIn(_In):
     reason: str | None = Field(None, max_length=500)
+
+
+class EncounterIn(_In):
+    kind: Literal["gp_visit", "specialist_visit", "colonoscopy", "colposcopy", "breast_clinic", "teleconsult",
+                  "phone_call", "nurse_visit", "other"]
+    start: datetime
+    reason: str | None = Field(default=None, max_length=300)
+    notes: str = Field(min_length=5, max_length=5000)
+    outcome: str | None = Field(default=None, max_length=300)
+
+
+class MedicationIn(_In):
+    name: str = Field(min_length=2, max_length=200)
+    dose: str | None = Field(default=None, max_length=80)
+    frequency: str | None = Field(default=None, max_length=80)
+    route: str | None = Field(default=None, max_length=40)
+    start_date: datetime | None = None
+    end_date: datetime | None = None
+    status: Literal["active", "stopped", "completed"] = "active"
+    reason: str | None = Field(default=None, max_length=300)
+    note: str | None = Note
+
+
+class MedicationStopIn(_In):
+    reason: str = Field(min_length=3, max_length=300)
