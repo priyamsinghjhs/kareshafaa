@@ -997,12 +997,16 @@ deadline, closure guard or audit semantics changed.**
 * **Forms:** "Add consultation note", "Add medicine", "Stop" (new permission `record:write`: GP, specialist, clinical
   lead). CSRF enforced; audited as `encounter.recorded`, `medication.recorded`, `medication.stopped`. Coordinators can
   read the record; patients never receive it (`/api/cases/*` is staff-only and `/api/me/case` has no clinician notes).
-* **One-time data steps** (`services/sample_data.py`, run by bootstrap under the start-up lock, each recorded in
-  `data_migrations` so it runs once): `reanchor_sample_case_dates_v1` moves open SYN- sample cases whose current step
+* **One-time data steps** (`services/sample_data.py`; each recorded in `data_migrations` so it runs once). They run
+  20 s after the server is up, from one process only (PostgreSQL advisory try-lock / file lock), the history backfill
+  in batches of 100 patients committed one by one (`KARESHAFAA_DATA_STEPS=background`, the default; `startup` runs
+  them inside bootstrap, `off` never). Running them inside bootstrap made the first Render deploy of this change fail
+  (start-up too slow on 0.1 vCPU); in the background start-up stays at a few seconds: `reanchor_sample_case_dates_v1` moves open SYN- sample cases whose current step
   was more than 21 days overdue to a realistic 3–16 days overdue, shifting all of that case's dates by one monotonic
   map (order kept; nothing from the last 2 days moved; age eligibility re-checked), each audited
   `sample.dates_reanchored`; `backfill_sample_clinical_history_v1` adds deterministic synthetic history for SYN-
   patients only (source `sample_backfill`, never in the future), audited `sample.history_backfilled`. Real (non-SYN)
   records are never touched; the audit log is never rewritten.
-* **Verification:** 3,359 tests passed (9 new in `tests/test_clinical_record.py`); validator 0 violations; responsive
-  check 0 problems; upgrade verified on a PostgreSQL copy (second start: "already applied").
+* **Verification:** 3,361 tests passed (11 new in `tests/test_clinical_record.py`); validator 0 violations; responsive
+  check 0 problems; upgrade verified on a PostgreSQL copy with Python 3.12 (the image's version): server healthy within seconds, steps done
+  in the background in about 20 s, nothing re-run on the next start, validator 0, audit chain valid.
