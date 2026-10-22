@@ -147,7 +147,17 @@ def storage_is_persistent(s: Settings) -> bool:
 
 @lru_cache
 def get_settings() -> Settings:
-    s = Settings()
+    s = derive(Settings())
+    s.data_dir.mkdir(parents=True, exist_ok=True)
+    s.model_dir.mkdir(parents=True, exist_ok=True)
+    if s.env == "prod" and s.demo_logins:
+        raise RuntimeError("KARESHAFAA_DEMO_LOGINS must be false in prod")
+    s.secret_key = _resolve_secret(s)
+    return s
+
+
+def derive(s: Settings) -> Settings:
+    """Apply DATABASE_URL and the operating mode to freshly read settings."""
     # the plain DATABASE_URL (what Neon/Supabase/Render hand out) wins over the default SQLite file
     if os.environ.get("DATABASE_URL") and not os.environ.get("KARESHAFAA_DATABASE_URL"):
         s.database_url = os.environ["DATABASE_URL"]
@@ -161,9 +171,4 @@ def get_settings() -> Settings:
         s.public_demo = True
     elif s.public_demo:
         s.mode = "public_demo"
-    s.data_dir.mkdir(parents=True, exist_ok=True)
-    s.model_dir.mkdir(parents=True, exist_ok=True)
-    if s.env == "prod" and s.demo_logins:
-        raise RuntimeError("KARESHAFAA_DEMO_LOGINS must be false in prod")
-    s.secret_key = _resolve_secret(s)
     return s

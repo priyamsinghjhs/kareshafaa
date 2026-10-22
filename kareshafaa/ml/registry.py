@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from .. import audit
 from ..config import get_settings
-from ..models import Case, ModelVersion, utcnow
+from ..models import Case, ModelArtifact, ModelVersion, utcnow
 from ..security import ML_SERVICE, Actor
 from ..signoff import require_signoff
 from ..services.errors import DomainError, Forbidden, Invalid, NotFound
@@ -208,10 +208,47 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _restore_artifact(mv: ModelVersion, path: Path) -> Path | None:
+    """Missing/changed file (e.g. a fresh container): restore it from the database copy with the SAME SHA-256."""
+    from sqlalchemy.orm import object_session
+
+    db = object_session(mv)
+    if db is None:
+        return None
+    art = db.get(ModelArtifact, mv.artifact_sha256)
+    if art is None or hashlib.sha256(art.data).hexdigest() != mv.artifact_sha256:
+        return None
+    for target in (path, get_settings().model_dir / art.filename):
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            tmp = target.with_suffix(target.suffix + ".tmp")
+            tmp.write_bytes(art.data)
+            tmp.replace(target)
+            return target
+        except OSError:
+            continue
+    return None
+
+
+def store_artifact(db: Session, mv: ModelVersion) -> bool:
+    """Keep a database copy of a model file whose SHA-256 matches its registry entry (idempotent)."""
+    if db.get(ModelArtifact, mv.artifact_sha256) is not None:
+        return False
+    path = Path(mv.artifact_path)
+    if not path.exists() or _sha256(path) != mv.artifact_sha256:
+        return False
+    db.add(ModelArtifact(sha256=mv.artifact_sha256, version=mv.version, filename=path.name, data=path.read_bytes()))
+    db.flush()
+    return True
+
+
 def load_artifact(mv: ModelVersion) -> Pipeline:
     path = Path(mv.artifact_path)
     if not path.exists() or _sha256(path) != mv.artifact_sha256:
-        raise DomainError(f"model artifact for v{mv.version} is missing or fails its integrity check")
+        restored = _restore_artifact(mv, path)
+        if restored is None or _sha256(restored) != mv.artifact_sha256:
+            raise DomainError(f"model artifact for v{mv.version} is missing or fails its integrity check")
+        path = restored
     return joblib.load(path)
 
 
@@ -263,6 +300,7 @@ def train_candidate(db: Session, actor: Actor, algorithm: str = "gbm", now: date
                       compared_to_version=cur.version if cur else None)
     db.add(mv)
     db.flush()
+    store_artifact(db, mv)
     mv.model_card = model_card(mv)
     audit.record(db, actor, "C", "model.trained", entity_type="ModelVersion", entity_id=mv.version, ts=now,
                  detail={"algorithm": algorithm, "auc": metrics["auc"], "ece": metrics["ece"],

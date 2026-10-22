@@ -12,6 +12,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     event,
@@ -500,6 +501,17 @@ class ModelVersion(Base):
     approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     decision_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     model_card: Mapped[str] = mapped_column(Text, default="")
+
+
+class ModelArtifact(Base):
+    """Copy of each model file kept in the database, keyed by its SHA-256, so a server with a temporary disk (or a
+    fresh container after a redeploy) can restore the exact, integrity-checked file. Never edited once written."""
+    __tablename__ = "model_artifacts"
+    sha256: Mapped[str] = mapped_column(String(64), primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, index=True)
+    filename: Mapped[str] = mapped_column(String(200))
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class SimulationRun(Base):
