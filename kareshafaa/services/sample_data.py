@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import random
+import time
 from datetime import datetime, timedelta
 
 from sqlalchemy import DateTime, select, update
@@ -433,17 +434,64 @@ MIGRATIONS = [
 ]
 
 
-def run_pending(session_factory, now: datetime | None = None) -> dict:
-    """Apply each not-yet-applied step in its own transaction; a failure is logged and retried next start
-    (it never blocks the server from starting)."""
+BATCHED = {"backfill_sample_clinical_history_v1"}
+
+
+def pending_sample_patient_ids(db: Session) -> list[int]:
+    """SYN- sample patients that do not have their sample history yet (the allergy/NKDA row is the marker)."""
+    done = select(AllergyIntolerance.patient_id).where(AllergyIntolerance.source == SOURCE)
+    return list(db.scalars(select(Patient.id).where(Patient.mrn.like(SAMPLE_PREFIX + "%"), Patient.synthetic.is_(True),
+                                                    Patient.id.not_in(done)).order_by(Patient.id)))
+
+
+def _applied(db: Session, name: str) -> bool:
+    return db.scalar(select(DataMigration.id).where(DataMigration.name == name)) is not None
+
+
+def run_pending(session_factory, now: datetime | None = None, *, batch_size: int | None = None, pause: float = 0.0,
+                stop=None) -> dict:
+    """Apply each not-yet-applied step; a failure is logged and retried at the next start (it never blocks the
+    server). With batch_size the history backfill commits every batch_size patients (progress is kept if the
+    process stops; the step is marked applied only when no patient is left) and sleeps `pause` s between batches."""
     out = {}
     for name, fn in MIGRATIONS:
+        if stop is not None and stop.is_set():
+            out[name] = "stopped"
+            break
         db: Session = session_factory()
         try:
-            if db.scalar(select(DataMigration.id).where(DataMigration.name == name)) is not None:
+            if _applied(db, name):
                 out[name] = "already applied"
                 continue
-            res = fn(db, now)
+            if batch_size and name in BATCHED:
+                total = {"patients": 0, "rows": {}, "batches": 0}
+                ids = pending_sample_patient_ids(db)
+                db.close()
+                for k in range(0, len(ids), batch_size):
+                    if stop is not None and stop.is_set():
+                        break
+                    bdb: Session = session_factory()
+                    try:
+                        res = fn(bdb, now, only_patient_ids=set(ids[k:k + batch_size]))
+                        bdb.commit()
+                    except Exception:
+                        bdb.rollback()
+                        raise
+                    finally:
+                        bdb.close()
+                    total["patients"] += res["patients"]
+                    total["batches"] += 1
+                    for t, n in res["rows"].items():
+                        total["rows"][t] = total["rows"].get(t, 0) + n
+                    if pause:
+                        time.sleep(pause)
+                db = session_factory()
+                if pending_sample_patient_ids(db) or _applied(db, name):
+                    out[name] = {"partial": total} if not _applied(db, name) else "already applied"
+                    continue
+                res = total
+            else:
+                res = fn(db, now)
             db.add(DataMigration(name=name, applied_at=now or utcnow(), detail=res))
             audit.record(db, SYSTEM, "U", "data_migration.applied", entity_type="DataMigration", entity_id=name,
                          ts=now, detail=res)
@@ -451,8 +499,41 @@ def run_pending(session_factory, now: datetime | None = None) -> dict:
             out[name] = res
         except Exception as e:  # pragma: no cover - logged, retried next start
             db.rollback()
-            log.exception("data step %s failed (nothing saved; retried next start)", name)
+            log.exception("data step %s failed (retried next start)", name)
             out[name] = f"failed: {type(e).__name__}"
         finally:
             db.close()
     return out
+
+
+def run_in_background(stop=None, *, batch_size: int = 100, pause: float = 0.5) -> dict | None:
+    """Run the pending steps once per database, from one process only (PostgreSQL advisory try-lock, or a file
+    lock for SQLite). Returns None when another process holds the lock or nothing is pending."""
+    import fcntl
+    import os
+
+    from ..config import get_settings
+    from ..db import get_engine, session_factory
+    sf = session_factory()
+    with sf() as db:
+        if all(_applied(db, n) for n, _ in MIGRATIONS):
+            return None
+    eng = get_engine()
+    if eng.dialect.name == "postgresql":
+        from sqlalchemy import text
+        with eng.connect() as conn:
+            if not conn.execute(text("SELECT pg_try_advisory_lock(727002)")).scalar():
+                return None
+            try:
+                return run_pending(sf, batch_size=batch_size, pause=pause, stop=stop)
+            finally:
+                conn.execute(text("SELECT pg_advisory_unlock(727002)"))
+    fd = os.open(str(get_settings().data_dir / ".data-steps.lock"), os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return None
+        return run_pending(sf, batch_size=batch_size, pause=pause, stop=stop)
+    finally:
+        os.close(fd)

@@ -21,6 +21,7 @@ def _env(tmp_path_factory) -> Iterator[None]:
         "KARESHAFAA_SECRET_KEY": "test-only-secret-not-for-production",
         "KARESHAFAA_DEMO_LOGINS": "true",
         "KARESHAFAA_SWEEP_INTERVAL_SECONDS": "0",
+        "KARESHAFAA_DATA_STEPS": "off",
     })
     from kareshafaa.config import get_settings
     from kareshafaa.db import reset_engine

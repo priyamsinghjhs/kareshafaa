@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 
 import logging
+import threading
 import os
 import re
 import sys
@@ -120,6 +121,20 @@ async def _sweep_loop(interval: int) -> None:
             log.info("background SLA sweep: %s in %.0f ms", out, (time.time() - t) * 1000)
         except Exception:  # noqa: BLE001
             log.exception("background SLA sweep failed")
+
+
+async def _data_steps_task(stop: "threading.Event", delay: float = 20.0) -> None:
+    """One-time SYN- sample data steps after start-up (small batches in a worker thread; never blocks serving)."""
+    await asyncio.sleep(delay)
+    try:
+        from .services.sample_data import run_in_background
+        t = time.time()
+        out = await asyncio.to_thread(run_in_background, stop)
+        if out is not None:
+            log.info("one-time data steps: %s in %.0f s", {k: (v if isinstance(v, str) else "done") for k, v in out.items()},
+                     time.time() - t)
+    except Exception:  # noqa: BLE001
+        log.exception("one-time data steps failed (retried at the next start)")
 
 
 async def _heartbeat_loop() -> None:
@@ -321,7 +336,12 @@ def create_app() -> FastAPI:
         task = asyncio.create_task(_sweep_loop(s.sweep_interval_seconds)) if s.sweep_interval_seconds > 0 else None
         hb = asyncio.create_task(_heartbeat_loop()) if os.environ.get("KARESHAFAA_HEARTBEAT_DIR") else None
         nightly = asyncio.create_task(public_demo.nightly_reset_loop()) if s.public_demo else None
+        steps_stop = threading.Event()
+        steps = asyncio.create_task(_data_steps_task(steps_stop)) if s.data_steps == "background" else None
         yield
+        steps_stop.set()
+        if steps:
+            steps.cancel()
         if nightly:
             nightly.cancel()
         if task:

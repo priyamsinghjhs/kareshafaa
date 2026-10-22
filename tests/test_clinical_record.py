@@ -256,3 +256,36 @@ def test_case_page_has_record_above_current_step():
     js = (Path(kareshafaa.__file__).parent / "static" / "js" / "case.js").read_text()
     assert js.index("${record()}") < js.index('<dl class="facts" aria-labelledby="step-h">')
     assert "None recorded" in js and "overdue by" in js and "demo" not in js.lower()
+
+
+def test_batched_steps_keep_progress_and_mark_once(db, client, as_user, new_case, monkeypatch):
+    """Background mode: the history backfill commits per batch and is marked applied only when no SYN patient is
+    left; real (non-SYN) patients are never included."""
+    from kareshafaa.db import session_factory
+    from kareshafaa.services import sample_data
+    cids = [_notified_case(client, as_user, new_case) for _ in range(3)]
+    pids = [_make_sample(db, c) for c in cids]
+    real_pid = db.get(Case, _notified_case(client, as_user, new_case)).patient_id
+    name = f"backfill_test_{next(_n)}"
+    seen = []
+
+    def fn(d, now=None, only_patient_ids=None):
+        ids = only_patient_ids & set(pids)  # keep the shared seeded patients untouched in this test
+        seen.append(set(only_patient_ids))
+        return sample_data.backfill_sample_clinical_history(d, now, only_patient_ids=ids)
+    monkeypatch.setattr(sample_data, "MIGRATIONS", [(name, fn)])
+    monkeypatch.setattr(sample_data, "BATCHED", {name})
+    monkeypatch.setattr(sample_data, "pending_sample_patient_ids", lambda d: [p for p in pids if not d.scalar(
+        select(AllergyIntolerance.id).where(AllergyIntolerance.patient_id == p))])
+    out = sample_data.run_pending(session_factory(), batch_size=2)
+    assert out[name]["patients"] == 3 and out[name]["batches"] == 2
+    assert all(real_pid not in s for s in seen)
+    assert sample_data.run_pending(session_factory(), batch_size=2)[name] == "already applied"
+    db.expire_all()
+    assert db.scalar(select(DataMigration).where(DataMigration.name == name)) is not None
+
+
+def test_bootstrap_defers_data_steps_by_default():
+    from kareshafaa.config import Settings
+    assert Settings().data_steps in ("background", "off")  # never blocks start-up unless asked ("startup")
+    assert Settings.model_fields["data_steps"].default == "background"
