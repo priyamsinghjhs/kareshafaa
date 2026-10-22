@@ -31,6 +31,10 @@ Challenge 05 and aligned with `../Challenge05_Solution_Design.md`.
   calibration and fairness gates. Promotion needs a better candidate **and** clinical-lead approval. Drift monitoring,
   rollback and model cards. Gender, nationality, age band and language are fairness-monitored, never model inputs
   (the interpreter need is). A lessons-learned engine proposes rule changes that a human must approve.
+* **Real sign-in** (round 28): username + password (argon2id), server-side sessions in HttpOnly/SameSite cookies
+  (Secure on HTTPS and in public demo), CSRF tokens, 30-min idle timeout, login rate limit + lockout, generic
+  errors, audited login/failure/logout, forced change of temporary passwords, admin user management (create, role,
+  site/team, reset, deactivate; never hard-deleted). See "Signing in" below.
 * **Security**: RBAC with 7 roles, consent checks, an **append-only, hash-chained audit log** of every read and write,
   and suppression of analyst cells below 5.
 
@@ -42,7 +46,7 @@ Requires Python 3.11+ (tested on 3.13) and `make`. Everything is free and open s
 make setup          # venv + dependencies (~1 min)
 make seed           # 2,000 synthetic patients, 6 months of history, train + register models (~55 s)
 make run            # http://localhost:8000  (python -m kareshafaa.serve: 4 SO_REUSEPORT worker processes; WORKERS=1 for one)
-make test           # 3,236 pytest tests (~60 s; the 20k cohort test is skipped until `make seed-large`)
+make test           # 3,320 pytest tests (~60 s; the 20k cohort test is skipped until `make seed-large`)
 ```
 
 Clinical-safety targets (Iteration 6):
@@ -57,20 +61,47 @@ make fault-injection # 54 deliberate faults; writes docs/fault_injection_results
 make differential    # 2M randomised results: rules engine vs independent reference (docs/differential_results.md)
 ```
 
-Open http://localhost:8000. To start, click **“Open demo scenarios”** or pick a demo user in the role switcher.
-Demo logins have no password and can be turned off with `KARESHAFAA_DEMO_LOGINS=false`.
+Open http://localhost:8000 and sign in. Each role lands on its own main task (coordinator: today's queue,
+family doctor (GP): patients needing review, clinical lead: overview with approvals and safety metrics, admin: users).
+
+### Signing in
+
+There is **no one-click demo login** in the UI. Every person signs in with a username and password.
+
+* **Demo accounts** (one per role, existing synthetic staff names) are created **at app start-up**, never in the seed
+  or the Docker image. Their passwords are **never in the repo and never shown on the site**:
+  * `KARESHAFAA_DEMO_PASSWORD` (or per-role `KARESHAFAA_DEMO_PASSWORD_<ROLE>`, e.g. `..._CLINICAL_LEAD`) sets them;
+  * otherwise (normal mode) random passwords are generated and written to `../demo_credentials.txt` (mode 0600,
+    outside the repo, also gitignored; override with `KARESHAFAA_DEMO_CREDENTIALS_FILE`);
+  * in **public demo mode** a blank or weak password (under 12 characters or a common password) is refused: the app
+    still starts and shows the sign-in page, but the demo accounts stay unusable and a `DEMO ACCOUNTS NOT USABLE`
+    warning is logged.
+* **Password policy**: at least 12 characters, not on the common-password list, not your username. Temporary
+  passwords set by an admin must be changed at the next sign-in.
+* **Sessions**: random token, only its SHA-256 is stored; HttpOnly + SameSite=Lax cookie (Secure on HTTPS and in
+  public demo); idle timeout 30 min (`KARESHAFAA_SESSION_IDLE_MINUTES`), absolute 8 h; sign-out revokes it.
+* **CSRF**: every cookie-authenticated write needs the per-session token (`X-CSRF-Token` header or `csrf_token`
+  form field); the sign-in form uses a double-submit token. Bearer-token API clients are not affected.
+* **Lockout**: 5 failures in 15 min pause sign-in for that account for 15 min (per account + IP in public demo,
+  so nobody can lock the shared demo accounts for everyone); 20 failures per IP in 15 min pause that IP.
+* **Audit**: `auth.login`, `auth.login_failed` (username, reason, IP), `auth.logout`, `user.create`,
+  `user.role_change`, `user.password_reset`, `user.password_change`, `user.deactivate`, `user.activate`.
+* **Admin → Users** (`/admin/users`): create users (clinical roles are linked to a directory clinician), assign
+  role and site/team, reset passwords (forces a change), deactivate/reactivate. Read-only in public demo.
+* `KARESHAFAA_DEMO_LOGINS=true` (dev/test only) keeps the password-less `/api/auth/demo-login` API for tests and
+  scripts. It is **always off in public demo mode and in production**.
 
 | Demo user | Role | Try |
 |---|---|---|
 | `aisha.rahman` | Care coordinator | Work queue, outreach, calls, demo scenarios, results inbox (HL7) |
-| `omar.haddad` | GP | Confirmatory tests, referrals, e-consults; try to close a case without evidence |
+| `omar.haddad` | Family doctor (GP) | Confirmatory tests, referrals, e-consults; try to close a case without evidence |
 | `vikram.mehta` | Specialist | Accept or reject referrals with a reason; booking, attendance, care plan |
 | `fatima.al.mansoori`, `layla.al.hashimi` | Clinical lead / medical director (L4) | Escalations, model and rule approvals, KPIs |
 | `analyst` | Analyst | Aggregates only, small cells suppressed |
-| `admin` | Admin | Audit log and chain verification, model training |
+| `admin` | System administrator | Users (create, reset, deactivate), audit log and chain verification, advanced tools |
 | `patient.ar`, `.en`, `.hi`, `.ur`, `.tl` | Named demo patients | Fatima Al Kaabi (FIT, Al Ain), Emma Clarke (BI-RADS 0), Ramesh Kumar (HbA1c), Ayesha Khan (HPV), Maria Santos (BI-RADS 4, Tagalog) |
 
-**One-click scenarios** (`/demo`, coordinator, clinical lead or admin, demo mode only). Each one creates a new synthetic
+**One-click scenarios** (`/demo`, coordinator, family doctor, clinical lead or admin, demo mode only). Each one creates a new synthetic
 patient and runs through the real service layer, guards and audit:
 1. Fatima: result arrives as HL7 ORU → Arabic teach-back → GP referral → hospital rejects (capacity) → re-route.
 2. Maria: T1, no smartphone, digital ladder fails → navigator task → the demo clock fast-forwards → L1→L2→L3→L4; closure is blocked.
@@ -90,8 +121,8 @@ Installable PWA: `/manifest.webmanifest` and `/sw.js`. The service worker caches
 ## Architecture
 
 ```
-Browser (Jinja + vanilla JS + Pico.css; RTL aware)          HL7 v2 / FHIR R4 senders
-        │  bearer token or HttpOnly cookie                          │
+Browser (Jinja + vanilla JS + one tokenised CSS file, mobile-first; RTL aware)          HL7 v2 / FHIR R4 senders
+        │  session cookie (+CSRF) or bearer token                         │
 FastAPI ─┬─ api/        auth, cases, actions, queue/ops, me (patient), governance, ingest, demo
          ├─ services/   workflow (state machine + guards), escalation (SLA sweep), queue, ingest,
          │              analytics (+cache, suppression), improve (lessons → proposals), access (RBAC scope)
@@ -173,7 +204,7 @@ HL7 writes. Columns: requests per second answered OK, p95 latency of those, shar
 
 | Check | Result |
 |---|---|
-| Tests | 3,236 passed |
+| Tests | 3,320 passed (round 28) |
 | Validator | 60 invariants, 0 violations on demo / 10k / 20k / edge-case cohorts |
 | Differential, random inputs | 10M, 0 disagreements |
 | Differential, edge-cohort inputs | 1M, 0 disagreements |
@@ -232,7 +263,7 @@ deployment would need formal assessment.
 * Fairness gates use bootstrap CIs on a ~445-case holdout, so small groups (e.g. hi, ur, tl, n < 50 positives) are
   *not eligible* for gating and are only monitored. A real deployment needs larger validation sets.
 * Channels are simulated. There is no SMS, WhatsApp or email integration, and no real telephony.
-* Authentication is demo-grade: HMAC tokens with role-switcher logins. Production needs OIDC/SSO (UAE PASS for patients), MFA and secret management.
+* Authentication is real but local: password + server-side sessions. Production still needs OIDC/SSO (UAE PASS for patients), MFA and secret management; the common-password list is a short built-in one (a pilot should use a breached-password service).
 * The queue still orders all open cases in Python (SLA status depends on the working-day calendar). It is fine at 10k
   cases with ~1.5k open, but beyond that it should use a materialised due/RAG column with SQL ORDER BY/LIMIT.
 * SQLite is for the demo. Multi-host deployment needs PostgreSQL (pool settings in `kareshafaa/config.py`, driver in
@@ -253,5 +284,5 @@ deployment would need formal assessment.
 
 ## Repository map
 
-`kareshafaa/` app · `tests/` pytest (3,236) · `kareshafaa_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
-`scripts/ui_smoke.py` (optional Playwright) · `ITERATIONS.md` build log with self-assessments · `Makefile` · `Dockerfile` · `.env.example`
+`kareshafaa/` app · `tests/` pytest (3,320) · `kareshafaa_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
+`scripts/ui_smoke.py` / `scripts/ui_responsive_check.py` (optional Playwright: overflow + 44 px tap targets per role and device) · `ITERATIONS.md` build log with self-assessments · `Makefile` · `Dockerfile` · `.env.example`

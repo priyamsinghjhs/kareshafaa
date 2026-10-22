@@ -890,3 +890,44 @@ fully or saves nothing.
 * No Docker daemon on the build box. The build RUN step and the CMD were run as-is outside a container on a clean
   copy: seed + seed copy OK, restore on start OK, `$PORT` honoured, banner shown, `/api/governance/models/train`
   refused with 403, about 215 MB RSS for one worker.
+
+### Round 28: clean, mobile-first UI + real per-user sign-in (22 Oct 2026, ~12:15-13:50 IST)
+Feedback: "make the app easy to use and clean ui, the UI looks haphazard, make real app with separate login users";
+then "what is GP in app" (jargon) and "fully responsive, device-adaptive UI". **No clinical rule, tier, deadline,
+closure guard or audit semantics changed**; only templates/CSS/JS/view layer, plus the new auth layer.
+* **Audit (before, `dist/ui_before/`, 1280x800 and 390x844):** every mobile page overflowed sideways (scrollWidth
+  441-863 px at 390 px); two stacked banners; up to 7 nav items plus an inline role-switcher; one-click demo login
+  buttons; 10 queue tabs and 10 table columns in tiny text; jargon (T0/T1, SLA, L4, ML, "gp", e-consult); inline
+  styles fighting Pico defaults; small buttons; native prompt()/confirm(); dev tools (SLA sweep, retrain, raw FHIR)
+  on everyday screens; some colour-only status.
+* **UI:** Pico removed; one tokenised CSS file (system fonts, calm teal palette, WCAG AA, spacing/type scale, 44 px
+  tap token, safe-area insets, reduced motion, forced colours, print). Top bar with Latin-only wordmark and user menu
+  (name, role label, change password, sign out). Role-aware nav with 1-5 items: sidebar on desktop (>1024 px, max
+  content width), collapsible rail on tablets (600-1024), bottom nav on phones (<600). Each role's home is its main
+  task (coordinator: Today's queue, most urgent first; family doctor (GP)/specialist: Needs review; clinical lead:
+  Overview of approvals and safety metrics; admin: Users; analyst: Outcomes; translator: content sign-off). Tables
+  stack into labelled cards on phones; the queue has dedicated mobile cards. One primary action per screen (case:
+  "Next step" button, other actions under "More actions", risky ones confirmed in an accessible dialog). Plain
+  language: tiers always in words with their limit ("Urgent (T1): first action within 4 hours, day or night"), SLA
+  status as text + shape, "Family doctor (GP)", "Ask a specialist (e-consult)", tooltips for FIT/HPV/HbA1c. Empty,
+  loading and toast states. Dev/ops tools moved to **Advanced** (lead/admin). Tidy single-line synthetic-data banner.
+* **Auth (`kareshafaa/accounts.py`, `api/auth.py`, `api/admin_users.py`):** username + password (argon2id; 12+ chars,
+  common-password list, not the username); server-side sessions (token hashed, HttpOnly, SameSite=Lax, Secure on
+  HTTPS/public demo; 30 min idle, 8 h absolute); CSRF on every cookie write (per-session HMAC token; double-submit
+  on the sign-in form); lockout 5 failures/15 min (account, or account+IP in public demo) and 20/IP; generic errors;
+  audited `auth.login`/`auth.login_failed`/`auth.logout`; must-change temporary passwords; admin can create users,
+  set role and site/team, reset passwords and deactivate/reactivate (never delete), all audited; users change their
+  own password. One-click demo login removed from the UI; the `/api/auth/demo-login` test API is 404 in public demo
+  and prod. Demo accounts are provisioned at start-up from `KARESHAFAA_DEMO_PASSWORD` (or per role), else random
+  passwords written to `../demo_credentials.txt` (0600, outside git); public demo refuses blank/weak values, still
+  starts, and logs `DEMO ACCOUNTS NOT USABLE`. Public demo: user admin read-only, self password change off.
+  `render.yaml`: `KARESHAFAA_DEMO_PASSWORD` with `sync: false`. New schema columns are added in place on existing DBs.
+* **Responsive check (`scripts/ui_responsive_check.py`, Playwright/Chrome):** signs in as each role through the form
+  and checks every main page for horizontal overflow (scrollWidth <= innerWidth), JS errors, failed API calls and
+  44 px tap targets on touch devices: iPhone SE, iPhone 15 Pro, Pixel 7, Galaxy 360x800 (portrait + landscape),
+  iPad 820x1180, laptop 1366x768, desktop 1920x1080 and 1280x800: **221 page checks, 0 problems**.
+* **Tests:** +51 (`tests/test_auth_accounts.py`: hashing/policy, unauthenticated redirects, cookie flags, generic
+  errors, lockout + expiry, IP rate limit, CSRF, idle timeout, token stored hashed, deactivation, hashes never
+  returned, admin flows + audit, page and API access matrix per role, role homes and labels, provisioning;
+  public-demo auth rules in `tests/test_public_demo.py`) -> **3,320 passed**. Validator: 0 violations on all 4 DBs
+  (and the public-demo seed copy). One worker ~217-230 MB RSS (Render free 512 MB OK).
