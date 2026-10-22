@@ -1,13 +1,13 @@
-const can = p => W.me && W.me.permissions.includes(p);
+const can = p => W.me && W.me.permissions.includes(p) && !(KS.public_demo && ["model:train", "model:rollback", "proposal:generate"].includes(p));  // hidden on the public demo (refused there anyway)
 const statusChip = s => `<span class="chip ${{ production: "sla-green", awaiting_approval: "sla-amber", failed_gates: "sla-red", rejected: "sla-none", retired: "sla-none", rolled_back: "sla-red", pending: "sla-amber", approved: "sla-green" }[s] || "sla-none"}">${W.esc(s.replace("_", " "))}</span>`;
 async function act(path, body, msg) { try { await W.api(path, { method: "POST", body }); W.toast(msg, "ok"); show(current); } catch (e) { W.toast(e.message, "err"); } }
-window.approve = v => { const n = prompt(`Approve model v${v} for production? Enter your clinical review note:`); if (n) act(`/api/governance/models/${v}/approve`, { note: n }, `v${v} promoted to production`); };
-window.rejectM = v => { const n = prompt(`Reject candidate v${v}? Reason:`); if (n) act(`/api/governance/models/${v}/reject`, { note: n }, `v${v} rejected`); };
-window.rollback = () => { const n = prompt("Roll back the production model to the previous approved version. Reason:"); if (n) act(`/api/governance/models/rollback`, { note: n }, "Rolled back"); };
-window.train = alg => act(`/api/governance/models/train`, { algorithm: alg }, `Candidate (${alg}) trained on accumulated outcomes – see gates`);
-window.decide = (id, ok) => { const n = prompt(`${ok ? "Approve" : "Reject"} proposal #${id}. Decision note:`); if (n) act(`/api/governance/proposals/${id}/decide`, { approve: ok, note: n }, ok ? "Approved and applied" : "Rejected"); };
+window.approve = async v => { const n = await W.ask(`Approve model v${v} for production?`, "Your clinical review note", { ok: "Approve for production", min: 3, body: "The model only orders outreach within the same urgency. Your approval and note are recorded." }); if (n) act(`/api/governance/models/${v}/approve`, { note: n }, `v${v} promoted to production`); };
+window.rejectM = async v => { const n = await W.ask(`Reject candidate model v${v}?`, "Reason", { ok: "Reject", danger: true, min: 3 }); if (n) act(`/api/governance/models/${v}/reject`, { note: n }, `v${v} rejected`); };
+window.rollback = async () => { const n = await W.ask("Roll back the production model?", "Reason", { ok: "Roll back", danger: true, min: 3, body: "Outreach ordering returns to the previous approved version." }); if (n) act(`/api/governance/models/rollback`, { note: n }, "Rolled back"); };
+window.train = async alg => { if (await W.confirm(`Train a new candidate model (${alg})?`, "It will not be used until a clinical lead approves it.", { ok: "Train candidate" })) act(`/api/governance/models/train`, { algorithm: alg }, `Candidate (${alg}) trained on accumulated outcomes – see gates`); };
+window.decide = async (id, ok) => { const n = await W.ask(`${ok ? "Approve" : "Reject"} proposed change #${id}?`, "Decision note", { ok: ok ? "Approve and apply" : "Reject", danger: !ok, min: 3 }); if (n) act(`/api/governance/proposals/${id}/decide`, { approve: ok, note: n }, ok ? "Approved and applied" : "Rejected"); };
 window.genProposals = () => act(`/api/governance/proposals/generate`, null, "Proposal engine run");
-window.signoff = (cid, kind) => { const n = prompt(`${kind === "clinical" ? "Clinical" : "Translation"} sign-off for ${cid}. What did you check?`); if (n) act(`/api/governance/content/signoff`, { content_id: cid, kind, note: n }, "Sign-off recorded (bound to this exact wording)"); };
+window.signoff = async (cid, kind) => { const n = await W.ask(`${kind === "clinical" ? "Clinical" : "Translation"} sign-off for ${cid}`, "What did you check?", { ok: "Sign off", min: 3 }); if (n) act(`/api/governance/content/signoff`, { content_id: cid, kind, note: n }, "Sign-off recorded (bound to this exact wording)"); };
 window.detail = async v => {
   const m = await W.api(`/api/governance/models/${v}`), el = document.getElementById("mdetail");
   const gate = (k, g) => `<tr><td class="${g.passed ? "gate-pass" : "gate-fail"}">${g.passed ? "PASS" : "FAIL"}</td><td>${W.esc(k)}</td><td>${W.esc(Array.isArray(g.value) ? g.value.join(", ") : g.value)}</td><td class="small muted">${W.esc(g.threshold ?? "")}${g.gap != null ? " · point gap " + g.gap : ""}</td></tr>`;
@@ -24,13 +24,13 @@ window.detail = async v => {
 const tabsG = {
   async models(el) {
     const [d, drift] = await Promise.all([W.api("/api/governance/models"), W.api("/api/governance/drift")]);
-    el.innerHTML = `<div class="card small" style="background:#ede7f6"><b>Use statement:</b> ${W.esc(d.use_statement)}</div>
-     <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem">${can("model:train") ? `<button style="width:auto" onclick="train('gbm')">Retrain candidate (gradient boosting)</button><button class="secondary" style="width:auto" onclick="train('logreg')">Retrain candidate (logistic regression)</button>` : ""}
-     ${can("model:rollback") ? `<button class="secondary outline" style="width:auto" onclick="rollback()">Roll back production model</button>` : ""}</div>
+    el.innerHTML = `<div class="card info small"><b>Use statement:</b> ${W.esc(d.use_statement)}</div>
+     <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem">${can("model:train") ? `<button onclick="train('gbm')">Retrain candidate (gradient boosting)</button><button class="secondary" onclick="train('logreg')">Retrain candidate (logistic regression)</button>` : ""}
+     ${can("model:rollback") ? `<button class="secondary" onclick="rollback()">Roll back production model</button>` : ""}</div>
      <table class="compact"><thead><tr><th>Version</th><th>Algorithm</th><th>Status</th><th>AUC</th><th>ECE</th><th>Recall@top</th><th>n train / valid</th><th>Gates</th><th>Created</th><th></th></tr></thead><tbody>${d.items.map(m => `<tr>
        <td><a href="#" onclick="detail(${m.version});return false">v${m.version}</a></td><td>${W.esc(m.algorithm)}</td><td>${statusChip(m.status)}</td><td>${m.metrics.auc}</td><td>${m.metrics.ece}</td><td>${m.metrics.recall_at_top}</td><td>${m.trained_on_n} / ${m.validated_on_n}</td>
        <td class="${m.gates_passed ? "gate-pass" : "gate-fail"}">${m.gates_passed ? "all passed" : "failed"}</td><td class="small">${W.dt(m.created_at)}</td>
-       <td>${m.status === "awaiting_approval" && can("model:approve") ? `<button style="width:auto;padding:.15rem .6rem" onclick="approve(${m.version})">Approve</button> <button class="secondary outline" style="width:auto;padding:.15rem .6rem" onclick="rejectM(${m.version})">Reject</button>` : ""}</td></tr>`).join("")}</tbody></table>
+       <td>${m.status === "awaiting_approval" && can("model:approve") ? `<button onclick="approve(${m.version})">Approve</button> <button class="secondary" onclick="rejectM(${m.version})">Reject</button>` : ""}</td></tr>`).join("")}</tbody></table>
      <div class="card"><h4>Drift monitoring ${drift.status ? statusChip(drift.status) : ""}</h4>${drift.features ? `<p class="small muted">${W.esc(drift.note)} PSI warn &gt; ${drift.thresholds.warn}, alert &gt; ${drift.thresholds.alert}. Score PSI: <b>${drift.score_psi}</b> (n=${drift.n_current}).</p><table class="compact">${Object.entries(drift.features).map(([f, v]) => `<tr><td>${W.esc(f)}</td><td>${v.psi}</td><td>${statusChip(v.status)}</td></tr>`).join("")}</table>` : `<p class="muted">${W.esc(drift.status)}</p>`}</div>
      <div id="mdetail"></div>`;
     const top = d.items.find(m => m.status === "awaiting_approval") || d.items[0]; if (top) detail(top.version);
@@ -38,11 +38,11 @@ const tabsG = {
   async proposals(el) {
     const d = await W.api("/api/governance/proposals");
     el.innerHTML = `<p class="small muted">Generated from lessons learned and step-level SLA performance. Approval applies the change (new versioned SLA rule / config entry); nothing changes without a clinical lead. Advisory items record a decision only.</p>
-     ${can("proposal:generate") ? `<button style="width:auto" onclick="genProposals()">Run proposal engine now</button>` : ""}
+     ${can("proposal:generate") ? `<button onclick="genProposals()">Run proposal engine now</button>` : ""}
      <table class="compact"><thead><tr><th>#</th><th>Type</th><th>Target</th><th>Current → proposed</th><th>Rationale &amp; evidence</th><th>Status</th><th></th></tr></thead><tbody>${d.items.map(p => `<tr>
       <td>${p.id}</td><td>${W.esc(p.kind.replace("_", " "))}</td><td class="small">${W.esc(JSON.stringify(p.target))}</td><td class="small">${W.esc(JSON.stringify(p.current))} → <b>${W.esc(JSON.stringify(p.proposed))}</b></td>
       <td class="small">${W.esc(p.rationale)}<div class="muted">${W.esc(JSON.stringify(p.evidence))}</div></td><td>${statusChip(p.status)}${p.decision_note ? `<div class="small muted">${W.esc(p.decision_note)}</div>` : ""}</td>
-      <td>${p.status === "pending" && can("proposal:decide") ? `<button style="width:auto;padding:.15rem .6rem" onclick="decide(${p.id},true)">Approve</button> <button class="secondary outline" style="width:auto;padding:.15rem .6rem" onclick="decide(${p.id},false)">Reject</button>` : ""}</td></tr>`).join("")}</tbody></table>`;
+      <td>${p.status === "pending" && can("proposal:decide") ? `<button onclick="decide(${p.id},true)">Approve</button> <button class="secondary" onclick="decide(${p.id},false)">Reject</button>` : ""}</td></tr>`).join("")}</tbody></table>`;
   },
   async lessons(el) {
     const l = await W.api("/api/analytics/lessons");
@@ -64,15 +64,15 @@ tabsG.content = async el => {
   const r = await W.api("/api/governance/content"), s = r.summary;
   const rows = r.items.filter(x => x.gated || !x.readability.ok || x.lang !== "en" || x.group !== "template");
   const rd = x => { const d = x.readability; return `${d.ok ? '<span class="gate-pass">OK</span>' : '<span class="gate-fail">FIX</span>'} <span class="small muted">${d.fk_grade != null ? "FK " + d.fk_grade + " · ease " + d.reading_ease + " · " : ""}${d.avg_words_per_sentence} w/sent · long ${Math.round(d.long_word_share * 100)}%</span>${d.problems.length ? `<div class="small">${d.problems.map(W.esc).join("; ")}</div>` : ""}`; };
-  const so = (x, k) => { const v = x[k + "_signoff"]; return v ? `<span class="chip sla-green" title="${W.esc(v.at)}">${W.esc(v.by)}</span>` : (k === "translation" && x.lang === "en" ? '<span class="small muted">n/a</span>' : (can(k === "clinical" ? "content:approve" : "content:translation_review") ? `<button class="secondary" style="width:auto;padding:.1rem .5rem" onclick="signoff('${x.content_id}','${k}')">Sign off</button>` : '<span class="chip sla-amber">pending</span>')); };
+  const so = (x, k) => { const v = x[k + "_signoff"]; return v ? `<span class="chip sla-green" title="${W.esc(v.at)}">${W.esc(v.by)}</span>` : (k === "translation" && x.lang === "en" ? '<span class="small muted">n/a</span>' : (can(k === "clinical" ? "content:approve" : "content:translation_review") ? `<button class="secondary" onclick="signoff('${x.content_id}','${k}')">Sign off</button>` : '<span class="chip sla-amber">pending</span>')); };
   el.innerHTML = `<div class="card"><p class="small">${s.items} patient-facing texts · ${s.readability_ok} pass reading-level &amp; tone checks · ${s.gated_live}/${s.gated} governed pathway texts live. A sign-off is bound to the exact wording (sha256): any edit needs a new sign-off. Arabic, Hindi and Urdu need a <b>professional translator</b> and a <b>clinician</b> (two different people); until then patients get English plus an interpreter-supported call.</p>
   <table class="compact"><thead><tr><th>Content</th><th>Lang</th><th>Text</th><th>Reading level / tone</th><th>Clinical</th><th>Translator</th><th>Live</th></tr></thead><tbody>${rows.map(x => `<tr><td class="small">${W.esc(x.group + ":" + x.key)}${x.gated ? "" : ' <span class="small muted">(not yet gated)</span>'}</td><td>${x.lang}</td><td class="small" dir="auto" style="max-width:28rem">${W.esc(x.text.replace(/[{}"]/g, " ").slice(0, 220))}${x.translation_status ? `<div><span class="chip sla-amber">${W.esc(x.translation_status)}</span></div>` : ""}</td><td>${rd(x)}</td><td>${so(x, "clinical")}</td><td>${so(x, "translation")}</td><td>${x.live ? '<span class="chip sla-green">live</span>' : (x.gated ? '<span class="chip sla-red">not used</span>' : '<span class="small muted">–</span>')}</td></tr>`).join("")}</tbody></table></div>`;
 };
 let current = "models";
 async function show(t) {
   current = t; document.querySelectorAll(".tabs button").forEach(b => b.className = b.dataset.t === t ? "" : "secondary outline");
-  const el = document.getElementById("gov"); el.innerHTML = `<div class="empty">Loading…</div>`;
-  try { await tabsG[t](el); } catch (e) { el.innerHTML = `<div class="empty">${W.esc(e.message)}</div>`; }
+  const el = document.getElementById("gov"); el.innerHTML = W.loading();
+  try { await tabsG[t](el); } catch (e) { el.innerHTML = W.empty("Could not load", W.esc(e.message)); }
 }
 document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return;
-  document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => show(b.dataset.t)); show(!can("model:read") && can("content:read") ? "content" : "models"); });
+  document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => show(b.dataset.t)); const qt = new URLSearchParams(location.search).get("tab"); show(qt && tabsG[qt] ? qt : (!can("model:read") && can("content:read") ? "content" : "models")); });

@@ -2,10 +2,11 @@
 <html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{{ title }} · KareShafaa</title>
-  <meta name="theme-color" content="#00796b">
+  <meta name="theme-color" content="#0a6b66">
   <meta name="description" content="KareShafaa - closing the screening-to-care loop (prototype, synthetic data only)">
+  <meta name="format-detection" content="telephone=no">
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -13,36 +14,53 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon-180.png">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/pico.min.css">
   <link rel="stylesheet" href="/static/kareshafaa.css">
+  {% if csrf %}<meta name="csrf-token" content="{{ csrf }}">{% endif %}
 </head>
-<body>
-  {% if public_demo %}<div class="public-demo-banner" role="note">{{ public_demo_banner }}</div>{% endif %}
-  <div class="synthetic-banner">PROTOTYPE · SYNTHETIC DATA ONLY · all messages are simulated and never sent · not a medical device</div>
-  <header class="container-fluid topbar">
-    <nav>
-      <ul>
-        <li><a href="/" class="brand"><span class="logo" aria-hidden="true">✦</span> <strong>KareShafaa</strong></a></li>
-        <li class="nav-links" id="nav-links"></li>
-      </ul>
-      <ul>
-        <li><button id="install-app" class="outline install-btn" hidden>Install app</button></li>
-        <li id="whoami" class="muted small"></li>
-        {% if demo_logins %}
-        <li>
-          <select id="role-switcher" aria-label="Switch demo user" title="Demo role switcher"></select>
-        </li>
-        {% endif %}
-      </ul>
-    </nav>
+<body class="{% if not nav %}no-nav{% endif %}{% if nav|length <= 1 %} no-bottomnav{% endif %}">
+  {% include "_icons.html" %}
+  <a class="skip-link" href="#main">Skip to main content</a>
+  {% if public_demo %}<div class="demo-strip is-public" role="note"><div class="public-demo-banner"><strong>{{ public_demo_banner }}</strong> · all people and results are made up · messages are never sent</div></div>
+  {% else %}<div class="demo-strip" role="note"><strong>Prototype</strong> · synthetic data only · messages are simulated, never sent · not a medical device</div>{% endif %}
+  <header class="topbar">
+    {% if nav %}<button class="icon-btn nav-toggle" id="nav-toggle" type="button" aria-label="Show or hide menu labels" aria-expanded="false" aria-controls="sidebar"><svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg></button>{% endif %}
+    <a href="{{ home_href }}" class="brand" aria-label="KareShafaa home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-logo"/></svg></span><span>KareShafaa</span></a>
+    <span class="spacer"></span>
+    <button id="install-app" class="secondary sm install-btn" type="button" hidden><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg><span>Install app</span></button>
+    {% if user %}
+    <details class="usermenu" id="usermenu">
+      <summary aria-label="Account menu for {{ user.display_name }}"><span class="avatar" aria-hidden="true">{{ (user.display_name.replace('Dr. ', '').split(' ')[0][:1] ~ (user.display_name.replace('Dr. ', '').split(' (')[0].split(' ')[-1][:1])) | upper }}</span>
+        <span class="who"><b>{{ user.display_name.split(' (')[0] }}</b><span>{{ role_label }}</span></span></summary>
+      <div class="menu" role="menu">
+        <div class="menu-head"><b>{{ user.display_name.split(' (')[0] }}</b><div class="small muted">{{ role_label }}{% if user.site %} · {{ user.site }}{% endif %}</div><div class="xs muted">Signed in as {{ user.username }}</div></div>
+        <a href="/account/password" role="menuitem"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg>Change password</a>
+        <form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button type="submit" role="menuitem"><svg class="icon" aria-hidden="true"><use href="#i-out"/></svg>Sign out</button></form>
+      </div>
+    </details>
+    {% endif %}
   </header>
-  <main class="container-fluid">
-    {% block content %}{% endblock %}
-  </main>
+  <div class="layout">
+    {% if nav %}
+    <nav class="sidebar" id="sidebar" aria-label="Main">
+      <ul class="nav-list">
+        {% for n in nav %}<li><a href="{{ n.href }}" {% if n.href == current_nav %}aria-current="page"{% endif %} title="{{ n.label }}"><svg class="icon" aria-hidden="true"><use href="#i-{{ n.icon }}"/></svg><span class="label">{{ n.label }}</span></a></li>{% endfor %}
+      </ul>
+      <div class="sidebar-foot">KareShafaa v{{ version }}<br>People make every clinical decision; the ML score only orders outreach.</div>
+    </nav>
+    {% endif %}
+    <main id="main" class="content" tabindex="-1">
+      <div class="content-inner">
+      {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+  {% if nav and nav|length > 1 %}
+  <nav class="bottom-nav" aria-label="Main (mobile)">
+    {% for n in nav %}<a href="{{ n.href }}" {% if n.href == current_nav %}aria-current="page"{% endif %}><svg class="icon" aria-hidden="true"><use href="#i-{{ n.icon }}"/></svg><span>{{ n.label }}</span></a>{% endfor %}
+  </nav>
+  {% endif %}
   <div id="toast" role="status" aria-live="polite"></div>
-  <footer class="container-fluid muted small">
-    KareShafaa v{{ version }} · Human-in-the-loop by design: the ML score only orders outreach; people make every clinical decision and every closure.
-  </footer>
+  <script>window.KS = {{ {"tiers": tiers, "roles": role_labels, "public_demo": public_demo} | tojson }};</script>
   <script src="/static/js/common.js"></script>
   <script src="/static/js/pwa.js"></script>
   {% block scripts %}{% endblock %}

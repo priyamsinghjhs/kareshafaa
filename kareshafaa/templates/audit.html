@@ -1,21 +1,28 @@
 {% extends "base.html" %}
 {% block content %}
-<div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:.5rem">
-<hgroup style="margin:0"><h3 style="margin-bottom:.2rem">Audit trail</h3><p class="small muted">Append-only (database triggers + ORM guard) and hash-chained: every read and write, including denied attempts.</p></hgroup>
-<div style="display:flex;gap:.5rem"><input id="ev" placeholder="event prefix e.g. case. / model. / http.get" style="margin:0;width:260px"><input id="cid" placeholder="case id" style="margin:0;width:100px"><button id="go" style="width:auto;margin:0">Filter</button><button id="verify" class="secondary" style="width:auto;margin:0">Verify hash chain</button></div></div>
-<div id="vres"></div><div id="atable"><div class="empty">Loading…</div></div>
+<div class="page-head"><div><a class="back-link" href="/advanced"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Advanced</a><h1>Audit trail</h1>
+<p class="lede">Every view and change, including refused attempts, in an append-only, hash-chained log.</p></div>
+<div class="page-actions"><button id="verify">Check the log is intact</button></div></div>
+<form class="filters" id="af" role="search">
+  <label for="ev">Event type<input id="ev" placeholder="e.g. auth. or case. or model." autocomplete="off"></label>
+  <label for="cid">Case number<input id="cid" inputmode="numeric" pattern="[0-9]*" autocomplete="off"></label>
+  <div style="align-self:end"><button id="go" type="submit" class="secondary btn-block">Filter</button></div>
+</form>
+<div id="vres" aria-live="polite"></div><div id="atable"><div class="loading" role="status">Loading…</div></div>
 {% endblock %}
 {% block scripts %}
 <script>
 async function load() {
   const ev = document.getElementById("ev").value.trim(), cid = document.getElementById("cid").value.trim();
   const d = await W.api(`/api/audit?limit=300${ev ? "&event=" + encodeURIComponent(ev) : ""}${cid ? "&case_id=" + cid : ""}`);
-  document.getElementById("atable").innerHTML = `<table class="compact"><thead><tr><th>#</th><th>When</th><th>Actor</th><th>Act</th><th>Event</th><th>Entity / path</th><th>Case</th><th>Outcome</th><th>Hash</th></tr></thead><tbody>${d.items.map(e => `<tr><td>${e.id}</td><td class="small">${W.dt(e.ts)}</td><td class="small">${W.esc(e.actor)}<div class="muted">${W.esc(e.role)}</div></td><td>${e.action}</td><td class="small">${W.esc(e.event)}</td><td class="small">${W.esc(e.path || e.entity)}</td><td>${e.case_id ? `<a href="/cases/${e.case_id}">#${e.case_id}</a>` : ""}</td><td><span class="chip ${e.outcome === "success" ? "sla-green" : "sla-red"}">${e.outcome}</span></td><td class="small"><code>${e.hash}</code></td></tr>`).join("")}</tbody></table>`;
+  document.getElementById("atable").innerHTML = d.items.length ? `<table class="compact"><thead><tr><th>#</th><th>When</th><th>Who</th><th>Event</th><th>Page or record</th><th>Case</th><th>Outcome</th><th>Hash</th></tr></thead><tbody>${d.items.map(e => `<tr><td>${e.id}</td><td class="small nowrap">${W.dt(e.ts)}</td><td class="small">${W.esc(e.actor)}<span class="sub">${W.esc(W.role(e.role))}</span></td><td class="small">${W.esc(e.event)}</td><td class="small">${W.esc(e.path || e.entity)}</td><td>${e.case_id ? `<a href="/cases/${e.case_id}">#${e.case_id}</a>` : ""}</td><td><span class="chip ${e.outcome === "success" ? "sla-green" : "sla-red"}">${e.outcome === "success" ? "✓" : "✕"} ${e.outcome}</span></td><td class="xs"><code>${e.hash.slice(0, 12)}…</code></td></tr>`).join("")}</tbody></table>` : W.empty("No matching events");
 }
 document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return;
-  document.getElementById("go").onclick = load;
-  document.getElementById("verify").onclick = async () => { const r = await W.api("/api/audit/verify");
-    document.getElementById("vres").innerHTML = `<div class="card" style="background:${r.valid ? "#e8f5e9" : "#fde7e7"}">${r.valid ? `✅ Hash chain intact – ${r.checked} events verified.` : `❌ Chain broken at event #${r.broken_at_id}`}</div>`; };
-  try { await load(); } catch (e) { document.getElementById("atable").innerHTML = `<div class="empty">${W.esc(e.message)}</div>`; } });
+  document.getElementById("af").onsubmit = e => { e.preventDefault(); load().catch(x => W.toast(x.message, "err")); };
+  document.getElementById("verify").onclick = async ev => { const b = ev.currentTarget; b.setAttribute("aria-busy", "true");
+    try { const r = await W.api("/api/audit/verify");
+      document.getElementById("vres").innerHTML = `<div class="card ${r.valid ? "ok" : "alert"}" role="status">${r.valid ? `✓ The log is intact: ${r.checked} events verified.` : `✕ The chain is broken at event #${r.broken_at_id}.`}</div>`; }
+    catch (e) { W.toast(e.message, "err"); } b.removeAttribute("aria-busy"); };
+  try { await load(); } catch (e) { document.getElementById("atable").innerHTML = W.empty("Could not load", W.esc(e.message)); } });
 </script>
 {% endblock %}

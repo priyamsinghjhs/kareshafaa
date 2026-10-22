@@ -19,7 +19,7 @@ from . import __version__
 HERE = Path(__file__).resolve().parent
 STATIC = HERE / "static"
 BRAND = "KareShafaa"
-THEME_COLOR = "#00796b"  # brand teal (static/kareshafaa.css --kareshafaa-teal)
+THEME_COLOR = "#0a6b66"  # brand teal (static/kareshafaa.css --c-primary)
 BACKGROUND_COLOR = "#ffffff"
 # URL paths that are never cacheable by the service worker (patient data / authenticated responses)
 NEVER_CACHE_PREFIXES = ("/api/", "/fhir")

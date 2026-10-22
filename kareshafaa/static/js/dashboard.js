@@ -9,7 +9,7 @@ const tabs = {
     if (!s.available) { el.innerHTML = `<div class="empty">No simulation run yet.</div>`; return; }
     const k = Object.fromEntries(s.kpis.map(x => [x.kpi, x]));
     const pick = keys => keys.filter(x => k[x]).map(x => ({ label: KLABEL[x] || x, a: k[x].baseline, b: k[x].with_system }));
-    el.innerHTML = `<div class="card" style="background:#fff8e1"><b>${W.esc(s.label)}</b> · ${s.n_patients} synthetic patients × ${s.replications} replications, ${s.horizon_days}-day horizon, same cohort and random stream in both arms. Ranges are min–max across replications.</div>
+    el.innerHTML = `<div class="card notice"><b>${W.esc(s.label)}</b> · ${s.n_patients} synthetic patients × ${s.replications} replications, ${s.horizon_days}-day horizon, same cohort and random stream in both arms. Ranges are min–max across replications.</div>
      <div class="grid-4">${["median_days_to_care", "pct_care_reached_or_resolved", "pct_documented_closure", "pct_open_unresolved_at_horizon"].map(x => `<div class="card kpi"><div class="l">${KLABEL[x]}</div><div class="v">${k[x].baseline} → ${k[x].with_system}</div><div class="l">baseline → with KareShafaa</div></div>`).join("")}</div>
      <div class="grid-2"><div class="card"><h4>Time to each step (median days, lower is better)</h4><div class="bars" id="b-time"></div></div>
      <div class="card"><h4>Completion (% of cohort, higher is better)</h4><div class="bars" id="b-pct"></div></div></div>
@@ -27,7 +27,7 @@ const tabs = {
   async live(el) {
     const k = await W.api("/api/analytics/kpis");
     const card = (l, v) => `<div class="card kpi"><div class="l">${l}</div><div class="v">${v ?? "–"}</div></div>`;
-    el.innerHTML = `<div class="card" style="background:#fff8e1"><b>${W.esc(k.label)}</b> – the seeded database replays ~300 days of synthetic operation through the real workflow engine.</div>
+    el.innerHTML = `<div class="card notice"><b>${W.esc(k.label)}</b> – the seeded database replays ~300 days of synthetic operation through the real workflow engine.</div>
      <div class="grid-4">${card("Cases", k.total_cases)}${card("Open", k.open_cases)}${card("Open steps overdue", k.open_overdue_steps)}${card("Closure rate", W.pct(k.closure_rate))}
      ${card("Closed with evidence", k.closed_with_evidence)}${card("Closed by authorised decision", k.closed_authorised_decision)}${card("Median days to notification", k.median_days_to_notification)}${card("Median days to care", k.median_days_to_care)}
      ${card("Median days to understood", k.median_days_to_acknowledgement)}${card("Median days to confirmation", k.median_days_to_confirmation)}${card("Referral acceptance", W.pct(k.referral_acceptance_rate))}${card("Appointment attendance", W.pct(k.appointment_attendance_rate))}
@@ -50,8 +50,8 @@ const tabs = {
 };
 async function show(t) {
   document.querySelectorAll(".tabs button").forEach(b => b.className = b.dataset.t === t ? "" : "secondary outline");
-  const el = document.getElementById("dash"); el.innerHTML = `<div class="empty">Loading…</div>`;
-  try { await tabs[t](el); } catch (e) { el.innerHTML = `<div class="empty">${W.esc(e.message)}</div>`; }
+  const el = document.getElementById("dash"); el.innerHTML = W.loading();
+  try { await tabs[t](el); } catch (e) { el.innerHTML = W.empty("Could not load", W.esc(e.message)); }
 }
 document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return;
   document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => show(b.dataset.t)); show("sim"); });

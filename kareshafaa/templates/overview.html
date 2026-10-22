@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head"><div><h1>Good to see you, {{ user.display_name.split(' (')[0] }}</h1>
+<p class="lede">Decisions waiting for you, and the safety measures to watch today.</p></div>
+<div class="page-actions"><a role="button" href="/governance" id="go-approvals">Review approvals</a></div></div>
+<div class="section-title"><h2>Waiting for your decision</h2></div>
+<div class="grid-3" id="approvals"><div class="loading" role="status">Loading…</div></div>
+<div class="section-title"><h2>Patient safety</h2><a href="/queue?view=overdue" class="small">Open the queue</a></div>
+<div class="stats" id="safety"><div class="loading" role="status">Loading…</div></div>
+<div class="section-title"><h2>Programme results</h2><a href="/dashboard" class="small">All outcomes</a></div>
+<div class="stats" id="kpis"><div class="loading" role="status">Loading…</div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+const stat = (href, v, l, cls = "") => `<a class="stat ${cls}" href="${href}"><span class="v">${v ?? "–"}</span><span class="l">${l}</span></a>`;
+document.addEventListener("DOMContentLoaded", async () => {
+  await W.ready; if (!W.requireLogin()) return;
+  const [q, models, props, content, k] = await Promise.all([
+    W.api("/api/queue?view=all&limit=1").catch(() => null), W.api("/api/governance/models").catch(() => null),
+    W.api("/api/governance/proposals").catch(() => null), W.api("/api/governance/content").catch(() => null),
+    W.api("/api/analytics/kpis").catch(() => null)]);
+  const awaiting = models ? models.items.filter(m => m.status === "awaiting_approval") : [];
+  const pending = props ? props.items.filter(p => p.status === "pending") : [];
+  const texts = content ? content.summary.gated - content.summary.gated_live : null;
+  const total = awaiting.length + pending.length + (texts || 0);
+  document.getElementById("go-approvals").textContent = total ? `Review ${total} approval${total === 1 ? "" : "s"}` : "Open approvals";
+  const card = (title, n, text, href, tab) => `<article class="card"><h3>${title}</h3><p class="stat-inline"><b style="font-size:var(--fs-2xl)">${n ?? "–"}</b> <span class="muted small">${text}</span></p><a role="button" class="${n ? "" : "secondary"}" href="${href}">${n ? "Review" : "Open"}</a></article>`;
+  document.getElementById("approvals").innerHTML =
+    card("Outreach model updates", awaiting.length, "candidate model(s) passed the safety gates and need approval", "/governance?tab=models") +
+    card("Rule and deadline changes", pending.length, "proposed change(s) from lessons learned", "/governance?tab=proposals") +
+    card("Patient texts", texts, "governed text(s) not live yet (need clinical + translator sign-off)", "/governance?tab=content");
+  const c = q ? q.counts : {};
+  document.getElementById("safety").innerHTML = stat("/queue?view=overdue", c.overdue, "Steps overdue", c.overdue ? "danger" : "ok") +
+    stat("/queue?view=escalated", c.escalated, "Escalations not acknowledged", c.escalated ? "danger" : "ok") +
+    stat("/queue?view=review", c.review, "Results needing clinical review", c.review ? "warning" : "ok") +
+    stat("/queue?view=rejected", c.rejected, "Referrals rejected, to re-route", c.rejected ? "warning" : "ok");
+  document.getElementById("kpis").innerHTML = k ? stat("/dashboard", k.open_cases, "Open cases") + stat("/dashboard", W.pct(k.closure_rate), "Closure rate") +
+    stat("/dashboard", k.median_days_to_care, "Median days to care") + stat("/dashboard", W.pct(k.teach_back_pass_rate_first_attempt), "Understood first time (teach-back)") : W.empty("Figures unavailable");
+});
+</script>
+{% endblock %}

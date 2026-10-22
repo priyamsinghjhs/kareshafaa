@@ -15,20 +15,72 @@ async function load() {
   render();
 }
 
+
+const RISKY = { close_evidence: "Close this case?", close_authorised: "Sign off this closure?", patient_deceased: "Record this patient as deceased?",
+  patient_deceased_revoke: "Correct the death record?", decline: "Record that the patient declined?", reopen: "Re-open this case?",
+  unreachable: "Mark the patient as unreachable?", transfer: "Request a transfer of ownership?", decide_transfer: "Record your transfer decision?",
+  decide_referral: "Record this referral decision?" };
+
 function header() {
-  const r = C.risk;
-  return `<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem;align-items:flex-start">
-   <hgroup style="margin:0"><h3 style="margin-bottom:.2rem">Case #${C.id} · ${W.esc(C.patient.name)} <span class="small muted">${W.esc(C.patient.mrn)}</span></h3>
-   <p class="small">${W.esc(C.programme_name)} · ${W.tier(C.tier)} · state <b>${W.esc(C.state_label)}</b> · owner <b>${W.esc(C.owner)}</b>
-   ${C.owner_is_pool ? '<span class="chip pool">team pool – needs a named owner</span>' : ""} · ${W.sla(C.sla.status, C.sla.fraction)}
-   ${C.sla.due_at ? `<span class="small muted">due ${W.ago(C.sla.due_at)}</span>` : ""} ${C.sla.escalation_level ? `<span class="chip sla-red">escalation L${C.sla.escalation_level}</span>` : ""}</p></hgroup>
-   <div class="small muted" style="text-align:right">Outreach priority (ML v${r.model_version ?? "–"}): <b>${r.score == null ? "–" : Math.round(r.score * 100) + "%"}</b><br><span title="${W.esc(r.use)}">prioritisation only ⓘ</span>
-   ${r.score == null ? "" : `<details class="small" style="text-align:left;max-width:22rem"><summary>Why this outreach priority</summary>${(r.rationale || []).length ? `<ul style="margin:.2rem 0">${r.rationale.map(w => `<li>${W.esc(w.text)} – <b>${w.direction}</b> the chance of missing the next step (${w.effect > 0 ? "+" : ""}${Math.round(w.effect * 100)} pts)</li>`).join("")}</ul>` : "<p>No single factor stands out; this case is close to the typical case.</p>"}<p class="muted">${W.esc(r.ordering)}. ${W.esc(r.use)}.</p></details>`}</div></div>
-   <div class="stepper">${C.journey.map(j => `<div class="st ${j.status}">${W.esc(j.label)}</div>`).join("")}</div>
-   ${C.review_required ? `<div class="card" role="alert" style="background:#fdecea;border-left:4px solid #c62828"><b>Clinical review required</b> before this result can progress automatically: ${(C.review_reasons || []).map(x => `<span class="chip sla-red">${W.esc(x.replace(/_/g, " "))}</span>`).join(" ")}<div class="small">Rule ${W.esc(C.rule_id || "–")} · pathway <b>${W.esc((C.pathway || "–").replace(/_/g, " "))}</b>${C.target ? " · target " + W.esc(C.target) : ""}. Urgency was set to the safer tier; lowering it needs a clinician rationale (audited).</div></div>` : (C.rule_id ? `<p class="small muted">Rule ${W.esc(C.rule_id)} · pathway ${W.esc((C.pathway || "").replace(/_/g, " "))}${C.target ? " · target " + W.esc(C.target) : ""}${C.target_due_at ? ` · pathway target date <b>${W.dt(C.target_due_at)}</b>` : ""}</p>` : "")}
-   ${C.transfer_pending ? `<div class="card" style="background:#fff8e1">Two-key transfer pending to <b>${W.esc(C.transfer_pending.to_owner)}</b> – current owner stays accountable until accepted. <span class="small muted">${W.esc(C.transfer_pending.note || "")}</span></div>` : ""}
-   ${C.closure ? `<div class="card" style="background:#e8f5e9">Closed (${W.esc(C.closure.type)}: <b>${W.esc(C.closure.reason)}</b>) ${W.dt(C.closure.closed_at)} – ${W.esc(C.closure.note || "")} ${C.closure.evidence_id ? `· evidence #${C.closure.evidence_id}` : ""}</div>` : ""}`;
+  const owner = `${C.owner_is_pool ? '<span class="chip pool">Team pool – needs a named owner</span> ' : ""}${W.esc(C.owner)}`;
+  return `<a class="back-link" href="/queue"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Back to the queue</a>
+   <div class="case-head"><h1>${W.esc(C.patient.name)}</h1>
+   <p class="muted small" style="margin:0">Case #${C.id} · ${W.esc(C.patient.mrn)} · ${W.prog(C.programme)} screening</p>
+   <div class="case-meta">${W.tier(C.tier)} ${W.sla(C.sla.status, C.sla.fraction)} ${C.sla.escalation_level ? `<span class="chip sla-red">Escalated (level ${C.sla.escalation_level})</span>` : ""}</div></div>
+   <dl class="facts">
+     <div><dt>Current step</dt><dd>${W.esc(C.state_label)}</dd></div>
+     <div><dt>Accountable owner</dt><dd>${owner}</dd></div>
+     <div><dt>Step deadline</dt><dd>${C.sla.due_at ? W.dt(C.sla.due_at) + ` <span class="small muted">(${W.ago(C.sla.due_at)})</span>` : "No deadline"}</dd></div>
+     <div><dt>Urgency</dt><dd class="small">${W.esc(W.tierText(C.tier))}</dd></div>
+   </dl>
+   <p class="small muted stepper-count">Step ${Math.max(1, C.journey.findIndex(j => j.status === "current") + 1)} of ${C.journey.filter(j => j.status !== "side").length} on the care pathway</p>
+   <ol class="stepper" aria-label="Care pathway progress">${C.journey.map(j => `<li class="st ${j.status}" ${j.status === "current" ? 'aria-current="step"' : ""}>${W.esc(j.label)}</li>`).join("")}</ol>
+   ${C.review_required ? `<div class="card alert" role="alert"><h3>Clinical review needed</h3><p>This result cannot move on automatically until a clinician reviews it: ${(C.review_reasons || []).map(x => `<span class="chip sla-red">${W.esc(x.replace(/_/g, " "))}</span>`).join(" ")}</p><p class="small" style="margin:0">Rule ${W.esc(C.rule_id || "–")} · pathway <b>${W.esc((C.pathway || "–").replace(/_/g, " "))}</b>${C.target ? " · target " + W.esc(C.target) : ""}. Urgency was set to the safer level; lowering it needs a clinician's reason (recorded).</p></div>` : (C.rule_id ? `<p class="small muted">Clinical rule ${W.esc(C.rule_id)} · pathway ${W.esc((C.pathway || "").replace(/_/g, " "))}${C.target ? " · target " + W.esc(C.target) : ""}${C.target_due_at ? ` · pathway target date <b>${W.dt(C.target_due_at)}</b>` : ""}</p>` : "")}
+   ${C.transfer_pending ? `<div class="card notice">Transfer waiting for <b>${W.esc(C.transfer_pending.to_owner)}</b> to accept. The current owner stays accountable until then. <span class="small muted">${W.esc(C.transfer_pending.note || "")}</span></div>` : ""}
+   ${C.closure ? `<div class="card ok"><b>Closed</b> (${W.esc(C.closure.type.replace(/_/g, " "))}: <b>${W.esc(C.closure.reason)}</b>) on ${W.dt(C.closure.closed_at)}. ${W.esc(C.closure.note || "")} ${C.closure.evidence_id ? `· evidence #${C.closure.evidence_id}` : ""}</div>` : ""}`;
 }
+
+function patientCard() {
+  const p = C.patient, o = C.result, r = C.risk;
+  const ch = [p.channels.smartphone ? "App" : "", p.channels.whatsapp ? "WhatsApp" : "", p.channels.phone_valid ? "Phone" : ""].filter(Boolean);
+  return `<section class="card" aria-labelledby="pt-h"><h2 id="pt-h" class="small" style="font-size:var(--fs-base)">Patient</h2>
+   <p class="small">${W.esc(p.name)} · ${W.esc(p.gender)} · age ${W.esc(p.age_band)} · speaks <b>${W.esc(p.language)}</b> · ${W.esc(p.region)}</p>
+   <p class="small">Family doctor (GP): ${W.esc(p.gp || "–")}<br>${W.esc(p.managing_org)}</p>
+   <p class="small">Can be reached by: ${ch.length ? ch.join(", ") : "<b>no valid phone or app</b>"}</p>
+   <h3 class="small" style="font-size:var(--fs-base)">Screening result</h3>${o ? `<p class="small">${W.esc(o.display)}: ${o.observations.map(x => `<b>${W.esc(x.value ?? x.value_text)}</b> ${W.esc(x.unit || "")}`).join(", ")}<br><span class="muted">issued ${W.dt(o.issued_at)}</span></p>` : "<p class='small muted'>–</p>"}
+   <h3 class="small" style="font-size:var(--fs-base)">Consent</h3><p class="small">${C.consents.filter(c => c.status === "active").map(c => `<span class="chip ${c.decision === "permit" ? "sla-green" : "sla-red"}">${c.decision === "permit" ? "✓" : "✕"} ${W.esc(c.scope.replace(/_/g, " "))}: ${c.decision === "permit" ? "yes" : "no"}</span>`).join(" ") || "–"}</p></section>
+   <section class="card flat" aria-labelledby="ml-h"><h2 id="ml-h" class="small" style="font-size:var(--fs-base)">Outreach priority <span class="muted xs">(model v${r.model_version ?? "–"}, ordering only)</span></h2>
+   <p style="margin-bottom:var(--s-2)"><b>${r.score == null ? "–" : Math.round(r.score * 100) + "%"}</b> <span class="small muted">chance of missing the next step</span></p>
+   ${r.score == null ? "" : `<details class="small"><summary>Why this estimate</summary>${(r.rationale || []).length ? `<ul>${r.rationale.map(w => `<li>${W.esc(w.text)} – <b>${w.direction}</b> the chance (${w.effect > 0 ? "+" : ""}${Math.round(w.effect * 100)} points)</li>`).join("")}</ul>` : "<p>No single factor stands out.</p>"}<p class="muted">${W.esc(r.ordering)}. ${W.esc(r.use)}.</p></details>`}</section>`;
+}
+
+function render() {
+  const acts = C.actions, primary = acts.find(a => a.primary) || null, others = acts.filter(a => a !== primary);
+  root().innerHTML = header() + `<div class="grid-2 case-grid"><div>
+    <div class="tabs" role="tablist" aria-label="Case details"><button role="tab" aria-selected="true" data-t="steps">Timeline</button><button role="tab" aria-selected="false" class="secondary" data-t="events">Messages &amp; events</button><button role="tab" aria-selected="false" class="secondary" data-t="audit">Audit (${C.audit.length})</button></div>
+    <div id="tabbody" role="tabpanel"></div></div>
+    <aside aria-label="Actions and patient details"><section class="card ${primary ? "next-step" : ""}" aria-labelledby="act-h"><h2 id="act-h" style="font-size:var(--fs-lg)">${primary ? "Next step" : "Actions"}</h2>
+      ${primary ? `<button class="primary-action" data-k="${primary.key}" data-ev="${primary.evidence_type || ""}">${W.esc(primary.label)}</button>` : ""}
+      ${others.length ? (primary ? `<details class="more-actions"><summary>More actions (${others.length})</summary><div class="actions">${others.map(btn).join("")}</div></details>` : `<div class="actions">${others.map(btn).join("")}</div>`) : (primary ? "" : `<p class="small muted">There is nothing for your role to do on this case right now.</p>`)}
+      <div id="aform"></div></section>${patientCard()}</aside></div>`;
+  const tabs = { steps, events, audit: auditTable };
+  root().querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+    root().querySelectorAll(".tabs button").forEach(x => { x.className = "secondary"; x.setAttribute("aria-selected", "false"); }); b.className = ""; b.setAttribute("aria-selected", "true");
+    document.getElementById("tabbody").innerHTML = tabs[b.dataset.t]();
+  });
+  document.getElementById("tabbody").innerHTML = steps();
+  root().querySelectorAll("[data-k]").forEach(b => b.onclick = () => openForm(b.dataset.k, b.dataset.ev));
+}
+const btn = a => `<button class="secondary" data-k="${a.key}" data-ev="${a.evidence_type || ""}">${W.esc(a.label)}</button>`;
+
+async function postRaw(path, body, okMsg, key) {
+  if (key && RISKY[key] && !(await W.confirm(RISKY[key], "This is recorded in the case history with your name and cannot be silently undone.", { ok: "Yes, continue", danger: /close|deceased|decline|unreachable/.test(key) }))) return;
+  try { const r = await W.api(path, { method: "POST", body }); W.toast(okMsg || "Saved", "ok"); await load(); return r; }
+  catch (e) { W.toast(e.message, "err"); }
+}
+const post = (p, b, m) => postRaw(p, b, m);
+window.respond = id => post(`/api/consults/${id}/respond`, { response: document.getElementById("resp-" + id).value }, "Answer sent");
+window.ackEsc = async id => { const note = await W.ask("Acknowledge escalation", "What action are you taking?", { ok: "Acknowledge", min: 3 }); if (note) post(`/api/escalations/${id}/ack`, { note }, "Escalation acknowledged"); };
 
 function events() {
   const ev = [];
@@ -38,54 +90,25 @@ function events() {
   C.service_requests.forEach(s => ev.push([s.decided_at || s.created_at, `📄 ${s.kind.replace("_", " ")} → ${W.esc(s.performer_org)} <span class="chip sla-none">${s.status}</span>${s.result ? " result <b>" + s.result + "</b>" : ""}${s.reason_code ? ` reason <b>${W.esc(s.reason_code)}</b>: ${W.esc(s.reason_note || "")}` : ""}`]));
   C.appointments.forEach(a => ev.push([a.start, `📅 appointment ${W.dt(a.start)} at ${W.esc(a.org)} <span class="chip ${a.status === "fulfilled" ? "sla-green" : a.status === "noshow" ? "sla-red" : "sla-none"}">${a.status}</span>${a.barrier_code ? " barrier: " + W.esc(a.barrier_code) : ""}`]));
   C.care_plans.forEach(p => ev.push([p.created_at, `🩺 ${p.kind} plan by ${W.esc(p.by)}: ${W.esc(p.description)}`]));
-  C.consults.forEach(q => ev.push([q.created_at, `💬 ${q.type === "patient" ? "patient-to-clinician" : "clinician-to-clinician"} consult → ${W.esc(q.target)} (${q.urgency}) <span class="chip ${q.status === "answered" ? "sla-green" : q.overdue ? "sla-red" : "sla-amber"}">${q.status}${q.overdue ? " · overdue" : ""}</span><div class="small">Q: ${W.esc(q.question)}</div>${q.response ? `<div class="small">A: ${W.esc(q.response)}</div>` : ""}${q.status === "requested" && W.me.practitioner_id === q.target_id ? `<div><input id="resp-${q.id}" placeholder="Your answer…" style="margin:.3rem 0"><button class="secondary" style="width:auto;padding:.2rem .7rem" onclick="respond(${q.id})">Send answer</button></div>` : ""}`]));
-  C.escalations.forEach(e => ev.push([e.created_at, `🚨 <b>L${e.level}</b> → ${W.esc(e.target)}: ${W.esc(e.note)} ${e.acknowledged_at ? '<span class="chip sla-green">acknowledged</span>' : (W.me.permissions.includes("escalation:ack") ? `<button class="outline" style="width:auto;padding:.1rem .6rem;font-size:.8rem" onclick="ackEsc(${e.id})">Acknowledge</button>` : "")}`]));
+  C.consults.forEach(q => ev.push([q.created_at, `💬 ${q.type === "patient" ? "patient-to-clinician" : "clinician-to-clinician"} consult → ${W.esc(q.target)} (${q.urgency}) <span class="chip ${q.status === "answered" ? "sla-green" : q.overdue ? "sla-red" : "sla-amber"}">${q.status}${q.overdue ? " · overdue" : ""}</span><div class="small">Q: ${W.esc(q.question)}</div>${q.response ? `<div class="small">A: ${W.esc(q.response)}</div>` : ""}${q.status === "requested" && W.me.practitioner_id === q.target_id ? `<div><label for="resp-${q.id}" class="sr-only">Your answer</label><textarea id="resp-${q.id}" rows="2" placeholder="Your answer…"></textarea><button class="secondary sm" onclick="respond(${q.id})">Send answer</button></div>` : ""}`]));
+  C.escalations.forEach(e => ev.push([e.created_at, `🚨 <b>L${e.level}</b> → ${W.esc(e.target)}: ${W.esc(e.note)} ${e.acknowledged_at ? '<span class="chip sla-green">acknowledged</span>' : (W.me.permissions.includes("escalation:ack") ? `<button class="secondary sm" onclick="ackEsc(${e.id})">Acknowledge</button>` : "")}`]));
   C.ownership_events.forEach(o => ev.push([o.at, `👤 ownership ${W.esc(o.kind)}: ${W.esc(o.from || "–")} → <b>${W.esc(o.to)}</b> ${W.esc(o.reason || "")}`]));
   ev.sort((a, b) => (b[0] || "").localeCompare(a[0] || ""));
-  return ev.length ? `<ul class="timeline">${ev.map(([t, h]) => `<li class="ev"><span class="small muted">${W.dt(t)}</span> ${h}</li>`).join("")}</ul>` : `<div class="empty">No events yet.</div>`;
+  return ev.length ? `<ul class="timeline">${ev.map(([t, h]) => `<li class="ev"><span class="small muted">${W.dt(t)}</span> ${h}</li>`).join("")}</ul>` : W.empty("No events yet", "Messages, calls, referrals and appointments will appear here.");
 }
 
 function steps() {
   return `<ul class="timeline">${C.steps.slice().reverse().map(s => `<li class="${s.breached ? "breach" : ""}">
-    <b>${W.esc(s.label)}</b> ${s.status === "in-progress" ? W.sla(s.sla_status, s.sla_fraction) : (s.breached ? '<span class="chip sla-red">breached SLA</span>' : "")}
-    <div class="small">Owner: <b>${W.esc(s.owner)}</b> · ${W.dt(s.started_at)} → ${s.ended_at ? W.dt(s.ended_at) : "now"} ${s.sla_hours ? `· SLA ${s.sla_hours}h` : ""}</div>
+    <b>${W.esc(s.label)}</b> ${s.status === "in-progress" ? W.sla(s.sla_status, s.sla_fraction) : (s.breached ? '<span class="chip sla-red">▲ Missed deadline</span>' : "")}
+    <div class="small">Owner: <b>${W.esc(s.owner)}</b> · ${W.dt(s.started_at)} → ${s.ended_at ? W.dt(s.ended_at) : "now"} ${s.sla_hours ? `· time allowed ${s.sla_hours} h` : ""}</div>
     ${s.note ? `<div class="small muted">${W.esc(s.note)}</div>` : ""}</li>`).join("")}</ul>`;
 }
 
 function auditTable() {
-  return `<table class="compact"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Event</th><th>Outcome</th></tr></thead><tbody>${C.audit.map(a =>
-    `<tr><td class="small">${W.dt(a.ts)}</td><td class="small">${W.esc(a.actor)}<div class="muted">${W.esc(a.role)}</div></td><td>${a.action}</td><td class="small">${W.esc(a.event)}${a.detail && a.detail.to ? " → " + W.esc(a.detail.to) : ""}</td><td class="small">${a.outcome}</td></tr>`).join("")}</tbody></table>`;
+  return `<p class="small muted">Every view and change of this case, in an append-only, tamper-evident log.</p><table class="compact"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Event</th><th>Outcome</th></tr></thead><tbody>${C.audit.map(a =>
+    `<tr><td class="small">${W.dt(a.ts)}</td><td class="small">${W.esc(a.actor)}<div class="muted">${W.esc(W.role(a.role))}</div></td><td>${a.action}</td><td class="small">${W.esc(a.event)}${a.detail && a.detail.to ? " → " + W.esc(a.detail.to) : ""}</td><td class="small">${a.outcome}</td></tr>`).join("")}</tbody></table>`;
 }
 
-function patientCard() {
-  const p = C.patient, o = C.result;
-  return `<div class="card small"><h4>Patient</h4>${W.esc(p.name)} · ${W.esc(p.gender)} · ${W.esc(p.age_band)} · language <b>${W.esc(p.language)}</b> · ${W.esc(p.region)}<br>
-   GP: ${W.esc(p.gp || "–")} · ${W.esc(p.managing_org)}<br>Channels: ${p.channels.smartphone ? "app " : ""}${p.channels.whatsapp ? "WhatsApp " : ""}${p.channels.phone_valid ? "phone" : "<b>no valid phone</b>"}
-   <h4 style="margin-top:.6rem">Screening result</h4>${o ? `${W.esc(o.display)} – ${o.observations.map(x => `<b>${W.esc(x.value ?? x.value_text)}</b> ${W.esc(x.unit || "")}`).join(", ")}<br><span class="muted">issued ${W.dt(o.issued_at)}</span>` : ""}
-   <h4 style="margin-top:.6rem">Consent</h4>${C.consents.filter(c => c.status === "active").map(c => `<span class="chip ${c.decision === "permit" ? "sla-green" : "sla-red"}">${W.esc(c.scope)}: ${c.decision}</span>`).join(" ") || "–"}</div>`;
-}
-
-function render() {
-  root().innerHTML = header() + `<div class="grid-2"><div>
-    <div class="tabs"><button data-t="steps">Timeline & owners</button><button class="secondary outline" data-t="events">Events & messages</button><button class="secondary outline" data-t="audit">Audit (${C.audit.length})</button></div>
-    <div id="tabbody"></div></div>
-    <aside><div class="card actions"><h4>Next actions</h4><div id="actions"></div><div id="aform"></div></div>${patientCard()}</aside></div>`;
-  const tabs = { steps, events, audit: auditTable };
-  root().querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
-    root().querySelectorAll(".tabs button").forEach(x => x.className = "secondary outline"); b.className = "";
-    document.getElementById("tabbody").innerHTML = tabs[b.dataset.t]();
-  });
-  document.getElementById("tabbody").innerHTML = steps();
-  document.getElementById("actions").innerHTML = C.actions.length ? C.actions.map(a => `<button class="${a.primary ? "" : "secondary outline"}" data-k="${a.key}" data-ev="${a.evidence_type || ""}">${W.esc(a.label)}</button>`).join("") : `<div class="muted small">No actions available for your role.</div>`;
-  document.querySelectorAll("#actions button").forEach(b => b.onclick = () => openForm(b.dataset.k, b.dataset.ev));
-}
-
-async function post(path, body, okMsg) {
-  try { const r = await W.api(path, { method: "POST", body }); W.toast(okMsg || "Saved", "ok"); await load(); return r; }
-  catch (e) { W.toast(e.message, "err"); }
-}
-window.respond = id => post(`/api/consults/${id}/respond`, { response: document.getElementById("resp-" + id).value }, "Answer sent");
-window.ackEsc = id => { const note = prompt("Acknowledge escalation – what action are you taking?"); if (note) post(`/api/escalations/${id}/ack`, { note }, "Escalation acknowledged"); };
 
 const F = {
   note: (l = "Note", req = false) => `<label>${l}<textarea name="note" rows="2" ${req ? "required" : ""}></textarea></label>`,
@@ -93,10 +116,13 @@ const F = {
 };
 async function openForm(key, evidenceType) {
   const el = document.getElementById("aform"), u = `/api/cases/${CASE_ID}`;
+  const TITLE = Object.fromEntries(C.actions.map(a => [a.key, a.label]));
+  const post = (p, b, m) => postRaw(p, b, m, key);
   const form = (html, onsubmit, submit = "Confirm") => {
-    el.innerHTML = `<form class="action-form">${html}<div style="display:flex;gap:.4rem"><button type="submit">${submit}</button><button type="button" class="secondary outline" id="cancel">Cancel</button></div></form>`;
-    el.querySelector("#cancel").onclick = () => el.innerHTML = "";
-    el.querySelector("form").onsubmit = ev => { ev.preventDefault(); const fd = Object.fromEntries(new FormData(ev.target)); onsubmit(fd); };
+    el.innerHTML = `<form class="action-form" aria-label="${W.esc(TITLE[key] || "Action")}"><h3>${W.esc(TITLE[key] || "Action")}</h3>${html}<div class="form-buttons"><button type="submit">${submit}</button><button type="button" class="secondary" id="cancel">Cancel</button></div></form>`;
+    el.querySelector("#cancel").onclick = () => { el.innerHTML = ""; };
+    const fm = el.querySelector("form"); const first = fm.querySelector("select, input:not([type=hidden]), textarea"); if (first) first.focus(); fm.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    fm.onsubmit = async ev => { ev.preventDefault(); const b = fm.querySelector("button[type=submit]"); b.setAttribute("aria-busy", "true"); b.disabled = true; const fd = Object.fromEntries(new FormData(ev.target)); await onsubmit(fd); b.removeAttribute("aria-busy"); b.disabled = false; };
   };
   const tr = (to, msg) => form(F.note(), fd => post(`${u}/transition`, { to_state: to, note: fd.note || null }, msg));
   const d = ["assign", "transfer", "consult", "refer", "order_confirmatory", "book"].includes(key) ? await dir() : null;
@@ -122,7 +148,7 @@ async function openForm(key, evidenceType) {
     case "refer": {
       const blocked = C.actions.find(a => a.key === "refer").consent_blocked;
       const hosp = d.orgs.filter(o => o.kind === "hospital");
-      return form((blocked ? `<p class="small" style="color:#c62828">Patient has <b>declined</b> sharing with other organisations. Record their consent first (Record consent → share_external).</p>` : "") +
+      return form((blocked ? `<p class="small" class="notice-inline err">Patient has <b>declined</b> sharing with other organisations. Record their consent first (Record consent → share_external).</p>` : "") +
         F.sel("org", "Receiving hospital", opts(hosp)) + F.sel("spec", "Specialist (optional)", `<option value="">Department decides</option>` + opts(d.prac.filter(p => p.role === "specialist"), p => p.id, p => p.name + " – " + (hosp.find(h => h.id === p.org_id) || {}).name)) +
         `<label>Clinical summary<textarea name="summary" rows="3" placeholder="Result, relevant history, medications, preferred language…"></textarea></label>`,
         fd => post(`${u}/referral`, { performer_org_id: +fd.org, performer_id: fd.spec ? +fd.spec : null, summary: fd.summary }, "Referral sent"), "Send referral");
@@ -142,7 +168,7 @@ async function openForm(key, evidenceType) {
     case "close_authorised": return form(`<p class="small">Authorised human decision – needs a reason code and a rationale (≥10 characters). Some reasons need supporting records (e.g. informed decline, full contact ladder).</p>` +
       F.sel("reason", "Reason", kv(META.closure_reasons)) + F.note("Rationale", true), fd => post(`${u}/close`, { closure_type: "authorised_decision", reason: fd.reason, note: fd.note }, "Case closed (authorised decision)"), "Sign off closure");
     case "decline": return form(F.note("What did the patient say? (≥10 characters, recorded with your name; informed decline needs a clinician conversation)", true), fd => post(`${u}/decline`, { note: fd.note }, "Decline recorded – clinician review"));
-    case "patient_deceased": return form(`<p class="small" style="color:#c62828">Records the death for <b>this patient</b>: all messages and call tasks stop and every open case goes to clinical review for an authorised closure. Check the identity first.</p>` +
+    case "patient_deceased": return form(`<p class="small" class="notice-inline err">Records the death for <b>this patient</b>: all messages and call tasks stop and every open case goes to clinical review for an authorised closure. Check the identity first.</p>` +
       F.note("Source and date of the notification (≥10 characters)", true), fd => post(`${u}/patient-deceased`, { note: fd.note }, "Death recorded – outreach stopped, open cases sent to review"), "Sign off");
     case "patient_deceased_revoke": return form(`<p class="small">Only for a death recorded against the wrong patient. Open cases are re-reviewed; cases closed as deceased are listed for re-opening.</p>` +
       F.note("Why the record is wrong (≥20 characters)", true), fd => post(`${u}/patient-deceased/revoke`, { note: fd.note }, "Death record corrected – cases sent to review"), "Sign off correction");
@@ -166,4 +192,4 @@ async function openForm(key, evidenceType) {
   }
 }
 document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return;
-  try { await load(); } catch (e) { root().innerHTML = `<div class="empty">${W.esc(e.message)}</div>`; } });
+  try { await load(); } catch (e) { root().innerHTML = W.empty("Could not open this case", W.esc(e.message), '<a role="button" href="/queue">Back to the queue</a>'); } });

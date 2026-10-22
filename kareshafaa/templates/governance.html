@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
-<hgroup><h3 style="margin-bottom:.2rem">Governance – the self-improving loop, with humans in charge</h3>
-<p class="small muted">Models and rule changes are only <b>proposed</b> by the system. A clinical lead approves, rejects or rolls back. Every action is audited.</p></hgroup>
-<div class="tabs"><button data-t="models">Model registry</button><button class="secondary outline" data-t="proposals">Proposed rule changes</button><button class="secondary outline" data-t="lessons">Lessons learned</button><button class="secondary outline" data-t="rules">Active SLA rules &amp; config</button><button class="secondary outline" data-t="content">Patient content sign-off</button></div>
-<div id="gov"><div class="empty">Loading…</div></div>
+<div class="page-head"><div><h1>{% if user.role == "translator" %}Patient content sign-off{% else %}Approvals and models{% endif %}</h1>
+<p class="lede">The system can only <b>propose</b> new models, rule changes and patient texts. A clinical lead approves, rejects or rolls back, and every decision is recorded.</p></div></div>
+<div class="tabs" role="tablist" aria-label="Governance areas"><button role="tab" data-perm="model:read" data-t="models">Outreach model</button><button role="tab" class="secondary" data-perm="lesson:read" data-t="proposals">Proposed rule changes</button><button role="tab" class="secondary" data-perm="lesson:read" data-t="lessons">Lessons learned</button><button role="tab" class="secondary" data-perm="lesson:read" data-t="rules">Deadlines &amp; settings</button><button role="tab" class="secondary" data-perm="content:read" data-t="content">Patient texts</button></div>
+<div id="gov" role="tabpanel"><div class="loading" role="status">Loading…</div></div>
 {% endblock %}
-{% block scripts %}<script src="/static/js/governance.js"></script>{% endblock %}
+{% block scripts %}<script>document.addEventListener("DOMContentLoaded", async () => { await W.ready; document.querySelectorAll(".tabs [data-perm]").forEach(b => { if (!W.can(b.dataset.perm)) b.remove(); }); });</script><script src="/static/js/governance.js"></script>{% endblock %}

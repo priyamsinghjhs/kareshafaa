@@ -1,62 +1,96 @@
 {% extends "base.html" %}
 {% block content %}
-<div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:.5rem">
-  <hgroup style="margin:0"><h3 style="margin-bottom:.2rem">Work queue</h3>
-    <p class="small muted" id="ordering"></p></hgroup>
-  <div style="display:flex;gap:.5rem;align-items:center">
-    <select id="prog" style="margin:0;width:auto"><option value="">All programmes</option><option value="colorectal_fit">Bowel (FIT)</option>
-      <option value="cervical">Cervical (HPV)</option><option value="breast">Breast</option><option value="diabetes_hba1c">Diabetes</option></select>
-    <input id="search" type="search" aria-label="Search open cases by name, MRN or case number" placeholder="Search name / MRN / #id…" style="margin:0;width:200px">
-    <button id="sweep" class="secondary outline" style="margin:0;width:auto" title="Run the SLA timer / escalation sweep now">Run SLA sweep</button>
-  </div>
+<div class="page-head">
+  <div><h1 id="q-title">Work queue</h1>
+    <p class="lede" id="q-lede">Most urgent first.</p></div>
+  <div class="page-actions"><a role="button" id="open-top" href="#" hidden>Open the most urgent case</a></div>
 </div>
-<div class="tabs" id="tabs"></div>
-<div id="qtable"><div class="empty">Loading…</div></div>
-<p class="small muted">ML “outreach priority” is a model estimate of delay / drop-off risk used <b>only</b> to order outreach within the same SLA band and urgency tier. It never changes a case, its urgency or its closure.</p>
+<div class="stats" id="stats" aria-label="Queue summary"></div>
+<div class="filters" role="search">
+  <label for="view">Show
+    <select id="view"></select></label>
+  <label for="prog">Screening programme
+    <select id="prog"><option value="">All programmes</option><option value="colorectal_fit">Bowel (FIT stool test)</option>
+      <option value="cervical">Cervical (HPV test)</option><option value="breast">Breast (mammogram)</option><option value="diabetes_hba1c">Diabetes (HbA1c blood test)</option></select></label>
+  <label for="search">Find a patient
+    <input id="search" type="search" inputmode="search" autocomplete="off" placeholder="Name, MRN or case number"></label>
+</div>
+<details class="queue-legend">
+  <summary>What do the urgency levels mean?</summary>
+  <ul class="legend-list small">
+    {% for k in ["critical", "urgent", "high", "routine"] %}<li><span class="chip tier-{{ k }}">{{ tiers[k].code }} · {{ tiers[k].name }}</span> first action within {{ tiers[k].first_action }}{% if k in ["critical", "urgent"] %}, day or night{% endif %}</li>{% endfor %}
+    <li><span class="chip sla-red"><span class="shape" aria-hidden="true">▲</span>Overdue</span> the current step is past its deadline</li>
+    <li><span class="chip sla-amber"><span class="shape" aria-hidden="true">●</span>Due soon</span> more than half the time allowed has passed</li>
+  </ul>
+  <p class="footnote">Later steps have their own deadlines (set by the clinical lead). "Outreach priority" is a model estimate of the chance the patient misses the next step; it only orders patients within the same urgency and never changes a case.</p>
+</details>
+<div id="qtable" aria-live="polite">{{ "" }}<div class="loading" role="status">Loading the queue…</div></div>
 {% endblock %}
 {% block scripts %}
 <script>
-const VIEWS = [["all","All open"],["review","Clinical review"],["mine","Mine"],["overdue","Overdue"],["unassigned","Unassigned"],["rejected","Rejected referrals"],["escalated","Escalated"],["calls","Phone-call tasks"],["transfers","Transfers pending"],["consults","Open consults"]];
+const VIEWS = [["all", "All open cases"], ["overdue", "Overdue"], ["review", "Needs clinical review"], ["mine", "Assigned to me"], ["unassigned", "No named owner"],
+  ["escalated", "Escalated"], ["rejected", "Referral rejected"], ["calls", "Phone calls to make"], ["transfers", "Transfers waiting"], ["consults", "Open consultations"]];
+const TITLES = { all: "Today's work queue", review: "Patients needing review", mine: "Assigned to me", overdue: "Overdue steps" };
 let view = new URLSearchParams(location.search).get("view") || "all", data = null, offset = 0, timer = null;
-const PAGE = 50;
-const EMPTY = { all: "No open cases – every result has reached care or a documented closure.", mine: "No cases owned by you right now.",
-  overdue: "Nothing overdue. Every step is inside its SLA.", unassigned: "Every case has a named owner.",
-  rejected: "No rejected referrals waiting for re-routing.", escalated: "No unacknowledged escalations.",
-  review: "No results waiting for clinician review.", calls: "No phone-call tasks waiting.", transfers: "No two-key transfers pending.", consults: "No open consultation requests." };
+const PAGE = 25;
+const EMPTY = { all: ["No open cases", "Every result has reached care or a documented closure."], mine: ["Nothing assigned to you", "No cases have you as the named owner right now."],
+  overdue: ["Nothing overdue", "Every step is inside its deadline."], unassigned: ["Every case has an owner", "No case is waiting in a team pool."],
+  rejected: ["No rejected referrals", "Nothing is waiting to be re-routed."], escalated: ["No open escalations", "Every escalation has been acknowledged."],
+  review: ["No one needs review", "No results are waiting for a clinician. <a href='/queue'>See all cases</a>."], calls: ["No calls to make", "No phone-call tasks are waiting."],
+  transfers: ["No transfers waiting", "No hand-overs are pending."], consults: ["No open consultations", "No questions are waiting for an answer."] };
+function stats() {
+  const c = data.counts, S = [["overdue", "Overdue", "danger"], ["review", "Need review", "warning"], ["unassigned", "No named owner", ""], ["escalated", "Escalated", "danger"]];
+  document.getElementById("stats").innerHTML = S.map(([k, l, cls]) => `<a class="stat ${(c[k] || 0) ? cls : "ok"}" href="?view=${k}" data-v="${k}" ${k === view ? 'aria-current="true"' : ""}><span class="v">${c[k] ?? 0}</span><span class="l">${l}</span></a>`).join("");
+  document.querySelectorAll("#stats a").forEach(a => a.onclick = e => { e.preventDefault(); setView(a.dataset.v); });
+  const sel = document.getElementById("view");
+  sel.innerHTML = VIEWS.map(([k, l]) => `<option value="${k}" ${k === view ? "selected" : ""}>${l} (${c[k] ?? 0})</option>`).join("");
+}
+function setView(v) { view = v; offset = 0; history.replaceState(null, "", "?view=" + view); load(); }
 async function load() {
   const prog = document.getElementById("prog").value, q = document.getElementById("search").value.trim();
   data = await W.api(`/api/queue?view=${view}&limit=${PAGE}&offset=${offset}${prog ? "&programme=" + prog : ""}${q ? "&q=" + encodeURIComponent(q) : ""}`);
-  document.getElementById("ordering").textContent = "Sorted by " + data.ordering + ".";
-  document.getElementById("tabs").innerHTML = VIEWS.map(([k, l]) => `<button class="${k === view ? "" : "secondary outline"}" data-v="${k}" aria-pressed="${k === view}">${l} <b>${data.counts[k] ?? 0}</b></button>`).join("");
-  document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => { view = b.dataset.v; offset = 0; history.replaceState(null, "", "?view=" + view); load(); });
-  render();
+  document.getElementById("q-title").textContent = TITLES[view] || (VIEWS.find(v => v[0] === view) || [, "Work queue"])[1];
+  document.getElementById("q-lede").textContent = "Most urgent first: overdue and due-soon steps, then urgency (T0 to T3), then results flagged for review, then outreach priority, then deadline.";
+  stats(); render();
+}
+function flags(r) {
+  return [r.review_required ? `<span class="chip sla-red" title="${W.esc((r.review_reasons || []).join(", "))}">Needs review</span>` : "",
+    r.escalation_level ? `<span class="chip sla-red" title="Escalation level ${r.escalation_level}">Escalated L${r.escalation_level}</span>` : "",
+    r.call_task ? '<span class="chip flag">Call due</span>' : "", r.open_consult ? '<span class="chip flag">Question open</span>' : "",
+    r.transfer_pending ? '<span class="chip flag">Transfer</span>' : ""].join(" ");
 }
 function render() {
-  const rows = data.items;
-  if (!rows.length) { document.getElementById("qtable").innerHTML = `<div class="empty">${document.getElementById("search").value ? "No open case matches your search." : EMPTY[view] || "Nothing here."}</div>`; return; }
+  const rows = data.items, top = document.getElementById("open-top");
+  if (!rows.length) { top.hidden = true; const e = EMPTY[view] || ["Nothing here", ""];
+    document.getElementById("qtable").innerHTML = document.getElementById("search").value ? W.empty("No match", "No open case matches your search.") : W.empty(e[0], e[1]); return; }
+  top.hidden = false; top.href = `/cases/${rows[0].id}`;
   const from = data.offset + 1, to = data.offset + rows.length;
-  document.getElementById("qtable").innerHTML = `<table class="compact striped"><thead><tr><th>SLA</th><th>Case</th><th>Patient</th><th>Programme</th><th>Urgency</th><th>Step</th><th>Owner</th><th>Due</th><th title="Outreach priority (ML) - prioritisation only">Outreach priority</th><th>Flags</th></tr></thead><tbody>` +
-    rows.map(r => `<tr class="clickable" onclick="location.href='/cases/${r.id}'">
-      <td>${W.sla(r.sla_status, r.sla_fraction)}</td><td><a href="/cases/${r.id}" onclick="event.stopPropagation()">#${r.id}</a></td>
-      <td>${W.esc(r.patient)}<div class="small muted">${W.esc(r.mrn)} · ${W.esc(r.language)}</div></td>
-      <td>${W.prog(r.programme)}</td><td>${W.tier(r.tier)}</td><td>${W.esc(r.state_label)}</td>
-      <td>${r.owner_is_pool ? '<span class="chip pool">team pool</span> ' : ""}<span class="small">${W.esc(r.owner)}</span></td>
-      <td class="small">${W.ago(r.due_at)}</td>
-      <td>${r.risk_score == null ? '<span class="muted small">–</span>' : `<span title="${W.esc('Why: ' + (r.risk_rationale || 'close to the typical case') + ' - orders within tier only')}"><span class="risk-bar" style="width:${Math.round(r.risk_score * 60) + 4}px"></span> <span class="small">${Math.round(r.risk_score * 100)}%</span></span>`}</td>
-      <td>${r.review_required ? `<span class="chip sla-red" title="${W.esc((r.review_reasons || []).join(', '))}">review</span> ` : ""}${r.escalation_level ? `<span class="chip sla-red">L${r.escalation_level}</span> ` : ""}${r.call_task ? '<span class="chip flag">call</span> ' : ""}${r.open_consult ? '<span class="chip flag">consult</span> ' : ""}${r.transfer_pending ? '<span class="chip flag">transfer</span>' : ""}</td></tr>`).join("") +
-    `</tbody></table><nav class="pager" aria-label="Queue pages"><span class="small muted">${from}–${to} of ${data.total}</span>
-     <button class="secondary outline" ${data.offset ? "" : "disabled"} onclick="page(-1)">‹ Previous</button>
-     <button class="secondary outline" ${to < data.total ? "" : "disabled"} onclick="page(1)">Next ›</button></nav>`;
+  const risk = r => r.risk_score == null ? '<span class="muted small">–</span>' : `<span class="risk" title="${W.esc("Why: " + (r.risk_rationale || "close to the typical case") + " - orders within the same urgency only")}"><span class="risk-bar" aria-hidden="true"><i style="width:${Math.round(r.risk_score * 100)}%"></i></span>${Math.round(r.risk_score * 100)}%</span>`;
+  const owner = r => `${r.owner_is_pool ? '<span class="chip pool">Team pool</span> ' : ""}${W.esc(r.owner.split(" (")[0])}`;
+  document.getElementById("qtable").innerHTML = `<div class="table-scroll q-table"><table class="striped"><caption class="sr-only">Open cases, most urgent first</caption><thead><tr><th>Urgency</th><th class="w-patient">Patient</th><th>Screening</th><th>Next step</th><th>Deadline</th><th>Owner</th><th title="Model estimate of the chance of missing the next step - orders outreach within the same urgency only">Outreach priority</th></tr></thead><tbody>` +
+    rows.map(r => `<tr class="clickable" data-href="/cases/${r.id}">
+      <td>${W.tier(r.tier)}</td>
+      <td><a href="/cases/${r.id}"><b>${W.esc(r.patient)}</b></a><span class="sub">#${r.id} · ${W.esc(r.mrn)} · speaks ${W.esc(r.language)}</span></td>
+      <td>${W.prog(r.programme)}</td><td>${W.esc(r.state_label)}<div class="chips">${flags(r)}</div></td>
+      <td>${W.sla(r.sla_status, r.sla_fraction)}<span class="sub">${W.ago(r.due_at)}</span></td>
+      <td class="small">${owner(r)}</td><td>${risk(r)}</td></tr>`).join("") +
+    `</tbody></table></div><ul class="q-cards" aria-label="Open cases, most urgent first">${rows.map(r => `<li><a class="q-card" href="/cases/${r.id}">
+      <span class="chips">${W.tier(r.tier)} ${W.sla(r.sla_status, r.sla_fraction)} ${flags(r)}</span>
+      <span class="q-name">${W.esc(r.patient)}</span>
+      <span class="q-line">${W.progText(r.programme)} · next: <b>${W.esc(r.state_label)}</b></span>
+      <span class="q-line muted">Due ${W.ago(r.due_at)} · ${owner(r)}${r.risk_score == null ? "" : ` · priority ${Math.round(r.risk_score * 100)}%`}</span></a></li>`).join("")}</ul>` +
+    `<nav class="pager" aria-label="Queue pages"><span class="small muted">Showing ${from}–${to} of ${data.total}</span><span class="btns">
+     <button class="secondary" ${data.offset ? "" : "disabled"} onclick="page(-1)">Previous</button>
+     <button class="secondary" ${to < data.total ? "" : "disabled"} onclick="page(1)">Next</button></span></nav>`;
+  document.querySelectorAll("tr.clickable").forEach(tr => tr.onclick = e => { if (!e.target.closest("a,button")) location.href = tr.dataset.href; });
 }
-window.page = d => { offset = Math.max(0, offset + d * PAGE); load(); };
+window.page = d => { offset = Math.max(0, offset + d * PAGE); load().then(() => document.getElementById("q-title").scrollIntoView()); };
 document.addEventListener("DOMContentLoaded", async () => {
   await W.ready; if (!W.requireLogin()) return;
-  if (!W.me.permissions.includes("sweep:run")) document.getElementById("sweep").style.display = "none";
   document.getElementById("search").oninput = () => { clearTimeout(timer); timer = setTimeout(() => { offset = 0; load(); }, 250); };
   document.getElementById("prog").onchange = () => { offset = 0; load(); };
-  document.getElementById("sweep").onclick = async () => { try { const r = await W.api("/api/sla/sweep", { method: "POST", body: {} });
-    W.toast(`Sweep: ${r.checked} checked · ${r.reminders} reminders · ${r.supervisor} supervisor · ${r.clinical_lead} clinical-lead · ${r.director || 0} director escalations`, "ok"); load(); } catch (e) { W.toast(e.message, "err"); } };
-  try { await load(); } catch (e) { document.getElementById("qtable").innerHTML = `<div class="empty">${W.esc(e.message)}</div>`; }
+  document.getElementById("view").onchange = e => setView(e.target.value);
+  try { await load(); } catch (e) { document.getElementById("qtable").innerHTML = W.empty("Could not load the queue", W.esc(e.message), '<button onclick="location.reload()">Try again</button>'); }
 });
 </script>
 {% endblock %}

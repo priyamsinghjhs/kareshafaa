@@ -1,78 +1,109 @@
 // Shared helpers for all pages (no external dependencies).
+const KS = window.KS || { tiers: {}, roles: {} };
 const W = {
   me: null,
-  esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); },
+  esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); },
+  csrf() { const m = document.querySelector('meta[name="csrf-token"]'); return m ? m.content : ((W.me && W.me.csrf) || ""); },
   async api(path, opts = {}) {
     const o = { credentials: "same-origin", ...opts, headers: { "Accept": "application/json", ...(opts.headers || {}) } };
     if (o.raw !== undefined) { o.body = o.raw; delete o.raw; }
     else if (o.body && typeof o.body !== "string") { o.body = JSON.stringify(o.body); o.headers["Content-Type"] = "application/json"; }
-    const r = await fetch(path, o);
+    if (o.method && o.method !== "GET") o.headers["X-CSRF-Token"] = W.csrf();
+    let r;
+    try { r = await fetch(path, o); } catch (e) { const err = new Error("No connection - nothing was saved. Check your network and try again."); err.status = 0; throw err; }
+    if (r.status === 401 && !path.startsWith("/api/auth/me")) { location.href = "/login?next=" + encodeURIComponent(location.pathname + location.search); throw new Error("Your session has ended - please sign in again."); }
     const ct = r.headers.get("content-type") || "";
     const data = ct.includes("json") ? await r.json() : await r.text();
     if (!r.ok) {
       let msg = (data && data.detail) ? data.detail : r.statusText;
       if (data && data.errors) msg += ": " + data.errors.map(e => e.loc.slice(-1)[0] + " " + e.msg).join("; ");
+      msg = String(msg); msg = msg.charAt(0).toUpperCase() + msg.slice(1);
       const err = new Error(msg); err.status = r.status; throw err;
     }
     return data;
   },
   toast(msg, kind = "") {
-    const el = document.createElement("div"); el.className = "t " + kind; el.textContent = msg;
-    document.getElementById("toast").appendChild(el); setTimeout(() => el.remove(), kind === "err" ? 7000 : 3500);
+    const el = document.createElement("div"); el.className = "t " + kind; el.setAttribute("role", kind === "err" ? "alert" : "status");
+    const span = document.createElement("span"); span.textContent = msg; el.appendChild(span);
+    document.getElementById("toast").appendChild(el); setTimeout(() => el.remove(), kind === "err" ? 8000 : 4000);
   },
+  // accessible modal dialogs (native <dialog>: focus trap, Esc to cancel)
+  _dialog(inner, onOk) {
+    return new Promise(resolve => {
+      const d = document.createElement("dialog"); d.className = "dlg"; d.setAttribute("aria-labelledby", "dlg-title");
+      d.innerHTML = `<form method="dialog">${inner}</form>`; document.body.appendChild(d);
+      const f = d.querySelector("form");
+      f.querySelector("[data-cancel]").onclick = () => d.close("cancel");
+      f.onsubmit = ev => { if (ev.submitter && ev.submitter.hasAttribute("data-cancel")) return; ev.preventDefault(); const v = onOk(f); if (v === false) return; d.close("ok"); resolve(v); };
+      d.addEventListener("close", () => { if (d.returnValue !== "ok") resolve(null); d.remove(); });
+      d.showModal(); const first = f.querySelector("textarea, input, [data-ok]"); if (first) first.focus();
+    });
+  },
+  confirm(title, body = "", { ok = "Confirm", danger = false } = {}) {
+    return W._dialog(`<h2 id="dlg-title">${W.esc(title)}</h2>${body ? `<p>${body}</p>` : ""}
+      <div class="dlg-buttons"><button type="button" class="secondary" data-cancel>Cancel</button><button type="submit" data-ok class="${danger ? "danger" : ""}">${W.esc(ok)}</button></div>`, () => true);
+  },
+  ask(title, label, { ok = "Confirm", body = "", min = 1, danger = false, placeholder = "" } = {}) {
+    return W._dialog(`<h2 id="dlg-title">${W.esc(title)}</h2>${body ? `<p class="small">${body}</p>` : ""}
+      <label for="dlg-text">${W.esc(label)}<textarea id="dlg-text" rows="3" required minlength="${min}" placeholder="${W.esc(placeholder)}"></textarea></label>
+      <div class="dlg-buttons"><button type="button" class="secondary" data-cancel>Cancel</button><button type="submit" data-ok class="${danger ? "danger" : ""}">${W.esc(ok)}</button></div>`,
+      f => { const v = f.querySelector("textarea").value.trim(); if (v.length < min) { f.querySelector("textarea").setAttribute("aria-invalid", "true"); W.toast(`Please write at least ${min} characters.`, "err"); return false; } return v; });
+  },
+  loading(text = "Loading…") { return `<div class="loading" role="status">${W.esc(text)}</div>`; },
+  empty(title, text = "", action = "") { return `<div class="empty"><h3>${W.esc(title)}</h3>${text ? `<p>${text}</p>` : ""}${action}</div>`; },
   dt(s) { if (!s) return "–"; const d = new Date(s.endsWith("Z") || s.includes("+") ? s : s + "Z");
     return d.toLocaleString(undefined, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); },
   ago(s) { if (!s) return "–"; const d = new Date(s.endsWith("Z") ? s : s + "Z"); const h = (d - Date.now()) / 36e5;
-    const a = Math.abs(h); const txt = a < 1 ? Math.round(a * 60) + "m" : a < 48 ? Math.round(a) + "h" : Math.round(a / 24) + "d";
+    const a = Math.abs(h); const txt = a < 1 ? Math.round(a * 60) + " min" : a < 48 ? Math.round(a) + " h" : Math.round(a / 24) + " days";
     return h < 0 ? txt + " ago" : "in " + txt; },
-  sla(st, frac) { const lbl = { red: "Overdue", amber: "Due soon", green: "On track", none: "No clock" }[st] || st;
-    return `<span class="chip sla-${st}" title="${frac != null ? Math.round(frac * 100) + "% of SLA elapsed" : ""}">${lbl}</span>`; },
-  tier(t) { const L = { critical: ["T0", "Critical"], urgent: ["T1", "Urgent"], high: ["T2", "Soon"], routine: ["T3", "Routine"] }[t] || [t, ""];
-    return `<span class="chip tier-${t}" title="${L[0]} ${L[1]}">${L[0]} ${L[1]}</span>`; },
-  prog(p) { return { colorectal_fit: "Bowel (FIT)", cervical: "Cervical (HPV)", breast: "Breast (mammo)", diabetes_hba1c: "Diabetes (HbA1c)" }[p] || p; },
+  // status always = shape + text + colour (never colour alone)
+  sla(st, frac) { const L = { red: ["▲", "Overdue"], amber: ["●", "Due soon"], green: ["✓", "On track"], none: ["–", "No deadline"] }[st] || ["", st];
+    return `<span class="chip sla-${st}" title="${frac != null ? Math.round(frac * 100) + "% of the time allowed has passed" : ""}"><span class="shape" aria-hidden="true">${L[0]}</span>${L[1]}</span>`; },
+  tier(t) { const T = KS.tiers[t]; if (!T) return `<span class="chip">${W.esc(t)}</span>`;
+    return `<span class="chip tier-${t}" title="${W.esc(T.text)}"><span class="sr-only">Urgency: </span>${T.code} · ${T.name}</span>`; },
+  tierText(t) { const T = KS.tiers[t]; return T ? T.text : t; },
+  progName: { colorectal_fit: ["Bowel", "FIT", "FIT = faecal immunochemical test, a home stool test for hidden blood"],
+    cervical: ["Cervical", "HPV", "HPV = human papillomavirus test (cervical screening)"],
+    breast: ["Breast", "mammogram", "Breast X-ray screening"],
+    diabetes_hba1c: ["Diabetes", "HbA1c", "HbA1c = blood test of average blood sugar over about 3 months"] },
+  prog(p) { const x = W.progName[p]; return x ? `${x[0]} <abbr title="${W.esc(x[2])}">(${x[1]})</abbr>` : W.esc(p); },
+  progText(p) { const x = W.progName[p]; return x ? `${x[0]} (${x[1]})` : p; },
+  role(r) { return (KS.roles && KS.roles[r]) || String(r || "").replace(/_/g, " "); },
   pct(v) { return v == null ? "–" : (typeof v === "string" ? v : (v * 100).toFixed(1) + "%"); },
-  homeFor(role) { return { patient: "/patient", analyst: "/dashboard", admin: "/governance", translator: "/governance" }[role] || "/queue"; },
-  navFor(role) {
-    const L = { queue: ["/queue", "Work queue"], consults: ["/consults", "Consultations"], dash: ["/dashboard", "KPIs & simulation"],
-      gov: ["/governance", "Governance"], audit: ["/audit", "Audit"], patient: ["/patient", "My results"],
-      ingest: ["/ingest", "Results inbox"], demo: ["/demo", "Demo scenarios"] };
-    const m = { patient: ["patient"], coordinator: ["queue", "ingest", "demo"], gp: ["queue", "consults", "demo"], specialist: ["queue", "consults"],
-      clinical_lead: ["queue", "consults", "ingest", "dash", "gov", "audit", "demo"], analyst: ["dash", "gov"], admin: ["gov", "audit", "dash", "demo"], translator: ["gov"] };
-    return (m[role] || []).map(k => L[k]);
+  can(p) { return !!(W.me && W.me.permissions.includes(p)); },
+  // label every table cell with its column heading, so tables can become stacked cards on phones
+  labelTables(root = document) {
+    root.querySelectorAll("table").forEach(t => {
+      const heads = [...t.querySelectorAll("thead th")].map(th => th.textContent.trim());
+      if (!t.closest(".table-scroll")) { const w = document.createElement("div"); w.className = "table-scroll"; t.parentNode.insertBefore(w, t); w.appendChild(t); }
+      if (!heads.length) return;
+      t.querySelectorAll("tbody tr").forEach(tr => [...tr.children].forEach((td, i) => { if (!td.hasAttribute("data-label")) td.setAttribute("data-label", heads[i] || ""); }));
+    });
   },
-  async init() {
-    try { W.me = await W.api("/api/auth/me"); } catch (e) { W.me = null; }
-    const nav = document.getElementById("nav-links");
-    if (W.me) {
-      nav.innerHTML = W.navFor(W.me.role).map(([h, t]) => `<a href="${h}" class="${location.pathname.startsWith(h) ? "active" : ""}">${t}</a>`).join("");
-      document.getElementById("whoami").innerHTML = `${W.esc(W.me.display_name)} · <b>${W.esc(W.me.role)}</b>`;
-    }
-    const sw = document.getElementById("role-switcher");
-    if (sw) {
-      try {
-        const d = await W.api("/api/auth/demo-users");
-        const featured = d.users.filter(u => u.featured), rest = d.users.filter(u => !u.featured);
-        const opt = u => `<option value="${W.esc(u.username)}" ${W.me && W.me.display_name === u.display_name ? "selected" : ""}>${W.esc(u.role)} · ${W.esc(u.display_name)}</option>`;
-        sw.innerHTML = `<option value="">— switch demo user —</option><optgroup label="Featured demo users">${featured.map(opt).join("")}</optgroup>` +
-          `<optgroup label="All staff">${rest.map(opt).join("")}</optgroup>`;
-        sw.onchange = async () => { if (!sw.value) return; const r = await W.login(sw.value); location.href = W.homeFor(r.user.role); };
-      } catch (e) { sw.style.display = "none"; }
-    }
-    return W.me;
-  },
-  async login(username) { return W.api("/api/auth/demo-login", { method: "POST", body: { username } }); },
-  async switchTo(username, url) {
-    try { await W.api("/api/auth/demo-login", { method: "POST", body: { username } }); location.href = url || W.homeFor((W.me || {}).role); }
-    catch (e) { W.toast(e.message, "err"); }
-  },
-  requireLogin() { if (!W.me) { document.querySelector("main").innerHTML = `<div class="empty">Please choose a demo user (top right, or on the <a href="/">home page</a>).</div>`; return false; } return true; },
   bars(el, rows, labels = ["Baseline", "With KareShafaa"], fmt = v => v) {
     const max = Math.max(1e-9, ...rows.flatMap(r => [r.a || 0, r.b || 0]));
-    el.innerHTML = `<div class="legend small"><span class="b0" style="background:#b0bec5"></span>${labels[0]}<span style="background:#00796b"></span>${labels[1]}</div>` +
+    el.innerHTML = `<div class="legend small"><span class="b0" style="background:#9aaab3"></span>${labels[0]}<span style="background:#0a6b66"></span>${labels[1]}</div>` +
       rows.map(r => `<div class="row"><div>${W.esc(r.label)}</div><div>
         <div class="bar b0" style="width:${(100 * (r.a || 0) / max).toFixed(1)}%" title="${labels[0]}: ${fmt(r.a)}"></div>
         <div class="bar b1" style="width:${(100 * (r.b || 0) / max).toFixed(1)}%" title="${labels[1]}: ${fmt(r.b)}"></div>
-        <span class="small muted">${fmt(r.a)} → <b>${fmt(r.b)}</b></span></div></div>`).join("");
+        <span class="small muted">${labels[0]} ${fmt(r.a)} → ${labels[1]} <b>${fmt(r.b)}</b></span></div></div>`).join("");
   },
+  async init() {
+    try { W.me = await W.api("/api/auth/me"); } catch (e) { W.me = null; }
+    return W.me;
+  },
+  requireLogin() { if (!W.me) { location.href = "/login?next=" + encodeURIComponent(location.pathname + location.search); return false; } return true; },
 };
-document.addEventListener("DOMContentLoaded", () => { W.ready = W.init(); });
+document.addEventListener("DOMContentLoaded", () => {
+  W.ready = document.querySelector('meta[name="csrf-token"]') ? W.init() : Promise.resolve(null);
+  // tablet: expandable icon rail
+  const tg = document.getElementById("nav-toggle");
+  if (tg) { if (localStorage.getItem("ks-nav-open") === "1") { document.body.classList.add("nav-open"); tg.setAttribute("aria-expanded", "true"); }
+    tg.onclick = () => { const open = document.body.classList.toggle("nav-open"); tg.setAttribute("aria-expanded", String(open)); localStorage.setItem("ks-nav-open", open ? "1" : "0"); }; }
+  // close the account menu on outside click / Esc
+  const um = document.getElementById("usermenu");
+  if (um) { document.addEventListener("click", e => { if (um.open && !um.contains(e.target)) um.open = false; });
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && um.open) { um.open = false; um.querySelector("summary").focus(); } }); }
+  const main = document.getElementById("main");
+  if (main) { W.labelTables(main); new MutationObserver(() => W.labelTables(main)).observe(main, { childList: true, subtree: true }); }
+});

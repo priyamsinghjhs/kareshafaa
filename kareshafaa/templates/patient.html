@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="patient-wrap" id="p-root"><div class="empty">Loading…</div></div>
+<div class="patient-wrap" id="p-root"><div class="loading" role="status">Loading…</div></div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -19,7 +19,7 @@ async function load() {
   const el = document.getElementById("p-root");
   el.className = "patient-wrap" + (d.rtl ? " rtl" : "");
   el.dir = d.rtl ? "rtl" : "ltr"; el.lang = lang;  // real dir/lang attributes for screen readers and shaping
-  el.innerHTML = `<div class="lang-switch">${Object.entries(LANG_LABEL).map(([k, v]) => `<button class="${k === lang ? "" : "secondary outline"}" data-l="${k}" lang="${k}" aria-pressed="${k === lang}">${v}</button>`).join("")}</div>
+  el.innerHTML = `<div class="lang-switch" role="group" aria-label="Language">${Object.entries(LANG_LABEL).map(([k, v]) => `<button class="${k === lang ? "" : "secondary outline"}" data-l="${k}" lang="${k}" aria-pressed="${k === lang}">${v}</button>`).join("")}</div>
    <p class="small muted">${W.esc(d.label)}</p>
    ${d.interpreter_notice ? `<div class="card notice" role="note" lang="${W.esc(d.patient.preferred_language)}">🗣️ ${W.esc(d.interpreter_notice)}</div>` : ""}
    <div class="hero"><h2>${W.esc(d.patient.given_name)} – ${W.esc(u.your_result)}: ${W.esc(d.programme)}</h2>
@@ -27,18 +27,18 @@ async function load() {
    <div class="card"><h4>${W.esc(u.what_it_means)}</h4><p>${W.esc(d.meaning)}</p>
      <h4>${W.esc(u.next_step)}</h4><p><b>${W.esc(d.next_step)}</b> – ${W.esc(d.timeframe)}</p>
      <h4>${W.esc(u.your_team)}</h4><p>${W.esc(d.care_team.owner)}</p>
-     <p class="msg">💚 ${W.esc(d.reassurance)}</p></div>
+     <p class="msg">${W.esc(d.reassurance)}</p></div>
    <div class="card" id="tb"></div>
    <div class="card"><h4>${W.esc(u.progress)}</h4><div class="stepper">${d.journey.filter(j => j.status !== "pending" || true).map(j => `<div class="st ${j.status}">${W.esc(j.label)}</div>`).join("")}</div></div>
    <div class="card"><h4>${W.esc(tb.labels.talk)}</h4>${d.consults.map(c => `<div class="msg"><b>?</b> ${W.esc(c.question)}${c.response ? `<br><b>↳</b> ${W.esc(c.response)}` : ` <span class="chip sla-amber">…</span>`}</div>`).join("")}
-     <label>${x.ask}<textarea id="q" rows="2"></textarea></label><button id="ask" style="width:auto">${x.send}</button></div>
+     <label for="q">${x.ask}<textarea id="q" rows="3"></textarea></label><button id="ask">${x.send}</button></div>
    <div class="card"><h4>${W.esc(u.messages)}</h4>${d.messages.map(m => `<div class="msg"><span class="small muted">${W.dt(m.sent_at)} · ${W.esc(m.channel)}</span><br>${W.esc(m.content)}</div>`).join("") || "–"}</div>
    ${d.can_decline ? `<details><summary class="small">${W.esc(tb.labels.decline)}</summary><label>${x.declineNote}<textarea id="dn" rows="2"></textarea></label><button class="secondary outline" id="decline" style="width:auto">${W.esc(tb.labels.decline)}</button></details>` : ""}`;
   el.querySelectorAll(".lang-switch button").forEach(b => b.onclick = () => { lang = b.dataset.l; history.replaceState(null, "", "?lang=" + lang); load(); });
   const tbEl = document.getElementById("tb");
   if (d.can_teach_back) {
     tbEl.innerHTML = `<h4>${W.esc(tb.title)}</h4><p class="small">${W.esc(tb.intro)}</p><form id="tbf">${tb.questions.map(q => `<div class="q"><b>${W.esc(q.text)}</b>${q.options.map(o => `<label><input type="radio" name="${q.id}" value="${o.key}" required> ${W.esc(o.text)}</label>`).join("")}</div>`).join("")}
-      <div class="q"><b>${W.esc(tb.confidence)}</b><div>${[1, 2, 3, 4, 5].map(n => `<label style="display:inline-block;width:auto;margin-inline-end:.3rem"><input type="radio" name="conf" value="${n}" required> ${n}</label>`).join("")}</div></div>
+      <div class="q"><b>${W.esc(tb.confidence)}</b><div>${[1, 2, 3, 4, 5].map(n => `<label class="inline"><input type="radio" name="conf" value="${n}" required> ${n}</label>`).join("")}</div></div>
       <button type="submit" style="width:auto">${W.esc(tb.labels.submit)} – ${W.esc(tb.labels.understand)}</button></form>`;
     document.getElementById("tbf").onsubmit = async ev => { ev.preventDefault(); const f = Object.fromEntries(new FormData(ev.target));
       try { const r = await W.api("/api/me/teach-back", { method: "POST", body: { answers: { q1: f.q1, q2: f.q2, q3: f.q3 }, confidence: +f.conf, language: lang } });
@@ -49,11 +49,11 @@ async function load() {
   document.getElementById("ask").onclick = async () => { const q = document.getElementById("q").value.trim(); if (q.length < 5) return;
     try { await W.api("/api/me/consult", { method: "POST", body: { question: q } }); W.toast(x.sent, "ok"); load(); } catch (e) { W.toast(e.message, "err"); } };
   const dec = document.getElementById("decline");
-  if (dec) dec.onclick = async () => { if (!confirm(x.confirmDecline)) return;
+  if (dec) dec.onclick = async () => { if (!(await W.confirm(x.confirmDecline, "", { ok: tb.labels.decline, danger: true }))) return;
     try { await W.api("/api/me/decline", { method: "POST", body: { note: document.getElementById("dn").value.trim() || "Patient declined via app" } }); W.toast(x.done, "ok"); load(); } catch (e) { W.toast(e.message, "err"); } };
 }
 document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return;
-  if (W.me.role !== "patient") { document.getElementById("p-root").innerHTML = `<div class="empty">This page is the patient view. Switch to a demo patient (top right).</div>`; return; }
+  if (W.me.role !== "patient") { document.getElementById("p-root").innerHTML = W.empty("This is the patient view", "Sign in with a patient account to see it."); return; }
   try { await load(); } catch (e) { document.getElementById("p-root").innerHTML = `<div class="empty">${W.esc(e.message)}</div>`; } });
 </script>
 {% endblock %}

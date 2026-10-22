@@ -1,18 +1,21 @@
 {% extends "base.html" %}
 {% block content %}
-<hgroup><h3 style="margin-bottom:.2rem">Consultation requests addressed to me</h3><p class="small muted">Clinician-to-clinician e-consults and patient-to-clinician questions, with response SLAs (T0 1h · T1 4h · T2 24h · T3 72h).</p></hgroup>
-<div id="ctable"><div class="empty">Loading…</div></div>
+<div class="page-head"><div><h1>Questions for you</h1>
+<p class="lede">Ask-a-specialist requests (e-consults) from other clinicians, and questions from patients. Answer within the time shown: {{ tiers.critical.code }} 1 h · {{ tiers.urgent.code }} 4 h · {{ tiers.high.code }} 24 h · {{ tiers.routine.code }} 72 h.</p></div></div>
+<div id="ctable"><div class="loading" role="status">Loading…</div></div>
 {% endblock %}
 {% block scripts %}
 <script>
 async function load() {
   const d = await W.api("/api/consults");
-  document.getElementById("ctable").innerHTML = d.items.length ? `<table class="compact"><thead><tr><th>Case</th><th>From</th><th>Urgency</th><th>Question</th><th>Due</th><th>Status / answer</th></tr></thead><tbody>${d.items.map(c => `<tr>
-    <td><a href="/cases/${c.case_id}">#${c.case_id}</a></td><td>${c.type === "patient" ? "Patient" : "Clinician"}</td><td>${W.tier(c.urgency)}</td><td class="small">${W.esc(c.question)}</td><td class="small">${W.ago(c.due_at)}</td>
-    <td>${c.status === "answered" ? `<span class="small">${W.esc(c.response)}</span>` : `<input id="r${c.id}" placeholder="Answer…" style="margin:0 0 .3rem"><button style="width:auto;padding:.15rem .6rem" onclick="answer(${c.id})">Send</button>`}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">No consultation requests.</div>`;
+  const open = d.items.filter(c => c.status !== "answered").length;
+  document.getElementById("ctable").innerHTML = d.items.length ? `<p class="small muted">${open} waiting for an answer.</p><table class="compact"><thead><tr><th>Case</th><th>From</th><th>Urgency</th><th>Question</th><th>Answer by</th><th>Your answer</th></tr></thead><tbody>${d.items.map(c => `<tr>
+    <td><a href="/cases/${c.case_id}">Case #${c.case_id}</a></td><td>${c.type === "patient" ? "Patient" : "Clinician (e-consult)"}</td><td>${W.tier(c.urgency)}</td><td>${W.esc(c.question)}</td><td class="small">${W.ago(c.due_at)}</td>
+    <td>${c.status === "answered" ? `<span class="chip sla-green">✓ Answered</span><div class="small">${W.esc(c.response)}</div>` : `<label for="r${c.id}" class="sr-only">Answer to case ${c.case_id}</label><textarea id="r${c.id}" rows="2" placeholder="Type your answer…"></textarea><button class="sm" onclick="answer(${c.id}, this)">Send answer</button>`}</td></tr>`).join("")}</tbody></table>` : W.empty("No questions waiting", "When a colleague or patient asks you something it will appear here.");
 }
-window.answer = async id => { try { await W.api(`/api/consults/${id}/respond`, { method: "POST", body: { response: document.getElementById("r" + id).value } }); W.toast("Answer sent", "ok"); load(); } catch (e) { W.toast(e.message, "err"); } };
+window.answer = async (id, b) => { const v = document.getElementById("r" + id).value.trim(); if (v.length < 2) { W.toast("Write an answer first.", "err"); return; }
+  b.setAttribute("aria-busy", "true"); try { await W.api(`/api/consults/${id}/respond`, { method: "POST", body: { response: v } }); W.toast("Answer sent", "ok"); load(); } catch (e) { W.toast(e.message, "err"); b.removeAttribute("aria-busy"); } };
 document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return;
-  try { await load(); } catch (e) { document.getElementById("ctable").innerHTML = `<div class="empty">${W.esc(e.message)}</div>`; } });
+  try { await load(); } catch (e) { document.getElementById("ctable").innerHTML = W.empty("Could not load", W.esc(e.message)); } });
 </script>
 {% endblock %}

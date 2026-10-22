@@ -21,9 +21,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 
-from . import __version__, audit, public_demo, pwa
-from .api import auth, cases, demo_api, governance, ingest, me, ops
-from .api.deps import COOKIE, resolve_actor
+from . import __version__, accounts, audit, public_demo, pwa, ui
+from .api import admin_users, auth, cases, demo_api, governance, ingest, me, ops
+from .api.deps import COOKIE, resolve_actor, resolve_user
 from .config import get_settings
 from .db import init_db, session_factory, session_scope
 from .pwa import PUBLIC_PATHS as PWA_PUBLIC_PATHS
@@ -301,6 +301,7 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         init_db()
+        await asyncio.to_thread(accounts.provision_on_startup)  # demo passwords from env (never from the repo)
         # sqlite3 releases and re-acquires the GIL around every row fetched; with the default 5 ms switch interval
         # a thread fetching ~1,500 queue rows while other request threads run can wait 5 ms per row (convoy
         # effect, measured p95 1.3 s at 10 concurrent clients). A shorter interval bounds that wait.
@@ -324,6 +325,28 @@ def create_app() -> FastAPI:
     # Round 23: per-request time budget, a pure ASGI layer INSIDE the audit middleware (so a cut-off request is
     # still logged as 503). It answers without waiting for the stuck thread (kareshafaa/request_timeout.py).
     app.add_middleware(TimeBudgetMiddleware)
+
+    CSRF_SELF_CHECKED = ("/login", "/logout", "/account/password", "/api/auth/login")
+
+    @app.middleware("http")
+    async def csrf_and_session_clock(request: Request, call_next):
+        """Every cookie-authenticated write must present the session's CSRF token (X-CSRF-Token header). Bearer-
+        token clients (scripts, tests) are not cookie-based and are exempt. The HTML form endpoints check the token
+        in their form body themselves. Also slides the session idle timeout (at most one write a minute)."""
+        method, path = request.method, request.url.path
+        tok = request.cookies.get(COOKIE)
+        bearer = request.headers.get("authorization", "").lower().startswith("bearer ")
+        if (method in ("POST", "PUT", "PATCH", "DELETE") and tok and not bearer and path not in CSRF_SELF_CHECKED
+                and not accounts.csrf_ok(tok, request.headers.get("x-csrf-token"))):
+            return JSONResponse({"detail": "security check failed (CSRF) - reload the page and try again; nothing "
+                                           "was saved"}, status_code=403)
+        response = await call_next(request)
+        if tok and not bearer and tok.startswith(accounts.SESSION_PREFIX) and response.status_code < 400 \
+                and not path.startswith("/static") and path not in PWA_PUBLIC_PATHS:
+            await asyncio.to_thread(accounts.touch_session, session_factory, tok)
+        if not path.startswith("/static"):
+            response.headers.setdefault("Cache-Control", "no-store")  # pages and API data are never cached
+        return response
 
     if s.public_demo:
         limiter = public_demo.WriteRateLimiter(s.demo_write_limit, s.demo_write_window_s)
@@ -436,7 +459,7 @@ def create_app() -> FastAPI:
         errs = [{"loc": list(e.get("loc", [])), "msg": e.get("msg")} for e in exc.errors()]
         return JSONResponse({"detail": "invalid input", "errors": errs}, status_code=422)
 
-    for r in (auth.router, cases.router, me.router, ops.router, governance.router, ingest.router, demo_api.router,
+    for r in (auth.router, admin_users.router, cases.router, me.router, ops.router, governance.router, ingest.router, demo_api.router,
               pwa.router):
         app.include_router(r)
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
@@ -457,54 +480,207 @@ def create_app() -> FastAPI:
                 "request_timeouts": TIMEOUTS["count"],
                 "slow_committing_requests": TIMEOUTS["slow_committing"]}
 
-    def page(name: str, request: Request, **ctx) -> HTMLResponse:
-        return templates.TemplateResponse(request, name, {"demo_logins": s.demo_logins, "version": __version__,
-                                                          "public_demo": s.public_demo,
-                                                          "public_demo_banner": public_demo.BANNER, **ctx})
+    from .api.auth import (do_login, do_logout, do_password_change, ensure_login_csrf, login_csrf_ok,
+                           start_session)
+
+    def _safe_next(nxt: str | None) -> str | None:
+        if nxt and nxt.startswith("/") and not nxt.startswith("//") and "\\" not in nxt and not nxt.startswith("/api"):
+            return nxt[:300]
+        return None
+
+    def page(name: str, request: Request, user=None, status_code: int = 200, **ctx) -> HTMLResponse:
+        tok = request.cookies.get(COOKIE)
+        role = user.role if user is not None else None
+        here = request.url.path + (("?" + request.url.query) if request.url.query else "")
+        nav = ui.nav_for(role, s.demo_logins) if role else []
+        # "current" nav entry: exact URL match first, else the entry for the same path (case pages -> queue)
+        path_only = request.url.path if not request.url.path.startswith("/cases/") else "/queue"
+        best = next((n for n in nav if n["href"] == here), None) or \
+            next((n for n in nav if n["href"] == path_only), None) or \
+            next((n for n in nav if n["href"].split("?")[0] == path_only), None)
+        resp = templates.TemplateResponse(request, name, {
+            "demo_logins": s.demo_logins, "version": __version__, "public_demo": s.public_demo,
+            "public_demo_banner": public_demo.BANNER, "user": user, "role_label": ui.role_label(role) if role else "",
+            "nav": nav, "current_nav": best["href"] if best else None, "home_href": ui.home_for(role) if role else "/login",
+            "csrf": accounts.csrf_for(tok) if (tok and user is not None) else "", "tiers": ui.tier_help(),
+            "role_labels": accounts.ROLE_LABELS, **ctx}, status_code=status_code)
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+
+    def guarded(name: str, key: str, title: str, request: Request, **ctx):
+        """Server-side page guard: not signed in -> /login?next=...; wrong role -> 403 page."""
+        db = session_factory()()
+        try:
+            u = resolve_user(request, db)
+            if u is not None:
+                db.expunge(u)
+        finally:
+            db.close()
+        if u is None:
+            from urllib.parse import quote
+            here = request.url.path + (("?" + request.url.query) if request.url.query else "")
+            return RedirectResponse("/login?next=" + quote(here, safe=""), status_code=303)
+        if u.must_change_password and key != "/account/password":
+            return RedirectResponse("/account/password", status_code=303)
+        if not ui.can_open(u.role, key):
+            return page("forbidden.html", request, user=u, title="No access", status_code=403)
+        return page(name, request, user=u, title=title, **ctx)
 
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request):
-        return page("home.html", request, title="Home")
+        db = session_factory()()
+        try:
+            u = resolve_user(request, db)
+        finally:
+            db.close()
+        if u is None:
+            return login_page(request)
+        return RedirectResponse("/account/password" if u.must_change_password else ui.home_for(u.role), status_code=303)
 
-    @app.get("/queue", response_class=HTMLResponse)
-    def queue_page(request: Request):
-        return page("queue.html", request, title="Work queue")
+    def _demo_usernames() -> list[dict]:
+        if not s.public_demo and not s.demo_logins:
+            return []
+        db = session_factory()()
+        try:
+            from sqlalchemy import select as _sel
+
+            from .models import User as _U
+            rows = db.scalars(_sel(_U).where(_U.username.in_(accounts.DEMO_ACCOUNTS[:8]), _U.active.is_(True),
+                                             _U.password_hash.is_not(None))).all()
+            order = {n: i for i, n in enumerate(accounts.DEMO_ACCOUNTS)}
+            return [{"username": u.username, "role": accounts.ROLE_LABELS.get(u.role, u.role),
+                     "name": u.display_name.split(" (")[0]} for u in sorted(rows, key=lambda u: order[u.username])]
+        finally:
+            db.close()
+
+    def login_page(request: Request, error: str | None = None, status_code: int = 200, username: str = ""):
+        tok = auth.login_csrf_token(request)
+        resp = page("login.html", request, title="Sign in", status_code=status_code, error=error, username=username,
+                    next=_safe_next(request.query_params.get("next")) or "", login_csrf=tok,
+                    signed_out=request.query_params.get("signed_out") == "1", demo_accounts=_demo_usernames())
+        ensure_login_csrf(request, resp, tok)
+        return resp
+
+    @app.get("/login", response_class=HTMLResponse)
+    def login_get(request: Request):
+        db = session_factory()()
+        try:
+            u = resolve_user(request, db)
+        finally:
+            db.close()
+        if u is not None:
+            return RedirectResponse(_safe_next(request.query_params.get("next")) or ui.home_for(u.role), status_code=303)
+        return login_page(request)
+
+    @app.post("/login", response_class=HTMLResponse)
+    async def login_post(request: Request):
+        form = await request.form()
+        username, password = str(form.get("username", ""))[:80], str(form.get("password", ""))[:256]
+        if not login_csrf_ok(request, str(form.get("csrf_token", ""))):
+            return login_page(request, "Your sign-in page expired. Please try again.", 403, username)
+        if not username.strip() or not password:
+            return login_page(request, "Enter your username and password.", 400, username)
+
+        def _work():
+            db = session_factory()()
+            try:
+                res = do_login(db, request, username, password)
+                if not res.ok:
+                    return res, None, None
+                resp = RedirectResponse("/", status_code=303)
+                start_session(db, request, resp, res.user)
+                return res, resp, (res.user.must_change_password, res.user.role)
+            finally:
+                db.close()
+
+        res, resp, info = await asyncio.to_thread(_work)
+        if resp is None:
+            locked = res.reason in ("locked", "rate_limited")
+            return login_page(request, accounts.LOCKED_ERROR if locked else accounts.GENERIC_LOGIN_ERROR,
+                              429 if locked else 401, username)
+        must_change, role = info
+        nxt = _safe_next(str(form.get("next", "")))
+        resp.headers["location"] = "/account/password" if must_change else (nxt or ui.home_for(role))
+        resp.delete_cookie(auth.CSRF_COOKIE, path="/")
+        return resp
+
+    @app.post("/logout")
+    async def logout_post(request: Request):
+        form = await request.form()
+        tok = request.cookies.get(COOKIE)
+        resp = RedirectResponse("/login?signed_out=1", status_code=303)
+        if tok and not accounts.csrf_ok(tok, str(form.get("csrf_token", ""))):
+            return JSONResponse({"detail": "security check failed (CSRF) - reload the page and try again"}, 403)
+
+        def _work():
+            db = session_factory()()
+            try:
+                do_logout(db, request, resp)
+            finally:
+                db.close()
+
+        await asyncio.to_thread(_work)
+        return resp
+
+    @app.get("/account/password", response_class=HTMLResponse)
+    def password_page(request: Request):
+        return guarded("password.html", "/account/password", "Change password", request)
+
+    @app.post("/account/password", response_class=HTMLResponse)
+    async def password_post(request: Request):
+        form = await request.form()
+        tok = request.cookies.get(COOKIE)
+        if not tok or not accounts.csrf_ok(tok, str(form.get("csrf_token", ""))):
+            return RedirectResponse("/login", status_code=303)
+        cur, new, again = (str(form.get(k, ""))[:256] for k in ("current_password", "new_password", "confirm_password"))
+
+        def _work():
+            db = session_factory()()
+            try:
+                u = resolve_user(request, db)
+                if u is None:
+                    return None, None
+                from .api.deps import actor_from_user
+                if new != again:
+                    probs = ["The two new passwords do not match."]
+                else:
+                    probs = do_password_change(db, request, actor_from_user(u), cur, new)
+                db.refresh(u)
+                db.expunge(u)
+                return u, probs
+            finally:
+                db.close()
+
+        u, probs = await asyncio.to_thread(_work)
+        if u is None:
+            return RedirectResponse("/login", status_code=303)
+        if probs:
+            return page("password.html", request, user=u, title="Change password", errors=probs, status_code=422)
+        return page("password.html", request, user=u, title="Change password", success=True,
+                    next_href=ui.home_for(u.role))
+
+    PAGES = [  # path, template, guard key, title
+        ("/queue", "queue.html", "/queue", "Work queue"), ("/patient", "patient.html", "/patient", "My results"),
+        ("/dashboard", "dashboard.html", "/dashboard", "Outcomes"),
+        ("/governance", "governance.html", "/governance", "Approvals and models"),
+        ("/audit", "audit.html", "/audit", "Audit trail"), ("/demo", "demo.html", "/demo", "Demo stories"),
+        ("/ingest", "ingest.html", "/ingest", "Results inbox"), ("/consults", "consults.html", "/consults", "Consultations"),
+        ("/overview", "overview.html", "/overview", "Overview"), ("/advanced", "advanced.html", "/advanced", "Advanced"),
+        ("/admin/users", "admin_users.html", "/admin/users", "Users"),
+    ]
+
+    def _mk(tpl: str, key: str, title: str):
+        def _route(request: Request):
+            return guarded(tpl, key, title, request)
+        return _route
+
+    for path, tpl, key, title in PAGES:
+        app.add_api_route(path, _mk(tpl, key, title), methods=["GET"], response_class=HTMLResponse,
+                          include_in_schema=False)
 
     @app.get("/cases/{case_id}", response_class=HTMLResponse)
     def case_page(case_id: int, request: Request):
-        return page("case.html", request, title=f"Case #{case_id}", case_id=case_id)
-
-    @app.get("/patient", response_class=HTMLResponse)
-    def patient_page(request: Request):
-        return page("patient.html", request, title="My results")
-
-    @app.get("/dashboard", response_class=HTMLResponse)
-    def dashboard_page(request: Request):
-        return page("dashboard.html", request, title="KPI dashboard")
-
-    @app.get("/governance", response_class=HTMLResponse)
-    def governance_page(request: Request):
-        return page("governance.html", request, title="Governance")
-
-    @app.get("/audit", response_class=HTMLResponse)
-    def audit_page(request: Request):
-        return page("audit.html", request, title="Audit trail")
-
-    @app.get("/demo", response_class=HTMLResponse)
-    def demo_page(request: Request):
-        return page("demo.html", request, title="Demo scenarios")
-
-    @app.get("/ingest", response_class=HTMLResponse)
-    def ingest_page(request: Request):
-        return page("ingest.html", request, title="Results inbox")
-
-    @app.get("/consults", response_class=HTMLResponse)
-    def consults_page(request: Request):
-        return page("consults.html", request, title="Consultations")
-
-    @app.get("/login")
-    def login_redirect():
-        return RedirectResponse("/")
+        return guarded("case.html", "/cases", f"Case #{case_id}", request, case_id=case_id)
 
     return app
 
