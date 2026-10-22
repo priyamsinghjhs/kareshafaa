@@ -139,7 +139,8 @@ def test_pages_render(client, path):
     r = client.get(path)
     assert r.status_code == 200
     if path != "/healthz":
-        assert "SYNTHETIC" in r.text.upper()
+        assert "Prototype software, not a certified medical device" in r.text
+        assert "demo" not in r.text.lower() and "synthetic" not in r.text.lower()
 
 
 def test_kpi_cache_invalidates_on_new_data(client, as_user, new_case, monkeypatch):

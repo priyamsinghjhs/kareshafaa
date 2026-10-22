@@ -229,7 +229,7 @@ def run_simulation(n: int = 2000, seed: int = 20261120, replications: int = 5, m
                      "with_system": round(st.mean(w), 1) if w else None,
                      "with_system_range": [min(w), max(w)] if w else None})
     return {
-        "label": "SIMULATED - synthetic cohort and assumed parameters; not real-world evidence",
+        "label": "SIMULATED - modelled cohort and assumed parameters; not real-world evidence",
         "n_patients": n, "replications": replications, "horizon_days": HORIZON_DAYS, "seed": seed,
         "kpis": kpis,
         "baseline_detail": reps["baseline"][0], "with_system_detail": reps["with_system"][0],

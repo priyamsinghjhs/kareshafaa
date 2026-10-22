@@ -176,9 +176,11 @@ def _demo_content_signoffs(db: Session, d: dict, users_by_pid: dict) -> None:
     for pw in PATHWAY_TEXT_EN:
         lead = actor_from_user(users_by_pid[d["leads"][PATHWAY_PROGRAMME[pw]].id])
         cg.approve(db, lead, f"pathway:{pw}:en", "clinical",
-                   "SYNTHETIC DEMO sign-off of prototype wording (readability checks passed).")
+                   "Initial-setup sign-off of the prototype wording (readability checks passed); "
+                   "to be re-reviewed by the programme's clinical lead.")
     lead = actor_from_user(users_by_pid[d["leads"]["colorectal_fit"].id])
-    cg.approve(db, lead, "pathway_fallback:neutral:en", "clinical", "SYNTHETIC DEMO sign-off of the neutral fallback.")
+    cg.approve(db, lead, "pathway_fallback:neutral:en", "clinical",
+               "Initial-setup sign-off of the neutral fallback; to be re-reviewed by the clinical lead.")
     db.flush()
 
 

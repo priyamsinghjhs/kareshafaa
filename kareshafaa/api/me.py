@@ -52,7 +52,7 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
                                                        ConsultRequest.requester_type == "patient")).all()
     variant = "standard"
     return {
-        "label": "SYNTHETIC DEMO - not a real result", "case_id": c.id, "language": lang, "rtl": lang in RTL_LANGUAGES,
+        "label": "KareShafaa prototype - please check anything important with your care team", "case_id": c.id, "language": lang, "rtl": lang in RTL_LANGUAGES,
         "languages": SUPPORTED_LANGUAGES, "ui": UI_TEXT[lang],
         "patient": {"given_name": p.given_name, "preferred_language": p.language},
         "interpreter_notice": INTERPRETER_NOTICE.get(p.language) or (

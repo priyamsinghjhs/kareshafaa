@@ -440,7 +440,7 @@ def model_card(mv: ModelVersion) -> str:
     lines = [
         f"# Model card - KareShafaa outreach-priority model v{mv.version}",
         "",
-        "**SIMULATED / SYNTHETIC DATA ONLY - prototype, not validated for clinical use.**",
+        "**TRAINED ON SIMULATED DATA ONLY - prototype, not validated for clinical use.**",
         "",
         "## Intended use",
         "Predicts the risk that an actionable screening case will be delayed or drop off, so coordinators can "
@@ -492,7 +492,7 @@ def model_card(mv: ModelVersion) -> str:
               "- Drift monitored (PSI per feature and on the score distribution); rollback available to clinical leads.",
               "- All training, approval, rollback and scoring events are written to the append-only audit trail.",
               "", "## Limitations",
-              "- Trained on synthetic data with assumed delay/drop-off mechanisms; real performance is unknown.",
+              "- Trained on simulated data with assumed delay/drop-off mechanisms; real performance is unknown.",
               "- Small subgroups have wide uncertainty; fairness gaps are point estimates without confidence intervals.",
               "- Region and the interpreter need (no patient material in the preferred language) are inputs (operational "
               "barriers such as channel reach); language itself and age band are monitored for fairness but are not "
