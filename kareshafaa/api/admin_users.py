@@ -133,3 +133,32 @@ def activate(uid: int, body: UserNoteIn | None = None, actor: Actor = Depends(re
                  detail={"reason": body.reason if body else None})
     db.commit()
     return {"ok": True, "user": accounts.public_user(u)}
+
+
+system_router = APIRouter(prefix="/api/admin/system", tags=["admin"])
+
+
+@system_router.get("")
+def system_status(actor: Actor = Depends(require("user:admin")), db: Session = Depends(get_db)) -> dict:
+    """Admin > System: operating mode and where the data lives (no secrets: the database password is never shown)."""
+    from sqlalchemy import func
+    from sqlalchemy.engine import make_url
+
+    from .. import __version__
+    from ..config import get_settings, storage_is_persistent
+    from ..models import Case, Patient
+
+    s = get_settings()
+    url = make_url(s.database_url)
+    backend = "PostgreSQL" if url.get_backend_name() == "postgresql" else "SQLite"
+    where = (url.host or "") if backend == "PostgreSQL" else "local file on this server"
+    persistent = storage_is_persistent(s)
+    return {"version": __version__, "mode": s.mode, "database": backend, "database_host": where,
+            "storage_persistent": persistent,
+            "storage_note": None if persistent else (
+                "Data is stored on this server's temporary disk. It is lost when the service restarts or is "
+                "redeployed. Connect a PostgreSQL database (DATABASE_URL) to keep data permanently."),
+            "users_active": db.scalar(select(func.count(User.id)).where(User.active.is_(True))),
+            "patients": db.scalar(select(func.count(Patient.id))), "cases": db.scalar(select(func.count(Case.id))),
+            "write_limit_per_minute": s.write_limit_per_minute if s.mode == "production" else None,
+            "session_idle_minutes": s.session_idle_minutes}

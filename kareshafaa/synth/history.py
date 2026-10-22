@@ -446,7 +446,7 @@ def add_patient(db: Session, sp: SynthPatient, d: dict, rng: random.Random, now:
     db.add(p)
     db.flush()
     db.add(Consent(patient_id=p.id, scope="care_coordination", decision="permit", recorded_at=now - timedelta(days=400),
-                   note="Programme enrolment (synthetic)"))
+                   note="Programme enrolment"))
     if not sp.share_consent:
         db.add(Consent(patient_id=p.id, scope="share_external", decision="deny", recorded_at=now - timedelta(days=400)))
     if not sp.analytics_consent:

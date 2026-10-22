@@ -9,7 +9,7 @@ const tabs = {
     if (!s.available) { el.innerHTML = `<div class="empty">No simulation run yet.</div>`; return; }
     const k = Object.fromEntries(s.kpis.map(x => [x.kpi, x]));
     const pick = keys => keys.filter(x => k[x]).map(x => ({ label: KLABEL[x] || x, a: k[x].baseline, b: k[x].with_system }));
-    el.innerHTML = `<div class="card notice"><b>${W.esc(s.label)}</b> · ${s.n_patients} synthetic patients × ${s.replications} replications, ${s.horizon_days}-day horizon, same cohort and random stream in both arms. Ranges are min–max across replications.</div>
+    el.innerHTML = `<div class="card notice"><b>${W.esc(s.label)}</b> · ${s.n_patients} modelled patients × ${s.replications} replications, ${s.horizon_days}-day horizon, same cohort and random stream in both arms. Ranges are min–max across replications.</div>
      <div class="grid-4">${["median_days_to_care", "pct_care_reached_or_resolved", "pct_documented_closure", "pct_open_unresolved_at_horizon"].map(x => `<div class="card kpi"><div class="l">${KLABEL[x]}</div><div class="v">${k[x].baseline} → ${k[x].with_system}</div><div class="l">baseline → with KareShafaa</div></div>`).join("")}</div>
      <div class="grid-2"><div class="card"><h4>Time to each step (median days, lower is better)</h4><div class="bars" id="b-time"></div></div>
      <div class="card"><h4>Completion (% of cohort, higher is better)</h4><div class="bars" id="b-pct"></div></div></div>
@@ -27,7 +27,7 @@ const tabs = {
   async live(el) {
     const k = await W.api("/api/analytics/kpis");
     const card = (l, v) => `<div class="card kpi"><div class="l">${l}</div><div class="v">${v ?? "–"}</div></div>`;
-    el.innerHTML = `<div class="card notice"><b>${W.esc(k.label)}</b> – the seeded database replays ~300 days of synthetic operation through the real workflow engine.</div>
+    el.innerHTML = `<div class="card notice"><b>${W.esc(k.label)}</b> – figures from the cases recorded in this system.</div>
      <div class="grid-4">${card("Cases", k.total_cases)}${card("Open", k.open_cases)}${card("Open steps overdue", k.open_overdue_steps)}${card("Closure rate", W.pct(k.closure_rate))}
      ${card("Closed with evidence", k.closed_with_evidence)}${card("Closed by authorised decision", k.closed_authorised_decision)}${card("Median days to notification", k.median_days_to_notification)}${card("Median days to care", k.median_days_to_care)}
      ${card("Median days to understood", k.median_days_to_acknowledgement)}${card("Median days to confirmation", k.median_days_to_confirmation)}${card("Referral acceptance", W.pct(k.referral_acceptance_rate))}${card("Appointment attendance", W.pct(k.appointment_attendance_rate))}
@@ -37,7 +37,7 @@ const tabs = {
   },
   async fair(el) {
     const f = await W.api("/api/analytics/fairness");
-    el.innerHTML = `<p class="small muted">Outcome rates per group (synthetic). Look for gaps: e.g. lower teach-back pass or care-reached rates for languages without a template. n&lt;${f.suppression_threshold} suppressed.</p>` +
+    el.innerHTML = `<p class="small muted">Outcome rates per group. Look for gaps: e.g. lower teach-back pass or care-reached rates for languages without a template. n&lt;${f.suppression_threshold} suppressed.</p>` +
       Object.entries(f.slices).map(([sl, rows]) => `<div class="card"><h4>${W.esc(sl.replace("_", " "))}</h4><table class="compact"><thead><tr><th>Group</th><th>n</th><th>Notified</th><th>Teach-back pass</th><th>Care reached</th><th>Closed</th><th>Median days to care</th></tr></thead><tbody>${rows.map(r =>
         `<tr><td>${W.esc(r.group)}</td><td>${r.n}</td><td>${W.pct(r.notified_rate)}</td><td>${W.pct(r.teach_back_pass_rate)}</td><td>${W.pct(r.care_reached_rate)}</td><td>${W.pct(r.closure_rate)}</td><td>${r.median_days_to_care ?? "–"}</td></tr>`).join("")}</tbody></table></div>`).join("");
   },

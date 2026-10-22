@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{{ title }} · KareShafaa</title>
   <meta name="theme-color" content="#0a6b66">
-  <meta name="description" content="KareShafaa - closing the screening-to-care loop (prototype, synthetic data only)">
+  <meta name="description" content="KareShafaa - closing the screening-to-care loop">
   <meta name="format-detection" content="telephone=no">
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="mobile-web-app-capable" content="yes">
@@ -20,8 +20,6 @@
 <body class="{% if not nav %}no-nav{% endif %}{% if nav|length <= 1 %} no-bottomnav{% endif %}">
   {% include "_icons.html" %}
   <a class="skip-link" href="#main">Skip to main content</a>
-  {% if public_demo %}<div class="demo-strip is-public" role="note"><div class="public-demo-banner"><strong>{{ public_demo_banner }}</strong> · all people and results are made up · messages are never sent</div></div>
-  {% else %}<div class="demo-strip" role="note"><strong>Prototype</strong> · synthetic data only · messages are simulated, never sent · not a medical device</div>{% endif %}
   <header class="topbar">
     {% if nav %}<button class="icon-btn nav-toggle" id="nav-toggle" type="button" aria-label="Show or hide menu labels" aria-expanded="false" aria-controls="sidebar"><svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg></button>{% endif %}
     <a href="{{ home_href }}" class="brand" aria-label="KareShafaa home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-logo"/></svg></span><span>KareShafaa</span></a>
@@ -45,13 +43,14 @@
       <ul class="nav-list">
         {% for n in nav %}<li><a href="{{ n.href }}" {% if n.href == current_nav %}aria-current="page"{% endif %} title="{{ n.label }}"><svg class="icon" aria-hidden="true"><use href="#i-{{ n.icon }}"/></svg><span class="label">{{ n.label }}</span></a></li>{% endfor %}
       </ul>
-      <div class="sidebar-foot">KareShafaa v{{ version }}<br>People make every clinical decision; the ML score only orders outreach.</div>
+      <div class="sidebar-foot">People make every clinical decision; the ML score only orders outreach.</div>
     </nav>
     {% endif %}
     <main id="main" class="content" tabindex="-1">
       <div class="content-inner">
       {% block content %}{% endblock %}
       </div>
+      <footer class="site-foot" role="contentinfo">{{ footer }}</footer>
     </main>
   </div>
   {% if nav and nav|length > 1 %}
@@ -60,7 +59,7 @@
   </nav>
   {% endif %}
   <div id="toast" role="status" aria-live="polite"></div>
-  <script>window.KS = {{ {"tiers": tiers, "roles": role_labels, "public_demo": public_demo} | tojson }};</script>
+  <script>window.KS = {{ {"tiers": tiers, "roles": role_labels, "read_only": read_only_site, "walkthrough": walkthrough} | tojson }};</script>
   <script src="/static/js/common.js"></script>
   <script src="/static/js/pwa.js"></script>
   {% block scripts %}{% endblock %}

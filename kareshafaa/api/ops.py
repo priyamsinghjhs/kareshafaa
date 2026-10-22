@@ -47,9 +47,9 @@ def sweep(body: sch.SweepIn | None = None, actor: Actor = Depends(require("sweep
     if body and body.hours_ahead:
         cfg = get_settings()
         if cfg.env == "prod" or not cfg.demo_logins:
-            raise Forbidden("the demo clock is disabled outside demo mode")
+            raise Forbidden("fast-forwarding the clock is switched off on this server")
         if not body.case_ids or len(body.case_ids) != 1:
-            raise Invalid("the demo clock can only fast-forward a single case")
+            raise Invalid("the clock can only be fast-forwarded for a single case")
         now = utcnow() + timedelta(hours=body.hours_ahead)
         audit.record(db, actor, "E", "demo.clock_fast_forward", case_id=body.case_ids[0],
                      detail={"hours_ahead": body.hours_ahead, "simulated": True})
@@ -66,7 +66,7 @@ def kpis(actor: Actor = Depends(require("analytics:read")), db: Session = Depend
 
 @router.get("/analytics/fairness")
 def fairness(actor: Actor = Depends(require("analytics:read")), db: Session = Depends(get_db)) -> dict:
-    return {"label": "SIMULATED DATA", "suppression_threshold": get_settings().suppression_threshold,
+    return {"label": "Live figures from the records in this system", "suppression_threshold": get_settings().suppression_threshold,
             "slices": analytics.cached("fairness", db, lambda: analytics.fairness_slices(db))}
 
 

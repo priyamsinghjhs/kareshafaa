@@ -2,8 +2,9 @@
 {% block content %}
 <div class="page-head"><div><h1>Users</h1>
 <p class="lede">Create accounts, set each person's role and site, reset passwords and deactivate leavers. Accounts are never deleted, so the audit trail stays complete.</p></div>
-<div class="page-actions"><button id="add" {% if public_demo %}disabled aria-describedby="demo-note"{% endif %}>Add a user</button></div></div>
-{% if public_demo %}<div class="card notice" id="demo-note" role="note">This is the public demo: the user list is read-only here. Creating users, changing roles, resetting passwords and deactivating are switched off.</div>{% endif %}
+<div class="page-actions"><button id="add" {% if read_only_site %}disabled aria-describedby="ro-note"{% endif %}>Add a user</button></div></div>
+{% if read_only_site %}<div class="card notice" id="ro-note" role="note">The user list is read-only on this server. Creating users, changing roles, resetting passwords and deactivating are switched off.</div>{% endif %}
+<div id="storage-note"></div>
 <div class="filters" role="search">
   <label for="uq">Find a user<input id="uq" type="search" autocomplete="off" placeholder="Name or username"></label>
   <label for="ur">Role<select id="ur"><option value="">All roles</option>{% for k, v in role_labels.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
@@ -26,18 +27,25 @@
 {% block scripts %}
 <script>
 let U = null;
-const PD = KS.public_demo;
+const PD = KS.read_only;
 const status = u => !u.active ? '<span class="chip sla-none">✕ Deactivated</span>' : u.locked ? '<span class="chip sla-red">▲ Locked (too many attempts)</span>' : u.must_change_password ? '<span class="chip sla-amber">● Must set password</span>' : u.has_password ? '<span class="chip sla-green">✓ Active</span>' : '<span class="chip sla-none">– No password yet</span>';
 function render() {
   const q = document.getElementById("uq").value.trim().toLowerCase(), r = document.getElementById("ur").value, st = document.getElementById("us").value;
   const rows = U.items.filter(u => (!q || (u.display_name + " " + u.username).toLowerCase().includes(q)) && (!r || u.role === r) && (!st || (st === "active") === u.active));
   document.getElementById("users").innerHTML = rows.length ? `<p class="small muted">${rows.length} of ${U.items.length} accounts</p><table class="compact"><thead><tr><th>Name</th><th>Role</th><th>Site / team</th><th>Status</th><th>Last sign-in</th><th>Actions</th></tr></thead><tbody>${rows.map(u => `<tr>
-    <td><b>${W.esc(u.display_name.split(" (")[0])}</b><span class="sub">${W.esc(u.username)}${u.is_demo_account ? " · demo account" : ""}</span></td>
+    <td><b>${W.esc(u.display_name.split(" (")[0])}</b><span class="sub">${W.esc(u.username)}</span></td>
     <td>${W.esc(u.role_label)}</td><td class="small">${W.esc(u.site || "–")}${u.team ? `<span class="sub">${W.esc(u.team)}</span>` : ""}</td><td>${status(u)}</td>
     <td class="small">${u.last_login_at ? W.dt(u.last_login_at) : "Never"}</td>
-    <td>${PD ? '<span class="small muted">Read-only in demo</span>' : `<div class="row">${u.role !== "patient" && u.id !== W.me.user_id ? `<button class="secondary sm" onclick="role(${u.id})">Change role</button>` : ""}<button class="secondary sm" onclick="reset(${u.id})">Reset password</button>${u.id === W.me.user_id ? "" : u.active ? `<button class="danger secondary sm" onclick="deact(${u.id})">Deactivate</button>` : `<button class="secondary sm" onclick="act(${u.id})">Reactivate</button>`}</div>`}</td></tr>`).join("")}</tbody></table>` : W.empty("No users match", "Try a different name or filter.");
+    <td>${PD ? '<span class="small muted">Read-only</span>' : `<div class="row">${u.role !== "patient" && u.id !== W.me.user_id ? `<button class="secondary sm" onclick="role(${u.id})">Change role</button>` : ""}<button class="secondary sm" onclick="reset(${u.id})">Reset password</button>${u.id === W.me.user_id ? "" : u.active ? `<button class="danger secondary sm" onclick="deact(${u.id})">Deactivate</button>` : `<button class="secondary sm" onclick="act(${u.id})">Reactivate</button>`}</div>`}</td></tr>`).join("")}</tbody></table>` : W.empty("No users match", "Try a different name or filter.");
 }
 async function load() { U = await W.api("/api/admin/users"); render(); }
+async function storageNote() {  // one-time notice (per browser) when data is not stored permanently
+  if (localStorage.getItem("ks.storage-note.dismissed")) return;
+  try { const s = await W.api("/api/admin/system"); if (s.storage_persistent) return;
+    const el = document.getElementById("storage-note");
+    el.innerHTML = `<div class="card notice" role="note"><b>Data is not stored permanently on this server.</b> <span class="small">${W.esc(s.storage_note)} See <a href="/admin/system">System</a>.</span> <button class="ghost sm" id="storage-ok">Got it</button></div>`;
+    document.getElementById("storage-ok").onclick = () => { localStorage.setItem("ks.storage-note.dismissed", "1"); el.innerHTML = ""; };
+  } catch (e) { /* the System page shows the same information */ } }
 const byId = id => U.items.find(u => u.id === id);
 function showTemp(u, pw, what) {
   document.getElementById("created").innerHTML = `<div class="card ok" role="status"><h2 style="font-size:var(--fs-lg)">${what} for ${W.esc(u.display_name)}</h2>
@@ -64,7 +72,7 @@ window.role = async id => { const u = byId(id);
 document.addEventListener("DOMContentLoaded", async () => {
   await W.ready; if (!W.requireLogin()) return;
   ["uq", "ur", "us"].forEach(i => document.getElementById(i).addEventListener("input", () => U && render()));
-  try { await load(); } catch (e) { document.getElementById("users").innerHTML = W.empty("Could not load users", W.esc(e.message)); return; }
+  storageNote(); try { await load(); } catch (e) { document.getElementById("users").innerHTML = W.empty("Could not load users", W.esc(e.message)); return; }
   const dlg = document.getElementById("add-dlg"), f = document.getElementById("add-form");
   document.getElementById("f-role").innerHTML = U.roles.map(r => `<option value="${r.key}">${W.esc(r.label)}</option>`).join("");
   document.getElementById("f-prac").innerHTML = `<option value="">None (non-clinical role)</option>` + U.unlinked_practitioners.map(p => `<option value="${p.id}">${W.esc(p.name)} – ${W.esc(W.role(p.role))}</option>`).join("");

@@ -24,7 +24,7 @@ from sqlalchemy import text
 from . import __version__, accounts, audit, public_demo, pwa, ui
 from .api import admin_users, auth, cases, demo_api, governance, ingest, me, ops
 from .api.deps import COOKIE, resolve_actor, resolve_user
-from .config import get_settings
+from .config import get_settings, storage_is_persistent
 from .db import init_db, session_factory, session_scope
 from .pwa import PUBLIC_PATHS as PWA_PUBLIC_PATHS
 from .security import Actor
@@ -33,6 +33,17 @@ from .services.errors import DomainError, ServiceBusy
 from .statemachine import TransitionError
 
 log = logging.getLogger("kareshafaa")
+FOOTER = ui.FOOTER
+
+
+def storage_warning() -> None:
+    """Loud start-up warning when the data would not survive a restart (e.g. SQLite on Render's free disk)."""
+    s = get_settings()
+    if s.database_url.startswith("sqlite") and s.mode == "production":
+        log.warning("DATABASE_URL is not set: using SQLite on this server's local disk%s. Set DATABASE_URL to a "
+                    "PostgreSQL database (for example a free Neon project) to keep data across restarts and "
+                    "redeploys.", "" if storage_is_persistent(s) else
+                    " - THIS DISK IS TEMPORARY: all data is lost on restart/redeploy")
 HERE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(HERE / "templates"))
 CASE_RE = re.compile(r"^/(?:api/)?cases/(\d+)")
@@ -301,6 +312,7 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         init_db()
+        storage_warning()
         await asyncio.to_thread(accounts.provision_on_startup)  # demo passwords from env (never from the repo)
         # sqlite3 releases and re-acquires the GIL around every row fetched; with the default 5 ms switch interval
         # a thread fetching ~1,500 queue rows while other request threads run can wait 5 ms per row (convoy
@@ -318,7 +330,7 @@ def create_app() -> FastAPI:
             hb.cancel()
 
     app = FastAPI(title="KareShafaa - Closing the Screening-to-Care Loop", version=__version__, lifespan=lifespan,
-                  description="Prototype on SYNTHETIC data only. Not a medical device. No real messages are sent.")
+                  description=FOOTER)
 
     inflight = {"n": 0, "shed": 0}
 
@@ -348,6 +360,23 @@ def create_app() -> FastAPI:
             response.headers.setdefault("Cache-Control", "no-store")  # pages and API data are never cached
         return response
 
+    if s.mode == "production":
+        write_limiter = public_demo.WriteRateLimiter(s.write_limit_per_minute, 60.0)
+
+        @app.middleware("http")
+        async def write_rate_limit(request: Request, call_next):
+            """Production abuse limit: API writes per signed-in user session (or client IP) per minute, per worker.
+            Declared inside the audit middleware, so refused attempts are still audited."""
+            if request.url.path.startswith("/api/") and request.method in public_demo.WRITE_METHODS:
+                key = public_demo.client_key(request.headers, request.cookies,
+                                             request.client.host if request.client else None, COOKIE)
+                wait = write_limiter.check(key)
+                if wait:
+                    return JSONResponse({"detail": "too many changes in a short time - nothing was saved; please "
+                                                   "wait a moment and try again"}, status_code=429,
+                                        headers={"Retry-After": str(int(wait) + 1)})
+            return await call_next(request)
+
     if s.public_demo:
         limiter = public_demo.WriteRateLimiter(s.demo_write_limit, s.demo_write_window_s)
 
@@ -363,8 +392,8 @@ def create_app() -> FastAPI:
                                              request.client.host if request.client else None, COOKIE)
                 wait = limiter.check(key)
                 if wait:
-                    return JSONResponse({"detail": "too many changes in a short time on the public demo - nothing "
-                                                   "was saved; please wait a moment"}, status_code=429,
+                    return JSONResponse({"detail": "too many changes in a short time - nothing was saved; please "
+                                                   "wait a moment"}, status_code=429,
                                         headers={"Retry-After": str(int(wait) + 1)})
             return await call_next(request)
 
@@ -459,7 +488,7 @@ def create_app() -> FastAPI:
         errs = [{"loc": list(e.get("loc", [])), "msg": e.get("msg")} for e in exc.errors()]
         return JSONResponse({"detail": "invalid input", "errors": errs}, status_code=422)
 
-    for r in (auth.router, admin_users.router, cases.router, me.router, ops.router, governance.router, ingest.router, demo_api.router,
+    for r in (auth.router, admin_users.router, admin_users.system_router, cases.router, me.router, ops.router, governance.router, ingest.router, demo_api.router,
               pwa.router):
         app.include_router(r)
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
@@ -476,7 +505,8 @@ def create_app() -> FastAPI:
         finally:
             db.close()
         from .request_timeout import TIMEOUTS
-        return {"status": "ok", "version": __version__, "public_demo": s.public_demo,
+        return {"status": "ok", "version": __version__, "mode": s.mode,
+                "storage": "persistent" if storage_is_persistent(s) else "temporary",
                 "request_timeouts": TIMEOUTS["count"],
                 "slow_committing_requests": TIMEOUTS["slow_committing"]}
 
@@ -492,15 +522,15 @@ def create_app() -> FastAPI:
         tok = request.cookies.get(COOKIE)
         role = user.role if user is not None else None
         here = request.url.path + (("?" + request.url.query) if request.url.query else "")
-        nav = ui.nav_for(role, s.demo_logins) if role else []
+        nav = ui.nav_for(role) if role else []
         # "current" nav entry: exact URL match first, else the entry for the same path (case pages -> queue)
         path_only = request.url.path if not request.url.path.startswith("/cases/") else "/queue"
         best = next((n for n in nav if n["href"] == here), None) or \
             next((n for n in nav if n["href"] == path_only), None) or \
             next((n for n in nav if n["href"].split("?")[0] == path_only), None)
         resp = templates.TemplateResponse(request, name, {
-            "demo_logins": s.demo_logins, "version": __version__, "public_demo": s.public_demo,
-            "public_demo_banner": public_demo.BANNER, "user": user, "role_label": ui.role_label(role) if role else "",
+            "walkthrough": s.demo_logins, "version": __version__, "read_only_site": s.public_demo,
+            "footer": FOOTER, "user": user, "role_label": ui.role_label(role) if role else "",
             "nav": nav, "current_nav": best["href"] if best else None, "home_href": ui.home_for(role) if role else "/login",
             "csrf": accounts.csrf_for(tok) if (tok and user is not None) else "", "tiers": ui.tier_help(),
             "role_labels": accounts.ROLE_LABELS, **ctx}, status_code=status_code)
@@ -537,27 +567,11 @@ def create_app() -> FastAPI:
             return login_page(request)
         return RedirectResponse("/account/password" if u.must_change_password else ui.home_for(u.role), status_code=303)
 
-    def _demo_usernames() -> list[dict]:
-        if not s.public_demo and not s.demo_logins:
-            return []
-        db = session_factory()()
-        try:
-            from sqlalchemy import select as _sel
-
-            from .models import User as _U
-            rows = db.scalars(_sel(_U).where(_U.username.in_(accounts.DEMO_ACCOUNTS[:8]), _U.active.is_(True),
-                                             _U.password_hash.is_not(None))).all()
-            order = {n: i for i, n in enumerate(accounts.DEMO_ACCOUNTS)}
-            return [{"username": u.username, "role": accounts.ROLE_LABELS.get(u.role, u.role),
-                     "name": u.display_name.split(" (")[0]} for u in sorted(rows, key=lambda u: order[u.username])]
-        finally:
-            db.close()
-
     def login_page(request: Request, error: str | None = None, status_code: int = 200, username: str = ""):
         tok = auth.login_csrf_token(request)
         resp = page("login.html", request, title="Sign in", status_code=status_code, error=error, username=username,
                     next=_safe_next(request.query_params.get("next")) or "", login_csrf=tok,
-                    signed_out=request.query_params.get("signed_out") == "1", demo_accounts=_demo_usernames())
+                    signed_out=request.query_params.get("signed_out") == "1")
         ensure_login_csrf(request, resp, tok)
         return resp
 
@@ -663,10 +677,12 @@ def create_app() -> FastAPI:
         ("/queue", "queue.html", "/queue", "Work queue"), ("/patient", "patient.html", "/patient", "My results"),
         ("/dashboard", "dashboard.html", "/dashboard", "Outcomes"),
         ("/governance", "governance.html", "/governance", "Approvals and models"),
-        ("/audit", "audit.html", "/audit", "Audit trail"), ("/demo", "demo.html", "/demo", "Demo stories"),
+        ("/audit", "audit.html", "/audit", "Audit trail"),
+        ("/walkthrough", "walkthrough.html", "/walkthrough", "Guided walkthrough"),
         ("/ingest", "ingest.html", "/ingest", "Results inbox"), ("/consults", "consults.html", "/consults", "Consultations"),
         ("/overview", "overview.html", "/overview", "Overview"), ("/advanced", "advanced.html", "/advanced", "Advanced"),
         ("/admin/users", "admin_users.html", "/admin/users", "Users"),
+        ("/admin/system", "admin_system.html", "/admin/system", "System"),
     ]
 
     def _mk(tpl: str, key: str, title: str):

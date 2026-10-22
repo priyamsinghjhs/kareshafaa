@@ -79,7 +79,7 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
     gp = db.get(Practitioner, p.gp_id) if p.gp_id else None
     return {
         **case_summary(db, c),
-        "label": "SYNTHETIC DATA",
+        "label": "KareShafaa v0.1 prototype record",
         "needs_confirmation": c.needs_confirmation,
         "sla": {"status": cur["sla_status"] if cur else "none", "fraction": cur["sla_fraction"] if cur else None,
                 "due_at": cur["due_at"] if cur else None, "escalation_level": max(c.escalation_level or 0, c.target_alert_level or 0)},

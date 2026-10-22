@@ -87,7 +87,7 @@ def test_login_page_and_unauthenticated_redirects(fresh):
     r = fresh.get("/login")
     assert r.status_code == 200 and 'name="password"' in r.text and 'autocomplete="current-password"' in r.text
     assert "demo-login" not in r.text and "role-switcher" not in r.text
-    for path in ("/queue", "/cases/1", "/patient", "/dashboard", "/governance", "/audit", "/demo", "/ingest",
+    for path in ("/queue", "/cases/1", "/patient", "/dashboard", "/governance", "/audit", "/walkthrough", "/admin/system", "/ingest",
                  "/consults", "/overview", "/advanced", "/admin/users", "/account/password"):
         r = fresh.get(path, follow_redirects=False)
         assert r.status_code == 303 and r.headers["location"].startswith("/login?next="), path
@@ -331,7 +331,8 @@ PAGE_ACCESS = {  # page -> roles allowed
     "/dashboard": {"clinical_lead", "analyst", "admin"},
     "/governance": {"clinical_lead", "analyst", "admin", "translator"},
     "/audit": {"clinical_lead", "admin"},
-    "/demo": {"coordinator", "gp", "clinical_lead", "admin"},
+    "/walkthrough": {"clinical_lead", "admin"},
+    "/admin/system": {"admin"},
     "/ingest": {"coordinator", "gp", "clinical_lead"},
     "/consults": {"coordinator", "gp", "specialist", "clinical_lead"},
     "/overview": {"clinical_lead"},
@@ -403,7 +404,7 @@ def test_nav_is_role_aware_and_short(client, as_user):
     html = client.get("/queue", headers=as_user("aisha.rahman")).text
     assert "Today&#39;s queue" in html or "Today's queue" in html
     assert 'href="/admin/users"' not in html and 'href="/audit"' not in html and "Run SLA sweep" not in html
-    assert "Synthetic data demo, not for clinical use" not in html  # normal mode: tidy prototype strip instead
+    assert "Synthetic data demo, not for clinical use" not in html and "not a certified medical device" in html
 
 
 # ------------------------------------------------------------------------------------------------ demo accounts

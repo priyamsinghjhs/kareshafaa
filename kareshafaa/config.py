@@ -16,6 +16,15 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="KARESHAFAA_", env_file=".env", extra="ignore")
 
     env: str = "dev"  # dev | test | prod
+    # Operating mode. "production" (Render default): the full working system - user management, every clinical
+    # workflow, governance behind the normal role checks and approval gates, persistent data (no resets), a sane
+    # per-user write limit (abuse protection), password logins only. "public_demo": the legacy read-mostly showcase
+    # (internal; kareshafaa/public_demo.py). "standard": local development and tests.
+    mode: str = "standard"  # standard | production | public_demo
+    write_limit_per_minute: int = 300  # production: API writes per signed-in user (or client IP) per minute, per worker
+    # None = auto: Postgres is persistent; SQLite is treated as persistent except on hosts with an ephemeral disk
+    # (Render sets RENDER=true and its free plan has no persistent disk).
+    storage_persistent: bool | None = None
     database_url: str = f"sqlite:///{BASE_DIR / 'data' / 'kareshafaa.db'}"
     data_dir: Path = BASE_DIR / "data"
     model_dir: Path = BASE_DIR / "data" / "models"
@@ -118,12 +127,50 @@ def _resolve_secret(s: Settings) -> str:
     return key
 
 
+def normalise_database_url(url: str) -> str:
+    """Accept the URL formats hosting providers hand out (postgres://, postgresql://) and use the psycopg 3 driver."""
+    url = (url or "").strip()
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    if url.startswith("postgresql://"):
+        url = "postgresql+psycopg://" + url[len("postgresql://"):]
+    return url
+
+
+def storage_is_persistent(s: Settings) -> bool:
+    if s.storage_persistent is not None:
+        return s.storage_persistent
+    if not s.database_url.startswith("sqlite"):
+        return True
+    return not os.environ.get("RENDER")
+
+
 @lru_cache
 def get_settings() -> Settings:
-    s = Settings()
+    s = derive(Settings())
     s.data_dir.mkdir(parents=True, exist_ok=True)
     s.model_dir.mkdir(parents=True, exist_ok=True)
     if s.env == "prod" and s.demo_logins:
         raise RuntimeError("KARESHAFAA_DEMO_LOGINS must be false in prod")
     s.secret_key = _resolve_secret(s)
+    return s
+
+
+def derive(s: Settings) -> Settings:
+    """Apply DATABASE_URL and the operating mode to freshly read settings."""
+    # the plain DATABASE_URL (what Neon/Supabase/Render hand out) wins over the default SQLite file
+    if os.environ.get("DATABASE_URL") and not os.environ.get("KARESHAFAA_DATABASE_URL"):
+        s.database_url = os.environ["DATABASE_URL"]
+    s.database_url = normalise_database_url(s.database_url)
+    s.mode = (s.mode or "standard").strip().lower()
+    if "KARESHAFAA_MODE" not in os.environ and os.environ.get("RENDER"):
+        s.mode = "production"  # Render (RENDER=true) runs the working system unless a mode is set explicitly
+    if s.mode == "production":
+        s.env = "prod"
+        s.public_demo = False
+        s.demo_logins = False  # password sign-in only; the test-only token API and walkthrough clock are off
+    elif s.mode == "public_demo":
+        s.public_demo = True
+    elif s.public_demo:
+        s.mode = "public_demo"
     return s

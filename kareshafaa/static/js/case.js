@@ -130,8 +130,8 @@ async function openForm(key, evidenceType) {
     case "triage": return tr("triaged", "Triage confirmed");
     case "consultation": return tr("consultation", "Consultation recorded");
     case "unreachable": return tr("unreachable", "Marked unreachable");
-    case "notify": return post(`${u}/notify`, { category: "result_notification" }, "Notification sent through channel ladder (simulated)");
-    case "reminder": return post(`${u}/notify`, { category: "reminder" }, "Reminder sent (simulated)");
+    case "notify": return post(`${u}/notify`, { category: "result_notification" }, "Notification recorded – sending to patients' phones is not connected yet");
+    case "reminder": return post(`${u}/notify`, { category: "reminder" }, "Reminder recorded – sending to patients' phones is not connected yet");
     case "call": return form(F.sel("outcome", "Call outcome", kv({ reached: "Reached – result explained", no_answer: "No answer", wrong_number: "Wrong number" })) + F.note(),
       fd => post(`${u}/call`, { outcome: fd.outcome, note: fd.note || null }, "Call recorded"));
     case "teachback": {
@@ -158,7 +158,7 @@ async function openForm(key, evidenceType) {
     case "book": { const t = new Date(Date.now() + 7 * 864e5); t.setMinutes(0, 0, 0); const v = new Date(t - t.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); // local wall-clock
       return form(`<label>Appointment date/time<input type="datetime-local" name="start" value="${v}" required></label>` +
         `<label>Reason if after the pathway target${C.target_due_at ? " (" + W.esc(String(C.target_due_at).slice(0, 10)) + ")" : ""}<input name="beyond" placeholder="e.g. earliest available slot; patient's choice"></label>`,
-        fd => post(`${u}/appointment`, { start: new Date(fd.start).toISOString(), beyond_target_reason: fd.beyond || null }, "Appointment booked – confirmation sent (simulated)")); }
+        fd => post(`${u}/appointment`, { start: new Date(fd.start).toISOString(), beyond_target_reason: fd.beyond || null }, "Appointment booked – confirmation recorded (sending to phones is not connected yet)")); }
     case "attendance": return form(F.sel("attended", "Outcome", kv({ true: "Attended", false: "No-show" })) + F.sel("barrier", "No-show barrier", `<option value="">–</option>` + META.barriers.map(b => `<option>${b}</option>`).join("")),
       fd => post(`${u}/attendance`, { attended: fd.attended === "true", barrier_code: fd.attended === "true" ? null : (fd.barrier || "unknown") }, "Attendance recorded"));
     case "start_care": return form(F.sel("kind", "Plan type", kv({ treatment: "Treatment", surveillance: "Surveillance" })) + `<label>Plan description<textarea name="description" rows="2" required></textarea></label>`,

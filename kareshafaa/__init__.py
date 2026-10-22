@@ -1,4 +1,4 @@
-"""KareShafaa - closing the screening-to-care loop (prototype, synthetic data only)."""
+"""KareShafaa - closing the screening-to-care loop (prototype software, not a certified medical device)."""
 
 __version__ = "0.1.0"
 

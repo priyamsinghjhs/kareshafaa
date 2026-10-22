@@ -931,3 +931,30 @@ closure guard or audit semantics changed**; only templates/CSS/JS/view layer, pl
   returned, admin flows + audit, page and API access matrix per role, role homes and labels, provisioning;
   public-demo auth rules in `tests/test_public_demo.py`) -> **3,320 passed**. Validator: 0 violations on all 4 DBs
   (and the public-demo seed copy). One worker ~217-230 MB RSS (Render free 512 MB OK).
+
+### Round 29: production mode - a working system, not a showcase (22 Oct 2026, ~13:50-15:30 IST)
+Feedback: "The app should be working model not demo, don't mention this anywhere". **No clinical rule, tier,
+deadline, closure guard or audit semantics changed.**
+* **Wording:** every user-visible "demo"/"synthetic" string removed from pages, titles, PWA manifest, offline page,
+  sign-in page (no account list), toasts, API errors, seeded names/notes and model card wording. The old banner is
+  replaced by a footer on every page: "KareShafaa v0.1 · Prototype software, not a certified medical device. Clinical
+  decisions remain with the treating clinician." Kept on purpose (patient safety / honesty): messages are still
+  stored as "[SIMULATED - not sent]" because no SMS/WhatsApp gateway is connected; the simulation dashboard is
+  labelled SIMULATED; model cards say "trained on simulated data"; sample MRNs keep the `SYN-` prefix.
+* **`KARESHAFAA_MODE=production`** (default when `RENDER` is set): admin user management and self password change
+  on; every clinical workflow and governance action on behind the existing role checks and approval gates; no
+  nightly reset or restore-from-seed (the legacy read-only showcase stays in code as `public_demo`, off); per-user
+  write limit 300/min; lockout, CSRF, Secure cookies unchanged. Staff accounts get a first password from
+  `KARESHAFAA_DEMO_PASSWORD` only when they have none (never overwritten).
+* **Persistence:** `DATABASE_URL` (Postgres, normalised to psycopg 3) or SQLite with a clear start-up warning.
+  `python -m kareshafaa.bootstrap` runs before the server: an empty database gets the initial records copied
+  row-for-row from the image's SQLite file (70k rows in ~2.5 s, sequences reset); a non-empty one is never touched.
+  Model files are also stored in the database (`model_artifacts`) and restored with a SHA-256 check, so a redeploy
+  on a fresh disk keeps the production model. Admin > System shows database, persistence and counts; admins get a
+  one-time notice when storage is temporary. Recommended free Postgres: Neon (see DEPLOY.md).
+* **Walkthrough:** "Demo scenarios" became "Guided walkthrough" under Advanced (clinical lead/admin) and is off in
+  production because it creates sample patients.
+* **Verification:** 3,338 tests passed (17 new in `tests/test_production_mode.py`); validator 0 violations on all 4
+  SQLite DBs and a Postgres copy; container start simulated with no `DATABASE_URL` (temporary SQLite, warning) and
+  with an empty Postgres (first-start copy, then "existing data kept" after a restart with the model files deleted
+  and restored from the database); responsive check re-run in production mode.

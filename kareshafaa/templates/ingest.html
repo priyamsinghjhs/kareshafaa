@@ -7,7 +7,7 @@
 <div id="recent"></div>
 <details class="card flat">
   <summary><b>Add a test result by hand (HL7 v2 message)</b></summary>
-  <p class="small muted" style="margin-top:var(--s-3)">For demos and integration testing. Sending the same message twice is safe (it is recognised by its message ID).</p>
+  <p class="small muted" style="margin-top:var(--s-3)">For integration testing. Sending the same message twice is safe (it is recognised by its message ID).</p>
   <label for="msg">HL7 v2 ORU^R01 message, one segment per line
   <textarea id="msg" rows="7" style="font-family:var(--mono);font-size:max(16px,.85rem)" spellcheck="false" autocapitalize="none"></textarea></label>
   <div class="row"><button onclick="send(this)">Add result</button><button class="secondary" onclick="sample()">Fill in a sample (positive FIT)</button></div>

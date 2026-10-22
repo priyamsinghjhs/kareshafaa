@@ -80,7 +80,7 @@ def kpis(db: Session, now=None) -> dict[str, Any]:
     now = now or utcnow()
     cases, steps = _frames(db)
     if cases.empty:
-        return {"label": "SIMULATED DATA - synthetic cohort", "total_cases": 0}
+        return {"label": "Live figures from the records in this system", "total_cases": 0}
     ids = set(cases.id)
     steps = steps[steps.case_id.isin(ids)]
     n = len(cases)
@@ -115,7 +115,7 @@ def kpis(db: Session, now=None) -> dict[str, Any]:
         lc = lessons.groupby(["kind", "reason_code"]).size().sort_values(ascending=False).head(15)
         delay = {f"{k}:{r}": suppress_count(int(v)) for (k, r), v in lc.items()}
     out = {
-        "label": "SIMULATED DATA - synthetic cohort, not real-world performance",
+        "label": "Live figures from the records in this system",
         "total_cases": suppress_count(n), "open_cases": suppress_count(len(open_)),
         "open_overdue_steps": suppress_count(overdue), "closed_cases": suppress_count(len(closed)),
         "closed_with_evidence": suppress_count(int((closed.closure_type == "evidence").sum())),

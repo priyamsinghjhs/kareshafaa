@@ -50,8 +50,8 @@ BLOCKED: tuple[tuple[str, re.Pattern[str]], ...] = tuple((m, re.compile(p)) for 
     ("POST", r"^/api/auth/password$"),  # shared demo accounts keep the password the organisers set
     ("PUT", r"^/api/"), ("PATCH", r"^/api/"), ("DELETE", r"^/api/"),
 ))
-BLOCKED_DETAIL = ("disabled in the public synthetic-data demo (model training/promotion, sweeps, data reset, "
-                  "user/role edits and deletes are turned off here)")
+BLOCKED_DETAIL = ("switched off on this server (model training/promotion, sweeps, data reset, user/role edits and "
+                  "deletes are not available here)")
 # also refused: password changes of the shared demo accounts (POST /api/auth/password)
 
 

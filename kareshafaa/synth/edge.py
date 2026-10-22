@@ -441,16 +441,16 @@ class EdgeReplayer(Replayer):
                 return  # the journey finished before the event (counted as not applied)
             self.t = cut
             if scn == "died_mid_pathway":
-                wf.record_death(db, p, lead, "Death registry notification received (synthetic).", now=self.t)
+                wf.record_death(db, p, lead, "Death registry notification received.", now=self.t)
                 rec["applied"] = True
                 self.adv(self.ln(48))
                 if rng.random() < 0.85:
                     for c in db.scalars(select(Case).where(Case.patient_id == p.id, Case.state != S.CLOSED)):
                         wf.close_case(db, c, lead, "authorised_decision", reason="deceased",
-                                      note="Death recorded from the registry; GP informed (synthetic).", now=self.t)
+                                      note="Death recorded from the registry; GP informed.", now=self.t)
             elif scn == "consent_withdrawn":
                 wf.record_consent(db, p, patient_actor(p), "care_coordination", "deny",
-                                  note="Patient asked to stop care coordination (synthetic).", now=self.t)
+                                  note="Patient asked to stop care coordination.", now=self.t)
                 rec["applied"] = True
                 self.adv(self.ln(48))
                 if rng.random() < 0.6 and S(case.state) in (S.PATIENT_NOTIFIED, S.ACKNOWLEDGED, S.CONFIRMATORY_TEST,
@@ -477,7 +477,7 @@ class EdgeReplayer(Replayer):
                         rec["transfer_accepted"] = True
                 else:
                     wf.close_case(db, case, lead, "authorised_decision", reason="moved_abroad",
-                                  note="Patient moved abroad; result summary and referral letter given (synthetic).",
+                                  note="Patient moved abroad; result summary and referral letter given.",
                                   now=self.t)
                     rec["applied"] = True
         elif scn == "reopened":
@@ -486,7 +486,7 @@ class EdgeReplayer(Replayer):
             self.t = case.closed_at
             self.adv(24 * rng.uniform(3, 45))
             wf.transition(db, case, S.TRIAGED, lead, note="Re-opened: patient reports new symptoms; GP asks for review "
-                                                           "of the closed pathway (synthetic).", now=self.t)
+                                                           "of the closed pathway.", now=self.t)
             rec["applied"] = True
         elif scn in ("no_show", "repeated_reschedule"):
             from ..models import Appointment

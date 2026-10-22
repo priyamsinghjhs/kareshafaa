@@ -17,15 +17,15 @@ SPECIALTY_NAMES = {"gastroenterology": "Gastroenterology", "gynaecology": "Colpo
 
 def build_directory(db: Session) -> dict:
     d: dict = {"phc": [], "hosp": [], "gps": {}, "specialists": {}, "coordinators": {}, "pools": {}, "leads": {}}
-    prog_org = Organization(name="Emirate Screening Programme (synthetic)", kind="screening_programme", region="Abu Dhabi")
-    lab = Organization(name="Central Screening Laboratory (synthetic)", kind="lab", region="Abu Dhabi")
+    prog_org = Organization(name="Emirate Screening Programme", kind="screening_programme", region="Abu Dhabi")
+    lab = Organization(name="Central Screening Laboratory", kind="lab", region="Abu Dhabi")
     db.add_all([prog_org, lab])
     for name, region in PHCS:
-        o = Organization(name=name + " (synthetic)", kind="primary_care", region=region)
+        o = Organization(name=name, kind="primary_care", region=region)
         db.add(o)
         d["phc"].append(o)
     for name, region in HOSPITALS:
-        o = Organization(name=name + " (synthetic)", kind="hospital", region=region)
+        o = Organization(name=name, kind="hospital", region=region)
         db.add(o)
         d["hosp"].append(o)
     db.flush()
@@ -89,7 +89,7 @@ def build_users(db: Session, d: dict) -> list[User]:
         users.append(User(username=uname, display_name=p.name, role=p.role, practitioner_id=p.id))
     users.append(User(username="analyst", display_name="Dana Analyst (Programme Analytics)", role="analyst"))
     users.append(User(username="admin", display_name="Sam Admin (System Administrator)", role="admin"))
-    users.append(User(username="translator", display_name="Layla Haddad (Medical translation reviewer, DEMO)",
+    users.append(User(username="translator", display_name="Layla Haddad (Medical translation reviewer)",
                       role="translator"))
     db.add_all(users)
     db.flush()

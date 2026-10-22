@@ -51,7 +51,7 @@ unreviewed translation.
   neutral message "Your screening result is ready. Your care team will call you..." (no guessing).
 * The older prototype content (programme texts, templates, teach-back) is listed with its readability and sign-off
   status in Governance -> "Patient content sign-off" but is **not yet gated**. It must be signed off before a pilot.
-* Demo seed: each programme's clinical lead signs off the English pathway wording (labelled SYNTHETIC DEMO).
+* Initial data load: each programme's clinical lead account signs off the English pathway wording (note: "Initial-setup sign-off ... to be re-reviewed by the clinical lead"); a real clinical lead must re-review it before live use.
   No translation is signed off.
 * Data validator invariants 47-48: no unapproved translation was ever sent; no wording has two sign-offs by the
   same person.

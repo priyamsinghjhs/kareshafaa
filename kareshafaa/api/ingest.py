@@ -96,7 +96,7 @@ def sample(actor: Actor = Depends(require("case:create")), db: Session = Depends
     p = db.scalar(select(Patient).where(Patient.birth_year <= utcnow().year - 45, Patient.id.not_in(open_fit),
                                         Patient.deceased.is_(False)).order_by(func.random()).limit(1))
     if p is None:
-        raise Invalid("no eligible synthetic patient")
+        raise Invalid("no eligible patient record for a sample message")
     ts = utcnow().strftime("%Y%m%d%H%M%S") + "+0000"
     return "\r".join([
         f"MSH|^~\\&|LIS|CENTRAL_SCREENING_LAB|KARESHAFAA|EMIRATE_SCREENING|{ts}||ORU^R01^ORU_R01|LAB-{ts}-{p.id}|P|2.5.1",

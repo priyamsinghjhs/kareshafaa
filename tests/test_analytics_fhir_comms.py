@@ -19,7 +19,7 @@ def test_suppression_helpers():
 def test_analyst_aggregates_only(client, as_user):
     h = as_user("analyst")
     k = client.get("/api/analytics/kpis", headers=h).json()
-    assert "SIMULATED" in str(k).upper() or "SYNTHETIC" in str(k).upper()
+    assert k["label"]  # every KPI payload says where its figures come from
     s = str(k)
     assert "SYN-" not in s and "given_name" not in s
     f = client.get("/api/analytics/fairness", headers=h).json()
@@ -139,7 +139,8 @@ def test_pages_render(client, path):
     r = client.get(path)
     assert r.status_code == 200
     if path != "/healthz":
-        assert "SYNTHETIC" in r.text.upper()
+        assert "Prototype software, not a certified medical device" in r.text
+        assert "demo" not in r.text.lower() and "synthetic" not in r.text.lower()
 
 
 def test_kpi_cache_invalidates_on_new_data(client, as_user, new_case, monkeypatch):
