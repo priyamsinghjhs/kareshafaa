@@ -2,10 +2,10 @@
 
 > **Name.** *KareShafaa*: Kare (care) + Shafaa (healing). Renamed from "Wasl" on 2026-10-22 ("wasl" is also the brand of a Dubai real-estate developer). "KareShafaa" still needs UAE and India trademark clearance. The brand name is never translated in patient messages.
 
-> **Prototype on synthetic data only.** Not a medical device and not validated for clinical use. No real person,
-> result or message exists in this system. Every patient message is **simulated and never sent**. Every KPI on the
-> dashboard that compares "baseline vs with KareShafaa" comes from a **simulation** with assumed parameters. It is not real-world
-> evidence.
+> **KareShafaa v0.1 · Prototype software, not a certified medical device. Clinical decisions remain with the treating
+> clinician.** It ships with fictional sample records (no real person's data). The messaging gateway is not connected
+> yet, so patient messages are recorded but not delivered to phones. The "baseline vs with KareShafaa" comparison on the
+> Outcomes page comes from a **simulation** with stated assumptions and is not real-world evidence.
 
 KareShafaa turns every actionable screening result into a **tracked case** that carries it to care, across four programmes:
 bowel (FIT), cervical (HPV), breast (mammogram) and diabetes (HbA1c). Built for Future Health Digital Innovation
@@ -32,7 +32,7 @@ Challenge 05 and aligned with `../Challenge05_Solution_Design.md`.
   rollback and model cards. Gender, nationality, age band and language are fairness-monitored, never model inputs
   (the interpreter need is). A lessons-learned engine proposes rule changes that a human must approve.
 * **Real sign-in** (round 28): username + password (argon2id), server-side sessions in HttpOnly/SameSite cookies
-  (Secure on HTTPS and in public demo), CSRF tokens, 30-min idle timeout, login rate limit + lockout, generic
+  (Secure on HTTPS), CSRF tokens, 30-min idle timeout, login rate limit + lockout, generic
   errors, audited login/failure/logout, forced change of temporary passwords, admin user management (create, role,
   site/team, reset, deactivate; never hard-deleted). See "Signing in" below.
 * **Security**: RBAC with 7 roles, consent checks, an **append-only, hash-chained audit log** of every read and write,
@@ -53,7 +53,7 @@ Clinical-safety targets (Iteration 6):
 
 ```bash
 make seed-large      # 20,000 realistic synthetic people -> data/kareshafaa_large.db (~3 min, no model training)
-make validate        # 60 data invariants on the demo DB (exit 1 on any violation)
+make validate        # 60 data invariants on the main DB (exit 1 on any violation)
 make validate-large  # same on the 20k cohort
 make test-clinical   # golden cases, fail-safe, Hypothesis properties, exhaustive state machine
 make test-cohort     # full-cohort run on the 20k DB (needs seed-large)
@@ -64,58 +64,77 @@ make differential    # 2M randomised results: rules engine vs independent refere
 Open http://localhost:8000 and sign in. Each role lands on its own main task (coordinator: today's queue,
 family doctor (GP): patients needing review, clinical lead: overview with approvals and safety metrics, admin: users).
 
+### Operating modes
+
+| `KARESHAFAA_MODE` | Use | Behaviour |
+|---|---|---|
+| `production` | Render (default whenever `RENDER=true`), any real installation | Full working system: user management, every clinical workflow and data entry, governance behind the normal role checks and clinical-lead approval gates, password sign-in only, abuse limit of 300 writes/min per user (`KARESHAFAA_WRITE_LIMIT_PER_MINUTE`), data never reset. Needs `KARESHAFAA_SECRET_KEY`. |
+| `standard` | local development and tests | As production, plus the test-only token API (`KARESHAFAA_DEMO_LOGINS=true`) and the guided walkthrough. |
+| `public_demo` | internal only (legacy read-mostly showcase) | Admin writes off, database restored from a bundled copy. Not used on Render. |
+
+### Data storage
+
+* `DATABASE_URL` (or `KARESHAFAA_DATABASE_URL`) points at PostgreSQL, e.g. `postgresql://USER:PASSWORD@HOST/DB?sslmode=require`
+  (`postgres://` and `postgresql://` are accepted; the psycopg 3 driver is used). Without it, SQLite in `data/` is used.
+* `python -m kareshafaa.bootstrap` (run by the Docker CMD before the server starts) creates missing tables/columns and,
+  **only if the database is empty**, copies in the initial records once: organisations, programmes, sites, staff
+  directory and accounts, and the sample patient records prepared at image build time (row-for-row, so the audit
+  hash chain stays valid). Existing data is never reset or overwritten.
+* Model files are also kept in the database (`model_artifacts`, keyed by SHA-256) and restored automatically when a
+  new container does not have them.
+* On a host with a temporary disk (Render free plan) and no `DATABASE_URL`, the app still runs on SQLite, logs a
+  clear warning, and shows a notice in **Admin > System**: data is lost on restart/redeploy.
+
 ### Signing in
 
-There is **no one-click demo login** in the UI. Every person signs in with a username and password.
+Every person signs in with a username and password; there is no account list on the sign-in page.
 
-* **Demo accounts** (one per role, existing synthetic staff names) are created **at app start-up**, never in the seed
-  or the Docker image. Their passwords are **never in the repo and never shown on the site**:
-  * `KARESHAFAA_DEMO_PASSWORD` (or per-role `KARESHAFAA_DEMO_PASSWORD_<ROLE>`, e.g. `..._CLINICAL_LEAD`) sets them;
-  * otherwise (normal mode) random passwords are generated and written to `../demo_credentials.txt` (mode 0600,
-    outside the repo, also gitignored; override with `KARESHAFAA_DEMO_CREDENTIALS_FILE`);
-  * in **public demo mode** a blank or weak password (under 12 characters or a common password) is refused: the app
-    still starts and shows the sign-in page, but the demo accounts stay unusable and a `DEMO ACCOUNTS NOT USABLE`
-    warning is logged.
+* **Staff accounts** (existing staff directory, one per role and more) get a **first password at start-up** from
+  `KARESHAFAA_DEMO_PASSWORD` (internal variable name; or per role `KARESHAFAA_DEMO_PASSWORD_<ROLE>`). In production
+  this only applies to accounts that have **no password yet**; a password a user or admin has changed is never
+  overwritten. A blank/weak value is refused and a `STAFF ACCOUNTS WITHOUT A PASSWORD` warning is logged. Passwords
+  are never in the repo and never shown on the site. Locally (standard mode, no env value) random passwords are
+  written to `../demo_credentials.txt` (0600, outside the repo, gitignored).
 * **Password policy**: at least 12 characters, not on the common-password list, not your username. Temporary
-  passwords set by an admin must be changed at the next sign-in.
+  passwords set by an admin must be changed at the next sign-in. Users change their own password from the user menu.
 * **Sessions**: random token, only its SHA-256 is stored; HttpOnly + SameSite=Lax cookie (Secure on HTTPS and in
-  public demo); idle timeout 30 min (`KARESHAFAA_SESSION_IDLE_MINUTES`), absolute 8 h; sign-out revokes it.
+  production); idle timeout 30 min (`KARESHAFAA_SESSION_IDLE_MINUTES`), absolute 8 h; sign-out revokes it.
 * **CSRF**: every cookie-authenticated write needs the per-session token (`X-CSRF-Token` header or `csrf_token`
   form field); the sign-in form uses a double-submit token. Bearer-token API clients are not affected.
-* **Lockout**: 5 failures in 15 min pause sign-in for that account for 15 min (per account + IP in public demo,
-  so nobody can lock the shared demo accounts for everyone); 20 failures per IP in 15 min pause that IP.
+* **Lockout**: 5 failures in 15 min pause sign-in for that account for 15 min; 20 failures per IP in 15 min pause that IP.
 * **Audit**: `auth.login`, `auth.login_failed` (username, reason, IP), `auth.logout`, `user.create`,
   `user.role_change`, `user.password_reset`, `user.password_change`, `user.deactivate`, `user.activate`.
 * **Admin → Users** (`/admin/users`): create users (clinical roles are linked to a directory clinician), assign
-  role and site/team, reset passwords (forces a change), deactivate/reactivate. Read-only in public demo.
-* `KARESHAFAA_DEMO_LOGINS=true` (dev/test only) keeps the password-less `/api/auth/demo-login` API for tests and
-  scripts. It is **always off in public demo mode and in production**.
+  role and site/team, reset passwords (forces a change), deactivate/reactivate. **Admin → System** (`/admin/system`):
+  mode, database, whether storage is permanent.
 
-| Demo user | Role | Try |
+| Account | Role | Try |
 |---|---|---|
-| `aisha.rahman` | Care coordinator | Work queue, outreach, calls, demo scenarios, results inbox (HL7) |
-| `omar.haddad` | Family doctor (GP) | Confirmatory tests, referrals, e-consults; try to close a case without evidence |
+| `aisha.rahman` | Care coordinator | Work queue, outreach, calls, results inbox (HL7) |
+| `omar.haddad` | Family doctor (GP) | Confirmatory tests, referrals, ask a specialist (e-consult); try to close a case without evidence |
 | `vikram.mehta` | Specialist | Accept or reject referrals with a reason; booking, attendance, care plan |
 | `fatima.al.mansoori`, `layla.al.hashimi` | Clinical lead / medical director (L4) | Escalations, model and rule approvals, KPIs |
 | `analyst` | Analyst | Aggregates only, small cells suppressed |
-| `admin` | System administrator | Users (create, reset, deactivate), audit log and chain verification, advanced tools |
-| `patient.ar`, `.en`, `.hi`, `.ur`, `.tl` | Named demo patients | Fatima Al Kaabi (FIT, Al Ain), Emma Clarke (BI-RADS 0), Ramesh Kumar (HbA1c), Ayesha Khan (HPV), Maria Santos (BI-RADS 4, Tagalog) |
+| `admin` | System administrator | Users, System, audit log and chain verification, advanced tools |
+| `patient.ar`, `.en`, `.hi`, `.ur`, `.tl` | Patients (sample records) | Fatima Al Kaabi (FIT, Al Ain), Emma Clarke (BI-RADS 0), Ramesh Kumar (HbA1c), Ayesha Khan (HPV), Maria Santos (BI-RADS 4, Tagalog) |
 
-**One-click scenarios** (`/demo`, coordinator, family doctor, clinical lead or admin, demo mode only). Each one creates a new synthetic
-patient and runs through the real service layer, guards and audit:
+**Guided walkthrough** (`/walkthrough`, under Advanced; clinical lead or admin; standard mode only - off in
+production because it adds sample patients). Each one creates a new sample patient record and runs through the real
+service layer, guards and audit:
 1. Fatima: result arrives as HL7 ORU → Arabic teach-back → GP referral → hospital rejects (capacity) → re-route.
-2. Maria: T1, no smartphone, digital ladder fails → navigator task → the demo clock fast-forwards → L1→L2→L3→L4; closure is blocked.
+2. Maria: T1, no smartphone, digital ladder fails → navigator task → the clock fast-forwards → L1→L2→L3→L4; closure is blocked.
 3. Ramesh: confirmed HbA1c → two-key transfer to another GP.
 4. Unreachable-patient ladder. 5. Ramadan no-show with the `ramadan_hours` barrier.
 
 **HL7 sample:** `samples/oru_r01_fit_positive.hl7`. The results inbox (`/ingest`) also has a *Load sample* button
-that builds an ORU for a real synthetic patient, because the deterministic matcher correctly refuses a birth-year
+that builds an ORU for an existing sample patient, because the deterministic matcher correctly refuses a birth-year
 mismatch.
 
 Configuration: environment variables (prefix `KARESHAFAA_`) override `.env`; see `.env.example`.
 
-Docker: `docker build -t kareshafaa . && docker run -p 8000:8000 kareshafaa`. It runs as a non-root user, listens on `$PORT` (default 8000) and seeds the synthetic database at build time (`--build-arg SEED_AT_BUILD=0` to seed on first start instead).
-Public demo: set `KARESHAFAA_PUBLIC_DEMO=1` (banner, destructive admin actions off, write rate limit, DB restored from a seed copy on start and nightly). Free permanent hosting: see `DEPLOY.md` (Render Blueprint in `render.yaml`).
+Docker: `docker build -t kareshafaa . && docker run -p 8000:8000 -e KARESHAFAA_MODE=production -e KARESHAFAA_SECRET_KEY=... -e KARESHAFAA_DEMO_PASSWORD=... kareshafaa`
+(add `-e DATABASE_URL=...` for PostgreSQL). Non-root user, listens on `$PORT` (default 8000), initial records prepared at build time.
+Hosting on Render with free permanent PostgreSQL (Neon): see `DEPLOY.md`.
 Installable PWA: `/manifest.webmanifest` and `/sw.js`. The service worker caches only static assets and the offline page, never API responses or pages.
 
 ## Architecture
@@ -123,7 +142,7 @@ Installable PWA: `/manifest.webmanifest` and `/sw.js`. The service worker caches
 ```
 Browser (Jinja + vanilla JS + one tokenised CSS file, mobile-first; RTL aware)          HL7 v2 / FHIR R4 senders
         │  session cookie (+CSRF) or bearer token                         │
-FastAPI ─┬─ api/        auth, cases, actions, queue/ops, me (patient), governance, ingest, demo
+FastAPI ─┬─ api/        auth, admin users/system, cases, actions, queue/ops, me (patient), governance, ingest, walkthrough
          ├─ services/   workflow (state machine + guards), escalation (SLA sweep), queue, ingest,
          │              analytics (+cache, suppression), improve (lessons → proposals), access (RBAC scope)
          ├─ comms/      templates en/ar/hi/ur, teach-back, channel ladder (SIMULATED only)
@@ -185,7 +204,7 @@ HL7 writes. Columns: requests per second answered OK, p95 latency of those, shar
   * admission control (16 in-flight requests per worker);
   * group-committed request audit: a read is refused rather than served unlogged;
   * 2 s work-queue cache, dropped on any local write.
-* **Locks are per database.** Before round 21, a load test on another database could stall the demo server.
+* **Locks are per database.** Before round 21, a load test on another database could stall the main server.
 * **Watchdog** (round 22): each worker heartbeats from its event loop through the request thread pool. The parent
   takes a thread dump of, then kills and replaces, any worker silent for more than 60 s (`KARESHAFAA_HEARTBEAT_TIMEOUT_S`).
 * **PostgreSQL 17 smoke test:** passed (validator, ramp, audit chain).
@@ -205,7 +224,7 @@ HL7 writes. Columns: requests per second answered OK, p95 latency of those, shar
 | Check | Result |
 |---|---|
 | Tests | 3,320 passed (round 28) |
-| Validator | 60 invariants, 0 violations on demo / 10k / 20k / edge-case cohorts |
+| Validator | 60 invariants, 0 violations on main / 10k / 20k / edge-case cohorts |
 | Differential, random inputs | 10M, 0 disagreements |
 | Differential, edge-cohort inputs | 1M, 0 disagreements |
 | Alerts, 20k cohort | precision 1.0 / recall 1.0 |
@@ -259,14 +278,14 @@ deployment would need formal assessment.
 
 ## Known limitations
 
-* Synthetic data only. The ML model (AUC ≈ 0.68 on the 2k demo, 0.66 on the 10k, 0.72 on the 20k cohort) and the simulator say nothing about real-world performance.
+* Trained and evaluated on fictional sample data only. The ML model (AUC ≈ 0.68 on the 2k main DB, 0.66 on the 10k, 0.72 on the 20k cohort) and the simulator say nothing about real-world performance.
 * Fairness gates use bootstrap CIs on a ~445-case holdout, so small groups (e.g. hi, ur, tl, n < 50 positives) are
   *not eligible* for gating and are only monitored. A real deployment needs larger validation sets.
 * Channels are simulated. There is no SMS, WhatsApp or email integration, and no real telephony.
 * Authentication is real but local: password + server-side sessions. Production still needs OIDC/SSO (UAE PASS for patients), MFA and secret management; the common-password list is a short built-in one (a pilot should use a breached-password service).
 * The queue still orders all open cases in Python (SLA status depends on the working-day calendar). It is fine at 10k
   cases with ~1.5k open, but beyond that it should use a materialised due/RAG column with SQL ORDER BY/LIMIT.
-* SQLite is for the demo. Multi-host deployment needs PostgreSQL (pool settings in `kareshafaa/config.py`, driver in
+* SQLite is for single-server use. Multi-host deployment needs PostgreSQL (pool settings in `kareshafaa/config.py`, driver in
   `requirements-postgres.txt`, smoke-tested in round 21); the audit writer lock uses `pg_advisory_xact_lock` there.
 * The Islamic holiday and Ramadan dates are approximate. Tagalog and Malayalam content is not translated yet.
 * Docker build is written but could not be tested on the build box (no Docker daemon available).
