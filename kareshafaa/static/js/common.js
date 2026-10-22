@@ -18,19 +18,20 @@ const W = {
       let msg = (data && data.detail) ? data.detail : r.statusText;
       if (data && data.errors) msg += ": " + data.errors.map(e => e.loc.slice(-1)[0] + " " + e.msg).join("; ");
       msg = String(msg); msg = msg.charAt(0).toUpperCase() + msg.slice(1);
-      const err = new Error(msg); err.status = r.status; throw err;
+      const err = new Error(msg); err.status = r.status; err.code = data && data.code; throw err;
     }
     return data;
   },
   toast(msg, kind = "") {
     const el = document.createElement("div"); el.className = "t " + kind; el.setAttribute("role", kind === "err" ? "alert" : "status");
-    const span = document.createElement("span"); span.textContent = msg; el.appendChild(span);
+    const span = document.createElement("span"); span.dir = "auto"; span.textContent = msg; el.appendChild(span);
     document.getElementById("toast").appendChild(el); setTimeout(() => el.remove(), kind === "err" ? 8000 : 4000);
   },
   // accessible modal dialogs (native <dialog>: focus trap, Esc to cancel)
-  _dialog(inner, onOk) {
+  _dialog(inner, onOk, dir = "") {
     return new Promise(resolve => {
       const d = document.createElement("dialog"); d.className = "dlg"; d.setAttribute("aria-labelledby", "dlg-title");
+      if (dir) d.dir = dir;  // e.g. rtl for an Arabic/Urdu patient page
       d.innerHTML = `<form method="dialog">${inner}</form>`; document.body.appendChild(d);
       const f = d.querySelector("form");
       f.querySelector("[data-cancel]").onclick = () => d.close("cancel");
@@ -39,9 +40,9 @@ const W = {
       d.showModal(); const first = f.querySelector("textarea, input, [data-ok]"); if (first) first.focus();
     });
   },
-  confirm(title, body = "", { ok = "Confirm", danger = false } = {}) {
+  confirm(title, body = "", { ok = "Confirm", danger = false, cancel = "Cancel", dir = "" } = {}) {
     return W._dialog(`<h2 id="dlg-title">${W.esc(title)}</h2>${body ? `<p>${body}</p>` : ""}
-      <div class="dlg-buttons"><button type="button" class="secondary" data-cancel>Cancel</button><button type="submit" data-ok class="${danger ? "danger" : ""}">${W.esc(ok)}</button></div>`, () => true);
+      <div class="dlg-buttons"><button type="button" class="secondary" data-cancel>${W.esc(cancel)}</button><button type="submit" data-ok class="${danger ? "danger" : ""}">${W.esc(ok)}</button></div>`, () => true, dir);
   },
   ask(title, label, { ok = "Confirm", body = "", min = 1, danger = false, placeholder = "" } = {}) {
     return W._dialog(`<h2 id="dlg-title">${W.esc(title)}</h2>${body ? `<p class="small">${body}</p>` : ""}

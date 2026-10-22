@@ -85,9 +85,12 @@ def test_patient_teach_back_fail_then_pass(client, as_user):
     r = client.post("/api/me/teach-back", headers=h, json={"answers": {"q1": "b", "q2": "b", "q3": "a"},
                                                            "confidence": 2, "language": "ar"}).json()
     assert r["passed"] is False and r["state"] == "patient_notified"
-    r = client.post("/api/me/teach-back", headers=h, json={"answers": {"q1": "a", "q2": "b", "q3": "a"},
-                                                           "confidence": 4, "language": "ar"}).json()
-    assert r["passed"] is True and r["state"] == "acknowledged"
+    again = {"answers": {"q1": "a", "q2": "b", "q3": "a"}, "confidence": 4, "language": "ar"}
+    blocked = client.post("/api/me/teach-back", headers=h, json=again)  # answers are locked once sent
+    assert blocked.status_code == 409 and blocked.json()["code"] == "answers_locked"
+    assert client.post("/api/me/teach-back/reopen", headers=h, json={"confirm": True}).status_code == 200
+    r = client.post("/api/me/teach-back", headers=h, json=again).json()
+    assert r["passed"] is True and r["state"] == "acknowledged" and r["changed"] is True
 
 
 def test_every_request_is_audited(client, as_user, db):

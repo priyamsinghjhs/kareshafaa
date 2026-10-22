@@ -77,6 +77,8 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
     cur = next((s for s in steps if s["status"] == "in-progress"), None)
     q = lambda m: db.scalars(select(m).where(m.case_id == c.id).order_by(m.id)).all()  # noqa: E731
     gp = db.get(Practitioner, p.gp_id) if p.gp_id else None
+    from ..services.patient_answers import changes_for_case
+    tb_changes = changes_for_case(db, c.id)  # patient used "Change my answers": new response -> replaced one
     return {
         **case_summary(db, c),
         "label": "KareShafaa v0.1 prototype record",
@@ -120,7 +122,9 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
         "call_tasks": [{"id": t.id, "status": t.status, "outcome": t.outcome, "owner": pname(db, t.owner_id),
                         "created_at": iso(t.created_at), "completed_at": iso(t.completed_at)} for t in q(CallTask)],
         "teach_back": [{"id": r.id, "score": r.score, "total": r.total, "passed": r.passed, "mode": r.mode,
-                        "language": r.language, "confidence": r.confidence, "at": iso(r.created_at)}
+                        "language": r.language, "confidence": r.confidence, "at": iso(r.created_at),
+                        "answers": r.answers, "replaces_id": tb_changes.get(r.id),
+                        "patient_changed_answers": r.id in tb_changes}
                        for r in q(QuestionnaireResponse)],
         "consults": [{"id": r.id, "type": r.requester_type, "target_id": r.target_practitioner_id,
                       "target": pname(db, r.target_practitioner_id), "question": r.question, "urgency": r.urgency,

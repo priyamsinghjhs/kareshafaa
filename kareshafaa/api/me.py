@@ -12,6 +12,7 @@ from ..comms.content import (INTERPRETER_NOTICE, PROGRAMME_TEXT, programme_text,
 from ..db import get_db
 from ..models import Case, Communication, ConsultRequest, Patient, Practitioner, QuestionnaireResponse
 from ..security import Actor
+from ..services import patient_answers as pa
 from ..services import workflow as wf
 from ..services.errors import Forbidden, NotFound
 from ..statemachine import LABELS, S
@@ -51,6 +52,7 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
     consults = db.scalars(select(ConsultRequest).where(ConsultRequest.case_id == c.id,
                                                        ConsultRequest.requester_type == "patient")).all()
     variant = "standard"
+    lock = pa.status(db, c, actor)
     return {
         "label": "KareShafaa prototype - please check anything important with your care team", "case_id": c.id, "language": lang, "rtl": lang in RTL_LANGUAGES,
         "languages": SUPPORTED_LANGUAGES, "ui": UI_TEXT[lang],
@@ -65,7 +67,9 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
                       "role": (coord.role if coord else "coordinator")},
         "state": c.state, "state_label": STATE_LABELS_I18N[lang].get(c.state, LABELS.get(c.state)),
         "journey": [{**j, "label": STATE_LABELS_I18N[lang].get(j["state"], j["label"])} for j in journey(db, c)],
-        "can_teach_back": S(c.state) == S.PATIENT_NOTIFIED,
+        # once answers are sent the form is locked; it opens again only after this patient asks to change them
+        "can_teach_back": (S(c.state) == S.PATIENT_NOTIFIED and not lock["submitted"]) or lock["reopened"],
+        "answers_lock": lock,
         "teach_back": comms.teach_back_form(c, lang),
         "last_teach_back": {"passed": tb.passed, "score": tb.score, "total": tb.total} if tb else None,
         "messages": [{"channel": m.channel, "sent_at": m.sent_at.isoformat(), "content": m.content,
@@ -78,9 +82,30 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
 @router.post("/teach-back")
 def my_teach_back(body: sch.TeachBackIn, actor: Actor = Depends(require("self:respond")), db: Session = Depends(get_db)) -> dict:
     c = _my_case(db, actor)
+    ro = pa.guard_submit(db, c, actor)  # a repeat needs an explicit, recent "Change my answers" by this patient
     qr = comms.submit_teach_back(db, c, actor, dict(body.answers), confidence=body.confidence, language=body.language)
+    pa.finalize_submit(db, c, actor, qr, ro)
     db.commit()
-    return {"ok": True, "passed": qr.passed, "score": qr.score, "total": qr.total, "state": c.state}
+    return {"ok": True, "passed": qr.passed, "score": qr.score, "total": qr.total, "state": c.state,
+            "changed": ro is not None}
+
+
+@router.post("/teach-back/reopen")
+def my_teach_back_reopen(body: sch.ReopenAnswersIn, actor: Actor = Depends(require("self:respond")),
+                         db: Session = Depends(get_db)) -> dict:
+    """The patient explicitly asked to change the answers they already sent (confirmed in the page)."""
+    c = _my_case(db, actor)
+    ro = pa.request_reopen(db, c, actor)
+    db.commit()
+    return {"ok": True, "reopen_id": ro.id, "expires_at": ro.expires_at.isoformat()}
+
+
+@router.post("/teach-back/reopen/cancel")
+def my_teach_back_reopen_cancel(actor: Actor = Depends(require("self:respond")), db: Session = Depends(get_db)) -> dict:
+    c = _my_case(db, actor)
+    done = pa.cancel_reopen(db, c, actor)
+    db.commit()
+    return {"ok": True, "cancelled": done}
 
 
 @router.post("/consult")

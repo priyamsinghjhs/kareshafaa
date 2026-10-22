@@ -446,7 +446,10 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(DomainError)
     async def _domain(_req: Request, exc: DomainError):
-        return JSONResponse({"detail": exc.message}, status_code=exc.status_code)
+        body = {"detail": exc.message}
+        if getattr(exc, "code", None):
+            body["code"] = exc.code  # machine-readable reason (e.g. answers_locked) so pages can show their own wording
+        return JSONResponse(body, status_code=exc.status_code)
 
     @app.exception_handler(ServiceBusy)
     async def _busy(_req: Request, exc: ServiceBusy):

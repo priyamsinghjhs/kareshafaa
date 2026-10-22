@@ -35,21 +35,45 @@ async function load() {
    <div class="card"><h4>${W.esc(u.messages)}</h4>${d.messages.map(m => `<div class="msg"><span class="small muted">${W.dt(m.sent_at)} · ${W.esc(m.channel)}</span><br>${W.esc(m.content)}</div>`).join("") || "–"}</div>
    ${d.can_decline ? `<details><summary class="small">${W.esc(tb.labels.decline)}</summary><label>${x.declineNote}<textarea id="dn" rows="2"></textarea></label><button class="secondary outline" id="decline" style="width:auto">${W.esc(tb.labels.decline)}</button></details>` : ""}`;
   el.querySelectorAll(".lang-switch button").forEach(b => b.onclick = () => { lang = b.dataset.l; history.replaceState(null, "", "?lang=" + lang); load(); });
-  const tbEl = document.getElementById("tb");
+  const tbEl = document.getElementById("tb"), L = d.answers_lock || {}, sub = L.submitted;
+  const when = iso => { if (!iso) return "–"; const t = new Date(/Z|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + "Z");
+    try { return t.toLocaleString({ en: "en-GB", ar: "ar-AE", hi: "hi-IN", ur: "ur-PK" }[lang] || undefined, { dateStyle: "medium", timeStyle: "short" }); } catch (e) { return W.dt(iso); } };
+  const opts = (q, mark, ro) => q.options.map(o => { const on = mark && mark[q.id] === o.key;
+    return `<label class="${ro && on ? "chosen" : ""}"><input type="radio" name="${q.id}" value="${o.key}"${on ? " checked" : ""}${ro ? " disabled" : " required"}> ${W.esc(o.text)}</label>`; }).join("");
+  const confRow = (v, ro) => `<div class="q"><b>${W.esc(tb.confidence)}</b><div>${[1, 2, 3, 4, 5].map(n => `<label class="inline${ro && v === n ? " chosen" : ""}"><input type="radio" name="conf" value="${n}"${v === n ? " checked" : ""}${ro ? " disabled" : " required"}> ${n}</label>`).join("")}</div></div>`;
   if (d.can_teach_back) {
-    tbEl.innerHTML = `<h4>${W.esc(tb.title)}</h4><p class="small">${W.esc(tb.intro)}</p><form id="tbf">${tb.questions.map(q => `<div class="q"><b>${W.esc(q.text)}</b>${q.options.map(o => `<label><input type="radio" name="${q.id}" value="${o.key}" required> ${W.esc(o.text)}</label>`).join("")}</div>`).join("")}
-      <div class="q"><b>${W.esc(tb.confidence)}</b><div>${[1, 2, 3, 4, 5].map(n => `<label class="inline"><input type="radio" name="conf" value="${n}" required> ${n}</label>`).join("")}</div></div>
-      <button type="submit" style="width:auto">${W.esc(tb.labels.submit)} – ${W.esc(tb.labels.understand)}</button></form>`;
-    document.getElementById("tbf").onsubmit = async ev => { ev.preventDefault(); const f = Object.fromEntries(new FormData(ev.target));
+    const prev = L.reopened && sub ? sub.answers : null;  // changing: start from the saved answers
+    tbEl.innerHTML = `<h4>${W.esc(tb.title)}</h4>${L.reopened ? `<div class="notice-inline info" role="status">${W.esc(u.reopened)}</div>` : ""}<p class="small">${W.esc(tb.intro)}</p><form id="tbf">${tb.questions.map(q => `<div class="q"><b>${W.esc(q.text)}</b>${opts(q, prev, false)}</div>`).join("")}
+      ${confRow(prev ? sub.confidence : null, false)}
+      <div class="tb-actions"><button type="submit">${W.esc(tb.labels.submit)} – ${W.esc(tb.labels.understand)}</button>${L.reopened ? `<button type="button" class="secondary outline" id="tb-keep">${W.esc(u.keep)}</button>` : ""}</div></form>`;
+    const f0 = document.getElementById("tbf");
+    f0.onsubmit = async ev => { ev.preventDefault(); const btn = f0.querySelector("button[type=submit]"); btn.disabled = true; const f = Object.fromEntries(new FormData(ev.target));
       try { const r = await W.api("/api/me/teach-back", { method: "POST", body: { answers: { q1: f.q1, q2: f.q2, q3: f.q3 }, confidence: +f.conf, language: lang } });
-        W.toast(r.passed ? tb.labels.passed : tb.labels.failed, r.passed ? "ok" : ""); load(); } catch (e) { W.toast(e.message, "err"); } };
+        W.toast(r.passed ? tb.labels.passed : tb.labels.failed, r.passed ? "ok" : ""); load(); }
+      catch (e) { const lk = e.code === "answers_locked"; W.toast(lk ? u.locked : e.message, "err"); btn.disabled = false; if (lk) load(); } };
+    const keep = document.getElementById("tb-keep");
+    if (keep) keep.onclick = async () => { try { await W.api("/api/me/teach-back/reopen/cancel", { method: "POST", body: {} }); } catch (e) { W.toast(e.message, "err"); } load(); };
+  } else if (sub) {
+    const st = d.last_teach_back || sub;
+    tbEl.innerHTML = `<h4>${W.esc(u.saved_title)}</h4>
+      <p>${st.passed ? "✅ " + W.esc(tb.labels.passed) : "ℹ️ " + W.esc(tb.labels.failed)}</p>
+      <p class="small muted" id="tb-saved-on">${W.esc(u.saved_on.replace("{when}", when(sub.submitted_at)))}</p>
+      ${L.changed ? `<p class="small">${W.esc(u.changed_note)}</p>` : ""}
+      <fieldset class="q-saved" disabled aria-describedby="tb-saved-on"><legend class="sr-only">${W.esc(u.saved_title)}</legend>
+      ${tb.questions.map(q => `<div class="q"><b>${W.esc(q.text)}</b>${opts(q, sub.answers, true)}</div>`).join("")}
+      ${sub.confidence ? confRow(sub.confidence, true) : ""}</fieldset>
+      <div class="tb-actions">${L.can_change ? `<button type="button" class="secondary outline" id="tb-change">${W.esc(u.change)}</button>` : `<p class="small muted">${W.esc(u.no_change)}</p>`}</div>`;
+    const ch = document.getElementById("tb-change");
+    if (ch) ch.onclick = async () => { if (!(await W.confirm(u.change_q, W.esc(u.change_body), { ok: u.change_ok, cancel: u.cancel, dir: d.rtl ? "rtl" : "ltr" }))) return;
+      try { await W.api("/api/me/teach-back/reopen", { method: "POST", body: { confirm: true } }); await load();
+        const first = document.querySelector("#tbf input"); if (first) first.focus(); } catch (e) { W.toast(e.message, "err"); } };
   } else {
     tbEl.innerHTML = `<h4>${W.esc(tb.title)}</h4>` + (d.last_teach_back ? `<p>${d.last_teach_back.passed ? "✅ " + W.esc(tb.labels.passed) : "ℹ️ " + W.esc(tb.labels.failed)}</p>` : `<p class="muted">–</p>`);
   }
   document.getElementById("ask").onclick = async () => { const q = document.getElementById("q").value.trim(); if (q.length < 5) return;
     try { await W.api("/api/me/consult", { method: "POST", body: { question: q } }); W.toast(x.sent, "ok"); load(); } catch (e) { W.toast(e.message, "err"); } };
   const dec = document.getElementById("decline");
-  if (dec) dec.onclick = async () => { if (!(await W.confirm(x.confirmDecline, "", { ok: tb.labels.decline, danger: true }))) return;
+  if (dec) dec.onclick = async () => { if (!(await W.confirm(x.confirmDecline, "", { ok: tb.labels.decline, danger: true, dir: d.rtl ? "rtl" : "ltr" }))) return;
     try { await W.api("/api/me/decline", { method: "POST", body: { note: document.getElementById("dn").value.trim() || "Patient declined via app" } }); W.toast(x.done, "ok"); load(); } catch (e) { W.toast(e.message, "err"); } };
 }
 document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return;

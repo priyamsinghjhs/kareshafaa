@@ -321,6 +321,14 @@ details[open] > summary::before { transform: rotate(90deg); }
 .q label { display: flex; align-items: center; min-height: var(--tap); padding: var(--s-2) var(--s-3); border-radius: var(--r-sm); border: 1px solid var(--c-border); margin-bottom: var(--s-2); cursor: pointer; font-weight: 400; font-size: var(--fs-base); }
 .q label:hover { background: var(--c-primary-soft); }
 .q label.inline { display: inline-flex; margin-inline-end: var(--s-2); }
+.q label input { margin-inline-end: var(--s-2); }
+/* saved (locked) answers: read-only summary - the chosen option is marked, the others are greyed out */
+fieldset.q-saved { border: 0; padding: 0; margin: 0; min-width: 0; }
+.q-saved .q label { cursor: default; color: var(--c-muted); background: transparent; }
+.q-saved .q label:hover { background: transparent; }
+.q-saved .q label.chosen { color: var(--c-text); font-weight: 600; border-color: var(--c-primary); background: var(--c-primary-soft); }
+.tb-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; margin-top: var(--s-3); }
+.tb-actions button { width: auto; margin: 0; }
 .rtl { direction: rtl; text-align: right; }
 [dir="rtl"], [lang="ar"], [lang="ur"] { font-family: "Noto Naskh Arabic", "Noto Nastaliq Urdu", "Noto Sans Arabic", "Segoe UI", Tahoma, "Geeza Pro", sans-serif; letter-spacing: 0; }
 [lang="hi"] { font-family: "Noto Sans Devanagari", "Nirmala UI", "Mangal", sans-serif; }

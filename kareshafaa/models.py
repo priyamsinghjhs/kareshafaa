@@ -349,6 +349,21 @@ class QuestionnaireResponse(Base):  # FHIR QuestionnaireResponse - teach-back ch
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class AnswerReopen(Base):  # patient asked to change answers they already sent (one new submission, time-limited)
+    __tablename__ = "answer_reopens"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the patient's login that asked
+    form: Mapped[str] = mapped_column(String(30), default="teach_back")
+    previous_response_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # answers kept in history
+    requested_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    used_response_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the new submission
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class ConsultRequest(Base):  # FHIR CommunicationRequest/ServiceRequest(e-consult)
     __tablename__ = "consult_requests"
     id: Mapped[int] = mapped_column(primary_key=True)

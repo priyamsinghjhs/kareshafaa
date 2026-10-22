@@ -958,3 +958,23 @@ deadline, closure guard or audit semantics changed.**
   SQLite DBs and a Postgres copy; container start simulated with no `DATABASE_URL` (temporary SQLite, warning) and
   with an empty Postgres (first-start copy, then "existing data kept" after a restart with the model files deleted
   and restored from the database); responsive check re-run in production mode.
+
+## Patient answers lock ("Change my answers")
+
+* **What the patient sees:** after sending the teach-back answers on `/patient`, the card becomes "Your saved
+  answers": the result message, "Your answers were saved on <local date/time>", and every question with the chosen
+  option highlighted and all options disabled (read-only fieldset). One secondary button, "Change my answers", asks
+  for confirmation; only then does the form open (pre-filled with the saved answers) for one new submission, with
+  "Keep my saved answers" to lock it again. Translated in en/ar/hi/ur (`ANSWER_LOCK_TEXT`, merged into `UI_TEXT`);
+  the confirm dialog follows the page direction (RTL for ar/ur).
+* **Server-side:** `services/patient_answers.py`. A repeat `POST /api/me/teach-back` from the patient is refused
+  with 409 `{"code": "answers_locked"}` unless the same patient login has an unused, uncancelled reopen request for
+  that case from the last 30 minutes (`POST /api/me/teach-back/reopen {"confirm": true}`); the request is consumed
+  atomically by exactly one submission, re-checked after the writer lock is held. CSRF is still enforced by the
+  middleware. Clinical rules in `comms.submit_teach_back` are unchanged; navigator teach-backs are not affected.
+* **History/audit:** every submission stays a separate `QuestionnaireResponse`; new table `answer_reopens` (created
+  automatically on existing databases). Audit events `teachback.reopen_requested` (with the previous answers),
+  `teachback.reopen_cancelled` and `teachback.answers_changed` (previous + new answers). The staff case timeline shows
+  "patient changed answers" and which response it replaces.
+* **Verification:** 3,350 tests passed (13 new in `tests/test_patient_answer_lock.py`); validator 0 violations;
+  flow re-checked on PostgreSQL (existing database upgraded in place); responsive check 0 problems.

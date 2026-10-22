@@ -119,6 +119,10 @@ class TeachBackIn(_In):
     language: Literal["en", "ar", "hi", "ur"] = "en"
 
 
+class ReopenAnswersIn(_In):
+    confirm: Literal[True]  # the patient confirmed "Change my answers"
+
+
 class LessonIn(_In):
     kind: Literal["overdue", "drop_off", "incident", "no_show", "rejected_referral", "unreachable", "declined"]
     reason_code: str = Field(min_length=2, max_length=60)

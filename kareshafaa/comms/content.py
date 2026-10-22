@@ -262,6 +262,44 @@ UI_TEXT: dict[str, dict[str, str]] = {
            "progress": "اب تک آپ کا سفر", "urgency": "کتنا ضروری"},
 }
 
+# patient page: saved-answers lock ("Change my answers"); {when} = local date/time the answers were saved
+ANSWER_LOCK_TEXT: dict[str, dict[str, str]] = {
+    "en": {"saved_title": "Your saved answers", "saved_on": "Your answers were saved on {when}.",
+           "change": "Change my answers", "change_q": "Change your answers?",
+           "change_body": "Your saved answers stay in your record. You can then send new answers once.",
+           "change_ok": "Yes, change my answers", "cancel": "Cancel", "keep": "Keep my saved answers",
+           "reopened": "You can now send new answers once. Your earlier answers stay in your record.",
+           "changed_note": "You changed your answers. Your earlier answers are kept in your record.",
+           "locked": "Your answers are already saved. Choose \u201cChange my answers\u201d if you want to change them.",
+           "no_change": "These answers can no longer be changed here. Please talk to your care team."},
+    "ar": {"saved_title": "إجاباتك المحفوظة", "saved_on": "تم حفظ إجاباتك في {when}.",
+           "change": "تغيير إجاباتي", "change_q": "هل تريد تغيير إجاباتك؟",
+           "change_body": "ستبقى إجاباتك المحفوظة في سجلك. بعد ذلك يمكنك إرسال إجابات جديدة مرة واحدة.",
+           "change_ok": "نعم، أريد تغيير إجاباتي", "cancel": "إلغاء", "keep": "الإبقاء على إجاباتي المحفوظة",
+           "reopened": "يمكنك الآن إرسال إجابات جديدة مرة واحدة. ستبقى إجاباتك السابقة في سجلك.",
+           "changed_note": "لقد غيّرت إجاباتك. إجاباتك السابقة محفوظة في سجلك.",
+           "locked": "إجاباتك محفوظة بالفعل. اختر «تغيير إجاباتي» إذا أردت تغييرها.",
+           "no_change": "لم يعد بالإمكان تغيير هذه الإجابات هنا. يرجى التحدث مع فريق الرعاية."},
+    "hi": {"saved_title": "आपके सहेजे गए जवाब", "saved_on": "आपके जवाब {when} को सहेजे गए।",
+           "change": "मेरे जवाब बदलें", "change_q": "क्या आप अपने जवाब बदलना चाहते हैं?",
+           "change_body": "आपके सहेजे गए जवाब आपके रिकॉर्ड में रहेंगे। इसके बाद आप एक बार नए जवाब भेज सकते हैं।",
+           "change_ok": "हाँ, मेरे जवाब बदलें", "cancel": "रद्द करें", "keep": "मेरे सहेजे गए जवाब रखें",
+           "reopened": "अब आप एक बार नए जवाब भेज सकते हैं। आपके पिछले जवाब आपके रिकॉर्ड में रहेंगे।",
+           "changed_note": "आपने अपने जवाब बदले हैं। आपके पिछले जवाब आपके रिकॉर्ड में सुरक्षित हैं।",
+           "locked": "आपके जवाब पहले ही सहेजे जा चुके हैं। अगर आप उन्हें बदलना चाहते हैं तो \u201cमेरे जवाब बदलें\u201d चुनें।",
+           "no_change": "ये जवाब अब यहाँ नहीं बदले जा सकते। कृपया अपनी देखभाल टीम से बात करें।"},
+    "ur": {"saved_title": "آپ کے محفوظ کردہ جوابات", "saved_on": "آپ کے جوابات {when} کو محفوظ کیے گئے۔",
+           "change": "میرے جوابات تبدیل کریں", "change_q": "کیا آپ اپنے جوابات تبدیل کرنا چاہتے ہیں؟",
+           "change_body": "آپ کے محفوظ کردہ جوابات آپ کے ریکارڈ میں رہیں گے۔ اس کے بعد آپ ایک بار نئے جوابات بھیج سکتے ہیں۔",
+           "change_ok": "جی ہاں، میرے جوابات تبدیل کریں", "cancel": "منسوخ کریں", "keep": "میرے محفوظ کردہ جوابات رکھیں",
+           "reopened": "اب آپ ایک بار نئے جوابات بھیج سکتے ہیں۔ آپ کے پچھلے جوابات آپ کے ریکارڈ میں رہیں گے۔",
+           "changed_note": "آپ نے اپنے جوابات تبدیل کیے ہیں۔ آپ کے پچھلے جوابات آپ کے ریکارڈ میں محفوظ ہیں۔",
+           "locked": "آپ کے جوابات پہلے ہی محفوظ ہو چکے ہیں۔ اگر آپ انہیں تبدیل کرنا چاہتے ہیں تو «میرے جوابات تبدیل کریں» منتخب کریں۔",
+           "no_change": "یہ جوابات اب یہاں تبدیل نہیں کیے جا سکتے۔ براہ کرم اپنی نگہداشت ٹیم سے بات کریں۔"},
+}
+for _k, _v in ANSWER_LOCK_TEXT.items():
+    UI_TEXT[_k].update(_v)
+
 # Patient-facing journey step names.
 STATE_LABELS_I18N: dict[str, dict[str, str]] = {
     "en": {"issued": "Result ready", "triaged": "Reviewed by the team", "patient_notified": "You were told",
