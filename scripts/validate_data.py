@@ -63,7 +63,7 @@ def run(max_examples: int = 5) -> dict:
                                                           Communication.channel != "internal")):
             comms[m.case_id].append(m)
         pracs = {p.id: p for p in db.scalars(select(Practitioner))}
-        human_users = {u.id for u in db.scalars(select(User)) if u.role != "system"}
+        human_users = {uid for uid, role in db.execute(select(User.id, User.role)) if role != "system"}  # columns only: works on pre-login-schema DBs too
         ev_by_case = defaultdict(list)
         for e in db.scalars(select(AuditEvent).where(AuditEvent.case_id.is_not(None),
                                                      AuditEvent.event.in_(("case.created", "case.review_resolved",

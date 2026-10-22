@@ -45,11 +45,25 @@ def demo_client(seeded, monkeypatch):
         get_settings.cache_clear()
 
 
+def _session_for(username: str) -> dict:
+    """Public demo has no one-click demo login: sign the user in with a real server-side session instead."""
+    from sqlalchemy import select
+
+    from kareshafaa import accounts
+    from kareshafaa.db import session_factory
+    from kareshafaa.models import User
+
+    with session_factory()() as db:
+        u = db.scalar(select(User).where(User.username == username))
+        tok = accounts.create_session(db, u)
+        db.commit()
+    return {"Authorization": f"Bearer {tok}"}
+
+
 def _admin(c) -> dict:
-    r = c.post("/api/auth/demo-login", json={"username": "admin"})
-    assert r.status_code == 200, r.text
+    assert c.post("/api/auth/demo-login", json={"username": "admin"}).status_code == 404  # no demo login in public mode
     c.cookies.clear()
-    return {"Authorization": f"Bearer {r.json()['token']}"}
+    return _session_for("admin")
 
 
 # ------------------------------------------------------------------------------------------------ normal mode
@@ -98,9 +112,7 @@ def test_public_demo_refusal_is_audited(demo_client, db):
 
 
 def test_public_demo_keeps_normal_clinical_reads_and_writes(demo_client):
-    r = demo_client.post("/api/auth/demo-login", json={"username": "aisha.rahman"})
-    assert r.status_code == 200
-    h = {"Authorization": f"Bearer {r.json()['token']}"}
+    h = _session_for("aisha.rahman")
     demo_client.cookies.clear()
     assert demo_client.get("/api/auth/me", headers=h).status_code == 200
     for path in ("/api/cases/1/transition", "/api/cases/1/notify", "/api/results", "/api/demo/scenarios/x"):
@@ -169,3 +181,49 @@ def test_next_nightly_reset_time_is_uae_local():
     assert pd.next_reset_at(datetime(2026, 10, 22, 1, 0, tzinfo=uae), 3) == datetime(2026, 10, 22, 3, 0, tzinfo=uae)
     assert pd.next_reset_at(datetime(2026, 10, 22, 3, 0, tzinfo=uae), 3) == datetime(2026, 10, 23, 3, 0, tzinfo=uae)
     assert os.environ.get("KARESHAFAA_PUBLIC_DEMO") is None
+
+
+# ------------------------------------------------------------------------------------------------ real login in public mode
+_PW = "violet-canyon-harbour-73"
+
+
+def _pw_login(c, username: str, password: str = _PW):
+    c.get("/login")
+    return c.post("/login", data={"username": username, "password": password,
+                                  "csrf_token": c.cookies.get("kareshafaa_csrf"), "next": ""}, follow_redirects=False)
+
+
+def test_public_demo_auth_rules(seeded, monkeypatch, db):
+    from fastapi.testclient import TestClient
+    from sqlalchemy import select
+
+    from kareshafaa import accounts as _accounts
+    from kareshafaa.config import get_settings
+    from kareshafaa.main import create_app
+    from kareshafaa.models import User
+    from kareshafaa.security import make_token
+
+    monkeypatch.setenv("KARESHAFAA_PUBLIC_DEMO", "1")
+    get_settings.cache_clear()
+    try:
+        c = TestClient(create_app(), base_url="https://testserver")  # cookies are Secure in public mode
+        assert c.post("/api/auth/demo-login", json={"username": "admin"}).status_code == 404
+        assert c.get("/api/auth/demo-users").status_code == 404
+        admin = db.scalar(select(User).where(User.username == "admin"))
+        assert c.get("/api/auth/me", headers={"Authorization": f"Bearer {make_token(admin.id)}"}).status_code == 401
+        _accounts.set_password(admin, _PW)
+        db.commit()
+        c.cookies.clear()
+        r = _pw_login(c, "admin")
+        assert r.status_code == 303
+        hh = {"X-CSRF-Token": c.get("/api/auth/me").json()["csrf"]}
+        assert c.get("/api/admin/users").status_code == 200  # read-only list
+        for path, body in (("/api/admin/users", {"username": "q.q.q", "display_name": "Q", "role": "analyst"}),
+                           (f"/api/admin/users/{admin.id}/reset-password", {}), ("/api/admin/users/3/deactivate", {}),
+                           ("/api/auth/password", {"current_password": _PW, "new_password": "x" * 20})):
+            r = c.post(path, json=body, headers=hh)
+            assert r.status_code == 403, (path, r.status_code)
+        assert "read-only" in c.get("/admin/users").text
+    finally:
+        monkeypatch.delenv("KARESHAFAA_PUBLIC_DEMO")
+        get_settings.cache_clear()
