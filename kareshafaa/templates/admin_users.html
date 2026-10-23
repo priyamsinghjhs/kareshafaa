@@ -36,7 +36,7 @@ function render() {
     <td><b>${W.esc(u.display_name.split(" (")[0])}</b><span class="sub">${W.esc(u.username)}</span></td>
     <td>${W.esc(u.role_label)}</td><td class="small">${W.esc(u.site || "–")}${u.team ? `<span class="sub">${W.esc(u.team)}</span>` : ""}</td><td>${status(u)}${u.status_reason ? `<span class="sub">${u.active ? "Reactivated" : "Deactivated"}${u.status_changed_by ? " by " + W.esc(u.status_changed_by) : ""}${u.status_changed_at ? " · " + W.dt(u.status_changed_at) : ""}: ${W.esc(u.status_reason)}</span>` : ""}</td>
     <td class="small">${u.last_login_at ? W.dt(u.last_login_at) : "Never"}</td>
-    <td>${PD ? '<span class="small muted">Read-only</span>' : `<div class="row">${u.role !== "patient" && u.id !== W.me.user_id ? `<button class="secondary sm" onclick="role(${u.id})">Change role</button>` : ""}<button class="secondary sm" onclick="reset(${u.id})">Reset password</button>${u.id === W.me.user_id ? "" : u.active ? `<button class="danger secondary sm" onclick="deact(${u.id})">Deactivate</button>` : `<button class="secondary sm" onclick="act(${u.id})">Reactivate</button>`}</div>`}</td></tr>`).join("")}</tbody></table>` : W.empty("No users match", "Try a different name or filter.");
+    <td>${PD ? '<span class="small muted">Read-only</span>' : `<div class="row">${u.role !== "patient" && u.id !== W.me.user_id ? `<button class="secondary sm" onclick="changeRole(${u.id})">Change role</button>` : ""}<button class="secondary sm" onclick="resetPw(${u.id})">Reset password</button>${u.id === W.me.user_id ? "" : u.active ? `<button class="danger secondary sm" onclick="deact(${u.id})">Deactivate</button>` : `<button class="secondary sm" onclick="act(${u.id})">Reactivate</button>`}</div>`}</td></tr>`).join("")}</tbody></table>` : W.empty("No users match", "Try a different name or filter.");
 }
 async function load() { U = await W.api("/api/admin/users"); render(); }
 async function storageNote() {  // one-time notice (per browser) when data is not stored permanently
@@ -53,7 +53,7 @@ function showTemp(u, pw, what) {
    <p><code style="font-size:var(--fs-lg)" id="tmp-pw">${W.esc(pw)}</code></p><div class="row"><button class="secondary sm" onclick="navigator.clipboard && navigator.clipboard.writeText(document.getElementById('tmp-pw').textContent).then(() => W.toast('Copied', 'ok'))">Copy</button><button class="ghost sm" onclick="document.getElementById('created').innerHTML=''">Done</button></div></div>`;
   document.getElementById("created").scrollIntoView({ behavior: "smooth" });
 }
-window.reset = async id => { const u = byId(id);
+window.resetPw = async id => { const u = byId(id);
   if (!(await W.confirm(`Reset the password for ${u.display_name}?`, "They will be signed out everywhere and must choose a new password at next sign-in.", { ok: "Reset password" }))) return;
   try { const r = await W.api(`/api/admin/users/${id}/reset-password`, { method: "POST", body: {} }); showTemp(u, r.temporary_password, "Password reset"); load(); } catch (e) { W.toast(e.message, "err"); } };
 window.deact = async id => { const u = byId(id);
@@ -62,7 +62,7 @@ window.deact = async id => { const u = byId(id);
 window.act = async id => { const u = byId(id);
   await W.ask(`Reactivate ${u.display_name}?`, "Reason (optional)", { ok: "Reactivate", optional: true,
     save: async why => { await W.api(`/api/admin/users/${id}/activate`, { method: "POST", body: { reason: why || null } }); W.toast("Account reactivated", "ok"); await load(); } }); };
-window.role = async id => { const u = byId(id);
+window.changeRole = async id => { const u = byId(id);
   const opts = U.roles.map(r => `<option value="${r.key}" ${r.key === u.role ? "selected" : ""}>${W.esc(r.label)}</option>`).join("");
   const v = await W._dialog(`<h2 id="dlg-title">Change role for ${W.esc(u.display_name)}</h2><label for="dr">Role<select id="dr">${opts}</select></label>
     <label for="ds">Site<input id="ds" value="${W.esc(u.site || "")}"></label><label for="dt">Team<input id="dt" value="${W.esc(u.team || "")}"></label>
