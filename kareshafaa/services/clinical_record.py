@@ -120,6 +120,11 @@ def build_record(db: Session, case: Case, actor: Actor, now: datetime | None = N
         "birth_year": p.birth_year, "sex": p.gender, "language": LANG_NAMES.get(p.language, p.language),
         "region": p.region, "contact_preference": _contact(p), "alt_contact": p.alt_contact,
         "gp": gp.name if gp else None, "managing_org": _oname(db, p.managing_org_id), "deceased": p.deceased,
+        "deceased_record": {"note": p.deceased_note, "at": p.deceased_recorded_at.isoformat() if p.deceased_recorded_at else None,
+                            "by": p.deceased_recorded_by} if p.deceased else None,
+        "death_corrected": {"note": p.deceased_corrected_note, "by": p.deceased_corrected_by,
+                            "at": p.deceased_corrected_at.isoformat() if p.deceased_corrected_at else None}
+        if (not p.deceased and p.deceased_corrected_at) else None,
         "allergies": [{"substance": a.substance, "reaction": a.reaction, "severity": a.severity, "status": a.status,
                        "nkda": a.substance.lower().startswith("no known"), "recorded_at": iso(a.recorded_at),
                        "source": SOURCE_NAMES.get(a.source, a.source)} for a in allergies],
@@ -214,7 +219,7 @@ def build_record(db: Session, case: Case, actor: Actor, now: datetime | None = N
                                      .order_by(ServiceRequest.created_at.desc()))]
     appts = [{"date": iso(a.start), "org": _oname(db, a.org_id), "clinician": _pname(db, a.practitioner_id),
               "status": a.status, "status_label": APPT_STATUS.get(a.status, a.status),
-              "upcoming": a.status == "booked" and a.start > now, "barrier": (a.barrier_code or "").replace("_", " ") or None,
+              "upcoming": a.status == "booked" and a.start > now, "barrier": (a.barrier_code or "").replace("_", " ") or None, "note": a.booking_note,
               "case_id": a.case_id}
              for a in db.scalars(select(Appointment).where(Appointment.case_id.in_(seen_ids))
                                  .order_by(Appointment.start.desc()))]

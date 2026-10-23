@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from .. import accounts, audit
 from ..db import get_db
-from ..models import Practitioner, User
+from ..models import utcnow, Practitioner, User
 from ..security import Actor
 from ..services.errors import Forbidden, Invalid, NotFound
 from .deps import require
@@ -117,9 +117,10 @@ def deactivate(uid: int, body: UserNoteIn | None = None, actor: Actor = Depends(
     if u.id == actor.user_id:
         raise Forbidden("you cannot deactivate your own account")
     u.active = False
+    reason = (body.reason or "").strip() or None if body else None
+    u.status_reason, u.status_changed_at, u.status_changed_by = reason, utcnow(), actor.display
     accounts.revoke_user_sessions(db, u.id)
-    audit.record(db, actor, "U", "user.deactivate", entity_type="User", entity_id=u.id,
-                 detail={"reason": body.reason if body else None})
+    audit.record(db, actor, "U", "user.deactivate", entity_type="User", entity_id=u.id, detail={"reason": reason})
     db.commit()
     return {"ok": True, "user": accounts.public_user(u)}
 
@@ -129,8 +130,9 @@ def activate(uid: int, body: UserNoteIn | None = None, actor: Actor = Depends(re
              db: Session = Depends(get_db)) -> dict:
     u = _get(db, uid)
     u.active = True
-    audit.record(db, actor, "U", "user.activate", entity_type="User", entity_id=u.id,
-                 detail={"reason": body.reason if body else None})
+    reason = (body.reason or "").strip() or None if body else None
+    u.status_reason, u.status_changed_at, u.status_changed_by = reason, utcnow(), actor.display
+    audit.record(db, actor, "U", "user.activate", entity_type="User", entity_id=u.id, detail={"reason": reason})
     db.commit()
     return {"ok": True, "user": accounts.public_user(u)}
 

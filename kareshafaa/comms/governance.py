@@ -122,8 +122,8 @@ def status(db: Session) -> list[dict]:
         rows.append({"content_id": cid, "group": it["group"], "key": it["key"], "lang": it["lang"],
                      "gated": it["gated"], "sha256": it["sha256"][:12], "text": it["text"],
                      "readability": r.as_dict(),
-                     "clinical_signoff": {"by": cl.display, "at": cl.approved_at.isoformat()} if cl else None,
-                     "translation_signoff": {"by": tr.display, "at": tr.approved_at.isoformat()} if tr else None,
+                     "clinical_signoff": {"by": cl.display, "at": cl.approved_at.isoformat(), "note": cl.note} if cl else None,
+                     "translation_signoff": {"by": tr.display, "at": tr.approved_at.isoformat(), "note": tr.note} if tr else None,
                      "needs_translation_review": it["lang"] != "en",
                      "translation_status": C.TRANSLATION_STATUS.get(it["lang"]) if it["group"] == "pathway" and not tr else None,
                      "live": _is_live(it, appr)})

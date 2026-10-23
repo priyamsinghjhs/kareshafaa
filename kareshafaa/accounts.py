@@ -303,7 +303,9 @@ def public_user(u: User) -> dict:
             "must_change_password": bool(u.must_change_password), "has_password": bool(u.password_hash),
             "locked": bool(u.locked_until and u.locked_until > utcnow()),
             "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
-            "is_demo_account": bool(u.is_demo_account), "practitioner_id": u.practitioner_id}
+            "is_demo_account": bool(u.is_demo_account), "practitioner_id": u.practitioner_id,
+            "status_reason": u.status_reason, "status_changed_by": u.status_changed_by,
+            "status_changed_at": u.status_changed_at.isoformat() if u.status_changed_at else None}
 
 
 # --------------------------------------------------------------------------------------------- demo accounts

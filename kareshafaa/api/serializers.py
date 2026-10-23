@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..models import (Appointment, AuditEvent, CallTask, CarePlan, Case, Communication, Consent, ConsultRequest,
                       DiagnosticReport, Escalation, Organization, OwnershipEvent, Practitioner, QuestionnaireResponse,
-                      ServiceRequest, StepTask, utcnow)
+                      ServiceRequest, StepTask, utcnow, Lesson, User)
 from ..programmes import PROGRAMMES
 from ..security import Actor
 from ..sla import SlaLookup, rag_status
@@ -112,7 +112,11 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
                               "reason_note": s.reason_note, "result": s.result, "summary": s.clinical_summary,
                               "created_at": iso(s.created_at), "decided_at": iso(s.decided_at)} for s in q(ServiceRequest)],
         "appointments": [{"id": a.id, "start": iso(a.start), "status": a.status, "org": oname(db, a.org_id),
-                          "barrier_code": a.barrier_code} for a in q(Appointment)],
+                          "barrier_code": a.barrier_code, "note": a.booking_note} for a in q(Appointment)],
+        "lessons": [{"id": les.id, "kind": les.kind, "reason_code": les.reason_code, "detail": les.detail,
+                     "state": les.state, "at": iso(les.created_at),
+                     "by": (db.get(User, les.created_by_user_id).display_name if les.created_by_user_id
+                            and db.get(User, les.created_by_user_id) else "System")} for les in q(Lesson)],
         "care_plans": [{"id": cp.id, "kind": cp.kind, "description": cp.description, "created_at": iso(cp.created_at),
                         "by": pname(db, cp.recorded_by_id)} for cp in q(CarePlan)],
         "communications": [{"id": m.id, "category": m.category, "channel": m.channel, "status": m.status,

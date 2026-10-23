@@ -834,12 +834,13 @@ def book_appointment(db: Session, case: Case, actor: Actor, start: datetime, *, 
         raise Invalid(f"appointment is after the pathway target ({local_display(case.target_due_at)[:10]}): book "
                       "earlier, or give the reason (>= 10 characters, e.g. earliest slot, patient's choice)")
     appt = Appointment(case_id=case.id, service_request_id=ref.id, org_id=org_id or ref.performer_org_id,
-                       practitioner_id=practitioner_id or ref.performer_id, start=start, status="booked", created_at=now)
+                       practitioner_id=practitioner_id or ref.performer_id, start=start, status="booked", created_at=now,
+                       booking_note=(beyond_target_reason or "").strip() or None)
     db.add(appt)
     db.flush()
     audit.record(db, actor, "C", "appointment.booked", entity_type="Appointment", entity_id=appt.id, case_id=case.id,
                  ts=now, detail={"start": start.isoformat(), "beyond_target": beyond,
-                                 **({"beyond_target_reason": beyond_target_reason} if beyond else {})})
+                                 **({"beyond_target_reason": beyond_target_reason} if beyond_target_reason else {})})
     transition(db, case, S.APPOINTMENT_BOOKED, actor, now=now)
     return appt
 
@@ -950,6 +951,7 @@ def record_death(db: Session, patient: Patient, actor: Actor, note: str, now: da
     if patient.deceased:
         raise Invalid("patient is already recorded as deceased")
     patient.deceased = True
+    patient.deceased_note, patient.deceased_recorded_at, patient.deceased_recorded_by = note, now, actor.display
     cases = list(db.scalars(select(Case).where(Case.patient_id == patient.id, Case.state != S.CLOSED)))
     ids = [c.id for c in cases]
     calls = list(db.scalars(select(CallTask).where(CallTask.case_id.in_(ids), CallTask.status == "requested"))) if ids else []
@@ -976,6 +978,7 @@ def revoke_death(db: Session, patient: Patient, actor: Actor, note: str, now: da
     if not patient.deceased:
         raise Invalid("patient is not recorded as deceased")
     patient.deceased = False
+    patient.deceased_corrected_note, patient.deceased_corrected_at, patient.deceased_corrected_by = note, now, actor.display
     open_cases = list(db.scalars(select(Case).where(Case.patient_id == patient.id, Case.state != S.CLOSED)))
     closed = list(db.scalars(select(Case.id).where(Case.patient_id == patient.id, Case.state == S.CLOSED,
                                                    Case.closure_reason == "deceased")))

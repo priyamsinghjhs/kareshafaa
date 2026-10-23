@@ -10,7 +10,7 @@ from ..comms import service as comms
 from ..comms.content import (INTERPRETER_NOTICE, PROGRAMME_TEXT, programme_text, RTL_LANGUAGES, STATE_LABELS_I18N, SUPPORTED_LANGUAGES, TEMPLATES, TIMEFRAME,
                              UI_TEXT)
 from ..db import get_db
-from ..models import Case, Communication, ConsultRequest, Patient, Practitioner, QuestionnaireResponse
+from ..models import Case, Communication, ConsultRequest, Patient, Practitioner, QuestionnaireResponse, User
 from ..security import Actor
 from ..services import patient_answers as pa
 from ..services import workflow as wf
@@ -42,7 +42,9 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
             db: Session = Depends(get_db)) -> dict:
     c = _my_case(db, actor)
     p: Patient = c.patient
-    lang = lang if lang in SUPPORTED_LANGUAGES else comms.comm_language(p)
+    u = db.get(User, actor.user_id) if actor.user_id else None
+    saved = u.ui_language if u is not None and u.ui_language in SUPPORTED_LANGUAGES else None
+    lang = lang if lang in SUPPORTED_LANGUAGES else (saved or comms.comm_language(p))
     prog = programme_text(lang, c)
     coord = db.get(Practitioner, c.owner_id)
     tb = db.scalars(select(QuestionnaireResponse).where(QuestionnaireResponse.case_id == c.id)
@@ -54,6 +56,7 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
     variant = "standard"
     lock = pa.status(db, c, actor)
     return {
+        "display_language_saved": saved,
         "label": "KareShafaa prototype - please check anything important with your care team", "case_id": c.id, "language": lang, "rtl": lang in RTL_LANGUAGES,
         "languages": SUPPORTED_LANGUAGES, "ui": UI_TEXT[lang],
         "patient": {"given_name": p.given_name, "preferred_language": p.language},
@@ -145,3 +148,20 @@ def my_language(body: sch.LanguageIn, actor: Actor = Depends(require("self:respo
                  detail={"from": old, "to": body.language})
     db.commit()
     return {"ok": True, "language": p.language}
+
+
+@router.post("/display-language")
+def my_display_language(body: sch.LanguageIn, actor: Actor = Depends(require("self:read")),
+                        db: Session = Depends(get_db)) -> dict:
+    """The language the patient chose for this page (kept for their next visit). Messages and calls keep using
+    the patient's recorded language and interpreter needs - this only changes what the page shows."""
+    u = db.get(User, actor.user_id) if actor.user_id else None
+    if u is None:
+        raise Forbidden("not a patient account")
+    old = u.ui_language
+    if old != body.language:
+        u.ui_language = body.language
+        audit.record(db, actor, "U", "patient.display_language_changed", entity_type="User", entity_id=u.id,
+                     detail={"from": old, "to": body.language})
+    db.commit()
+    return {"ok": True, "language": u.ui_language}

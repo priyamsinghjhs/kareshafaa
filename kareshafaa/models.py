@@ -70,6 +70,10 @@ class User(Base):
     password_changed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=utcnow)
     is_demo_account: Mapped[bool] = mapped_column(Boolean, default=False)
+    status_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)  # last deactivate/reactivate reason
+    status_changed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    status_changed_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    ui_language: Mapped[str | None] = mapped_column(String(8), nullable=True)  # patient page language they chose
 
 
 class UserSession(Base):
@@ -122,6 +126,13 @@ class Patient(Base):  # FHIR Patient (synthetic only)
     managing_org_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"))
     gp_id: Mapped[int | None] = mapped_column(ForeignKey("practitioners.id"), nullable=True)
     deceased: Mapped[bool] = mapped_column(Boolean, default=False)
+    # who recorded the death, when and from what source (was kept only in the audit trail)
+    deceased_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    deceased_recorded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    deceased_recorded_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    deceased_corrected_note: Mapped[str | None] = mapped_column(Text, nullable=True)  # last "recorded in error" fix
+    deceased_corrected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    deceased_corrected_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
     pregnant: Mapped[bool] = mapped_column(Boolean, default=False)
     haemoglobinopathy: Mapped[bool] = mapped_column(Boolean, default=False)  # e.g. thalassaemia trait / Hb variant
     specialist_care: Mapped[str | None] = mapped_column(String(200), nullable=True)  # csv of programmes under specialist care
@@ -290,6 +301,7 @@ class Appointment(Base):  # FHIR Appointment
     start: Mapped[datetime] = mapped_column(DateTime)
     status: Mapped[str] = mapped_column(String(20), default="booked")  # booked|fulfilled|noshow|cancelled
     barrier_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    booking_note: Mapped[str | None] = mapped_column(Text, nullable=True)  # e.g. why it is after the pathway target
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
