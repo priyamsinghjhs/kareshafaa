@@ -40,7 +40,12 @@ def db_hits(t):
             if any(x in typ for x in ("CHAR", "TEXT", "JSON", "CLOB")) or typ == "":
                 v = c.execute(f'select CAST("{name}" AS TEXT) from "{tb}" where CAST("{name}" AS TEXT) like ? limit 1', (f"%{key(t)}%",)).fetchone()
                 if v:
-                    out.append((f"{tb}.{name}", t in (v[0] or "")))
+                    raw = v[0] or ""
+                    try:  # JSON columns keep non-ASCII as \uXXXX escapes: decode before comparing
+                        dec = json.dumps(json.loads(raw), ensure_ascii=False) if typ == "JSON" else raw
+                    except ValueError:
+                        dec = raw
+                    out.append((f"{tb}.{name}", t in raw or t in dec))
     c.close()
     return out
 

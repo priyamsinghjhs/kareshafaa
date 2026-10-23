@@ -1010,3 +1010,15 @@ deadline, closure guard or audit semantics changed.**
 * **Verification:** 3,361 tests passed (11 new in `tests/test_clinical_record.py`); validator 0 violations; responsive
   check 0 problems; upgrade verified on a PostgreSQL copy with Python 3.12 (the image's version): server healthy within seconds, steps done
   in the background in about 20 s, nothing re-run on the next start, validator 0, audit chain valid.
+
+## Data capture audit (23 Oct 2026)
+* Every form for every role was filled in a real browser (desktop and mobile) with Unicode values and checked in the
+  database and on the reloaded page; full table in `docs/data_capture_inventory.md`.
+* New nullable columns (safe start-up migration, verified on PostgreSQL): `cases.review_log`,
+  `appointments.booking_note`, `patients.deceased_note/_recorded_at/_recorded_by/_corrected_note/_corrected_at/_corrected_by`,
+  `users.status_reason/_changed_at/_changed_by/ui_language`. Clinical rules and state machine unchanged.
+* Fixed: admin "Change role" did nothing in Chrome (inline `role()` resolved to `button.role`); notes that lived only
+  in the audit log (review, booking reason, death record, user status reason) are now stored and shown; lessons,
+  consent, medicine and referral-accept notes shown; medicine end date; patient language, question draft and
+  teach-back answers kept; inline errors with values kept; buttons disabled while saving; queue filters in the URL.
+* Permanent checks: `tests/test_zz_data_capture.py` (API) and `scripts/ui_capture_check.py` (browser, desktop + mobile).
