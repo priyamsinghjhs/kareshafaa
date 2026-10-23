@@ -16,39 +16,60 @@ const W = {
     const data = ct.includes("json") ? await r.json() : await r.text();
     if (!r.ok) {
       let msg = (data && data.detail) ? data.detail : r.statusText;
-      if (data && data.errors) msg += ": " + data.errors.map(e => e.loc.slice(-1)[0] + " " + e.msg).join("; ");
+      if (data && data.errors) msg = "Please check " + data.errors.map(e => W.fieldMsg(e)).join("; ");
       msg = String(msg); msg = msg.charAt(0).toUpperCase() + msg.slice(1);
       const err = new Error(msg); err.status = r.status; err.code = data && data.code; throw err;
     }
     return data;
   },
+  // a readable message for one validation error, e.g. "note: at least 10 characters"
+  fieldMsg(e) { const f = String((e.loc || []).slice(-1)[0] ?? "this field").replace(/_/g, " ");
+    const m = String(e.msg || "").replace(/^String should have at least (\d+) characters?$/, "at least $1 characters")
+      .replace(/^String should have at most (\d+) characters?$/, "at most $1 characters").replace(/^Field required$/, "required")
+      .replace(/^Input should be /, "should be ").replace(/^Value error, /, "");
+    return `${f}: ${m}`; },
+  // inline error inside a form/dialog (kept until the next attempt) - toasts alone disappear
+  formError(container, msg) { if (!container) return; let el = container.querySelector(".form-error");
+    if (!msg) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement("p"); el.className = "notice-inline err form-error"; el.setAttribute("role", "alert"); el.dir = "auto";
+      const btns = container.querySelector(".form-buttons, .dlg-buttons, .tb-actions"); btns ? btns.before(el) : container.appendChild(el); }
+    el.textContent = msg; },
+  // disable a button while a save is running (no double submits)
+  busy(b, on) { if (!b) return; b.disabled = !!on; on ? b.setAttribute("aria-busy", "true") : b.removeAttribute("aria-busy"); },
   toast(msg, kind = "") {
     const el = document.createElement("div"); el.className = "t " + kind; el.setAttribute("role", kind === "err" ? "alert" : "status");
     const span = document.createElement("span"); span.dir = "auto"; span.textContent = msg; el.appendChild(span);
     document.getElementById("toast").appendChild(el); setTimeout(() => el.remove(), kind === "err" ? 8000 : 4000);
   },
   // accessible modal dialogs (native <dialog>: focus trap, Esc to cancel)
-  _dialog(inner, onOk, dir = "") {
+  // save (optional): async function(value) run while the dialog stays open; on error the message is shown in the
+  // dialog and everything typed is kept, so nothing is lost when the server refuses the input
+  _dialog(inner, onOk, dir = "", save = null) {
     return new Promise(resolve => {
       const d = document.createElement("dialog"); d.className = "dlg"; d.setAttribute("aria-labelledby", "dlg-title");
       if (dir) d.dir = dir;  // e.g. rtl for an Arabic/Urdu patient page
       d.innerHTML = `<form method="dialog">${inner}</form>`; document.body.appendChild(d);
       const f = d.querySelector("form");
       f.querySelector("[data-cancel]").onclick = () => d.close("cancel");
-      f.onsubmit = ev => { if (ev.submitter && ev.submitter.hasAttribute("data-cancel")) return; ev.preventDefault(); const v = onOk(f); if (v === false) return; d.close("ok"); resolve(v); };
+      f.onsubmit = async ev => { if (ev.submitter && ev.submitter.hasAttribute("data-cancel")) return; ev.preventDefault(); const v = onOk(f); if (v === false) return;
+        if (save) { const b = f.querySelector("[data-ok]"); W.busy(b, true); W.formError(f, "");
+          try { const r = await save(v); d.close("ok"); resolve(r === undefined ? v : r); }
+          catch (e) { W.formError(f, e.message); W.busy(b, false); }
+          return; }
+        d.close("ok"); resolve(v); };
       d.addEventListener("close", () => { if (d.returnValue !== "ok") resolve(null); d.remove(); });
       d.showModal(); const first = f.querySelector("textarea, input, [data-ok]"); if (first) first.focus();
     });
   },
-  confirm(title, body = "", { ok = "Confirm", danger = false, cancel = "Cancel", dir = "" } = {}) {
+  confirm(title, body = "", { ok = "Confirm", danger = false, cancel = "Cancel", dir = "", save = null } = {}) {
     return W._dialog(`<h2 id="dlg-title">${W.esc(title)}</h2>${body ? `<p>${body}</p>` : ""}
-      <div class="dlg-buttons"><button type="button" class="secondary" data-cancel>${W.esc(cancel)}</button><button type="submit" data-ok class="${danger ? "danger" : ""}">${W.esc(ok)}</button></div>`, () => true, dir);
+      <div class="dlg-buttons"><button type="button" class="secondary" data-cancel>${W.esc(cancel)}</button><button type="submit" data-ok class="${danger ? "danger" : ""}">${W.esc(ok)}</button></div>`, () => true, dir, save);
   },
-  ask(title, label, { ok = "Confirm", body = "", min = 1, danger = false, placeholder = "" } = {}) {
+  ask(title, label, { ok = "Confirm", body = "", min = 1, danger = false, placeholder = "", save = null, optional = false } = {}) {
     return W._dialog(`<h2 id="dlg-title">${W.esc(title)}</h2>${body ? `<p class="small">${body}</p>` : ""}
-      <label for="dlg-text">${W.esc(label)}<textarea id="dlg-text" rows="3" required minlength="${min}" placeholder="${W.esc(placeholder)}"></textarea></label>
+      <label for="dlg-text">${W.esc(label)}<textarea id="dlg-text" rows="3" ${optional ? "" : `required minlength="${min}"`} placeholder="${W.esc(placeholder)}"></textarea></label>
       <div class="dlg-buttons"><button type="button" class="secondary" data-cancel>Cancel</button><button type="submit" data-ok class="${danger ? "danger" : ""}">${W.esc(ok)}</button></div>`,
-      f => { const v = f.querySelector("textarea").value.trim(); if (v.length < min) { f.querySelector("textarea").setAttribute("aria-invalid", "true"); W.toast(`Please write at least ${min} characters.`, "err"); return false; } return v; });
+      f => { const v = f.querySelector("textarea").value.trim(); if (optional && !v) return ""; if (v.length < min) { f.querySelector("textarea").setAttribute("aria-invalid", "true"); W.formError(f, `Please write at least ${min} characters.`); return false; } return v; }, "", save);
   },
   loading(text = "Loading…") { return `<div class="loading" role="status">${W.esc(text)}</div>`; },
   empty(title, text = "", action = "") { return `<div class="empty"><h3>${W.esc(title)}</h3>${text ? `<p>${text}</p>` : ""}${action}</div>`; },

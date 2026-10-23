@@ -45,9 +45,12 @@ function stats() {
   const sel = document.getElementById("view");
   sel.innerHTML = VIEWS.map(([k, l]) => `<option value="${k}" ${k === view ? "selected" : ""}>${l} (${c[k] ?? 0})</option>`).join("");
 }
-function setView(v) { view = v; offset = 0; history.replaceState(null, "", "?view=" + view); load(); }
+function setView(v) { view = v; offset = 0; load(); }
 async function load() {
   const prog = document.getElementById("prog").value, q = document.getElementById("search").value.trim();
+  // keep the chosen view, programme and search in the address, so Back / reload shows the same list
+  const qs = new URLSearchParams({ view }); if (prog) qs.set("programme", prog); if (q) qs.set("q", q);
+  history.replaceState(null, "", "?" + qs.toString());
   data = await W.api(`/api/queue?view=${view}&limit=${PAGE}&offset=${offset}${prog ? "&programme=" + prog : ""}${q ? "&q=" + encodeURIComponent(q) : ""}`);
   document.getElementById("q-title").textContent = TITLES[view] || (VIEWS.find(v => v[0] === view) || [, "Work queue"])[1];
   document.getElementById("q-lede").textContent = "Most urgent first: overdue and due-soon steps, then urgency (T0 to T3), then results flagged for review, then outreach priority, then deadline.";
@@ -87,6 +90,9 @@ function render() {
 window.page = d => { offset = Math.max(0, offset + d * PAGE); load().then(() => document.getElementById("q-title").scrollIntoView()); };
 document.addEventListener("DOMContentLoaded", async () => {
   await W.ready; if (!W.requireLogin()) return;
+  const qs0 = new URLSearchParams(location.search);
+  if (qs0.get("programme")) document.getElementById("prog").value = qs0.get("programme");
+  if (qs0.get("q")) document.getElementById("search").value = qs0.get("q");
   document.getElementById("search").oninput = () => { clearTimeout(timer); timer = setTimeout(() => { offset = 0; load(); }, 250); };
   document.getElementById("prog").onchange = () => { offset = 0; load(); };
   document.getElementById("view").onchange = e => setView(e.target.value);

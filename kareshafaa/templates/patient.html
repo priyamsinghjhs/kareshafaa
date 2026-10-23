@@ -5,14 +5,18 @@
 {% block scripts %}
 <script>
 let lang = new URLSearchParams(location.search).get("lang");
+let draftQ = "", draftDn = "", draftTb = null;
 const LANG_LABEL = { en: "English", ar: "العربية", hi: "हिन्दी", ur: "اردو" };
 const EXTRA = {
-  en: { ask: "Your question for the clinician", send: "Send", sent: "Sent - a clinician will reply.", declineNote: "Would you like to tell us why? (optional)", confirmDecline: "Are you sure? You can change your mind at any time.", done: "Thank you", steps: "Steps" },
-  ar: { ask: "سؤالك للطبيب", send: "إرسال", sent: "تم الإرسال - سيرد عليك طبيب.", declineNote: "هل تود إخبارنا بالسبب؟ (اختياري)", confirmDecline: "هل أنت متأكد؟ يمكنك تغيير رأيك في أي وقت.", done: "شكراً لك", steps: "الخطوات" },
-  hi: { ask: "डॉक्टर के लिए आपका सवाल", send: "भेजें", sent: "भेज दिया गया - एक डॉक्टर जवाब देंगे।", declineNote: "क्या आप हमें कारण बताना चाहेंगे? (वैकल्पिक)", confirmDecline: "क्या आप पक्का हैं? आप कभी भी मन बदल सकते हैं।", done: "धन्यवाद", steps: "कदम" },
-  ur: { ask: "ڈاکٹر کے لیے آپ کا سوال", send: "بھیجیں", sent: "بھیج دیا گیا - ایک ڈاکٹر جواب دیں گے۔", declineNote: "کیا آپ ہمیں وجہ بتانا چاہیں گے؟ (اختیاری)", confirmDecline: "کیا آپ کو یقین ہے؟ آپ کسی بھی وقت ارادہ بدل سکتے ہیں۔", done: "شکریہ", steps: "مراحل" },
+  en: { ask: "Your question for the clinician", send: "Send", sent: "Sent - a clinician will reply.", declineNote: "Would you like to tell us why? (optional)", confirmDecline: "Are you sure? You can change your mind at any time.", done: "Thank you", steps: "Steps", tooShort: "Please write at least 5 characters.", langSaved: "Language saved for your next visit." },
+  ar: { ask: "سؤالك للطبيب", send: "إرسال", sent: "تم الإرسال - سيرد عليك طبيب.", declineNote: "هل تود إخبارنا بالسبب؟ (اختياري)", confirmDecline: "هل أنت متأكد؟ يمكنك تغيير رأيك في أي وقت.", done: "شكراً لك", steps: "الخطوات", tooShort: "يرجى كتابة 5 أحرف على الأقل.", langSaved: "تم حفظ اللغة لزيارتك القادمة." },
+  hi: { ask: "डॉक्टर के लिए आपका सवाल", send: "भेजें", sent: "भेज दिया गया - एक डॉक्टर जवाब देंगे।", declineNote: "क्या आप हमें कारण बताना चाहेंगे? (वैकल्पिक)", confirmDecline: "क्या आप पक्का हैं? आप कभी भी मन बदल सकते हैं।", done: "धन्यवाद", steps: "कदम", tooShort: "कृपया कम से कम 5 अक्षर लिखें।", langSaved: "भाषा आपकी अगली विज़िट के लिए सहेज ली गई।" },
+  ur: { ask: "ڈاکٹر کے لیے آپ کا سوال", send: "بھیجیں", sent: "بھیج دیا گیا - ایک ڈاکٹر جواب دیں گے۔", declineNote: "کیا آپ ہمیں وجہ بتانا چاہیں گے؟ (اختیاری)", confirmDecline: "کیا آپ کو یقین ہے؟ آپ کسی بھی وقت ارادہ بدل سکتے ہیں۔", done: "شکریہ", steps: "مراحل", tooShort: "براہ کرم کم از کم 5 حروف لکھیں۔", langSaved: "زبان آپ کے اگلے دورے کے لیے محفوظ ہو گئی۔" },
 };
 async function load() {
+  const qEl = document.getElementById("q"), dnEl = document.getElementById("dn");
+  if (qEl) draftQ = qEl.value; if (dnEl) draftDn = dnEl.value;
+  const tbf = document.getElementById("tbf"); draftTb = tbf ? Object.fromEntries(new FormData(tbf)) : null;
   const d = await W.api("/api/me/case" + (lang ? "?lang=" + lang : ""));
   lang = d.language; const x = EXTRA[lang], u = d.ui, tb = d.teach_back;
   document.documentElement.lang = lang;
@@ -31,10 +35,14 @@ async function load() {
    <div class="card" id="tb"></div>
    <div class="card"><h4>${W.esc(u.progress)}</h4><div class="stepper">${d.journey.filter(j => j.status !== "pending" || true).map(j => `<div class="st ${j.status}">${W.esc(j.label)}</div>`).join("")}</div></div>
    <div class="card"><h4>${W.esc(tb.labels.talk)}</h4>${d.consults.map(c => `<div class="msg"><b>?</b> ${W.esc(c.question)}${c.response ? `<br><b>↳</b> ${W.esc(c.response)}` : ` <span class="chip sla-amber">…</span>`}</div>`).join("")}
-     <label for="q">${x.ask}<textarea id="q" rows="3"></textarea></label><button id="ask">${x.send}</button></div>
+     <label for="q">${x.ask}<textarea id="q" rows="3" minlength="5" maxlength="4000"></textarea></label><div class="tb-actions"><button id="ask">${x.send}</button></div></div>
    <div class="card"><h4>${W.esc(u.messages)}</h4>${d.messages.map(m => `<div class="msg"><span class="small muted">${W.dt(m.sent_at)} · ${W.esc(m.channel)}</span><br>${W.esc(m.content)}</div>`).join("") || "–"}</div>
-   ${d.can_decline ? `<details><summary class="small">${W.esc(tb.labels.decline)}</summary><label>${x.declineNote}<textarea id="dn" rows="2"></textarea></label><button class="secondary outline" id="decline" style="width:auto">${W.esc(tb.labels.decline)}</button></details>` : ""}`;
-  el.querySelectorAll(".lang-switch button").forEach(b => b.onclick = () => { lang = b.dataset.l; history.replaceState(null, "", "?lang=" + lang); load(); });
+   ${d.can_decline ? `<details><summary class="small">${W.esc(tb.labels.decline)}</summary><label>${x.declineNote}<textarea id="dn" rows="2" maxlength="2000"></textarea></label><button class="secondary outline" id="decline" style="width:auto">${W.esc(tb.labels.decline)}</button></details>` : ""}`;
+  document.getElementById("q").value = draftQ; const dn0 = document.getElementById("dn"); if (dn0) dn0.value = draftDn;
+  // the chosen language is saved for the next visit (messages and calls keep the recorded language)
+  el.querySelectorAll(".lang-switch button").forEach(b => b.onclick = async () => { const nl = b.dataset.l; if (nl === lang) return;
+    try { await W.api("/api/me/display-language", { method: "POST", body: { language: nl } }); lang = nl; history.replaceState(null, "", "?lang=" + lang); await load(); W.toast(EXTRA[lang].langSaved, "ok"); }
+    catch (e) { W.toast(e.message, "err"); } });
   const tbEl = document.getElementById("tb"), L = d.answers_lock || {}, sub = L.submitted;
   const when = iso => { if (!iso) return "–"; const t = new Date(/Z|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + "Z");
     try { return t.toLocaleString({ en: "en-GB", ar: "ar-AE", hi: "hi-IN", ur: "ur-PK" }[lang] || undefined, { dateStyle: "medium", timeStyle: "short" }); } catch (e) { return W.dt(iso); } };
@@ -47,10 +55,11 @@ async function load() {
       ${confRow(prev ? sub.confidence : null, false)}
       <div class="tb-actions"><button type="submit">${W.esc(tb.labels.submit)} – ${W.esc(tb.labels.understand)}</button>${L.reopened ? `<button type="button" class="secondary outline" id="tb-keep">${W.esc(u.keep)}</button>` : ""}</div></form>`;
     const f0 = document.getElementById("tbf");
+    if (draftTb) Object.entries(draftTb).forEach(([k, v]) => { const i = f0.querySelector(`input[name="${k}"][value="${v}"]`); if (i) i.checked = true; });
     f0.onsubmit = async ev => { ev.preventDefault(); const btn = f0.querySelector("button[type=submit]"); btn.disabled = true; const f = Object.fromEntries(new FormData(ev.target));
       try { const r = await W.api("/api/me/teach-back", { method: "POST", body: { answers: { q1: f.q1, q2: f.q2, q3: f.q3 }, confidence: +f.conf, language: lang } });
-        W.toast(r.passed ? tb.labels.passed : tb.labels.failed, r.passed ? "ok" : ""); load(); }
-      catch (e) { const lk = e.code === "answers_locked"; W.toast(lk ? u.locked : e.message, "err"); btn.disabled = false; if (lk) load(); } };
+        draftTb = null; f0.reset(); W.toast(r.passed ? tb.labels.passed : tb.labels.failed, r.passed ? "ok" : ""); load(); }
+      catch (e) { const lk = e.code === "answers_locked"; W.formError(f0, lk ? u.locked : e.message); W.toast(lk ? u.locked : e.message, "err"); btn.disabled = false; if (lk) load(); } };
     const keep = document.getElementById("tb-keep");
     if (keep) keep.onclick = async () => { try { await W.api("/api/me/teach-back/reopen/cancel", { method: "POST", body: {} }); } catch (e) { W.toast(e.message, "err"); } load(); };
   } else if (sub) {
@@ -70,11 +79,16 @@ async function load() {
   } else {
     tbEl.innerHTML = `<h4>${W.esc(tb.title)}</h4>` + (d.last_teach_back ? `<p>${d.last_teach_back.passed ? "✅ " + W.esc(tb.labels.passed) : "ℹ️ " + W.esc(tb.labels.failed)}</p>` : `<p class="muted">–</p>`);
   }
-  document.getElementById("ask").onclick = async () => { const q = document.getElementById("q").value.trim(); if (q.length < 5) return;
-    try { await W.api("/api/me/consult", { method: "POST", body: { question: q } }); W.toast(x.sent, "ok"); load(); } catch (e) { W.toast(e.message, "err"); } };
+  document.getElementById("ask").onclick = async ev => { const b = ev.currentTarget, ta = document.getElementById("q"), q = ta.value.trim(), box = ta.closest(".card");
+    if (q.length < 5) { W.formError(box, x.tooShort); ta.focus(); return; }
+    W.busy(b, true); W.formError(box, "");
+    try { await W.api("/api/me/consult", { method: "POST", body: { question: q } }); ta.value = ""; draftQ = ""; W.toast(x.sent, "ok"); await load(); }
+    catch (e) { W.formError(box, e.message); W.toast(e.message, "err"); W.busy(b, false); } };
   const dec = document.getElementById("decline");
   if (dec) dec.onclick = async () => { if (!(await W.confirm(x.confirmDecline, "", { ok: tb.labels.decline, danger: true, dir: d.rtl ? "rtl" : "ltr" }))) return;
-    try { await W.api("/api/me/decline", { method: "POST", body: { note: document.getElementById("dn").value.trim() || "Patient declined via app" } }); W.toast(x.done, "ok"); load(); } catch (e) { W.toast(e.message, "err"); } };
+    W.busy(dec, true);
+    try { await W.api("/api/me/decline", { method: "POST", body: { note: document.getElementById("dn").value.trim() || "Patient declined via app" } }); draftDn = ""; W.toast(x.done, "ok"); await load(); }
+    catch (e) { W.formError(dec.closest("details"), e.message); W.toast(e.message, "err"); W.busy(dec, false); } };
 }
 document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return;
   if (W.me.role !== "patient") { document.getElementById("p-root").innerHTML = W.empty("This is the patient view", "Sign in with a patient account to see it."); return; }

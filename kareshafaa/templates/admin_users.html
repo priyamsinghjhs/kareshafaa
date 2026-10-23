@@ -34,7 +34,7 @@ function render() {
   const rows = U.items.filter(u => (!q || (u.display_name + " " + u.username).toLowerCase().includes(q)) && (!r || u.role === r) && (!st || (st === "active") === u.active));
   document.getElementById("users").innerHTML = rows.length ? `<p class="small muted">${rows.length} of ${U.items.length} accounts</p><table class="compact"><thead><tr><th>Name</th><th>Role</th><th>Site / team</th><th>Status</th><th>Last sign-in</th><th>Actions</th></tr></thead><tbody>${rows.map(u => `<tr>
     <td><b>${W.esc(u.display_name.split(" (")[0])}</b><span class="sub">${W.esc(u.username)}</span></td>
-    <td>${W.esc(u.role_label)}</td><td class="small">${W.esc(u.site || "–")}${u.team ? `<span class="sub">${W.esc(u.team)}</span>` : ""}</td><td>${status(u)}</td>
+    <td>${W.esc(u.role_label)}</td><td class="small">${W.esc(u.site || "–")}${u.team ? `<span class="sub">${W.esc(u.team)}</span>` : ""}</td><td>${status(u)}${u.status_reason ? `<span class="sub">${u.active ? "Reactivated" : "Deactivated"}${u.status_changed_by ? " by " + W.esc(u.status_changed_by) : ""}${u.status_changed_at ? " · " + W.dt(u.status_changed_at) : ""}: ${W.esc(u.status_reason)}</span>` : ""}</td>
     <td class="small">${u.last_login_at ? W.dt(u.last_login_at) : "Never"}</td>
     <td>${PD ? '<span class="small muted">Read-only</span>' : `<div class="row">${u.role !== "patient" && u.id !== W.me.user_id ? `<button class="secondary sm" onclick="role(${u.id})">Change role</button>` : ""}<button class="secondary sm" onclick="reset(${u.id})">Reset password</button>${u.id === W.me.user_id ? "" : u.active ? `<button class="danger secondary sm" onclick="deact(${u.id})">Deactivate</button>` : `<button class="secondary sm" onclick="act(${u.id})">Reactivate</button>`}</div>`}</td></tr>`).join("")}</tbody></table>` : W.empty("No users match", "Try a different name or filter.");
 }
@@ -57,18 +57,19 @@ window.reset = async id => { const u = byId(id);
   if (!(await W.confirm(`Reset the password for ${u.display_name}?`, "They will be signed out everywhere and must choose a new password at next sign-in.", { ok: "Reset password" }))) return;
   try { const r = await W.api(`/api/admin/users/${id}/reset-password`, { method: "POST", body: {} }); showTemp(u, r.temporary_password, "Password reset"); load(); } catch (e) { W.toast(e.message, "err"); } };
 window.deact = async id => { const u = byId(id);
-  const why = await W.ask(`Deactivate ${u.display_name}?`, "Reason (recorded in the audit trail)", { ok: "Deactivate", danger: true, min: 3, body: "They are signed out at once and can no longer sign in. Their history is kept." });
-  if (!why) return; try { await W.api(`/api/admin/users/${id}/deactivate`, { method: "POST", body: { reason: why } }); W.toast("Account deactivated", "ok"); load(); } catch (e) { W.toast(e.message, "err"); } };
-window.act = async id => { const u = byId(id); if (!(await W.confirm(`Reactivate ${u.display_name}?`, "", { ok: "Reactivate" }))) return;
-  try { await W.api(`/api/admin/users/${id}/activate`, { method: "POST", body: {} }); W.toast("Account reactivated", "ok"); load(); } catch (e) { W.toast(e.message, "err"); } };
+  await W.ask(`Deactivate ${u.display_name}?`, "Reason (shown on the user list and kept in the audit trail)", { ok: "Deactivate", danger: true, min: 3, body: "They are signed out at once and can no longer sign in. Their history is kept.",
+    save: async why => { await W.api(`/api/admin/users/${id}/deactivate`, { method: "POST", body: { reason: why } }); W.toast("Account deactivated", "ok"); await load(); } }); };
+window.act = async id => { const u = byId(id);
+  await W.ask(`Reactivate ${u.display_name}?`, "Reason (optional)", { ok: "Reactivate", optional: true,
+    save: async why => { await W.api(`/api/admin/users/${id}/activate`, { method: "POST", body: { reason: why || null } }); W.toast("Account reactivated", "ok"); await load(); } }); };
 window.role = async id => { const u = byId(id);
   const opts = U.roles.map(r => `<option value="${r.key}" ${r.key === u.role ? "selected" : ""}>${W.esc(r.label)}</option>`).join("");
   const v = await W._dialog(`<h2 id="dlg-title">Change role for ${W.esc(u.display_name)}</h2><label for="dr">Role<select id="dr">${opts}</select></label>
     <label for="ds">Site<input id="ds" value="${W.esc(u.site || "")}"></label><label for="dt">Team<input id="dt" value="${W.esc(u.team || "")}"></label>
     <p class="small muted">A role change signs them out; the new permissions apply at their next sign-in.</p>
     <div class="dlg-buttons"><button type="button" class="secondary" data-cancel>Cancel</button><button type="submit" data-ok>Save</button></div>`,
-    f => ({ role: f.querySelector("#dr").value, site: f.querySelector("#ds").value, team: f.querySelector("#dt").value }));
-  if (!v) return; try { await W.api(`/api/admin/users/${id}/role`, { method: "POST", body: v }); W.toast("Saved", "ok"); load(); } catch (e) { W.toast(e.message, "err"); } };
+    f => ({ role: f.querySelector("#dr").value, site: f.querySelector("#ds").value.trim(), team: f.querySelector("#dt").value.trim() }), "",
+    async body => { await W.api(`/api/admin/users/${id}/role`, { method: "POST", body }); W.toast("Saved", "ok"); await load(); }); };
 document.addEventListener("DOMContentLoaded", async () => {
   await W.ready; if (!W.requireLogin()) return;
   ["uq", "ur", "us"].forEach(i => document.getElementById(i).addEventListener("input", () => U && render()));
@@ -77,10 +78,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("f-role").innerHTML = U.roles.map(r => `<option value="${r.key}">${W.esc(r.label)}</option>`).join("");
   document.getElementById("f-prac").innerHTML = `<option value="">None (non-clinical role)</option>` + U.unlinked_practitioners.map(p => `<option value="${p.id}">${W.esc(p.name)} – ${W.esc(W.role(p.role))}</option>`).join("");
   dlg.querySelector("[data-close]").onclick = () => dlg.close();
-  document.getElementById("add").onclick = () => { if (!PD) { f.reset(); dlg.showModal(); document.getElementById("f-name").focus(); } };
-  f.onsubmit = async ev => { ev.preventDefault(); const d = Object.fromEntries(new FormData(f));
+  document.getElementById("add").onclick = () => { if (!PD) { f.reset(); W.formError(f, ""); dlg.showModal(); document.getElementById("f-name").focus(); } };
+  f.onsubmit = async ev => { ev.preventDefault(); const d = Object.fromEntries(new FormData(f)), sb = f.querySelector("button[type=submit]");
     const body = { username: d.username.trim().toLowerCase(), display_name: d.display_name.trim(), role: d.role, site: d.site || null, team: d.team || null, practitioner_id: d.practitioner_id ? +d.practitioner_id : null };
-    try { const r = await W.api("/api/admin/users", { method: "POST", body }); dlg.close(); showTemp(r.user, r.temporary_password, "Account created"); load(); } catch (e) { W.toast(e.message, "err"); } };
+    W.busy(sb, true); W.formError(f, "");
+    try { const r = await W.api("/api/admin/users", { method: "POST", body }); dlg.close(); showTemp(r.user, r.temporary_password, "Account created"); await load(); }
+    catch (e) { W.formError(f, e.message); W.toast(e.message, "err"); } finally { W.busy(sb, false); } };
 });
 </script>
 {% endblock %}

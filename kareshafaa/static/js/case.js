@@ -72,7 +72,8 @@ function record() {
      <div><dt>Age / sex</dt><dd>${S.age} · ${W.esc(S.sex)}</dd></div><div><dt>Language</dt><dd>${val(S.language)}</dd></div>
      <div><dt>Contact preference</dt><dd>${val(S.contact_preference)}</dd></div><div><dt>Family doctor</dt><dd>${val(S.gp)}<span class="sub small muted">${W.esc(S.managing_org || "")}</span></dd></div>
      <div class="wide"><dt>Allergies</dt><dd>${alg}</dd></div><div class="wide"><dt>Key conditions</dt><dd>${cond}</dd></div></dl>
-     ${S.deceased ? `<p class="notice-inline err">Recorded as deceased.</p>` : ""}</section>`;
+     ${S.deceased ? `<p class="notice-inline err">Recorded as deceased${S.deceased_record && S.deceased_record.by ? ` by ${W.esc(S.deceased_record.by)} on ${W.dt(S.deceased_record.at)}` : ""}.${S.deceased_record && S.deceased_record.note ? ` Source: ${W.esc(S.deceased_record.note)}` : ""}</p>` : ""}
+     ${S.death_corrected ? `<p class="notice-inline info">A death recorded in error was corrected by ${W.esc(S.death_corrected.by || "–")} on ${W.dt(S.death_corrected.at)}: ${W.esc(S.death_corrected.note || "")}</p>` : ""}</section>`;
   const tests = tbl(["Date", "Test", "Result", "Flag", "Source"], R.tests.map(t => `<tr class="${t.triggering ? "trigger" : ""}">
      <td>${day(t.date)}</td><td><b>${W.esc(t.name)}</b>${t.triggering ? ` <span class="chip sla-amber">Result that opened this case</span>` : ""}<span class="sub">${W.esc(t.category === "investigation" ? "Investigation" : t.category === "confirmatory" ? "Confirmatory test" : "Screening test")}</span></td>
      <td>${val(t.result)}${t.reference_range ? `<span class="sub">Reference ${W.esc(t.reference_range)}</span>` : ""}</td><td>${flagChip(t.abnormal, t.interpretation && t.interpretation.charAt(0).toUpperCase() + t.interpretation.slice(1))}</td>
@@ -88,7 +89,7 @@ function record() {
      <td>${val(r.to)}${r.specialist ? `<span class="sub">${W.esc(r.specialist)}</span>` : ""}</td><td><span class="chip sla-none">${W.esc(r.status)}</span>${r.result ? ` <span class="chip ${r.result === "positive" ? "sla-red" : "sla-green"}">${W.esc(r.result)}</span>` : ""}</td>
      <td class="small">${r.summary ? W.esc(r.summary) : ""}${r.reason ? `<div>Reason: ${W.esc(r.reason)}</div>` : ""}${!r.summary && !r.reason ? NR() : ""}</td></tr>`));
   const apps = tbl(["Date", "Where", "Clinician", "Status"], R.appointments.map(a => `<tr><td>${a.date ? W.dt(a.date) : NR()}</td><td>${val(a.org)}</td><td>${val(a.clinician)}</td>
-     <td><span class="chip ${a.status === "fulfilled" ? "sla-green" : a.status === "noshow" ? "sla-red" : "sla-none"}">${W.esc(a.upcoming ? "Booked (upcoming)" : a.status_label)}</span>${a.barrier ? `<span class="sub">Barrier: ${W.esc(a.barrier)}</span>` : ""}</td></tr>`));
+     <td><span class="chip ${a.status === "fulfilled" ? "sla-green" : a.status === "noshow" ? "sla-red" : "sla-none"}">${W.esc(a.upcoming ? "Booked (upcoming)" : a.status_label)}</span>${a.barrier ? `<span class="sub">Barrier: ${W.esc(a.barrier)}</span>` : ""}${a.note ? `<span class="sub">Note: ${W.esc(a.note)}</span>` : ""}</td></tr>`));
   const resp = R.responses.length ? R.responses.map(r => `<div class="resp"><div><b>${W.esc(r.title)}</b> <span class="small muted">${W.dt(r.date)}</span> ${r.kind === "teach_back" ? flagChip(!r.passed, r.result) : ""}</div>
      ${r.kind === "teach_back" ? `<ul class="small tb-ans">${r.answers.map(a => `<li><span class="muted">${W.esc(a.question)}</span> ${W.esc(a.answer)}</li>`).join("")}</ul>${r.confidence ? `<div class="small">Confidence ${r.confidence}/5</div>` : ""}` : `<div class="small">${W.esc(r.result)}</div>`}</div>`).join("") : `<p class="small">${NR()}</p>`;
   const out = tbl(["Date", "Contact", "Channel", "Status"], R.outreach.slice(0, 20).map(o => `<tr><td>${W.dt(o.date)}</td><td>${W.esc(o.what)}${o.attempt > 1 ? ` <span class="sub">attempt ${o.attempt}</span>` : ""}</td><td>${W.esc(o.channel)}</td>
@@ -117,24 +118,25 @@ function recForm(kind) {
       <label>Medicine<input name="name" minlength="2" maxlength="200" required placeholder="e.g. Metformin"></label>
       <div class="form-pair"><label>Dose<input name="dose" maxlength="80" placeholder="e.g. 500 mg"></label><label>Frequency<input name="frequency" maxlength="80" placeholder="e.g. Twice daily with meals"></label></div>
       <div class="form-pair"><label>Route<input name="route" maxlength="40" value="oral"></label><label>Start date<input type="date" name="start_date" value="${localNow().slice(0, 10)}"></label></div>
+      <div class="form-pair"><label>End date (optional)<input type="date" name="end_date"></label><span></span></div>
       <label>Status<select name="status"><option value="active">Active</option><option value="completed">Completed course</option><option value="stopped">Stopped</option></select></label>
       <label>Reason / indication<input name="reason" maxlength="300"></label><label>Note<textarea name="note" rows="2" maxlength="2000"></textarea></label>
       <div class="form-buttons"><button type="submit">Save medicine</button><button type="button" class="secondary" data-cancel>Cancel</button></div></form>`;
   const f = el.querySelector("form"); f.querySelector("[data-cancel]").onclick = () => { el.innerHTML = ""; }; f.querySelector("select, input").focus();
-  f.onsubmit = async ev => { ev.preventDefault(); const b = f.querySelector("button[type=submit]"); b.disabled = true; const fd = Object.fromEntries(new FormData(f));
+  f.onsubmit = async ev => { ev.preventDefault(); const b = f.querySelector("button[type=submit]"); W.busy(b, true); W.formError(f, ""); const fd = Object.fromEntries(new FormData(f));
     try {
       if (kind === "encounter") await W.api(`/api/cases/${CASE_ID}/encounters`, { method: "POST", body: { kind: fd.kind, start: new Date(fd.start).toISOString(), reason: fd.reason || null, notes: fd.notes, outcome: fd.outcome || null } });
-      else await W.api(`/api/cases/${CASE_ID}/medications`, { method: "POST", body: { name: fd.name, dose: fd.dose || null, frequency: fd.frequency || null, route: fd.route || null, start_date: fd.start_date ? new Date(fd.start_date + "T12:00:00").toISOString() : null, status: fd.status, reason: fd.reason || null, note: fd.note || null } });
+      else await W.api(`/api/cases/${CASE_ID}/medications`, { method: "POST", body: { name: fd.name, dose: fd.dose || null, frequency: fd.frequency || null, route: fd.route || null, start_date: fd.start_date ? new Date(fd.start_date + "T12:00:00").toISOString() : null, end_date: fd.end_date ? new Date(fd.end_date + "T12:00:00").toISOString() : null, status: fd.status, reason: fd.reason || null, note: fd.note || null } });
       REC_OPEN.add(kind === "encounter" ? "enc" : "meds"); W.toast(kind === "encounter" ? "Consultation note saved" : "Medicine saved", "ok"); await load();
-    } catch (e) { W.toast(e.message, "err"); b.disabled = false; } };
+    } catch (e) { W.formError(f, e.message); W.toast(e.message, "err"); W.busy(b, false); } };
 }
 function wireRecord() {
   const r = root();
   r.querySelectorAll("details.rec-sec").forEach(d => d.addEventListener("toggle", () => { const id = d.dataset.sec; REC_OPEN.delete(id); REC_OPEN.delete("!" + id); REC_OPEN.add(d.open ? id : "!" + id); }));
   r.querySelectorAll("[data-rec]").forEach(b => b.onclick = () => recForm(b.dataset.rec));
   r.querySelectorAll("[data-stop]").forEach(b => b.onclick = async () => {
-    const why = await W.ask(`Stop ${b.dataset.name}?`, "Reason for stopping", { ok: "Stop medicine", min: 3, danger: true }); if (!why) return;
-    try { await W.api(`/api/cases/${CASE_ID}/medications/${b.dataset.stop}/stop`, { method: "POST", body: { reason: why } }); REC_OPEN.add("meds"); W.toast("Medicine stopped", "ok"); await load(); } catch (e) { W.toast(e.message, "err"); } });
+    await W.ask(`Stop ${b.dataset.name}?`, "Reason for stopping", { ok: "Stop medicine", min: 3, danger: true,
+      save: async why => { await W.api(`/api/cases/${CASE_ID}/medications/${b.dataset.stop}/stop`, { method: "POST", body: { reason: why } }); REC_OPEN.add("meds"); W.toast("Medicine stopped", "ok"); await load(); } }); });
 }
 
 function patientCard() {
@@ -171,14 +173,18 @@ function render() {
 }
 const btn = a => `<button class="secondary" data-k="${a.key}" data-ev="${a.evidence_type || ""}">${W.esc(a.label)}</button>`;
 
-async function postRaw(path, body, okMsg, key) {
-  if (key && RISKY[key] && !(await W.confirm(RISKY[key], "This is recorded in the case history with your name and cannot be silently undone.", { ok: "Yes, continue", danger: /close|deceased|decline|unreachable/.test(key) }))) return;
-  try { const r = await W.api(path, { method: "POST", body }); W.toast(okMsg || "Saved", "ok"); await load(); return r; }
-  catch (e) { W.toast(e.message, "err"); }
+async function postRaw(path, body, okMsg, key, formEl = null) {
+  if (key && RISKY[key] && !(await W.confirm(RISKY[key], "This is recorded in the case history with your name and cannot be silently undone.", { ok: "Yes, continue", danger: /close|deceased|decline|unreachable/.test(key) }))) return false;
+  W.formError(formEl, "");
+  try { const r = await W.api(path, { method: "POST", body }); W.toast(okMsg || "Saved", "ok"); await load(); return r || true; }
+  catch (e) { W.formError(formEl, e.message); W.toast(e.message, "err"); return false; }
 }
 const post = (p, b, m) => postRaw(p, b, m);
-window.respond = id => post(`/api/consults/${id}/respond`, { response: document.getElementById("resp-" + id).value }, "Answer sent");
-window.ackEsc = async id => { const note = await W.ask("Acknowledge escalation", "What action are you taking?", { ok: "Acknowledge", min: 3 }); if (note) post(`/api/escalations/${id}/ack`, { note }, "Escalation acknowledged"); };
+window.respond = async (id, b) => { const ta = document.getElementById("resp-" + id), v = ta.value.trim(), box = ta.parentElement;
+  if (v.length < 2) { W.formError(box, "Write your answer first (at least 2 characters)."); ta.focus(); return; }
+  W.busy(b, true); const ok = await postRaw(`/api/consults/${id}/respond`, { response: v }, "Answer sent", null, box); if (!ok) W.busy(b, false); };
+window.ackEsc = async id => { await W.ask("Acknowledge escalation", "What action are you taking?", { ok: "Acknowledge", min: 3,
+  save: async note => { await W.api(`/api/escalations/${id}/ack`, { method: "POST", body: { note } }); W.toast("Escalation acknowledged", "ok"); await load(); } }); };
 
 function events() {
   const ev = [];
@@ -186,9 +192,10 @@ function events() {
   C.call_tasks.forEach(t => ev.push([t.completed_at || t.created_at, `📞 phone-call task (${W.esc(t.owner)}) – ${t.status}${t.outcome ? ": <b>" + W.esc(t.outcome) + "</b>" : ""}`]));
   C.teach_back.forEach(t => ev.push([t.at, `✅ teach-back (${t.mode}, ${t.language}): ${t.score}/${t.total} ${t.passed ? '<span class="chip sla-green">understood</span>' : '<span class="chip sla-red">not yet clear</span>'}${t.confidence ? " · confidence " + t.confidence + "/5" : ""}${t.patient_changed_answers ? (() => { const p = C.teach_back.find(o => o.id === t.replaces_id); return ` <span class="chip sla-amber">patient changed answers</span><div class="small muted">Replaces the answers sent ${p ? W.dt(p.at) + " (" + p.score + "/" + p.total + ")" : "earlier"}; both are kept in the record and the audit trail.</div>`; })() : ""}`]));
   C.service_requests.forEach(s => ev.push([s.decided_at || s.created_at, `📄 ${s.kind.replace("_", " ")} → ${W.esc(s.performer_org)} <span class="chip sla-none">${s.status}</span>${s.result ? " result <b>" + s.result + "</b>" : ""}${s.reason_code ? ` reason <b>${W.esc(s.reason_code)}</b>: ${W.esc(s.reason_note || "")}` : ""}`]));
-  C.appointments.forEach(a => ev.push([a.start, `📅 appointment ${W.dt(a.start)} at ${W.esc(a.org)} <span class="chip ${a.status === "fulfilled" ? "sla-green" : a.status === "noshow" ? "sla-red" : "sla-none"}">${a.status}</span>${a.barrier_code ? " barrier: " + W.esc(a.barrier_code) : ""}`]));
+  C.appointments.forEach(a => ev.push([a.start, `📅 appointment ${W.dt(a.start)} at ${W.esc(a.org)} <span class="chip ${a.status === "fulfilled" ? "sla-green" : a.status === "noshow" ? "sla-red" : "sla-none"}">${a.status}</span>${a.barrier_code ? " barrier: " + W.esc(a.barrier_code) : ""}${a.note ? `<div class="small">Booking note: ${W.esc(a.note)}</div>` : ""}`]));
+  (C.lessons || []).forEach(l => ev.push([l.at, `📝 lesson learned (${W.esc(l.kind.replace(/_/g, " "))}): <b>${W.esc(l.reason_code.replace(/_/g, " "))}</b> <span class="small muted">by ${W.esc(l.by)}</span>${l.detail ? `<div class="small">${W.esc(l.detail)}</div>` : ""}`]));
   C.care_plans.forEach(p => ev.push([p.created_at, `🩺 ${p.kind} plan by ${W.esc(p.by)}: ${W.esc(p.description)}`]));
-  C.consults.forEach(q => ev.push([q.created_at, `💬 ${q.type === "patient" ? "patient-to-clinician" : "clinician-to-clinician"} consult → ${W.esc(q.target)} (${q.urgency}) <span class="chip ${q.status === "answered" ? "sla-green" : q.overdue ? "sla-red" : "sla-amber"}">${q.status}${q.overdue ? " · overdue" : ""}</span><div class="small">Q: ${W.esc(q.question)}</div>${q.response ? `<div class="small">A: ${W.esc(q.response)}</div>` : ""}${q.status === "requested" && W.me.practitioner_id === q.target_id ? `<div><label for="resp-${q.id}" class="sr-only">Your answer</label><textarea id="resp-${q.id}" rows="2" placeholder="Your answer…"></textarea><button class="secondary sm" onclick="respond(${q.id})">Send answer</button></div>` : ""}`]));
+  C.consults.forEach(q => ev.push([q.created_at, `💬 ${q.type === "patient" ? "patient-to-clinician" : "clinician-to-clinician"} consult → ${W.esc(q.target)} (${q.urgency}) <span class="chip ${q.status === "answered" ? "sla-green" : q.overdue ? "sla-red" : "sla-amber"}">${q.status}${q.overdue ? " · overdue" : ""}</span><div class="small">Q: ${W.esc(q.question)}</div>${q.response ? `<div class="small">A: ${W.esc(q.response)}</div>` : ""}${q.status === "requested" && W.me.practitioner_id === q.target_id ? `<div><label for="resp-${q.id}" class="sr-only">Your answer</label><textarea id="resp-${q.id}" rows="2" placeholder="Your answer…"></textarea><button class="secondary sm" onclick="respond(${q.id}, this)">Send answer</button></div>` : ""}`]));
   C.escalations.forEach(e => ev.push([e.created_at, `🚨 <b>L${e.level}</b> → ${W.esc(e.target)}: ${W.esc(e.note)} ${e.acknowledged_at ? '<span class="chip sla-green">acknowledged</span>' : (W.me.permissions.includes("escalation:ack") ? `<button class="secondary sm" onclick="ackEsc(${e.id})">Acknowledge</button>` : "")}`]));
   C.ownership_events.forEach(o => ev.push([o.at, `👤 ownership ${W.esc(o.kind)}: ${W.esc(o.from || "–")} → <b>${W.esc(o.to)}</b> ${W.esc(o.reason || "")}`]));
   ev.sort((a, b) => (b[0] || "").localeCompare(a[0] || ""));
@@ -215,12 +222,12 @@ const F = {
 async function openForm(key, evidenceType) {
   const el = document.getElementById("aform"), u = `/api/cases/${CASE_ID}`;
   const TITLE = Object.fromEntries(C.actions.map(a => [a.key, a.label]));
-  const post = (p, b, m) => postRaw(p, b, m, key);
+  const post = (p, b, m) => postRaw(p, b, m, key, el.querySelector("form"));
   const form = (html, onsubmit, submit = "Confirm") => {
     el.innerHTML = `<form class="action-form" aria-label="${W.esc(TITLE[key] || "Action")}"><h3>${W.esc(TITLE[key] || "Action")}</h3>${html}<div class="form-buttons"><button type="submit">${submit}</button><button type="button" class="secondary" id="cancel">Cancel</button></div></form>`;
     el.querySelector("#cancel").onclick = () => { el.innerHTML = ""; };
     const fm = el.querySelector("form"); const first = fm.querySelector("select, input:not([type=hidden]), textarea"); if (first) first.focus(); fm.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    fm.onsubmit = async ev => { ev.preventDefault(); const b = fm.querySelector("button[type=submit]"); b.setAttribute("aria-busy", "true"); b.disabled = true; const fd = Object.fromEntries(new FormData(ev.target)); await onsubmit(fd); b.removeAttribute("aria-busy"); b.disabled = false; };
+    fm.onsubmit = async ev => { ev.preventDefault(); const b = fm.querySelector("button[type=submit]"); W.busy(b, true); const fd = Object.fromEntries(new FormData(ev.target)); await onsubmit(fd); W.busy(b, false); };
   };
   const tr = (to, msg) => form(F.note(), fd => post(`${u}/transition`, { to_state: to, note: fd.note || null }, msg));
   const d = ["assign", "transfer", "consult", "refer", "order_confirmatory", "book"].includes(key) ? await dir() : null;
@@ -236,7 +243,7 @@ async function openForm(key, evidenceType) {
       const lang = ["en", "ar", "hi", "ur"].includes(C.patient.language) ? C.patient.language : "en";
       const tb = await W.api(`${u}/teach-back-form?lang=${lang}`);
       return form(`<p class="small">Ask the patient in their own words; tick what they say.</p><div class="${["ar", "ur"].includes(lang) ? "rtl" : ""}">` + tb.questions.map(q => `<div class="q"><b>${W.esc(q.text)}</b>${q.options.map(o => `<label><input type="radio" name="${q.id}" value="${o.key}" required> ${W.esc(o.text)}</label>`).join("")}</div>`).join("") +
-        `</div>` + F.sel("confidence", "Patient confidence (1–5)", kv({ 3: "3", 1: "1", 2: "2", 4: "4", 5: "5" })),
+        `</div>` + F.sel("confidence", "Patient confidence (1–5)", [1, 2, 3, 4, 5].map(n => `<option value="${n}" ${n === 3 ? "selected" : ""}>${n}</option>`).join("")),
         fd => post(`${u}/teach-back`, { answers: { q1: fd.q1, q2: fd.q2, q3: fd.q3 }, confidence: +fd.confidence, language: lang }, "Teach-back recorded"));
     }
     case "order_confirmatory": return form(F.sel("org", "Performing organisation", opts(d.orgs.filter(o => ["lab", "hospital"].includes(o.kind)))),
@@ -246,7 +253,7 @@ async function openForm(key, evidenceType) {
     case "refer": {
       const blocked = C.actions.find(a => a.key === "refer").consent_blocked;
       const hosp = d.orgs.filter(o => o.kind === "hospital");
-      return form((blocked ? `<p class="small" class="notice-inline err">Patient has <b>declined</b> sharing with other organisations. Record their consent first (Record consent → share_external).</p>` : "") +
+      return form((blocked ? `<p class="notice-inline err">Patient has <b>declined</b> sharing with other organisations. Record their consent first (Record consent → share_external).</p>` : "") +
         F.sel("org", "Receiving hospital", opts(hosp)) + F.sel("spec", "Specialist (optional)", `<option value="">Department decides</option>` + opts(d.prac.filter(p => p.role === "specialist"), p => p.id, p => p.name + " – " + (hosp.find(h => h.id === p.org_id) || {}).name)) +
         `<label>Clinical summary<textarea name="summary" rows="3" placeholder="Result, relevant history, medications, preferred language…"></textarea></label>`,
         fd => post(`${u}/referral`, { performer_org_id: +fd.org, performer_id: fd.spec ? +fd.spec : null, summary: fd.summary }, "Referral sent"), "Send referral");
@@ -266,7 +273,7 @@ async function openForm(key, evidenceType) {
     case "close_authorised": return form(`<p class="small">Authorised human decision – needs a reason code and a rationale (≥10 characters). Some reasons need supporting records (e.g. informed decline, full contact ladder).</p>` +
       F.sel("reason", "Reason", kv(META.closure_reasons)) + F.note("Rationale", true), fd => post(`${u}/close`, { closure_type: "authorised_decision", reason: fd.reason, note: fd.note }, "Case closed (authorised decision)"), "Sign off closure");
     case "decline": return form(F.note("What did the patient say? (≥10 characters, recorded with your name; informed decline needs a clinician conversation)", true), fd => post(`${u}/decline`, { note: fd.note }, "Decline recorded – clinician review"));
-    case "patient_deceased": return form(`<p class="small" class="notice-inline err">Records the death for <b>this patient</b>: all messages and call tasks stop and every open case goes to clinical review for an authorised closure. Check the identity first.</p>` +
+    case "patient_deceased": return form(`<p class="notice-inline err">Records the death for <b>this patient</b>: all messages and call tasks stop and every open case goes to clinical review for an authorised closure. Check the identity first.</p>` +
       F.note("Source and date of the notification (≥10 characters)", true), fd => post(`${u}/patient-deceased`, { note: fd.note }, "Death recorded – outreach stopped, open cases sent to review"), "Sign off");
     case "patient_deceased_revoke": return form(`<p class="small">Only for a death recorded against the wrong patient. Open cases are re-reviewed; cases closed as deceased are listed for re-opening.</p>` +
       F.note("Why the record is wrong (≥20 characters)", true), fd => post(`${u}/patient-deceased/revoke`, { note: fd.note }, "Death record corrected – cases sent to review"), "Sign off correction");
