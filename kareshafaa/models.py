@@ -218,6 +218,8 @@ class Case(Base):  # FHIR Task (code=loop-case); focus = DiagnosticReport
     target_due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # end-to-end pathway target
     review_required: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     review_reasons: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # every clinician review: [{at, by, note, reasons, tier_from, tier_to}] (the note used to live only in the audit log)
+    review_log: Mapped[list | None] = mapped_column(JSON, nullable=True)
     risk_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     risk_model_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     risk_rationale: Mapped[list | None] = mapped_column(JSON, nullable=True)  # top factors behind the outreach priority

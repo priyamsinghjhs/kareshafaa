@@ -351,6 +351,8 @@ def resolve_review(db: Session, case: Case, actor: Actor, *, note: str, tier: st
         finally:
             TIER_CHANGE_AUTHORISED.reset(token)
     case.review_required = False
+    case.review_log = list(case.review_log or []) + [{"at": now.isoformat(), "by": actor.display, "note": note.strip(),
+                                                     "reasons": case.review_reasons or [], "tier_from": old, "tier_to": case.tier}]
     audit.record(db, actor, "U", "case.review_resolved", entity_type="Task", entity_id=case.id, case_id=case.id, ts=now,
                  detail={"reasons": case.review_reasons, "tier_from": old, "tier_to": case.tier, "note": note,
                          "downgrade": is_downgrade(old, case.tier)})

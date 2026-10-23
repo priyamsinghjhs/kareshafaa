@@ -113,6 +113,7 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
                               "created_at": iso(s.created_at), "decided_at": iso(s.decided_at)} for s in q(ServiceRequest)],
         "appointments": [{"id": a.id, "start": iso(a.start), "status": a.status, "org": oname(db, a.org_id),
                           "barrier_code": a.barrier_code, "note": a.booking_note} for a in q(Appointment)],
+        "reviews": list(c.review_log or []),
         "lessons": [{"id": les.id, "kind": les.kind, "reason_code": les.reason_code, "detail": les.detail,
                      "state": les.state, "at": iso(les.created_at),
                      "by": (db.get(User, les.created_by_user_id).display_name if les.created_by_user_id
