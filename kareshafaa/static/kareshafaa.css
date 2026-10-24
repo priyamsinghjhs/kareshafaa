@@ -69,7 +69,9 @@ abbr[title] { text-decoration: underline dotted; text-underline-offset: 3px; cur
 .brand-word { color: var(--c-brand-navy, #0A2B5E); font-weight: 800; letter-spacing: -.01em; }
 .logo-full { display: block; height: auto; max-width: 100%; }
 .auth-logo { margin: 0 0 var(--s-4); }
-.auth-page .topbar .brand { visibility: hidden; }  /* sign-in shows the full logo in the card; no duplicate mark */
+/* sign-in: one logo at a time - the header mark on small screens (card is below the intro), the full logo in the card on wide screens */
+.auth-page .auth-logo { display: none; }
+@media (min-width: 900px) { .auth-page .auth-logo { display: block; } .auth-page .topbar .brand { visibility: hidden; } }
 .logo-h { margin: 0 0 var(--s-4); }
 .topbar .spacer { flex: 1; }
 .icon-btn { display: inline-grid; place-items: center; width: var(--tap); height: var(--tap); border: 0; border-radius: var(--r-md); background: transparent; color: var(--c-text); cursor: pointer; padding: 0; min-height: 0; }
