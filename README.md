@@ -1,3 +1,5 @@
+<p><img src="kareshafaa/static/brand/logo-horizontal.svg" alt="KareShafaa" width="320"></p>
+
 # KareShafaa – Closing the Screening-to-Care Loop
 
 > **Name.** *KareShafaa*: Kare (care) + Shafaa (healing). Renamed from "Wasl" on 2026-10-22 ("wasl" is also the brand of a Dubai real-estate developer). "KareShafaa" still needs UAE and India trademark clearance. The brand name is never translated in patient messages.
@@ -305,3 +307,10 @@ deployment would need formal assessment.
 
 `kareshafaa/` app · `tests/` pytest (3,320) · `kareshafaa_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
 `scripts/ui_smoke.py` / `scripts/ui_responsive_check.py` (optional Playwright: overflow + 44 px tap targets per role and device) · `ITERATIONS.md` build log with self-assessments · `Makefile` · `Dockerfile` · `.env.example`
+
+## Logo and brand
+Logo files live in `kareshafaa/static/brand/` (badge `icon.svg`, small-size badge `icon-small.svg` for 16-48 px,
+`logo-horizontal*.svg`, `logo-stacked*.svg`, mono white / mono navy and on-dark variants, `og-1200x630.png`); app icons
+in `kareshafaa/static/icons/`, `favicon.ico` / `favicon.svg`. Rebuild everything with `python scripts/make_pwa_icons.py`
+(source geometry in `scripts/brand/`). Navy `#0A2B5E`, mint `#4FD1A1`, white. The wordmark is Figtree ExtraBold
+(SIL Open Font License 1.1) converted to outlines. Latin script only. Full rules: brand guide `BRAND.md` shipped with the logo pack.

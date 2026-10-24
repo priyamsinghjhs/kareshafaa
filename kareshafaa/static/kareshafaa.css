@@ -422,7 +422,8 @@ footer.site-foot { font-size: var(--fs-xs); color: var(--c-muted); padding: var(
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
 }
 @media (forced-colors: active) { .chip, .stat, .card { border: 1px solid CanvasText; } }
-@media print { .topbar, .sidebar, .bottom-nav, #toast { display: none !important; } .content { padding: 0; } }
+.print-brand { display: none; }
+@media print { .topbar, .sidebar, .bottom-nav, #toast { display: none !important; } .content { padding: 0; } .print-brand { display: block; height: 40px; width: auto; margin: 0 0 12px; } }
 .no-bottomnav .content { padding-bottom: calc(var(--s-6) + var(--safe-b)); }
 .no-bottomnav #toast { bottom: calc(var(--s-3) + var(--safe-b)); }
 .stepper-count { margin: 0 0 var(--s-2); }

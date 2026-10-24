@@ -26,6 +26,7 @@
 <body class="{% if not nav %}no-nav{% endif %}{% if nav|length <= 1 %} no-bottomnav{% endif %}{% block bodyclass %}{% endblock %}">
   {% include "_icons.html" %}
   <a class="skip-link" href="#main">Skip to main content</a>
+  <img class="print-brand" src="/static/brand/logo-horizontal.svg" alt="KareShafaa" width="170" height="48">
   <header class="topbar">
     {% if nav %}<button class="icon-btn nav-toggle" id="nav-toggle" type="button" aria-label="Show or hide menu labels" aria-expanded="false" aria-controls="sidebar"><svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg></button>{% endif %}
     <a href="{{ home_href }}" class="brand" aria-label="KareShafaa home"><img class="brand-mark" src="/static/brand/icon-small.svg" alt="" width="32" height="32"><span class="brand-word">KareShafaa</span></a>
