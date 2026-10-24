@@ -17,7 +17,7 @@ from sqlalchemy.exc import TimeoutError as SATimeoutError
 from sqlalchemy.orm.exc import StaleDataError
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
@@ -517,8 +517,8 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
     @app.get("/favicon.ico", include_in_schema=False)
-    def favicon() -> RedirectResponse:
-        return RedirectResponse("/static/favicon.svg", status_code=308)
+    def favicon() -> FileResponse:
+        return FileResponse(HERE / "static" / "favicon.ico", media_type="image/x-icon", headers={"Cache-Control": "public, max-age=86400"})
 
     @app.get("/healthz")
     def healthz() -> dict:

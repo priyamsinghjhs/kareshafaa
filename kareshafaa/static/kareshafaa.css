@@ -4,6 +4,7 @@
 :root {
   /* colour */
   --c-bg: #f5f7f8; --c-surface: #ffffff; --c-surface-2: #f0f4f5; --c-border: #d9e1e5; --c-border-strong: #b8c5cc;
+  --c-brand-navy: #0A2B5E; --c-brand-mint: #4FD1A1;  /* logo colours (dist/logo/BRAND.md) */
   --c-text: #17262e; --c-muted: #4f5f68; --c-primary: #0a6b66; --c-primary-hover: #085752; --c-primary-soft: #e2f1ef;
   --c-on-primary: #ffffff; --c-focus: #1d4ed8;
   --c-danger: #a8261c; --c-danger-bg: #fdecea; --c-warning: #744600; --c-warning-bg: #fff3d6;
@@ -64,8 +65,11 @@ abbr[title] { text-decoration: underline dotted; text-underline-offset: 3px; cur
   min-height: calc(var(--topbar-h) + var(--safe-t)); padding: var(--safe-t) calc(var(--s-3) + var(--safe-r)) 0 calc(var(--s-3) + var(--safe-l));
   background: var(--c-surface); border-bottom: 1px solid var(--c-border); }
 .brand { display: inline-flex; align-items: center; gap: var(--s-2); text-decoration: none; color: var(--c-text); font-weight: 700; font-size: var(--fs-lg); min-height: var(--tap); padding: 0 var(--s-1); }
-.brand-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--c-primary); display: grid; place-items: center; color: #fff; }
-.brand-mark svg { width: 18px; height: 18px; }
+.brand-mark { width: 32px; height: 32px; flex: none; display: block; }  /* the logo badge (static/brand/icon-small.svg) */
+.brand-word { color: var(--c-brand-navy, #0A2B5E); font-weight: 800; letter-spacing: -.01em; }
+.logo-full { display: block; height: auto; max-width: 100%; }
+.auth-logo { margin: 0 0 var(--s-4); }
+.logo-h { margin: 0 0 var(--s-4); }
 .topbar .spacer { flex: 1; }
 .icon-btn { display: inline-grid; place-items: center; width: var(--tap); height: var(--tap); border: 0; border-radius: var(--r-md); background: transparent; color: var(--c-text); cursor: pointer; padding: 0; min-height: 0; }
 .icon-btn:hover { background: var(--c-surface-2); }

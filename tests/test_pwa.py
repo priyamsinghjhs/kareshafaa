@@ -89,3 +89,22 @@ def test_pwa_routes_are_public_and_not_audited(client, db):
         assert client.get(p, cookies={}).status_code == 200
     db.expire_all()
     assert db.scalar(select(func.count()).select_from(AuditEvent)) == before
+
+
+def test_new_logo_everywhere(client):
+    """The logo badge is the favicon, app icon, header mark and sign-in logo; the old teal arc mark is gone."""
+    ico = client.get("/favicon.ico")
+    assert ico.status_code == 200 and ico.headers["content-type"] == "image/x-icon" and ico.content[:4] == b"\x00\x00\x01\x00"
+    fav = client.get("/static/favicon.svg").text
+    assert "#0A2B5E" in fav and "#00796b" not in fav
+    for f in ("icon.svg", "icon-small.svg", "logo-horizontal.svg", "logo-stacked.svg", "icon-mono-white.svg", "icon-mono-navy.svg"):
+        r = client.get(f"/static/brand/{f}")
+        assert r.status_code == 200 and "<svg" in r.text and "<text" not in r.text, f  # wordmark is outlined, no font needed
+    for size in (16, 32, 48, 192, 512):
+        b = client.get(f"/static/icons/icon-{size}.png").content
+        assert (int.from_bytes(b[16:20], "big"), int.from_bytes(b[20:24], "big")) == (size, size)
+    login = client.get("/login").text
+    assert 'src="/static/brand/icon-small.svg"' in login and 'src="/static/brand/logo-horizontal.svg"' in login
+    assert 'rel="icon" href="/favicon.ico"' in login and "og-1200x630.png" in login
+    assert "i-logo" not in login
+    assert 'src="/static/brand/logo-horizontal.svg"' in client.get("/offline").text

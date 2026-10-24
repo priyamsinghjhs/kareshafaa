@@ -19,7 +19,7 @@ from . import __version__
 HERE = Path(__file__).resolve().parent
 STATIC = HERE / "static"
 BRAND = "KareShafaa"
-THEME_COLOR = "#0a6b66"  # brand teal (static/kareshafaa.css --c-primary)
+THEME_COLOR = "#0a2b5e"  # logo navy (static/brand/, dist/logo/BRAND.md)
 BACKGROUND_COLOR = "#ffffff"
 # URL paths that are never cacheable by the service worker (patient data / authenticated responses)
 NEVER_CACHE_PREFIXES = ("/api/", "/fhir")
@@ -35,8 +35,11 @@ def shell_assets() -> list[str]:
     return ["/static/" + p.relative_to(STATIC).as_posix() for p in sorted(files)]
 
 
+SHELL_REV = "brand-2"  # bump to force every installed app to re-fetch the shell (2: new logo, Oct 2026)
+
+
 def _cache_version() -> str:
-    h = hashlib.sha256(__version__.encode())
+    h = hashlib.sha256((__version__ + SHELL_REV).encode())
     for url in shell_assets():
         h.update(url.encode())
         h.update((STATIC / url[len("/static/"):]).read_bytes())

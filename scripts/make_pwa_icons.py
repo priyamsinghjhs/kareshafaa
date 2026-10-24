@@ -1,58 +1,44 @@
-"""Generate the PWA icons (Latin-only brand: the icon is the neutral favicon mark, no lettering or Arabic script).
+"""Rebuild every logo file and app icon from the hand-built SVG source in scripts/brand/.
 
-usage: python3 scripts/make_pwa_icons.py   (needs Pillow; output committed under kareshafaa/static/icons/)
-The mark mirrors static/favicon.svg: a white arc joining two dots (result -> care) on the brand teal #00796b.
+usage: LOGO_OUT=/tmp/logo python3 scripts/make_pwa_icons.py
+needs: fontTools (wordmark outlines from Figtree, SIL OFL 1.1), Pillow (favicon.ico), Playwright + Chrome (exact SVG
+rendering). Output is copied into kareshafaa/static/brand/, kareshafaa/static/icons/ and kareshafaa/static/favicon.*
+Brand rules: dist/logo/BRAND.md. Latin script only (no Arabic lettering in the mark or wordmark).
 """
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw
-
-OUT = Path(__file__).resolve().parents[1] / "kareshafaa" / "static" / "icons"
-TEAL, WHITE = (0, 121, 107, 255), (255, 255, 255, 255)
-SS = 4  # supersampling for smooth edges
-
-
-def _bezier(p0, p1, p2, p3, n=400):
-    pts = []
-    for i in range(n + 1):
-        t = i / n
-        a, b, c, d = (1 - t) ** 3, 3 * (1 - t) ** 2 * t, 3 * (1 - t) * t ** 2, t ** 3
-        pts.append((a * p0[0] + b * p1[0] + c * p2[0] + d * p3[0], a * p0[1] + b * p1[1] + c * p2[1] + d * p3[1]))
-    return pts
-
-
-def mark(size: int, *, maskable: bool, fill: float = 0.62) -> Image.Image:
-    S = size * SS
-    img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    if maskable:  # full-bleed background; the mark stays inside the 80% safe zone
-        d.rectangle([0, 0, S, S], fill=TEAL)
-        scale, off = S * fill / 64, S * (1 - fill) / 2
-    else:
-        d.rounded_rectangle([0, 0, S - 1, S - 1], radius=int(S * 14 / 64), fill=TEAL)
-        scale, off = S / 64, 0
-    P = lambda x, y: (off + x * scale, off + y * scale)  # noqa: E731
-    # favicon path: M14 34 c6 0 8-12 18-12 s12 12 18 12
-    curve = _bezier(P(14, 34), P(20, 34), P(22, 22), P(32, 22)) + _bezier(P(32, 22), P(42, 22), P(44, 34), P(50, 34))
-    w = 6 * scale
-    for cx, cy in curve:  # stamp round brush along the curve (round caps/joins, no seams)
-        d.ellipse([cx - w / 2, cy - w / 2, cx + w / 2, cy + w / 2], fill=WHITE)
-    for x, y, r in ((14, 34, 5), (50, 34, 5), (32, 22, 3)):
-        cx, cy = P(x, y)
-        rr = r * scale if r == 5 else w / 2
-        d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=WHITE)
-    return img.resize((size, size), Image.LANCZOS)
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "scripts" / "brand"
+STATIC = ROOT / "kareshafaa" / "static"
 
 
 def main() -> None:
-    OUT.mkdir(parents=True, exist_ok=True)
-    mark(192, maskable=False).save(OUT / "icon-192.png")
-    mark(512, maskable=False).save(OUT / "icon-512.png")
-    mark(512, maskable=True).save(OUT / "icon-maskable-512.png")
-    mark(180, maskable=True, fill=0.84).convert("RGB").save(OUT / "apple-touch-icon-180.png")  # iOS: opaque, square
-    print("wrote", sorted(p.name for p in OUT.iterdir()))
+    out = Path(os.environ.setdefault("LOGO_OUT", "/tmp/kareshafaa_logo")); (out / "png").mkdir(parents=True, exist_ok=True)
+    subprocess.run([sys.executable, str(SRC / "build_all.py")], check=True, cwd=SRC)
+    jobs = [("icon-small.svg", f"png/icon-{s}.png", s, s) for s in (16, 32, 48)]
+    jobs += [("icon.svg", f"png/icon-{s}.png", s, s) for s in (192, 512, 1024)]
+    jobs += [("_apple.svg", "png/apple-touch-icon-180.png", 180, 180), ("_maskable.svg", "png/icon-maskable-512.png", 512, 512),
+             ("_og.svg", "png/og-1200x630.png", 1200, 630)]
+    args = [str(x) for j in jobs for x in (out / j[0], out / j[1], j[2], j[3])]
+    subprocess.run([sys.executable, str(SRC / "render.py"), *args], check=True)
+    from PIL import Image
+    for n in ("apple-touch-icon-180", "icon-maskable-512", "og-1200x630"):  # opaque
+        Image.open(out / f"png/{n}.png").convert("RGB").save(out / f"png/{n}.png")
+    ims = [Image.open(out / f"png/icon-{s}.png").convert("RGBA") for s in (16, 32, 48)]
+    ims[2].save(out / "favicon.ico", format="ICO", sizes=[(16, 16), (32, 32), (48, 48)], append_images=ims[:2])
+    for f in out.glob("*.svg"):
+        if not f.name.startswith("_"):
+            shutil.copy(f, STATIC / "brand" / f.name)
+    shutil.copy(out / "png/og-1200x630.png", STATIC / "brand")
+    for n in ("icon-16", "icon-32", "icon-48", "icon-192", "icon-512", "icon-maskable-512", "apple-touch-icon-180"):
+        shutil.copy(out / f"png/{n}.png", STATIC / "icons")
+    shutil.copy(out / "icon-small.svg", STATIC / "favicon.svg"); shutil.copy(out / "favicon.ico", STATIC / "favicon.ico")
 
 
 if __name__ == "__main__":
