@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="KareShafaa">
+  <title>KareShafaa</title>
+  <rect width="512" height="512" rx="112" fill="#0A2B5E"/>
+  <g transform="translate(256 256) scale(0.92) translate(-267.0 -278.0)">
+    <path stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M206 262 V128 A28 28 0 0 0 150 128 V362 C150 394 140 406 122 408"/>
+    <circle stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none" cx="100" cy="400" r="22"/>
+    <circle cx="100" cy="400" r="7" fill="#FFFFFF"/>
+    <path stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M318 222 L350 190"/>
+    <path stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M316 324 L346 352"/>
+    <g transform="translate(384 156) rotate(-45)">
+    <rect x="-32" y="-8" width="30" height="16" rx="2" fill="#4FD1A1"/>
+    <rect x="-36" y="-17" width="66" height="34" rx="6" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M30 -25 V25 M30 0 H54 M54 -15 V15"/>
+    </g>
+    <g transform="translate(394 400) rotate(45)">
+    <path d="M0 -31 H36 A31 31 0 0 1 36 31 H0 Z" fill="#4FD1A1"/>
+    <rect x="-67" y="-31" width="134" height="62" rx="31" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M0 -31 V31"/>
+    </g>
+    <g transform="translate(286 270) scale(1.2) translate(-262 -270)">
+    <path d="M262 334 C214 300 194 272 198 244 C202 214 240 202 262 230 C284 202 322 214 326 244 C330 272 310 300 262 334 Z" fill="#0A2B5E" stroke="#FFFFFF" stroke-width="15.0" stroke-linejoin="round"/>
+    <path d="M262 238 C250 228 230 234 230 250 C220 256 220 274 232 278 C234 290 250 294 262 286 Z" fill="none" stroke="#FFFFFF" stroke-width="7.5" stroke-linejoin="round"/>
+    <path d="M262 238 C274 228 294 234 294 250 C304 256 304 274 292 278 C290 290 274 294 262 286 Z" fill="#4FD1A1" stroke="#4FD1A1" stroke-width="7.5" stroke-linejoin="round"/>
+    <path d="M262 238 V286" stroke="#FFFFFF" stroke-width="7.5" stroke-linecap="round"/>
+    <path d="M262 252 C254 247 244 249 240 256 M262 270 C254 266 242 268 238 276" fill="none" stroke="#FFFFFF" stroke-width="6.0" stroke-linecap="round"/>
+    <path d="M262 260 C270 255 280 257 286 264 M262 278 C268 275 276 277 280 283" fill="none" stroke="#0A2B5E" stroke-width="6.0" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>
