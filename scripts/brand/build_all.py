@@ -31,17 +31,20 @@ def stacked(b, text_color):
     w, _ = word((W - ww) / 2, 512 + gap + ASC * k, cap, text_color)
     return svg(f'<g transform="translate({(W-512)/2:.1f} 0)">{b}</g>\n  {w}', round(W), round(H))
 
+KEY = '<rect x="4" y="4" width="504" height="504" rx="108" fill="none" stroke="#FFFFFF" stroke-opacity=".35" stroke-width="8"/>'  # keyline so the navy badge edge shows on dark backgrounds
+dark = badge(scale=0.92) + KEY
 files = {
     "icon.svg": svg(badge(scale=0.92), 512, 512),
     "icon-small.svg": svg(badge(small=True, scale=0.94), 512, 512),
+    "icon-on-dark.svg": svg(dark, 512, 512),
     "icon-mono-white.svg": svg(mono_badge(WHITE, "kw"), 512, 512),
     "icon-mono-navy.svg": svg(mono_badge(NAVY, "kn"), 512, 512),
     "logo-horizontal.svg": horizontal(badge(scale=0.92), NAVY),
-    "logo-horizontal-on-dark.svg": horizontal(badge(scale=0.92), WHITE),
+    "logo-horizontal-on-dark.svg": horizontal(dark, WHITE),
     "logo-horizontal-mono-white.svg": horizontal(mono_badge(WHITE, "hw"), WHITE),
     "logo-horizontal-mono-navy.svg": horizontal(mono_badge(NAVY, "hn"), NAVY),
     "logo-stacked.svg": stacked(badge(scale=0.92), NAVY),
-    "logo-stacked-on-dark.svg": stacked(badge(scale=0.92), WHITE),
+    "logo-stacked-on-dark.svg": stacked(dark, WHITE),
     "logo-stacked-mono-white.svg": stacked(mono_badge(WHITE, "sw"), WHITE),
     "logo-stacked-mono-navy.svg": stacked(mono_badge(NAVY, "sn"), NAVY),
     # app icons: full-bleed squares (iOS/Android apply their own mask)
