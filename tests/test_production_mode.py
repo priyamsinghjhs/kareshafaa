@@ -155,7 +155,7 @@ def test_pages_have_footer_and_no_showcase_wording(client, as_user, user, path):
 
 def test_walkthrough_page_moved_and_restricted(client, as_user):
     assert client.get("/demo", headers=as_user("admin")).status_code == 404
-    assert client.get("/walkthrough", headers=as_user("fatima.al.mansoori")).status_code == 200
+    assert client.get("/walkthrough", headers=as_user("fatima.al.mansoori")).status_code == 403  # admin tool, not a clinical duty
     assert client.get("/walkthrough", headers=as_user("admin")).status_code == 200
     for u in ("aisha.rahman", "omar.haddad", "analyst"):
         assert client.get("/walkthrough", headers=as_user(u)).status_code == 403

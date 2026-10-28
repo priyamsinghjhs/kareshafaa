@@ -120,7 +120,7 @@ Every person signs in with a username and password; there is no account list on 
 | `admin` | System administrator | Users, System, audit log and chain verification, advanced tools |
 | `patient.ar`, `.en`, `.hi`, `.ur`, `.tl` | Patients (sample records) | Fatima Al Kaabi (FIT, Al Ain), Emma Clarke (BI-RADS 0), Ramesh Kumar (HbA1c), Ayesha Khan (HPV), Maria Santos (BI-RADS 4, Tagalog) |
 
-**Guided walkthrough** (`/walkthrough`, under Advanced; clinical lead or admin; standard mode only - off in
+**Guided walkthrough** (`/walkthrough`, under Advanced; admin only; standard mode only - off in
 production because it adds sample patients). Each one creates a new sample patient record and runs through the real
 service layer, guards and audit:
 1. Fatima: result arrives as HL7 ORU → Arabic teach-back → GP referral → hospital rejects (capacity) → re-route.

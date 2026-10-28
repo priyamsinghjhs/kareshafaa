@@ -95,8 +95,7 @@ def seed(n_patients: int | None = None, seed_value: int | None = None, *, train:
                                                        "reviewed (initial setup).", now=now)
                 stats["v2"]["status"] = v2.status
             db.commit()
-            director = actor_from_user(users_by_pid[d["director"].id])
-            stats["proposals"] = len(generate_proposals(db, director))
+            stats["proposals"] = len(generate_proposals(db, admin_actor))  # the proposal engine is an admin job; the lead decides
         stats["replay"] = rep.stats
         if simulate:
             sim = run_simulation(n=n, seed=sv)

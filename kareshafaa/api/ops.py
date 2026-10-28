@@ -133,5 +133,5 @@ def audit_log(case_id: int | None = None, actor_role: str | None = None, event: 
 
 
 @router.get("/audit/verify")
-def audit_verify(actor: Actor = Depends(require("audit:read")), db: Session = Depends(get_db)) -> dict:
+def audit_verify(actor: Actor = Depends(require("audit:verify")), db: Session = Depends(get_db)) -> dict:
     return audit.verify_chain(db)

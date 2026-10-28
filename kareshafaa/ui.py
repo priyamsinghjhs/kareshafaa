@@ -21,7 +21,7 @@ NAV: dict[str, list[tuple[str, str, str]]] = {  # role -> [(href, label, icon)]
                    ("/consults", "Consult requests", "chat")],
     "clinical_lead": [("/overview", "Overview", "home"), ("/queue", "Work queue", "list"),
                       ("/governance", "Approvals", "shield"), ("/dashboard", "Outcomes", "chart"),
-                      ("/advanced", "Advanced", "tools")],
+                      ("/audit", "Audit trail", "key")],
     "analyst": [("/dashboard", "Outcomes", "chart"), ("/governance", "Models & rules", "shield")],
     "admin": [("/admin/users", "Users", "users"), ("/admin/system", "System", "home"), ("/dashboard", "Outcomes", "chart"),
               ("/advanced", "Advanced", "tools")],
@@ -37,8 +37,8 @@ HOME: dict[str, str] = {"coordinator": "/queue", "gp": "/queue?view=review", "sp
 PAGE_PERMS: dict[str, tuple[str, ...] | None] = {
     "/queue": ("queue:read",), "/cases": ("case:read",), "/patient": ("self:read",),
     "/dashboard": ("analytics:read",), "/governance": ("model:read", "content:read"), "/audit": ("audit:read",),
-    "/walkthrough": ("proposal:decide", "user:admin"), "/ingest": ("case:create",), "/consults": ("consult:respond",),
-    "/overview": ("proposal:decide",), "/advanced": ("audit:read",), "/admin/users": ("user:admin",), "/admin/system": ("user:admin",),
+    "/walkthrough": ("user:admin",), "/ingest": ("case:create",), "/consults": ("consult:respond",),
+    "/overview": ("proposal:decide",), "/advanced": ("config:read",), "/admin/users": ("user:admin",), "/admin/system": ("user:admin",),
     "/account/password": None,
 }
 

@@ -29,14 +29,16 @@ PERMISSIONS: dict[str, frozenset[str]] = {
                                             "referral:create", "referral:decide", "careplan:write",
                                             "closure:authorise", "case:reopen", "call:record", "confirm:order",
                                             "confirm:result", "analytics:read", "audit:read", "model:read",
-                                            "model:train", "model:approve", "model:rollback", "proposal:decide",
-                                            "proposal:generate", "lesson:read", "sweep:run", "case:create",
-                                            "simulation:run", "content:read", "content:approve", "record:write"}),
+                                            "model:approve", "model:rollback", "proposal:decide", "lesson:read",
+                                            "content:read", "content:approve", "record:write"}),
+    # clinical lead = clinical approvals and oversight only. System administration (users, system status, deadline-check
+    # runner, model retraining, proposal engine, simulation runs, raw data import, audit-chain verification, active
+    # configuration) belongs to admin; the audit log stays readable to the lead for clinical governance.
     "analyst": frozenset({"analytics:read", "model:read", "lesson:read", "content:read"}),
     # professional medical translator: attests that a translation says the same as the signed-off English
     "translator": frozenset({"content:read", "content:translation_review"}),
     "admin": frozenset({"audit:read", "model:read", "model:train", "sweep:run", "proposal:generate",
-                        "lesson:read", "config:read", "simulation:run", "analytics:read",
+                        "lesson:read", "config:read", "simulation:run", "analytics:read", "audit:verify",
                         "user:admin"}),  # user accounts: create, role, reset password, deactivate
 }
 # Roles that see every case in the programme; others see only cases their organisation is involved in.

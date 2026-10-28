@@ -120,7 +120,7 @@ def test_audit_is_append_only(db, seeded):
 
 
 def test_audit_hash_chain_verifies(client, as_user):
-    r = client.get("/api/audit/verify", headers=as_user("fatima.al.mansoori")).json()
+    r = client.get("/api/audit/verify", headers=as_user("admin")).json()
     assert r["valid"] is True and r["checked"] > 100
 
 
@@ -139,7 +139,7 @@ def test_audit_chain_survives_concurrent_writers(client, as_user):
     with ThreadPoolExecutor(max_workers=12) as ex:
         codes = list(ex.map(lambda i: client.get(f"/api/queue?limit=5&offset={i % 3}", headers=h).status_code, range(60)))
     assert set(codes) == {200}
-    r = client.get("/api/audit/verify", headers=as_user("fatima.al.mansoori")).json()
+    r = client.get("/api/audit/verify", headers=as_user("admin")).json()
     assert r["valid"] is True, r
 
 

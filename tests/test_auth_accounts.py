@@ -331,12 +331,12 @@ PAGE_ACCESS = {  # page -> roles allowed
     "/dashboard": {"clinical_lead", "analyst", "admin"},
     "/governance": {"clinical_lead", "analyst", "admin", "translator"},
     "/audit": {"clinical_lead", "admin"},
-    "/walkthrough": {"clinical_lead", "admin"},
+    "/walkthrough": {"admin"},
     "/admin/system": {"admin"},
-    "/ingest": {"coordinator", "gp", "clinical_lead"},
+    "/ingest": {"coordinator", "gp"},
     "/consults": {"coordinator", "gp", "specialist", "clinical_lead"},
     "/overview": {"clinical_lead"},
-    "/advanced": {"clinical_lead", "admin"},
+    "/advanced": {"admin"},
     "/admin/users": {"admin"},
     "/account/password": {"coordinator", "gp", "specialist", "clinical_lead", "analyst", "admin", "translator", "patient"},
 }
@@ -363,7 +363,8 @@ API_ACCESS = {  # GET endpoint -> roles allowed
     "/api/analytics/kpis": {"clinical_lead", "analyst", "admin"},
     "/api/governance/models": {"clinical_lead", "analyst", "admin"},
     "/api/governance/content": {"clinical_lead", "analyst", "translator"},
-    "/api/ingest/messages": {"coordinator", "gp", "clinical_lead"},
+    "/api/ingest/messages": {"coordinator", "gp"},
+    "/api/audit/verify": {"admin"},
     "/api/consults": {"coordinator", "gp", "specialist", "clinical_lead"},
 }
 

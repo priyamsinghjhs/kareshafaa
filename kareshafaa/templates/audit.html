@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="page-head"><div><a class="back-link" href="/advanced"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Advanced</a><h1>Audit trail</h1>
-<p class="lede">Every view and change, including refused attempts, in an append-only, hash-chained log.</p></div>
-<div class="page-actions"><button id="verify">Check the log is intact</button></div></div>
+<div class="page-head"><div>{% if user and user.role == "admin" %}<a class="back-link" href="/advanced"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Advanced</a>{% endif %}<h1>Audit trail</h1>
+<p class="lede">Every view and change, including refused attempts, in an append-only, hash-chained log.</p>{% if user and user.role != "admin" %}<p class="small muted">Read-only view for clinical governance. The system administrator checks the log's integrity.</p>{% endif %}</div>
+{% if user and user.role == "admin" %}<div class="page-actions"><button id="verify">Check the log is intact</button></div>{% endif %}</div>
 <form class="filters" id="af" role="search">
   <label for="ev">Event type<input id="ev" placeholder="e.g. auth. or case. or model." autocomplete="off"></label>
   <label for="cid">Case number<input id="cid" inputmode="numeric" pattern="[0-9]*" autocomplete="off"></label>
@@ -19,7 +19,8 @@ async function load() {
 }
 document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return;
   document.getElementById("af").onsubmit = e => { e.preventDefault(); load().catch(x => W.toast(x.message, "err")); };
-  document.getElementById("verify").onclick = async ev => { const b = ev.currentTarget; b.setAttribute("aria-busy", "true");
+  const vb = document.getElementById("verify");
+  if (vb) vb.onclick = async ev => { const b = ev.currentTarget; b.setAttribute("aria-busy", "true");
     try { const r = await W.api("/api/audit/verify");
       document.getElementById("vres").innerHTML = `<div class="card ${r.valid ? "ok" : "alert"}" role="status">${r.valid ? `✓ The log is intact: ${r.checked} events verified.` : `✕ The chain is broken at event #${r.broken_at_id}.`}</div>`; }
     catch (e) { W.toast(e.message, "err"); } b.removeAttribute("aria-busy"); };
