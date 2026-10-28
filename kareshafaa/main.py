@@ -464,6 +464,25 @@ def create_app() -> FastAPI:
         finally:
             inflight["n"] -= 1
 
+    from fastapi.exception_handlers import http_exception_handler as _default_http
+    from starlette.exceptions import HTTPException as _StarletteHTTP
+
+    def _wants_page(req: Request) -> bool:
+        path = req.url.path
+        return req.method == "GET" and "text/html" in req.headers.get("accept", "") and \
+            not path.startswith(("/api", "/fhir", "/static"))
+
+    _ERR_PAGES = {404: ("Page not found", "This page does not exist or has moved. Check the address, or start again from the home page."),
+                  405: ("Page not found", "This address cannot be opened in the browser.")}
+
+    @app.exception_handler(_StarletteHTTP)
+    async def _http_err(req: Request, exc: _StarletteHTTP):
+        # browser page loads get a branded page; API/FHIR callers keep the JSON body
+        if exc.status_code in _ERR_PAGES and _wants_page(req):
+            t, m = _ERR_PAGES[exc.status_code]
+            return templates.TemplateResponse(req, "error.html", {"title": t, "message": m}, status_code=exc.status_code)
+        return await _default_http(req, exc)
+
     @app.exception_handler(DomainError)
     async def _domain(_req: Request, exc: DomainError):
         body = {"detail": exc.message}

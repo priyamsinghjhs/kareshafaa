@@ -108,3 +108,11 @@ def test_new_logo_everywhere(client):
     assert 'rel="icon" href="/favicon.ico"' in login and "og-1200x630.png" in login
     assert "i-logo" not in login
     assert 'src="/static/brand/logo-horizontal.svg"' in client.get("/offline").text
+
+
+def test_unknown_page_shows_branded_error_page_but_api_stays_json(client):
+    r = client.get("/no-such-page", headers={"accept": "text/html"})
+    assert r.status_code == 404 and "text/html" in r.headers["content-type"]
+    assert "/static/brand/logo-horizontal.svg" in r.text and "Page not found" in r.text and "#0a2b5e" in r.text
+    r = client.get("/api/no-such-endpoint", headers={"accept": "text/html"})
+    assert r.status_code == 404 and r.json() == {"detail": "Not Found"}
