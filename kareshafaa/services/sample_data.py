@@ -428,9 +428,16 @@ def backfill_sample_clinical_history(db: Session, now: datetime | None = None,
 
 
 # ------------------------------------------------------------------------------------------ runner
+def backfill_sample_recalls(db: Session, now: datetime | None = None) -> dict:
+    from .recall import backfill_sample_recalls as _b
+
+    return _b(db, now)
+
+
 MIGRATIONS = [
     ("reanchor_sample_case_dates_v1", reanchor_sample_case_dates),
     ("backfill_sample_clinical_history_v1", backfill_sample_clinical_history),
+    ("backfill_sample_recalls_v1", backfill_sample_recalls),  # SYN- only; audited per recall + once overall
 ]
 
 

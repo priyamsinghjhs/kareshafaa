@@ -4,7 +4,7 @@ Every write goes through these functions so that guards, ownership and audit are
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import func, select
@@ -274,6 +274,8 @@ def ingest_result(db: Session, patient: Patient, programme: str, *, value: float
     audit.record(db, actor, "C", "result.received", entity_type="DiagnosticReport", entity_id=rep.id, ts=now,
                  detail={"programme": programme, "disposition": dec.disposition, "tier": dec.tier,
                          "rule": dec.rule_id, "reasons": dec.reasons})
+    from . import recall as _recall  # the person's open recall for this programme is now completed (new episode)
+    _recall.on_new_result(db, patient, rep, now)
     group = identity_group(db, patient)
     open_case = db.scalar(select(Case).where(Case.patient_id.in_(group), Case.programme == programme,
                                              Case.state != S.CLOSED).order_by(Case.id.desc()).limit(1))
@@ -297,8 +299,11 @@ def ingest_result(db: Session, patient: Patient, programme: str, *, value: float
         flag_review(db, open_case, reasons, actor, now, tier=dec.tier, detail={"report_id": rep.id, "rule": dec.rule_id})
         audit.record(db, actor, "U", "case.linked_result", entity_type="Task", entity_id=open_case.id,
                      case_id=open_case.id, ts=now, detail={"report_id": rep.id, "disposition": dec.disposition})
+        _recall.link_case(db, rep, open_case)
         return rep, open_case
     if not dec.creates_case:
+        if rep.conclusion == "negative":
+            _recall.after_negative(db, patient, rep, actor, now)
         return rep, None
     reasons = list(dec.reasons)
     if len(group) > 1:
@@ -324,6 +329,7 @@ def ingest_result(db: Session, patient: Patient, programme: str, *, value: float
     audit.record(db, actor, "C", "case.created", entity_type="Task", entity_id=case.id, case_id=case.id, ts=now,
                  detail={"programme": programme, "tier": tier, "owner_id": case.owner_id, "rule": dec.rule_id,
                          "review": review, "reasons": reasons, "previous_closed_case": recent})
+    _recall.link_case(db, rep, case)
     return rep, case
 
 
@@ -597,6 +603,8 @@ def close_case(db: Session, case: Case, actor: Actor, closure_type: str, *, evid
     audit.record(db, actor, "U", "case.closed", entity_type="Task", entity_id=case.id, case_id=case.id, ts=now,
                  detail={"from": src, "closure_type": closure_type, "reason": case.closure_reason,
                          "evidence_id": evidence_id})
+    from . import recall as _recall  # next screening due date from the programme interval (clinical_rules, CONFIRM)
+    _recall.after_closure(db, case, actor, now)
     return case
 
 
@@ -879,7 +887,8 @@ def record_attendance(db: Session, case: Case, actor: Actor, attended: bool, *, 
     return appt
 
 
-def start_care(db: Session, case: Case, actor: Actor, kind: str, description: str, now: datetime | None = None) -> CarePlan:
+def start_care(db: Session, case: Case, actor: Actor, kind: str, description: str, now: datetime | None = None,
+               review_due_on: date | None = None) -> CarePlan:
     _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     require_signoff(actor, "careplan.start", description)
@@ -894,12 +903,21 @@ def start_care(db: Session, case: Case, actor: Actor, kind: str, description: st
         raise TransitionError("care can start after an attended appointment or a primary-care consultation")
     if not description or len(description.strip()) < 5:
         raise Invalid("a care plan description is required")
+    if kind == "surveillance":
+        from ..clinical_rules import SURVEILLANCE_MONTHS
+        from .recall import add_months
+        if review_due_on is None:
+            review_due_on = add_months(now.date(), SURVEILLANCE_MONTHS.get(case.programme, 12))
+        elif review_due_on <= now.date() or review_due_on > add_months(now.date(), 120):
+            raise Invalid("the surveillance review date must be after today and within 10 years")
+    elif review_due_on is not None:
+        raise Invalid("a review date applies to surveillance plans only (treatment follow-up is set by the treating team)")
     cp = CarePlan(case_id=case.id, kind=kind, description=description,
-                  recorded_by_id=actor.practitioner_id or case.owner_id, created_at=now)
+                  recorded_by_id=actor.practitioner_id or case.owner_id, created_at=now, review_due_on=review_due_on)
     db.add(cp)
     db.flush()
     audit.record(db, actor, "C", "careplan.created", entity_type="CarePlan", entity_id=cp.id, case_id=case.id, ts=now,
-                 detail={"kind": kind})
+                 detail={"kind": kind, "review_due_on": review_due_on.isoformat() if review_due_on else None})
     transition(db, case, S.TREATMENT_STARTED, actor, now=now)
     return cp
 

@@ -466,6 +466,33 @@ def run():
             ctx.close()
         step("invite", invite_flow)
 
+        def recall_flow():  # Due for recall: send a simulated invitation, cancel another with a reason
+            import datetime as _dt
+            rows = sqlite3.connect(DB).execute("""select r.id, p.mrn, r.due_on from recalls r join patients p on p.id=r.patient_id
+                where r.status in ('due','invited') and p.phone_valid=1 and p.deceased=0 order by r.due_on limit 2""").fetchall()
+            if len(rows) < 2:
+                RES.append({"field": "Recall list (needs 2 open recalls)", "ok": False, "found": len(rows)}); return
+            p = co.p; out = []
+            for k, (rid, mrn, due) in enumerate(rows):
+                view = "due" if _dt.date.fromisoformat(str(due)[:10]) <= _dt.date.today() + _dt.timedelta(days=60) else "upcoming"
+                p.goto(f"{BASE}/recalls?view={view}&q={mrn}"); p.wait_for_selector(f'[data-inv="{rid}"]', timeout=20000)
+                if k == 0:
+                    co.shot("recalls"); p.click(f'[data-inv="{rid}"]'); p.wait_for_timeout(1500)
+                    r = q1("select status, invite_count, last_invite_channel from recalls where id=?", rid)
+                    m = q1("select content from communications where category='recall_invite' and patient_id=(select patient_id from recalls where id=?) order by id desc", rid)
+                    out.append({"field": "Recall: send invitation", "page": "/recalls", "db_row": r, "message": (m or [""])[0][:120],
+                                "ok": bool(r and r[0] == "invited" and r[1] >= 1 and m and m[0].startswith("[SIMULATED"))})
+                else:
+                    p.click(f'[data-cancel="{rid}"]'); p.wait_for_selector("#dlg-text")
+                    p.fill("#dlg-text", "no"); p.locator("[data-ok]").last.click(); p.wait_for_timeout(400)
+                    still = p.locator("#dlg-text").count() == 1
+                    t = tok("recall.cancel"); p.fill("#dlg-text", t); p.locator("[data-ok]").last.click(); p.wait_for_timeout(1500)
+                    p.goto(f"{BASE}/patients/" + str(q1("select patient_id from recalls where id=?", rid)[0])); p.wait_for_selector("#pr-root .case-head")
+                    co.shot("patient_record_recalls")
+                    record("Recall: cancel reason", "/recalls", t, None, p.inner_text("#pr-root"), {"short_reason_refused": still})
+            RES.extend(out)
+        step("recall", recall_flow)
+
         for b in (co, gp, sp, lead, adm):
             if b.errs:
                 RES.append({"field": f"HTTP/JS errors seen as {b.user}", "errors": b.errs[-12:]})

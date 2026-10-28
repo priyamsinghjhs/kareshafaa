@@ -133,6 +133,7 @@ def kpis(db: Session, now=None) -> dict[str, Any]:
         "treatment_initiation_rate": suppress_rate(len(careplans), n),
         "teach_back_pass_rate_first_attempt": suppress_rate(tb_pass, tb_n),
         "mean_confidence_1to5": round(float(tb.confidence.dropna().mean()), 2) if not tb.empty and tb.confidence.notna().sum() >= _thr() else None,
+        **_recall_kpis(db, now),
         "open_by_state": secondary_suppress(open_.state.value_counts().to_dict()),
         "delay_and_dropoff_reasons": delay,
         "suppression_threshold": _thr(),
@@ -177,11 +178,21 @@ _CACHE: dict[str, tuple[tuple, float, Any]] = {}
 CACHE_TTL_S = 60.0
 
 
+def _recall_kpis(db: Session, now) -> dict:
+    from .recall import uptake
+
+    u = uptake(db, now)
+    return {"recall_uptake_rate": suppress_rate(u["completed_in_window"], u["denominator"]),
+            "recalls_due_now": suppress_count(u["open_due_now"]), "recall_uptake_window_days": u["window_days"]}
+
+
 def _fingerprint(db: Session) -> tuple:
     from sqlalchemy import func
 
     parts = []
-    for m in (Case, StepTask, Consent, QuestionnaireResponse, ServiceRequest, Appointment, CarePlan, Lesson):
+    from ..models import Recall
+
+    for m in (Case, StepTask, Consent, QuestionnaireResponse, ServiceRequest, Appointment, CarePlan, Lesson, Recall):
         parts.append(tuple(db.execute(select(func.max(m.id), func.count(m.id))).one()))
     return tuple(parts)
 

@@ -87,8 +87,11 @@ def test_case_pathway_forms_capture_every_field(client, db, staff, new_case):
     db.expire_all(); st = db.scalar(select(Appointment.start).where(Appointment.case_id == cid).order_by(Appointment.id.desc()))
     assert st.replace(tzinfo=None) == when.replace(tzinfo=None), "appointment time shifted"
     assert P(client, sp, f"{u}/attendance", attended=True).status_code < 400
-    t = tok("careplan"); captured(client, db, P(client, sp, f"{u}/care-plan", kind="surveillance", description=t), t, *rd, h=sp)
+    t = tok("careplan"); captured(client, db, P(client, sp, f"{u}/care-plan", kind="surveillance", description=t, review_due_on="2029-04-15"), t, *rd, h=sp)
+    assert client.get(u, headers=sp).json()["care_plans"][-1]["review_due_on"] == "2029-04-15"
     t = tok("close"); captured(client, db, P(client, sp, f"{u}/close", closure_type="evidence", evidence_type="care_plan", note=t), t, *rd, h=sp)
+    rc = client.get(u, headers=co).json()["recall"]
+    assert rc["next_screening_due"] == "2029-04-15" and rc["recall"]["status"] == "due"
     t = tok("reopen"); captured(client, db, P(client, lead, f"{u}/reopen", note=t), t, *rd, h=lead)
 
 
@@ -238,3 +241,15 @@ def test_patient_account_invite_and_revoke_reason_capture(client, db, staff):
     assert acc["invite"]["channel"] == "sms" and acc["username"] == inv.json()["username"] and acc["invite_messages"]
     t = tok("revoke")
     captured(client, db, P(client, co, f"{rd}/account-invite/revoke", reason=t), t, rd, h=co)
+
+
+def test_recall_cancel_reason_capture(client, db, staff, make_patient):
+    from kareshafaa.models import Recall
+    co = staff["co"]
+    pid = make_patient(phone_valid=True)
+    assert P(client, co, "/api/results", patient_id=pid, programme="colorectal_fit", value=4, unit="ug/g").status_code == 200
+    db.expire_all()
+    rid = db.scalar(select(Recall.id).where(Recall.patient_id == pid))
+    r = P(client, co, f"/api/recalls/{rid}/cancel", reason="x"); assert r.status_code == 422  # same rule as the form (5+)
+    t = tok("recallcancel")
+    captured(client, db, P(client, co, f"/api/recalls/{rid}/cancel", reason=t), t, f"/api/patients/{pid}", "/api/recalls?view=upcoming", h=co)

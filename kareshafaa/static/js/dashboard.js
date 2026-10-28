@@ -31,7 +31,8 @@ const tabs = {
      <div class="grid-4">${card("Cases", k.total_cases)}${card("Open", k.open_cases)}${card("Open steps overdue", k.open_overdue_steps)}${card("Closure rate", W.pct(k.closure_rate))}
      ${card("Closed with evidence", k.closed_with_evidence)}${card("Closed by authorised decision", k.closed_authorised_decision)}${card("Median days to notification", k.median_days_to_notification)}${card("Median days to care", k.median_days_to_care)}
      ${card("Median days to understood", k.median_days_to_acknowledgement)}${card("Median days to confirmation", k.median_days_to_confirmation)}${card("Referral acceptance", W.pct(k.referral_acceptance_rate))}${card("Appointment attendance", W.pct(k.appointment_attendance_rate))}
-     ${card("Treatment / surveillance initiation", W.pct(k.treatment_initiation_rate))}${card("Teach-back pass (1st attempt)", W.pct(k.teach_back_pass_rate_first_attempt))}${card("Mean confidence (1–5)", k.mean_confidence_1to5)}${card("No-show events", k.no_show_events)}</div>
+     ${card("Treatment / surveillance initiation", W.pct(k.treatment_initiation_rate))}${card("Teach-back pass (1st attempt)", W.pct(k.teach_back_pass_rate_first_attempt))}${card("Mean confidence (1–5)", k.mean_confidence_1to5)}${card("No-show events", k.no_show_events)}
+     ${card(`Recall uptake (screened within ${k.recall_uptake_window_days || 180} days of due)`, W.pct(k.recall_uptake_rate))}${card("Recalls due now", k.recalls_due_now)}</div>
      <div class="grid-2"><div class="card"><h4>Open cases by state</h4><table class="compact">${Object.entries(k.open_by_state).map(([s, n]) => `<tr><td>${W.esc(s)}</td><td>${n}</td></tr>`).join("")}</table></div>
      <div class="card"><h4>Top delay / drop-off reasons (lessons learned)</h4><table class="compact">${Object.entries(k.delay_and_dropoff_reasons).map(([s, n]) => `<tr><td>${W.esc(s)}</td><td>${n}</td></tr>`).join("")}</table></div></div>`;
   },

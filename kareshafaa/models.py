@@ -224,6 +224,7 @@ class Case(Base):  # FHIR Task (code=loop-case); focus = DiagnosticReport
     closure_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     closure_evidence_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
     closure_evidence_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    next_screening_due: Mapped[date | None] = mapped_column(Date, nullable=True)  # set at closure (recall)
     closed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     transfer_pending_owner_id: Mapped[int | None] = mapped_column(ForeignKey("practitioners.id"), nullable=True)
     transfer_note: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -334,6 +335,34 @@ class CarePlan(Base):  # FHIR CarePlan - evidence that treatment or surveillance
     status: Mapped[str] = mapped_column(String(20), default="active")
     recorded_by_id: Mapped[int] = mapped_column(ForeignKey("practitioners.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    review_due_on: Mapped[date | None] = mapped_column(Date, nullable=True)  # surveillance: next review / re-test
+
+
+class Recall(Base):
+    """Next routine screen (or surveillance review) for one person and programme. Created after a negative
+    result, a closed case or a surveillance plan; completed automatically by the next screening result."""
+    __tablename__ = "recalls"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    programme: Mapped[str] = mapped_column(String(40), index=True)
+    due_on: Mapped[date] = mapped_column(Date, index=True)
+    reason: Mapped[str] = mapped_column(String(30))  # routine_after_negative | after_closure | surveillance
+    interval_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_report_id: Mapped[int | None] = mapped_column(ForeignKey("diagnostic_reports.id"), nullable=True)
+    source_case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True)
+    care_plan_id: Mapped[int | None] = mapped_column(ForeignKey("care_plans.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="due", index=True)  # due | invited | completed | cancelled | superseded
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    created_by: Mapped[str] = mapped_column(String(200))
+    invited_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    invite_count: Mapped[int] = mapped_column(Integer, default=0)
+    invited_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    last_invite_channel: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_report_id: Mapped[int | None] = mapped_column(ForeignKey("diagnostic_reports.id"), nullable=True)
+    completed_case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True)
+    closed_note: Mapped[str | None] = mapped_column(String(500), nullable=True)  # cancel reason
+    closed_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
 
 class Communication(Base):  # FHIR Communication (all channels SIMULATED)

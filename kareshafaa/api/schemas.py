@@ -82,6 +82,7 @@ class AttendanceIn(_In):
 class CarePlanIn(_In):
     kind: Literal["treatment", "surveillance"]
     description: str = Field(min_length=5, max_length=2000)
+    review_due_on: _date | None = None  # surveillance: next review / re-test (default from clinical_rules)
 
 
 class ConsultIn(_In):

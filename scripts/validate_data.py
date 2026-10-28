@@ -115,6 +115,24 @@ def run(max_examples: int = 5) -> dict:
             checked["patient_invites"] += 1
             if iv.used_at is not None and (iv.used_at > iv.expires_at or (iv.revoked_at is not None and iv.revoked_at < iv.used_at)):
                 bad("account.invite_used_only_while_valid", iv.id)
+        # recalls: one open recall per person and programme; completed ones say when; cancelled ones say why
+        from kareshafaa.models import Recall as _RC
+        open_rc = defaultdict(list)
+        for rc in db.scalars(select(_RC)):
+            checked["recalls"] += 1
+            if rc.patient_id not in patients:
+                bad("recall.patient_exists", rc.id)
+            if rc.status in ("due", "invited"):
+                open_rc[(rc.patient_id, rc.programme)].append(rc.id)
+            if rc.status == "completed" and (rc.completed_at is None or rc.completed_report_id is None):
+                bad("recall.completed_has_result", rc.id)
+            if rc.status == "cancelled" and not (rc.closed_note or "").strip():
+                bad("recall.cancelled_has_reason", rc.id)
+            if rc.status == "invited" and rc.invited_at is None:
+                bad("recall.invited_has_time", rc.id)
+        for k, ids in open_rc.items():
+            if len(ids) > 1:
+                bad("recall.one_open_per_programme", ids)
 
         # --- report / observation level -------------------------------------------------------------
         for r in reports:

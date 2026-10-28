@@ -128,6 +128,7 @@ Every person signs in with a username and password; there is no account list on 
 | Register a patient (`/patients/new`), incl. from an unmatched lab result | yes | yes | – | – | – | – | – |
 | Edit personal / contact / health-centre details | yes | patients they can see | – | – | – | – | own contact details only |
 | Create the patient app account / send or cancel an activation code | yes | patients they can see | – | – | – (Admin → Users only resets passwords / deactivates) | – | activates with the code |
+| Due for recall (`/recalls`): see, send a simulated invitation, cancel with a reason | yes (all) | own centre / own patients | – | read only, programme-wide | – | – | receives the invitation |
 
 * **Admin manages accounts, never clinical data**: no patient search, record or registration (403 on the API, no menu).
 * **Clinical lead** reads every record (oversight) but has no registration or admin tools.
@@ -151,6 +152,17 @@ Every person signs in with a username and password; there is no account list on 
   attempts count towards the sign-in IP rate limit. A new code for an active account resets a forgotten password.
   Audit: `patient.account_invited`, `patient.account_invite_revoked`, `patient.account_activated`,
   `patient.account_activation_failed`. Set `KARESHAFAA_PUBLIC_BASE_URL` so links use the public address.
+* **Recall (next screen)**: a negative screening result, a closed case or a surveillance care plan sets the person's
+  next screening due date (case: *Next screening due*; care plan: *Review / re-test due*, default from the rule, the
+  clinician can change it). Intervals live in `kareshafaa/clinical_rules.py` (`RECALL_INTERVAL_MONTHS`,
+  `SURVEILLANCE_MONTHS`, `RECALL_AFTER_CLOSURE_MONTHS`; all **CONFIRM**). One open recall per person and programme
+  (a newer one replaces the older). `/recalls` lists who is due within 60 days / overdue / invited; invitations are
+  *simulated* messages in the person's language (consent and channel respected; no channel → phone them). The next
+  screening result completes the recall and starts the new episode (a new case if actionable, otherwise a fresh
+  routine recall). KPI *Recall uptake* = recalls screened within 180 days of the due date ÷ recalls due ≥ 180 days
+  ago (dashboard and `/recalls`). Sample (`SYN-`) records get their recalls from existing history by a one-time,
+  audited background step. Audit: `recall.scheduled`, `recall.not_scheduled`, `recall.invited`, `recall.cancelled`,
+  `recall.completed`.
 * Every change is audited (`patient.registered`, `patient.duplicate_override`, `patient.register_blocked`,
   `patient.demographics_updated`, `patient.contact_updated`, `patient.care_updated`) and listed on the record.
 

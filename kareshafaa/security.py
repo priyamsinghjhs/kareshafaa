@@ -19,7 +19,8 @@ _CLINICAL = {
 }
 # front-line registration and record keeping: coordinators and GPs register patients, edit their details and invite
 # them to the patient app. Clinical lead (oversight) and admin (accounts only) do not.
-_REGISTRATION = {"patient:register", "patient:write", "patient:invite"}
+_REGISTRATION = {"patient:register", "patient:write", "patient:invite",
+                 "recall:manage"}  # recall list: send invitations, cancel with a reason (scoped like patient records)
 PERMISSIONS: dict[str, frozenset[str]] = {
     "patient": frozenset({"self:read", "self:respond"}),
     "coordinator": frozenset(_CLINICAL | {"case:triage", "case:assign", "case:transfer", "referral:create",
@@ -34,7 +35,7 @@ PERMISSIONS: dict[str, frozenset[str]] = {
                                             "closure:authorise", "case:reopen", "call:record", "confirm:order",
                                             "confirm:result", "analytics:read", "audit:read", "model:read",
                                             "model:approve", "model:rollback", "proposal:decide", "lesson:read",
-                                            "content:read", "content:approve", "record:write"}),
+                                            "content:read", "content:approve", "record:write", "recall:read"}),
     # clinical lead = clinical approvals and oversight only. System administration (users, system status, deadline-check
     # runner, model retraining, proposal engine, simulation runs, raw data import, audit-chain verification, active
     # configuration) belongs to admin; the audit log stays readable to the lead for clinical governance.

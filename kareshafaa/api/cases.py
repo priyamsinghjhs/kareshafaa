@@ -232,7 +232,7 @@ def attendance(case_id: int, body: sch.AttendanceIn, actor: Actor = Depends(requ
 def care_plan(case_id: int, body: sch.CarePlanIn, actor: Actor = Depends(require("careplan:write")),
               db: Session = Depends(get_db)) -> dict:
     c = _load(db, actor, case_id)
-    cp = wf.start_care(db, c, actor, body.kind, body.description)
+    cp = wf.start_care(db, c, actor, body.kind, body.description, review_due_on=body.review_due_on)
     return _done(db, c, actor, care_plan_id=cp.id)
 
 

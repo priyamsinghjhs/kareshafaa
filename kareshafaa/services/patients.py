@@ -566,7 +566,14 @@ def build_patient_record(db: Session, actor: Actor, p: Patient, now: datetime | 
         "can_write": can_write_patient(db, actor, p),
         "can_add_result": actor.is_human and actor.can("case:create"),
         "account": _account(db, actor, p),
+        "recalls": _recalls(db, p),
     }
+
+
+def _recalls(db: Session, p: Patient) -> list[dict]:
+    from .recall import patient_recalls
+
+    return patient_recalls(db, p)
 
 
 def _account(db: Session, actor: Actor, p: Patient) -> dict:

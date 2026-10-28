@@ -60,6 +60,18 @@ def journey(db: Session, c: Case) -> list[dict]:
     return out
 
 
+def _recall_info(db: Session, c: Case, now: datetime) -> dict:
+    from ..clinical_rules import RECALL_INTERVAL_MONTHS, SURVEILLANCE_MONTHS
+    from ..models import Recall
+    from ..services.recall import add_months
+
+    r = db.scalar(select(Recall).where(Recall.source_case_id == c.id).order_by(Recall.id.desc()).limit(1))
+    return {"next_screening_due": iso(c.next_screening_due),
+            "recall": {"id": r.id, "due_on": iso(r.due_on), "status": r.status, "reason": r.reason} if r else None,
+            "routine_interval_months": RECALL_INTERVAL_MONTHS.get(c.programme),
+            "surveillance_default_due": iso(add_months(now.date(), SURVEILLANCE_MONTHS.get(c.programme, 12)))}
+
+
 def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None) -> dict[str, Any]:
     now = now or utcnow()
     sla = SlaLookup.load(db)
@@ -119,7 +131,8 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
                      "by": (db.get(User, les.created_by_user_id).display_name if les.created_by_user_id
                             and db.get(User, les.created_by_user_id) else "System")} for les in q(Lesson)],
         "care_plans": [{"id": cp.id, "kind": cp.kind, "description": cp.description, "created_at": iso(cp.created_at),
-                        "by": pname(db, cp.recorded_by_id)} for cp in q(CarePlan)],
+                        "by": pname(db, cp.recorded_by_id), "review_due_on": iso(cp.review_due_on)} for cp in q(CarePlan)],
+        "recall": _recall_info(db, c, now),
         "communications": [{"id": m.id, "category": m.category, "channel": m.channel, "status": m.status,
                             "language": m.language, "variant": m.template_variant, "content": m.content,
                             "to": pname(db, m.recipient_practitioner_id) or "patient", "sent_at": iso(m.sent_at),

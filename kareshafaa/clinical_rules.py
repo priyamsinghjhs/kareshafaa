@@ -533,3 +533,37 @@ def target_days(pathway: str | None, rule_id: str | None, tier: str, clinical_ti
 
 def review_min_tier(reasons: list[str]) -> str | None:
     return max_tier(*(REVIEW_MIN_TIER.get(x, "urgent") for x in reasons))
+
+
+# ---------------------------------------------------------------------------------------------- recall
+# When a person is due for their next screen. ALL VALUES ARE CONFIRM (programme clinical lead sign-off) -
+# they follow common programme practice and the Department of Health Abu Dhabi programmes where known.
+RECALL_INTERVAL_MONTHS = {        # routine re-screen after a NEGATIVE screening result
+    "colorectal_fit": 24,         # CONFIRM: biennial FIT (UK NSC); some programmes use annual FIT
+    "cervical": 60,               # CONFIRM: HPV primary screening every 5 years (cytology-only: 3 years)
+    "breast": 24,                 # CONFIRM: mammography every 2 years from 40
+    "diabetes_hba1c": 36,         # CONFIRM: re-screen every 3 years when normal (ADA); yearly if risk factors
+}
+SURVEILLANCE_MONTHS = {           # default review date of a SURVEILLANCE care plan (clinician can change it)
+    "colorectal_fit": 36,         # CONFIRM: post-polypectomy surveillance colonoscopy at 3 years (BSG 2020)
+    "cervical": 12,               # CONFIRM: HPV-positive, triage negative -> repeat HPV at 12 months (ASCCP)
+    "breast": 6,                  # CONFIRM: BI-RADS 3 short-interval follow-up at 6 months
+    "diabetes_hba1c": 12,         # CONFIRM: prediabetes -> yearly HbA1c (ADA)
+}
+# After a CLOSED case: months to the next routine screen by how the case was closed. None = no automatic recall
+# (the treating team sets follow-up, the person left the programme or the case was a duplicate).
+RECALL_AFTER_CLOSURE_MONTHS = {
+    "negative_confirmatory_result": "routine",   # CONFIRM: back to routine screening
+    "appointment_fulfilled": "routine",          # CONFIRM: diagnostic test done, no care plan -> routine
+    "care_plan:surveillance": "plan",            # the care plan's review date
+    "care_plan:treatment": None,                 # CONFIRM: follow-up set by the treating team
+    "informed_decline": "routine",               # CONFIRM: offer screening again at the next routine round
+    "unable_to_contact": "routine",              # CONFIRM: try again at the next routine round
+    "clinically_not_indicated": None,
+    "care_elsewhere_verified": None,
+    "moved_abroad": None,
+    "deceased": None,
+    "duplicate": None,
+}
+RECALL_LIST_AHEAD_DAYS = 60       # the "Due for recall" list shows recalls due within this many days (operational)
+RECALL_UPTAKE_WINDOW_DAYS = 180   # a recall counts as taken up if a new screening result arrives by due + 180 days

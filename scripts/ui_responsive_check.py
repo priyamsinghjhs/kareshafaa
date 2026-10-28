@@ -29,8 +29,8 @@ DEVICES = {  # name: (width, height, mobile/touch, scale)
 LANDSCAPE = {"iphone-se", "iphone-15-pro", "pixel-7", "galaxy-s-small"}
 PLAN = {  # user: [(name, path)]
     "aisha.rahman": [("coordinator_home", "/queue"), ("case", "/cases/{case}"), ("ingest", "/ingest"),
-                     ("patients_search", "/patients?q=SYN-"), ("patient_register", "/patients/new"), ("patient_record", "/patients/{patient}")],
-    "omar.haddad": [("gp_home", "/queue?view=review"), ("gp_consults", "/consults"), ("gp_patient_record", "/patients/{patient}")],
+                     ("patients_search", "/patients?q=SYN-"), ("patient_register", "/patients/new"), ("patient_record", "/patients/{patient}"), ("recalls", "/recalls?view=upcoming")],
+    "omar.haddad": [("gp_home", "/queue?view=review"), ("gp_consults", "/consults"), ("gp_patient_record", "/patients/{patient}"), ("gp_recalls", "/recalls?view=upcoming")],
     "vikram.mehta": [("specialist_home", "/queue?view=review")],
     "fatima.al.mansoori": [("lead_home", "/overview"), ("lead_governance", "/governance"), ("lead_dashboard", "/dashboard"),
                            ("lead_advanced", "/advanced"), ("lead_audit", "/audit")],
