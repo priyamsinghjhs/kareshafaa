@@ -14,7 +14,7 @@ from ..config import get_settings
 from ..db import get_db
 from ..models import AuditEvent, Organization, Practitioner, SimulationRun, utcnow
 from ..services.errors import Forbidden, Invalid
-from ..security import Actor
+from ..security import SYSTEM, Actor
 from ..services import analytics
 from ..services.escalation import run_sweep
 from ..services.improve import lesson_summary
@@ -53,7 +53,12 @@ def sweep(body: sch.SweepIn | None = None, actor: Actor = Depends(require("sweep
         now = utcnow() + timedelta(hours=body.hours_ahead)
         audit.record(db, actor, "E", "demo.clock_fast_forward", case_id=body.case_ids[0],
                      detail={"hours_ahead": body.hours_ahead, "simulated": True})
-    out = run_sweep(db, now=now, actor=actor, case_ids=body.case_ids if body else None)
+    # an administrator (no clinical messaging rights) triggers the same rules-engine run as the scheduler;
+    # who asked for it is audited separately
+    run_as = actor if actor.can("comm:send") else SYSTEM
+    if run_as is SYSTEM:
+        audit.record(db, actor, "E", "sla.sweep_requested", detail={"case_ids": body.case_ids if body else None})
+    out = run_sweep(db, now=now, actor=run_as, case_ids=body.case_ids if body else None)
     out["simulated_clock_hours_ahead"] = body.hours_ahead if body else 0
     db.commit()
     return out

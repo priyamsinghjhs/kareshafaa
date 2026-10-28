@@ -36,7 +36,7 @@ def test_clinical_lead_cannot_read_admin_tooling(client, as_user, path):
 
 def test_admin_keeps_every_admin_function(client, as_user):
     h = as_user(ADMIN)
-    assert client.post("/api/sla/sweep", headers=h, json={}).status_code == 200
+    r = client.post("/api/sla/sweep", headers=h, json={}); assert r.status_code == 200, r.text
     assert client.get("/api/audit/verify", headers=h).json()["valid"] is True
     assert client.get("/api/audit?limit=1", headers=h).status_code == 200
     assert client.get("/api/admin/users", headers=h).status_code == 200
@@ -82,3 +82,15 @@ def test_admin_makes_no_clinical_decisions(client, as_user, db):
         assert client.post(f"/api/escalations/{esc.id}/ack", headers=h, json={"note": "admin ack attempt"}).status_code == 403
     gov = client.get("/governance?tab=models", headers=h)
     assert gov.status_code == 200  # read-only model registry + retraining live under Advanced for admin
+
+
+def test_admin_deadline_check_sends_due_reminders_as_the_rules_engine(client, as_user, db, new_case):
+    """Regression: the admin-run check failed with 'role lacks comm:send' as soon as a reminder was due."""
+    from sqlalchemy import select
+    from kareshafaa.models import AuditEvent
+    new_case("colorectal_fit", 250)
+    r = client.post("/api/sla/sweep", headers=as_user(ADMIN), json={})
+    assert r.status_code == 200, r.text
+    db.expire_all()
+    ev = db.scalar(select(AuditEvent).where(AuditEvent.event == "sla.sweep_requested").order_by(AuditEvent.id.desc()))
+    assert ev is not None and ev.actor_role == "admin"
