@@ -8,11 +8,16 @@ let lang = new URLSearchParams(location.search).get("lang");
 let draftQ = "", draftDn = "", draftTb = null;
 const LANG_LABEL = { en: "English", ar: "العربية", hi: "हिन्दी", ur: "اردو" };
 const EXTRA = {
-  en: { ask: "Your question for the clinician", send: "Send", sent: "Sent - a clinician will reply.", declineNote: "Would you like to tell us why? (optional)", confirmDecline: "Are you sure? You can change your mind at any time.", done: "Thank you", steps: "Steps", tooShort: "Please write at least 5 characters.", langSaved: "Language saved for your next visit." },
-  ar: { ask: "سؤالك للطبيب", send: "إرسال", sent: "تم الإرسال - سيرد عليك طبيب.", declineNote: "هل تود إخبارنا بالسبب؟ (اختياري)", confirmDecline: "هل أنت متأكد؟ يمكنك تغيير رأيك في أي وقت.", done: "شكراً لك", steps: "الخطوات", tooShort: "يرجى كتابة 5 أحرف على الأقل.", langSaved: "تم حفظ اللغة لزيارتك القادمة." },
-  hi: { ask: "डॉक्टर के लिए आपका सवाल", send: "भेजें", sent: "भेज दिया गया - एक डॉक्टर जवाब देंगे।", declineNote: "क्या आप हमें कारण बताना चाहेंगे? (वैकल्पिक)", confirmDecline: "क्या आप पक्का हैं? आप कभी भी मन बदल सकते हैं।", done: "धन्यवाद", steps: "कदम", tooShort: "कृपया कम से कम 5 अक्षर लिखें।", langSaved: "भाषा आपकी अगली विज़िट के लिए सहेज ली गई।" },
-  ur: { ask: "ڈاکٹر کے لیے آپ کا سوال", send: "بھیجیں", sent: "بھیج دیا گیا - ایک ڈاکٹر جواب دیں گے۔", declineNote: "کیا آپ ہمیں وجہ بتانا چاہیں گے؟ (اختیاری)", confirmDecline: "کیا آپ کو یقین ہے؟ آپ کسی بھی وقت ارادہ بدل سکتے ہیں۔", done: "شکریہ", steps: "مراحل", tooShort: "براہ کرم کم از کم 5 حروف لکھیں۔", langSaved: "زبان آپ کے اگلے دورے کے لیے محفوظ ہو گئی۔" },
+  en: { ask: "Your question for the clinician", send: "Send", sent: "Sent - a clinician will reply.", declineNote: "Would you like to tell us why? (optional)", confirmDecline: "Are you sure? You can change your mind at any time.", done: "Thank you", steps: "Steps", tooShort: "Please write at least 5 characters.", langSaved: "Language saved for your next visit.", noCaseTitle: "Your account is ready", noCaseBody: "You have no screening result that needs follow-up at the moment. When a result arrives, you will see it here and your care team will contact you." },
+  ar: { ask: "سؤالك للطبيب", send: "إرسال", sent: "تم الإرسال - سيرد عليك طبيب.", declineNote: "هل تود إخبارنا بالسبب؟ (اختياري)", confirmDecline: "هل أنت متأكد؟ يمكنك تغيير رأيك في أي وقت.", done: "شكراً لك", steps: "الخطوات", tooShort: "يرجى كتابة 5 أحرف على الأقل.", langSaved: "تم حفظ اللغة لزيارتك القادمة.", noCaseTitle: "حسابك جاهز", noCaseBody: "لا توجد لديك حالياً نتيجة فحص تحتاج إلى متابعة. عندما تصل نتيجة ستظهر هنا وسيتواصل معك فريق الرعاية." },
+  hi: { ask: "डॉक्टर के लिए आपका सवाल", send: "भेजें", sent: "भेज दिया गया - एक डॉक्टर जवाब देंगे।", declineNote: "क्या आप हमें कारण बताना चाहेंगे? (वैकल्पिक)", confirmDecline: "क्या आप पक्का हैं? आप कभी भी मन बदल सकते हैं।", done: "धन्यवाद", steps: "कदम", tooShort: "कृपया कम से कम 5 अक्षर लिखें।", langSaved: "भाषा आपकी अगली विज़िट के लिए सहेज ली गई।", noCaseTitle: "आपका खाता तैयार है", noCaseBody: "अभी आपका कोई जांच परिणाम ऐसा नहीं है जिस पर आगे कार्रवाई चाहिए। परिणाम आने पर वह यहां दिखेगा और आपकी देखभाल टीम आपसे संपर्क करेगी।" },
+  ur: { ask: "ڈاکٹر کے لیے آپ کا سوال", send: "بھیجیں", sent: "بھیج دیا گیا - ایک ڈاکٹر جواب دیں گے۔", declineNote: "کیا آپ ہمیں وجہ بتانا چاہیں گے؟ (اختیاری)", confirmDecline: "کیا آپ کو یقین ہے؟ آپ کسی بھی وقت ارادہ بدل سکتے ہیں۔", done: "شکریہ", steps: "مراحل", tooShort: "براہ کرم کم از کم 5 حروف لکھیں۔", langSaved: "زبان آپ کے اگلے دورے کے لیے محفوظ ہو گئی۔", noCaseTitle: "آپ کا اکاؤنٹ تیار ہے", noCaseBody: "اس وقت آپ کا کوئی ایسا اسکریننگ نتیجہ نہیں جس پر مزید کارروائی کی ضرورت ہو۔ نتیجہ آنے پر وہ یہاں نظر آئے گا اور آپ کی نگہداشت ٹیم آپ سے رابطہ کرے گی۔" },
 };
+function wireLang(el) {
+  el.querySelectorAll(".lang-switch button").forEach(b => b.onclick = async () => { const nl = b.dataset.l; if (nl === lang) return;
+    try { await W.api("/api/me/display-language", { method: "POST", body: { language: nl } }); lang = nl; history.replaceState(null, "", "?lang=" + lang); await load(); W.toast(EXTRA[lang].langSaved, "ok"); }
+    catch (e) { W.toast(e.message, "err"); } });
+}
 async function load() {
   const qEl = document.getElementById("q"), dnEl = document.getElementById("dn");
   if (qEl) draftQ = qEl.value; if (dnEl) draftDn = dnEl.value;
@@ -23,6 +28,9 @@ async function load() {
   const el = document.getElementById("p-root");
   el.className = "patient-wrap" + (d.rtl ? " rtl" : "");
   el.dir = d.rtl ? "rtl" : "ltr"; el.lang = lang;  // real dir/lang attributes for screen readers and shaping
+  const langBar = `<div class="lang-switch" role="group" aria-label="Language">${Object.entries(LANG_LABEL).map(([k, v]) => `<button class="${k === lang ? "" : "secondary outline"}" data-l="${k}" lang="${k}" aria-pressed="${k === lang}">${v}</button>`).join("")}</div>`;
+  if (d.case_id === null) { el.innerHTML = langBar + `<p class="small muted">${W.esc(d.label)}</p><div class="hero"><h2>${W.esc(d.patient.given_name)} – ${W.esc(x.noCaseTitle)}</h2><p>${W.esc(x.noCaseBody)}</p></div>` + (window.renderProfile ? '<div id="pprofile"></div>' : "");
+    wireLang(el); if (window.renderProfile) window.renderProfile(d); return; }
   el.innerHTML = `<div class="lang-switch" role="group" aria-label="Language">${Object.entries(LANG_LABEL).map(([k, v]) => `<button class="${k === lang ? "" : "secondary outline"}" data-l="${k}" lang="${k}" aria-pressed="${k === lang}">${v}</button>`).join("")}</div>
    <p class="small muted">${W.esc(d.label)}</p>
    ${d.interpreter_notice ? `<div class="card notice" role="note" lang="${W.esc(d.patient.preferred_language)}">🗣️ ${W.esc(d.interpreter_notice)}</div>` : ""}
@@ -40,9 +48,7 @@ async function load() {
    ${d.can_decline ? `<details><summary class="small">${W.esc(tb.labels.decline)}</summary><label>${x.declineNote}<textarea id="dn" rows="2" maxlength="2000"></textarea></label><button class="secondary outline" id="decline" style="width:auto">${W.esc(tb.labels.decline)}</button></details>` : ""}`;
   document.getElementById("q").value = draftQ; const dn0 = document.getElementById("dn"); if (dn0) dn0.value = draftDn;
   // the chosen language is saved for the next visit (messages and calls keep the recorded language)
-  el.querySelectorAll(".lang-switch button").forEach(b => b.onclick = async () => { const nl = b.dataset.l; if (nl === lang) return;
-    try { await W.api("/api/me/display-language", { method: "POST", body: { language: nl } }); lang = nl; history.replaceState(null, "", "?lang=" + lang); await load(); W.toast(EXTRA[lang].langSaved, "ok"); }
-    catch (e) { W.toast(e.message, "err"); } });
+  wireLang(el);
   const tbEl = document.getElementById("tb"), L = d.answers_lock || {}, sub = L.submitted;
   const when = iso => { if (!iso) return "–"; const t = new Date(/Z|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + "Z");
     try { return t.toLocaleString({ en: "en-GB", ar: "ar-AE", hi: "hi-IN", ur: "ur-PK" }[lang] || undefined, { dateStyle: "medium", timeStyle: "short" }); } catch (e) { return W.dt(iso); } };

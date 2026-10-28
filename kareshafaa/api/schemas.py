@@ -291,3 +291,11 @@ class PatientContactIn(_In):
 class PatientCareIn(_In):
     managing_org_id: int
     gp_id: int | None = None
+
+
+class AccountInviteIn(_In):
+    channel: Literal["sms", "in_person"] = "sms"
+
+
+class ReasonIn(_In):
+    reason: str = Field(min_length=5, max_length=300)

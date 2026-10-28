@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from .. import audit
@@ -114,3 +114,39 @@ def edit_contact(patient_id: int, body: sch.PatientContactIn, actor: Actor = Dep
 def edit_care(patient_id: int, body: sch.PatientCareIn, actor: Actor = Depends(require("patient:write")),
               db: Session = Depends(get_db)) -> dict:
     return _update(db, actor, patient_id, "care", body)
+
+
+# ------------------------------------------------------------------------------------- patient app account
+def base_url(request: Request) -> str:
+    from ..config import get_settings
+
+    s = get_settings()
+    if s.public_base_url:
+        return s.public_base_url.rstrip("/")
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme).split(",")[0].strip()
+    return f"{proto}://{request.url.netloc}"
+
+
+@router.post("/{patient_id}/account-invite")
+def account_invite(patient_id: int, body: sch.AccountInviteIn, request: Request,
+                   actor: Actor = Depends(require("patient:invite")), db: Session = Depends(get_db)) -> dict:
+    """Create the patient's app account (if needed) and a one-time activation code. The code is returned ONCE."""
+    from ..services import invites
+
+    p = svc.get_patient(db, actor, patient_id)
+    new = invites.create_invite(db, actor, p, channel=body.channel, base_url=base_url(request))
+    db.commit()
+    return {"ok": True, "username": new.user.username, "code": invites.fmt_code(new.code), "link": new.link,
+            "expires_at": new.invite.expires_at.isoformat(), "purpose": new.invite.purpose, "channel": new.invite.channel,
+            "sms": new.sms.content if new.sms else None, "account": invites.account_status(db, p)}
+
+
+@router.post("/{patient_id}/account-invite/revoke")
+def account_invite_revoke(patient_id: int, body: sch.ReasonIn, actor: Actor = Depends(require("patient:invite")),
+                          db: Session = Depends(get_db)) -> dict:
+    from ..services import invites
+
+    p = svc.get_patient(db, actor, patient_id)
+    invites.revoke_invite(db, actor, p, body.reason)
+    db.commit()
+    return {"ok": True, "account": invites.account_status(db, p)}

@@ -358,7 +358,7 @@ def create_app() -> FastAPI:
     # still logged as 503). It answers without waiting for the stuck thread (kareshafaa/request_timeout.py).
     app.add_middleware(TimeBudgetMiddleware)
 
-    CSRF_SELF_CHECKED = ("/login", "/logout", "/account/password", "/api/auth/login")
+    CSRF_SELF_CHECKED = ("/login", "/logout", "/account/password", "/api/auth/login", "/activate")
 
     @app.middleware("http")
     async def csrf_and_session_clock(request: Request, call_next):
@@ -659,6 +659,83 @@ def create_app() -> FastAPI:
         must_change, role = info
         nxt = _safe_next(str(form.get("next", "")))
         resp.headers["location"] = "/account/password" if must_change else (nxt or ui.home_for(role))
+        resp.delete_cookie(auth.CSRF_COOKIE, path="/")
+        return resp
+
+    # ---- patient account activation (one-time code from the care team; kareshafaa/services/invites.py) ----
+    def activate_page(request: Request, lang: str, token: str | None, status_code: int = 200, **ctx):
+        from .comms.content import RTL_LANGUAGES
+        from .services import invites as inv
+
+        tok = auth.login_csrf_token(request)
+        resp = page("activate.html", request, title=inv.ACTIVATE_TEXT[lang]["title"], status_code=status_code,
+                    t=inv.ACTIVATE_TEXT[lang], lang=lang, rtl=lang in RTL_LANGUAGES, langs=inv.ACTIVATE_LANGS,
+                    token=token or "", login_csrf=tok, code=ctx.pop("code", ""), birth_date=ctx.pop("birth_date", ""),
+                    **ctx)
+        resp.headers["Referrer-Policy"] = "no-referrer"  # the link token never leaks to other sites
+        ensure_login_csrf(request, resp, tok)
+        return resp
+
+    def _clean_token(v) -> str | None:
+        v = str(v or "")[:64]
+        return v if re.fullmatch(r"[A-Za-z0-9_-]{20,64}", v) else None
+
+    @app.get("/activate", response_class=HTMLResponse)
+    def activate_get(request: Request):
+        from .services import invites as inv
+
+        token = _clean_token(request.query_params.get("t"))
+        db = session_factory()()
+        try:
+            lang = inv.page_language(db, token, request.query_params.get("lang"))
+        finally:
+            db.close()
+        return activate_page(request, lang, token)
+
+    @app.post("/activate", response_class=HTMLResponse)
+    async def activate_post(request: Request):
+        from datetime import date as _date
+
+        from .services import invites as inv
+
+        form = await request.form()
+        lang = str(form.get("lang", "en"))
+        lang = lang if lang in inv.ACTIVATE_TEXT else "en"
+        token = _clean_token(form.get("t"))
+        code = str(form.get("code", ""))[:20]
+        dob_raw = str(form.get("birth_date", ""))[:10]
+        pw, confirm = str(form.get("password", ""))[:256], str(form.get("confirm", ""))[:256]
+        keep = {"code": code, "birth_date": dob_raw}
+        if not login_csrf_ok(request, str(form.get("csrf_token", ""))):
+            return activate_page(request, lang, token, 403, error=inv.error_text(lang, "expired_page"), **keep)
+        try:
+            dob = _date.fromisoformat(dob_raw)
+        except ValueError:
+            dob = None
+        if (not token and not code.strip()) or dob is None or not pw or not confirm:
+            return activate_page(request, lang, token, 400, error=inv.error_text(lang, "missing"),
+                                 error_field="code" if not token and not code.strip() else ("dob" if dob is None else "pw"), **keep)
+
+        def _work():
+            db = session_factory()()
+            try:
+                u, reason = inv.activate(db, code=code, token=token, birth_date=dob, password=pw, confirm=confirm,
+                                         ip=auth.client_ip(request))
+                if u is None:
+                    db.rollback() if reason in ("mismatch",) or reason.startswith("weak:") else None
+                    return reason, None, None
+                resp = activate_page(request, lang, None, 200, done=True, username=u.username)
+                start_session(db, request, resp, u)  # commits the activation and the new session together
+                return "ok", resp, u.username
+            finally:
+                db.close()
+
+        reason, resp, _u = await asyncio.to_thread(_work)
+        if resp is None:
+            field = {"wrong_dob": "dob", "mismatch": "pw"}.get(reason, "pw" if reason.startswith("weak:") else "code")
+            status = 429 if reason == "rate_limited" else (422 if field == "pw" else 400)
+            return activate_page(request, lang, token if reason not in ("invalid",) else token, status,
+                                 error=inv.error_text(lang, reason), error_field=field, **keep)
         resp.delete_cookie(auth.CSRF_COOKIE, path="/")
         return resp
 

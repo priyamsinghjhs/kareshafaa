@@ -449,3 +449,7 @@ label.check input { width: 20px; height: 20px; margin: 0; flex: none; }
 @media (min-width: 900px) { .pr-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .sticky-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); }
 @media (max-width: 599px) { .sticky-actions > * { flex: 1 1 100%; } }
+.code-big { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 1.6rem; font-weight: 700; letter-spacing: .12em; margin: var(--s-2) 0; color: var(--c-brand-navy); }
+.auth-grid.activate-grid { grid-template-columns: minmax(0, 1fr); max-width: 520px; margin-inline: auto; }
+.activate-grid .lang-switch { margin-bottom: var(--s-3); }
+.facts dd .chip { white-space: normal; max-width: 100%; }

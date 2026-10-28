@@ -127,6 +127,7 @@ Every person signs in with a username and password; there is no account list on 
 | Find a patient, open the patient record (`/patients`) | all patients | own health centre, own patients, patients of cases they can see | patients of their referrals / cases | all (read only) | – | – | own record (`/patient`) |
 | Register a patient (`/patients/new`), incl. from an unmatched lab result | yes | yes | – | – | – | – | – |
 | Edit personal / contact / health-centre details | yes | patients they can see | – | – | – | – | own contact details only |
+| Create the patient app account / send or cancel an activation code | yes | patients they can see | – | – | – (Admin → Users only resets passwords / deactivates) | – | activates with the code |
 
 * **Admin manages accounts, never clinical data**: no patient search, record or registration (403 on the API, no menu).
 * **Clinical lead** reads every record (oversight) but has no registration or admin tools.
@@ -141,6 +142,15 @@ Every person signs in with a username and password; there is no account list on 
   Patient) pre-fill the registration form; saving files the result to the new record as a tracked case. Matching
   itself still uses identifiers only.
 * Sample records keep `SYN-` MRNs and cannot be created by hand; new records get `KS-` numbers or the hospital MRN.
+* **Patient app accounts** come from the patient record (**Patient app account → Create account and send code**): the
+  account is created without a password and a one-time 8-character code is shown once to staff and sent by
+  *simulated* SMS (or given in person). The patient opens `/activate` (link or typed code; English, Arabic, Hindi,
+  Urdu, right-to-left where needed), confirms their date of birth and chooses a password (same policy as staff).
+  Codes are stored only as HMAC hashes (last 4 characters kept as a hint), work once, expire after 72 hours, are
+  replaced by a new code, can be cancelled with a reason, and are blocked after 5 wrong dates of birth; failed
+  attempts count towards the sign-in IP rate limit. A new code for an active account resets a forgotten password.
+  Audit: `patient.account_invited`, `patient.account_invite_revoked`, `patient.account_activated`,
+  `patient.account_activation_failed`. Set `KARESHAFAA_PUBLIC_BASE_URL` so links use the public address.
 * Every change is audited (`patient.registered`, `patient.duplicate_override`, `patient.register_blocked`,
   `patient.demographics_updated`, `patient.contact_updated`, `patient.care_updated`) and listed on the record.
 

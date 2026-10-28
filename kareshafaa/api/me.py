@@ -40,10 +40,20 @@ def _my_case(db: Session, actor: Actor) -> Case:
 @router.get("/case")
 def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends(require("self:read")),
             db: Session = Depends(get_db)) -> dict:
-    c = _my_case(db, actor)
-    p: Patient = c.patient
+    if actor.patient_id is None:
+        raise Forbidden("not a patient account")
     u = db.get(User, actor.user_id) if actor.user_id else None
     saved = u.ui_language if u is not None and u.ui_language in SUPPORTED_LANGUAGES else None
+    c = db.scalar(select(Case).where(Case.patient_id == actor.patient_id).order_by((Case.state == "closed").asc(),
+                                                                                   Case.id.desc()).limit(1))
+    if c is None:  # a newly registered patient: the account works before any result needs follow-up
+        p0 = db.get(Patient, actor.patient_id)
+        lang = lang if lang in SUPPORTED_LANGUAGES else (saved or comms.comm_language(p0))
+        return {"display_language_saved": saved, "case_id": None, "language": lang, "rtl": lang in RTL_LANGUAGES,
+                "languages": SUPPORTED_LANGUAGES, "ui": UI_TEXT[lang],
+                "label": "KareShafaa prototype - please check anything important with your care team",
+                "patient": {"given_name": p0.given_name, "preferred_language": p0.language}}
+    p: Patient = c.patient
     lang = lang if lang in SUPPORTED_LANGUAGES else (saved or comms.comm_language(p))
     prog = programme_text(lang, c)
     coord = db.get(Practitioner, c.owner_id)

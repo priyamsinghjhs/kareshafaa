@@ -668,6 +668,29 @@ class SimulationRun(Base):
     label: Mapped[str] = mapped_column(String(40), default="SIMULATED")
 
 
+class PatientInvite(Base):
+    """One-time activation code for a patient account (created by staff from the patient record).
+    Only hashes are stored; the code is shown once to staff and sent in a SIMULATED SMS. Single use, expires."""
+    __tablename__ = "patient_invites"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    code_hash: Mapped[str] = mapped_column(String(64), index=True)
+    link_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    code_last4: Mapped[str] = mapped_column(String(4))
+    purpose: Mapped[str] = mapped_column(String(20), default="activate")  # activate | reset (account already active)
+    channel: Mapped[str] = mapped_column(String(20), default="sms")  # sms | in_person
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    created_by: Mapped[str] = mapped_column(String(200))
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revoked_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    revoke_reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    failed_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    communication_id: Mapped[int | None] = mapped_column(ForeignKey("communications.id"), nullable=True)
+
+
 class IngestMessage(Base):  # inbound HL7 v2 / FHIR message log (idempotency + human patient-match review)
     __tablename__ = "ingest_messages"
     id: Mapped[int] = mapped_column(primary_key=True)

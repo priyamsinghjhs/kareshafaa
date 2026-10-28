@@ -29,7 +29,7 @@ def _get(db: Session, uid: int) -> User:
 
 def _check_role(db: Session, role: str, practitioner_id: int | None) -> None:
     if role not in accounts.ASSIGNABLE_ROLES:
-        raise Invalid("unknown or non-assignable role (patient accounts are created from the patient record)")
+        raise Invalid("unknown or non-assignable role. Patient app accounts are not created here: a care coordinator or GP opens Patients → the patient record → Patient app account → Create account, which sends a one-time activation code")
     if role in accounts.CLINICAL_ROLES and practitioner_id is None:
         raise Invalid("clinical roles must be linked to a staff directory record (practitioner)")
 

@@ -30,7 +30,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from .. import audit
-from ..models import AuditEvent, Case, Organization, Patient, Practitioner, utcnow
+from ..models import AuditEvent, Case, Communication, Organization, Patient, Practitioner, utcnow
 from ..security import PROGRAMME_WIDE_ROLES, Actor
 from .access import can_view_case
 from .errors import DomainError, Forbidden, Invalid, NotFound
@@ -565,7 +565,21 @@ def build_patient_record(db: Session, actor: Actor, p: Patient, now: datetime | 
         "changes": recent_changes(db, p),
         "can_write": can_write_patient(db, actor, p),
         "can_add_result": actor.is_human and actor.can("case:create"),
+        "account": _account(db, actor, p),
     }
+
+
+def _account(db: Session, actor: Actor, p: Patient) -> dict:
+    from .invites import account_status
+
+    st = account_status(db, p)
+    st["can_invite"] = bool(actor.is_human and actor.can("patient:invite") and can_write_patient(db, actor, p)
+                            and not p.deceased)
+    st["invite_messages"] = [{"at": m.sent_at.isoformat(), "channel": m.channel, "content": m.content}
+                             for m in db.scalars(select(Communication).where(Communication.patient_id == p.id,
+                                                                             Communication.category == "account_invite")
+                                                 .order_by(Communication.id.desc()).limit(3))]
+    return st
 
 
 def options(db: Session) -> dict[str, Any]:

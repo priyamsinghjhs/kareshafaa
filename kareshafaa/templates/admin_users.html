@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-head"><div><h1>Users</h1>
-<p class="lede">Create accounts, set each person's role and site, reset passwords and deactivate leavers. Accounts are never deleted, so the audit trail stays complete.</p></div>
+<p class="lede">Create accounts, set each person's role and site, reset passwords and deactivate leavers. Accounts are never deleted, so the audit trail stays complete. Patient app accounts are created by care coordinators and GPs from the patient record (one-time activation code), not here.</p></div>
 <div class="page-actions"><button id="add" {% if read_only_site %}disabled aria-describedby="ro-note"{% endif %}>Add a user</button></div></div>
 {% if read_only_site %}<div class="card notice" id="ro-note" role="note">The user list is read-only on this server. Creating users, changing roles, resetting passwords and deactivating are switched off.</div>{% endif %}
 <div id="storage-note"></div>

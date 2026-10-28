@@ -68,6 +68,9 @@ Status: **OK** = stored and shown back before this audit; **FIXED** = was lost o
 | Edit personal details | names, date of birth, sex, Emirates ID, nationality, language | `POST /api/patients/{id}/demographics` | `patients` (+ `updated_at/updated_by`) | NEW |
 | Edit contact details | mobile, email, WhatsApp, smartphone, preferred channel, address, city, emirate, region | `POST /api/patients/{id}/contact` | `patients` | NEW |
 | Edit health centre / GP | health centre, GP | `POST /api/patients/{id}/care` | `patients.managing_org_id/gp_id` | NEW |
+| Patient app account: send code | channel (SMS / in person) | `POST /api/patients/{id}/account-invite` | **`patient_invites`** (new: hashes, last 4, channel, expiry), `users` (patient role, no password), `communications` (simulated SMS, code masked) | NEW |
+| Cancel an activation code | reason | `POST /api/patients/{id}/account-invite/revoke` | **`patient_invites.revoke_reason/revoked_at/revoked_by`** | NEW |
+| Activate account (`/activate`, en / ar / hi / ur) | code or link, date of birth, password ×2 | `POST /activate` (pre-login CSRF) | `users.password_hash`, `patient_invites.used_at/failed_attempts` | NEW (code and date kept on error, password never echoed) |
 
 ## Patient app (`/patient`, en / ar / hi / ur)
 

@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     token_ttl_minutes: int = 8 * 60
     demo_logins: bool = True  # role-switcher demo logins; MUST be false outside demos
     sla_config_path: Path | None = None  # optional JSON overriding default SLA hours
+    # address used in patient account activation links (e.g. https://kareshafaa.onrender.com); None = taken from the
+    # request (X-Forwarded-Proto aware)
+    public_base_url: str | None = None
 
     # analytics / privacy
     suppression_threshold: int = 5  # small-cell suppression: n < threshold is hidden

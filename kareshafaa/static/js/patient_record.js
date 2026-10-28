@@ -8,6 +8,57 @@ const NR = '<span class="muted">Not recorded</span>';
 const v = x => (x === null || x === undefined || x === "") ? NR : W.esc(x);
 const dday = s => s ? new Date(s.length <= 10 ? s + "T12:00:00" : (/Z|[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z")).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : NR;
 const EXTRA_SECTIONS = [];      // later sections register here: {id, render(R) -> html, wire?(R)}
+let SHOWN_CODE = null;          // a new activation code is shown once, until the page is left
+
+const ACCOUNT_STATE = { none: ["No app account yet", ""], invited: ["Invited – waiting for the patient to activate", "sla-amber"],
+  invite_expired: ["Activation code expired – send a new one", "sla-red"], active: ["Active", "sla-green"], inactive: ["Deactivated by an administrator", "sla-none"] };
+function accountSection(R) {
+  const A = R.account, [label, cls] = ACCOUNT_STATE[A.state] || [A.state, ""], C = R.contact;
+  const code = SHOWN_CODE ? `<div class="card ok" role="status" id="new-code"><b>Activation code (shown once):</b>
+      <p class="code-big" dir="ltr">${W.esc(SHOWN_CODE.code)}</p>
+      <p class="small">Username <b dir="ltr">${W.esc(SHOWN_CODE.username)}</b> · expires ${W.dt(SHOWN_CODE.expires_at)} · single use.
+      ${SHOWN_CODE.channel === "sms" ? "Sent by simulated SMS (code masked in the stored message)." : "Give it to the patient in person; they open the address below, enter the code and their date of birth, and choose a password."}</p>
+      <p class="small">Activation page: <a href="${W.esc(SHOWN_CODE.link)}" target="_blank" rel="noopener noreferrer">${W.esc(SHOWN_CODE.link.split("?")[0])}</a> ${SHOWN_CODE.channel === "sms" ? " (the SMS holds the full personal link)" : ""}</p>
+      <div class="row"><button class="secondary sm" id="copy-code">Copy code</button><button class="ghost sm" id="hide-code">Done</button></div></div>` : "";
+  const inv = A.invite ? `<p class="small">Open code …${W.esc(A.invite.code_hint.slice(-4))} created ${W.dt(A.invite.created_at)} by ${W.esc(A.invite.created_by)} (${A.invite.channel === "sms" ? "SMS" : "in person"}), expires ${W.dt(A.invite.expires_at)}.</p>` : "";
+  const last = !A.invite && A.last_invite && A.last_invite.revoked_at ? `<p class="small muted">Last code cancelled ${W.dt(A.last_invite.revoked_at)}${A.last_invite.revoke_reason ? ": " + W.esc(A.last_invite.revoke_reason) : ""}.</p>` : "";
+  const can = A.can_invite && A.state !== "inactive";
+  const smsOk = C.phone && C.phone_valid;
+  const btnText = A.state === "none" ? "Create account and send code" : A.state === "active" ? "Send a new code (forgotten password)" : "Send a new code";
+  return `<section class="card pr-sec" id="sec-account"><h2 class="sec-title">Patient app account</h2>
+    ${facts([["Status", `<span class="chip ${cls}">${W.esc(label)}</span>`], ["Username", A.username ? `<span dir="ltr">${W.esc(A.username)}</span>` : NR],
+      ["Activated", A.activated_at ? W.dt(A.activated_at) : '<span class="muted">Not yet</span>'], ["Last sign-in", A.last_login_at ? W.dt(A.last_login_at) : '<span class="muted">Never</span>']])}
+    ${code}${inv}${last}
+    ${can ? `<form class="action-form" id="invite-form" aria-label="Patient app account">
+      <fieldset class="checks" style="border:0;padding:0;margin:0 0 var(--s-2)"><legend class="small"><b>How should the patient get the code?</b></legend>
+        <label class="check"><input type="radio" name="channel" value="sms" ${smsOk ? "checked" : "disabled"}> By SMS to ${smsOk ? W.esc(C.phone) : "(no valid mobile number)"}</label>
+        <label class="check"><input type="radio" name="channel" value="in_person" ${smsOk ? "" : "checked"}> I will give it in person</label></fieldset>
+      ${R.demographics.birth_date ? "" : `<p class="notice-inline err small">Add the full date of birth first – the patient confirms it when activating.</p>`}
+      <div class="form-buttons"><button type="submit" ${R.demographics.birth_date ? "" : "disabled"}>${btnText}</button>${A.invite ? `<button type="button" class="secondary" id="revoke-code">Cancel the open code</button>` : ""}</div></form>` :
+      (A.state === "inactive" ? `<p class="small muted">An administrator can reactivate this account (Admin → Users).</p>` : "")}
+    ${A.invite_messages.length ? `<details class="small"><summary>Messages sent (${A.invite_messages.length})</summary>${A.invite_messages.map(m => `<p class="msg"><span class="muted">${W.dt(m.at)} · ${W.esc(m.channel)}</span><br>${W.esc(m.content)}</p>`).join("")}</details>` : ""}
+  </section>`;
+}
+function wireAccount() {
+  const f = document.getElementById("invite-form");
+  if (f) f.onsubmit = async ev => { ev.preventDefault(); W.formError(f, "");
+    const ch = (f.querySelector("input[name=channel]:checked") || {}).value;
+    if (!ch) { W.formError(f, "Choose how the patient gets the code."); return; }
+    const b = f.querySelector("button[type=submit]"); W.busy(b, true);
+    try { const r = await W.api(`/api/patients/${PID}/account-invite`, { method: "POST", body: { channel: ch } });
+      SHOWN_CODE = r; W.toast(ch === "sms" ? "Account ready – code sent (simulated SMS)" : "Account ready – give the code to the patient", "ok"); await load();
+      document.getElementById("new-code")?.scrollIntoView({ block: "center" }); }
+    catch (e) { W.busy(b, false); W.formError(f, e.message); } };
+  const rv = document.getElementById("revoke-code");
+  if (rv) rv.onclick = async () => { const why = await W.ask("Cancel the open activation code?", "Reason", { ok: "Cancel the code", min: 5, danger: true, placeholder: "e.g. sent to the wrong number" });
+    if (!why) return;
+    try { await W.api(`/api/patients/${PID}/account-invite/revoke`, { method: "POST", body: { reason: why } }); SHOWN_CODE = null; W.toast("Code cancelled", "ok"); await load(); }
+    catch (e) { W.toast(e.message, "err"); } };
+  const cp = document.getElementById("copy-code");
+  if (cp) cp.onclick = () => navigator.clipboard && navigator.clipboard.writeText(SHOWN_CODE.code).then(() => W.toast("Copied", "ok"));
+  const hd = document.getElementById("hide-code");
+  if (hd) hd.onclick = () => { SHOWN_CODE = null; render(); };
+}
 
 function facts(pairs) { return `<dl class="facts">${pairs.map(([k, x, wide]) => `<div${wide ? ' class="wide"' : ""}><dt>${W.esc(k)}</dt><dd>${x}</dd></div>`).join("")}</dl>`; }
 
@@ -38,7 +89,7 @@ function render() {
   const consents = `<section class="card"><h2 class="sec-title">Consent</h2>${R.consents.length ? `<p class="small">${R.consents.map(c => `<span class="chip ${c.decision === "permit" ? "sla-green" : "sla-red"}">${c.decision === "permit" ? "✓" : "✕"} ${W.esc(c.scope.replace(/_/g, " "))}</span>`).join(" ")}</p>` : `<p class="small muted">No consent decisions recorded yet.</p>`}</section>`;
   const changes = `<section class="card flat"><h2 class="sec-title">Changes to this record</h2>${R.changes.length ? `<ul class="timeline">${R.changes.map(c => `<li><span class="small muted">${W.dt(c.at)}</span> <b>${W.esc(c.summary)}</b> by ${W.esc(c.by)}${c.role === "patient" ? ' <span class="chip sla-amber">by the patient</span>' : ""}${c.fields.length ? `<div class="small muted">Fields: ${W.esc(c.fields.join(", ").replace(/_/g, " "))}</div>` : ""}</li>`).join("")}</ul>` : `<p class="small muted">No changes recorded.</p>`}</section>`;
   const extra = EXTRA_SECTIONS.map(s => s.render(R)).join("");
-  pr().innerHTML = head + `<div class="grid-2 pr-grid"><div>${personal}${contact}${care}${extra}</div><div>${cases}${results}${consents}${changes}</div></div>`;
+  pr().innerHTML = head + `<div class="grid-2 pr-grid"><div>${personal}${contact}${care}${extra}${R.account ? accountSection(R) : ""}</div><div>${cases}${results}${consents}${changes}</div></div>`;
   wire();
 }
 
@@ -57,6 +108,7 @@ function wire() {
         await load(); }
       catch (e) { W.busy(b, false); W.formError(f, e.message + (e.data && e.data.candidates ? " " + e.data.candidates.map(c => `${c.name} (${c.mrn})`).join(", ") : "")); } }; });
   EXTRA_SECTIONS.forEach(s => s.wire && s.wire(R));
+  wireAccount();
 }
 
 async function load() { R = await W.api(`/api/patients/${PID}`); render(); }

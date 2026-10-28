@@ -435,7 +435,36 @@ def run():
             p.wait_for_url(re.compile(r".*/patients/\d+.*"), timeout=15000); p.wait_for_selector("#pr-root .case-head")
             p.reload(); p.wait_for_selector("#pr-root .case-head")
             record("Possible duplicate: create-anyway reason", "/patients/new", t, None, p.inner_text("#pr-root"), {"values_kept_on_warning": kept})
+            S["dup_patient"] = int(re.search(r"/patients/(\d+)", p.url).group(1))
         step("patients", patients_flow)
+
+        def invite_flow():  # Patient app account: code given in person -> patient activates on /activate (ar)
+            pid = S["new_patient"]; p = co.p
+            p.goto(f"{BASE}/patients/{pid}"); p.wait_for_selector("#invite-form", timeout=15000)
+            p.check('#invite-form input[value="in_person"]'); p.click("#invite-form button[type=submit]")
+            p.wait_for_selector("#new-code .code-big", timeout=15000); code = p.inner_text("#new-code .code-big").strip()
+            co.shot("patient_account_code")
+            uname = q1("select username from users where patient_id=?", pid)[0]
+            ctx = pw.ctx_browser.new_context(**VIEWS[VIEW], locale="ar-AE", timezone_id="Asia/Dubai"); a = ctx.new_page()
+            errs = []; a.on("pageerror", lambda e: errs.append("JS " + str(e)))
+            a.goto(BASE + "/activate?lang=ar"); a.wait_for_selector("#act-form")
+            a.fill("#code", "ZZZZ-ZZZZ"); a.fill("#birth_date", "1979-09-21"); a.fill("#password", "Lantern-Orbit-Cobalt-77"); a.fill("#confirm", "Lantern-Orbit-Cobalt-77")
+            a.click("#act-form button[type=submit]"); a.wait_for_selector("#act-error")
+            kept = a.input_value("#code") == "ZZZZ-ZZZZ" and a.input_value("#birth_date") == "1979-09-21"
+            sw, iw = a.evaluate("[document.documentElement.scrollWidth, window.innerWidth]")
+            a.screenshot(path=str(OUT / f"{VIEW}_activate_error_ar.png"), full_page=False)
+            a.fill("#code", code); a.fill("#password", "Lantern-Orbit-Cobalt-77"); a.fill("#confirm", "Lantern-Orbit-Cobalt-77")
+            a.click("#act-form button[type=submit]"); a.wait_for_load_state("networkidle")
+            ok = "حسابك جاهز" in a.inner_text("body") and uname in a.inner_text("body")
+            a.screenshot(path=str(OUT / f"{VIEW}_activate_done_ar.png"), full_page=False)
+            a.click("a[href^='/patient']"); a.wait_for_selector(".lang-switch", timeout=15000); a.wait_for_timeout(500)
+            a.screenshot(path=str(OUT / f"{VIEW}_patient_new_account_ar.png"), full_page=False)
+            has_pw = q1("select password_hash is not null from users where patient_id=?", pid)[0] == 1
+            RES.append({"field": "Patient account: code shown once, activation (ar) with wrong code kept values, then success", "page": "/activate",
+                        "ok": ok and has_pw and kept and sw <= iw and not errs, "values_kept": kept, "overflow": sw > iw, "errors": errs})
+            p.reload(); p.wait_for_selector("#sec-account"); RES.append({"field": "Patient record shows account Active", "ok": "Active" in p.inner_text("#sec-account")})
+            ctx.close()
+        step("invite", invite_flow)
 
         for b in (co, gp, sp, lead, adm):
             if b.errs:

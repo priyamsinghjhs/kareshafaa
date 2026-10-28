@@ -226,3 +226,15 @@ def test_patient_registration_and_record_forms_capture_every_field(client, db, s
            language="ar", emirate="Abu Dhabi", region="Abu Dhabi", managing_org_id=3, create_anyway_reason=reason)
     assert r3.status_code == 200, r3.text
     assert reason in client.get(f"/api/patients/{r3.json()['patient_id']}", headers=co).text
+
+
+def test_patient_account_invite_and_revoke_reason_capture(client, db, staff):
+    co = staff["co"]
+    r = P(client, co, "/api/patients", given_name=_name_tok(), family_name=_name_tok(), birth_date="1968-01-30", gender="male",
+          nationality="Pakistan", language="ur", phone="0559876543", emirate="Abu Dhabi", region="Al Ain", managing_org_id=3)
+    pid = r.json()["patient_id"]; rd = f"/api/patients/{pid}"
+    inv = P(client, co, f"{rd}/account-invite", channel="sms"); assert inv.status_code == 200, inv.text
+    acc = client.get(rd, headers=co).json()["account"]
+    assert acc["invite"]["channel"] == "sms" and acc["username"] == inv.json()["username"] and acc["invite_messages"]
+    t = tok("revoke")
+    captured(client, db, P(client, co, f"{rd}/account-invite/revoke", reason=t), t, rd, h=co)

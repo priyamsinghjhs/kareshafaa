@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block bodyclass %} auth-page{% endblock %}
+{% block content %}
+<div class="auth-grid activate-grid" lang="{{ lang }}" dir="{{ 'rtl' if rtl else 'ltr' }}">
+  <div class="auth-card">
+    <img class="logo-full auth-logo" src="/static/brand/logo-horizontal.svg" alt="KareShafaa" width="199" height="56">
+    <div class="lang-switch" role="group" aria-label="Language">
+      {% for k, v in langs.items() %}<a role="button" class="{{ '' if k == lang else 'secondary outline' }} sm" href="/activate?lang={{ k }}{% if token %}&t={{ token }}{% endif %}" lang="{{ k }}" aria-current="{{ 'true' if k == lang else 'false' }}">{{ v }}</a>{% endfor %}
+    </div>
+    {% if done %}
+      <h1>{{ t.done_title }}</h1>
+      <div class="notice-inline ok" role="status">{{ t.done_body }} <b dir="ltr">{{ username }}</b></div>
+      <p class="small">{{ t.done_keep }}</p>
+      <a role="button" href="/patient?lang={{ lang }}">{{ t.go }}</a>
+    {% else %}
+      <h1>{{ t.title }}</h1>
+      <p class="small muted">{{ t.intro }}</p>
+      {% if error %}<div class="notice-inline err" role="alert" id="act-error">{{ error }}</div>{% endif %}
+      <form method="post" action="/activate" id="act-form" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ login_csrf }}">
+        <input type="hidden" name="lang" value="{{ lang }}">
+        {% if token %}<input type="hidden" name="t" value="{{ token }}"><p class="small">✓ {{ t.code_from_link }}</p>
+        {% else %}
+        <label for="code">{{ t.code }}
+          <input id="code" name="code" type="text" value="{{ code }}" dir="ltr" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="12" required {% if error_field == 'code' %}aria-invalid="true" aria-describedby="act-error"{% endif %}>
+          <span class="hint small muted">{{ t.code_hint }}</span>
+        </label>
+        {% endif %}
+        <label for="birth_date">{{ t.dob }}
+          <input id="birth_date" name="birth_date" type="date" value="{{ birth_date }}" dir="ltr" min="1900-01-01" required {% if error_field == 'dob' %}aria-invalid="true" aria-describedby="act-error"{% endif %}>
+        </label>
+        <label for="password">{{ t.pw }}
+          <span class="pw-field"><input id="password" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required dir="ltr" {% if error_field == 'pw' %}aria-invalid="true" aria-describedby="act-error"{% endif %}>
+          <button type="button" class="reveal" data-reveal="password" aria-controls="password" aria-pressed="false">{{ t.show }}</button></span>
+          <span class="hint small muted">{{ t.pw_hint }}</span>
+        </label>
+        <label for="confirm">{{ t.pw2 }}
+          <input id="confirm" name="confirm" type="password" autocomplete="new-password" maxlength="256" required dir="ltr" {% if error_field == 'pw' %}aria-invalid="true"{% endif %}>
+        </label>
+        <button type="submit">{{ t.submit }}</button>
+      </form>
+      <p class="small" style="margin-top:var(--s-3)">{{ t.have_account }} <a href="/login">{{ t.sign_in }}</a></p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+document.querySelectorAll("[data-reveal]").forEach(b => b.onclick = () => { const i = document.getElementById(b.dataset.reveal); const show = i.type === "password"; i.type = show ? "text" : "password"; b.textContent = show ? {{ t.hide|tojson }} : {{ t.show|tojson }}; b.setAttribute("aria-pressed", String(show)); });
+const af = document.getElementById("act-form");
+if (af) af.addEventListener("submit", e => { const miss = [...af.querySelectorAll("input[required]")].find(i => !i.value.trim());
+  if (miss) { e.preventDefault(); W.toast({{ t.err.missing|tojson }}, "err"); miss.focus(); return; }
+  if (af.password.value !== af.confirm.value) { e.preventDefault(); W.toast({{ t.err.mismatch|tojson }}, "err"); af.confirm.focus(); return; }
+  af.querySelector("button[type=submit]").setAttribute("aria-busy", "true"); });
+</script>{% endblock %}

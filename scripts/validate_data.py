@@ -105,6 +105,16 @@ def run(max_examples: int = 5) -> dict:
         for e, ids in eids.items():
             if len(ids) > 1:
                 bad("patient.registered_emirates_id_unique", ids)
+        # patient app accounts: linked to a record; activation codes used once, before expiry
+        from kareshafaa.models import PatientInvite as _PI
+        for uid, pid_ in db.execute(select(User.id, User.patient_id).where(User.role == "patient")):
+            checked["patient_accounts"] += 1
+            if pid_ is None or pid_ not in patients:
+                bad("account.patient_role_linked_to_patient", uid)
+        for iv in db.scalars(select(_PI)):
+            checked["patient_invites"] += 1
+            if iv.used_at is not None and (iv.used_at > iv.expires_at or (iv.revoked_at is not None and iv.revoked_at < iv.used_at)):
+                bad("account.invite_used_only_while_valid", iv.id)
 
         # --- report / observation level -------------------------------------------------------------
         for r in reports:
@@ -418,6 +428,7 @@ INVARIANTS = [
     "ingest.processed_message_has_report", "ingest.specimen_timing_flag_reaches_case",
     "comms.sent_message_single_language", "patient.emirates_id_valid_checksum", "patient.birth_year_matches_birth_date",
     "patient.registration_has_registrar", "patient.registered_emirates_id_unique",
+    "account.patient_role_linked_to_patient", "account.invite_used_only_while_valid",
 ]
 
 
