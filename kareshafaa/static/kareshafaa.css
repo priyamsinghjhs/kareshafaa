@@ -432,3 +432,20 @@ footer.site-foot { font-size: var(--fs-xs); color: var(--c-muted); padding: var(
 @media (max-width: 600px) {
   .rec-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); }
 }
+/* patient registration and record */
+.req { color: var(--c-danger); font-weight: 700; }
+label .hint { display: block; font-weight: 400; margin-top: 2px; }
+.checks { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); margin: 0 0 var(--s-3); }
+label.check { display: inline-flex; align-items: center; gap: var(--s-2); min-height: var(--tap); font-weight: 500; margin: 0; }
+label.check input { width: 20px; height: 20px; margin: 0; flex: none; }
+.dup-list { list-style: none; padding: 0; margin: var(--s-2) 0 var(--s-3); }
+.dup-list li { padding: var(--s-2) 0; border-bottom: 1px solid var(--c-border); overflow-wrap: anywhere; }
+.reg-form > .card { margin-bottom: var(--s-4); }
+.reg-form .sec-title, .pr-sec .sec-title { margin-top: 0; }
+.pr-sec .facts { margin: var(--s-3) 0 0; }
+.facts .wide { grid-column: 1 / -1; }
+.facts dd .sub { display: block; font-weight: 400; }
+.pr-grid > div > .card { margin-bottom: var(--s-4); }
+@media (min-width: 900px) { .pr-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.sticky-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+@media (max-width: 599px) { .sticky-actions > * { flex: 1 1 100%; } }

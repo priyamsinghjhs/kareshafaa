@@ -23,7 +23,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 
 from . import __version__, accounts, audit, public_demo, pwa, ui
-from .api import admin_users, auth, cases, demo_api, governance, ingest, me, ops
+from .api import admin_users, auth, cases, demo_api, governance, ingest, me, ops, patients
 from .api.deps import COOKIE, resolve_actor, resolve_user
 from .config import get_settings, storage_is_persistent
 from .db import init_db, session_factory, session_scope
@@ -488,6 +488,8 @@ def create_app() -> FastAPI:
         body = {"detail": exc.message}
         if getattr(exc, "code", None):
             body["code"] = exc.code  # machine-readable reason (e.g. answers_locked) so pages can show their own wording
+        if getattr(exc, "extra", None):
+            body.update(exc.extra)  # e.g. possible duplicate records for the registration form
         return JSONResponse(body, status_code=exc.status_code)
 
     @app.exception_handler(ServiceBusy)
@@ -531,7 +533,7 @@ def create_app() -> FastAPI:
         return JSONResponse({"detail": "invalid input", "errors": errs}, status_code=422)
 
     for r in (auth.router, admin_users.router, admin_users.system_router, cases.router, me.router, ops.router, governance.router, ingest.router, demo_api.router,
-              pwa.router):
+              pwa.router, patients.router):
         app.include_router(r)
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
@@ -725,6 +727,8 @@ def create_app() -> FastAPI:
         ("/overview", "overview.html", "/overview", "Overview"), ("/advanced", "advanced.html", "/advanced", "Advanced"),
         ("/admin/users", "admin_users.html", "/admin/users", "Users"),
         ("/admin/system", "admin_system.html", "/admin/system", "System"),
+        ("/patients", "patients.html", "/patients", "Patients"),
+        ("/patients/new", "patient_register.html", "/patients/new", "Register a patient"),
     ]
 
     def _mk(tpl: str, key: str, title: str):
@@ -739,6 +743,10 @@ def create_app() -> FastAPI:
     @app.get("/cases/{case_id}", response_class=HTMLResponse)
     def case_page(case_id: int, request: Request):
         return guarded("case.html", "/cases", f"Case #{case_id}", request, case_id=case_id)
+
+    @app.get("/patients/{patient_id}", response_class=HTMLResponse)
+    def patient_record_page(patient_id: int, request: Request):
+        return guarded("patient_record.html", "/patients", "Patient record", request, patient_id=patient_id)
 
     return app
 

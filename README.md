@@ -120,6 +120,30 @@ Every person signs in with a username and password; there is no account list on 
 | `admin` | System administrator | Users, System, audit log and chain verification, advanced tools |
 | `patient.ar`, `.en`, `.hi`, `.ur`, `.tl` | Patients (sample records) | Fatima Al Kaabi (FIT, Al Ain), Emma Clarke (BI-RADS 0), Ramesh Kumar (HbA1c), Ayesha Khan (HPV), Maria Santos (BI-RADS 4, Tagalog) |
 
+### Patient records: who can do what (enforced on the server)
+
+| Capability | Coordinator | GP | Specialist | Clinical lead | Admin | Analyst / translator | Patient |
+|---|---|---|---|---|---|---|---|
+| Find a patient, open the patient record (`/patients`) | all patients | own health centre, own patients, patients of cases they can see | patients of their referrals / cases | all (read only) | – | – | own record (`/patient`) |
+| Register a patient (`/patients/new`), incl. from an unmatched lab result | yes | yes | – | – | – | – | – |
+| Edit personal / contact / health-centre details | yes | patients they can see | – | – | – | – | own contact details only |
+
+* **Admin manages accounts, never clinical data**: no patient search, record or registration (403 on the API, no menu).
+* **Clinical lead** reads every record (oversight) but has no registration or admin tools.
+* **Registration rules** (same in the browser and on the server, `kareshafaa/services/patients.py`): full date of birth
+  (birth year and age band are derived from it for older reports), Emirates ID `784-YYYY-NNNNNNN-C` with its check digit,
+  UAE mobile/landline or international `+` number, email, address, emirate (region required inside Abu Dhabi
+  emirate), nationality, sex, language, registered health centre and GP (the GP must work at that centre).
+* **Duplicate check before every new record**: the same Emirates ID is refused (the attempt is audited) and the
+  existing record is linked; a similar name with the same date of birth needs a written reason ("Create anyway"),
+  stored on the record and in the audit trail.
+* **Unmatched lab results** (`/ingest`): name, date of birth, sex and phone from the message (HL7 PID-5/7/8/13, FHIR
+  Patient) pre-fill the registration form; saving files the result to the new record as a tracked case. Matching
+  itself still uses identifiers only.
+* Sample records keep `SYN-` MRNs and cannot be created by hand; new records get `KS-` numbers or the hospital MRN.
+* Every change is audited (`patient.registered`, `patient.duplicate_override`, `patient.register_blocked`,
+  `patient.demographics_updated`, `patient.contact_updated`, `patient.care_updated`) and listed on the record.
+
 **Guided walkthrough** (`/walkthrough`, under Advanced; admin only; standard mode only - off in
 production because it adds sample patients). Each one creates a new sample patient record and runs through the real
 service layer, guards and audit:

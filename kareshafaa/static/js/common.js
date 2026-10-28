@@ -18,7 +18,7 @@ const W = {
       let msg = (data && data.detail) ? data.detail : r.statusText;
       if (data && data.errors) msg = "Please check " + data.errors.map(e => W.fieldMsg(e)).join("; ");
       msg = String(msg); msg = msg.charAt(0).toUpperCase() + msg.slice(1);
-      const err = new Error(msg); err.status = r.status; err.code = data && data.code; throw err;
+      const err = new Error(msg); err.status = r.status; err.code = data && data.code; err.data = data; throw err;
     }
     return data;
   },

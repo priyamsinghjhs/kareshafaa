@@ -24,6 +24,7 @@ from kareshafaa.clinical_rules import (ELIGIBLE_AGE, HBA1C_RANGE_MMOL, HBA1C_RAN
                                  evaluate)
 from kareshafaa.services.workflow import patient_context  # noqa: E402  # noqa: E402
 from kareshafaa.db import session_scope  # noqa: E402
+from kareshafaa.services import patients as pt  # noqa: E402
 from kareshafaa.models import (Appointment, AuditEvent, CarePlan, Case, Communication, DiagnosticReport,  # noqa: E402
                          Observation, Patient, Practitioner, ServiceRequest, StepTask, User)
 from kareshafaa.statemachine import AUTHORISED_CLOSURE_REASONS, CLOSABLE_WITH_EVIDENCE, S  # noqa: E402
@@ -86,6 +87,24 @@ def run(max_examples: int = 5) -> dict:
                 bad("patient.birth_year_plausible", p.id)
             if p.pregnant and p.gender != "female":
                 bad("patient.pregnancy_only_female", p.id)
+            # registered (non-synthetic) records: real-world identity rules
+            if p.national_id and not (p.mrn or "").startswith("SYN-"):
+                try:
+                    if pt.normalise_emirates_id(p.national_id) != p.national_id:
+                        bad("patient.emirates_id_valid_checksum", p.id)
+                except Exception:  # noqa: BLE001
+                    bad("patient.emirates_id_valid_checksum", p.id)
+            if p.birth_date is not None and p.birth_year != p.birth_date.year:
+                bad("patient.birth_year_matches_birth_date", p.id)
+            if p.registered_at is not None and not p.registered_by:
+                bad("patient.registration_has_registrar", p.id)
+        eids = defaultdict(list)
+        for p in patients.values():
+            if p.national_id and p.registered_at is not None:
+                eids[p.national_id].append(p.id)
+        for e, ids in eids.items():
+            if len(ids) > 1:
+                bad("patient.registered_emirates_id_unique", ids)
 
         # --- report / observation level -------------------------------------------------------------
         for r in reports:
@@ -397,7 +416,8 @@ INVARIANTS = [
     "reopen.target_follows_policy", "consent.withdrawal_sends_open_cases_to_review",
     "consent.no_automated_contact_after_withdrawal", "death.open_cases_reviewed_when_recorded", "ingest.status_valid",
     "ingest.processed_message_has_report", "ingest.specimen_timing_flag_reaches_case",
-    "comms.sent_message_single_language",
+    "comms.sent_message_single_language", "patient.emirates_id_valid_checksum", "patient.birth_year_matches_birth_date",
+    "patient.registration_has_registrar", "patient.registered_emirates_id_unique",
 ]
 
 
@@ -406,6 +426,8 @@ def main() -> None:
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--max-examples", type=int, default=5)
     a = ap.parse_args()
+    from kareshafaa.db import init_db  # noqa: PLC0415
+    init_db()  # additive only (new tables / nullable columns), the same safe migration the app runs at start-up
     out = run(a.max_examples)
     if a.json:
         print(json.dumps(out, indent=2, default=str))

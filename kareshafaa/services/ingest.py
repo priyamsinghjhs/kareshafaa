@@ -58,6 +58,28 @@ class ParsedResult:
     other_observations: list[list] = field(default_factory=list)  # [loinc, test, raw value, unit] not chosen
     payload_sha256: str | None = None
     collected_at: datetime | None = None  # specimen collection time (UTC, naive) if the message carries one
+    # name / date of birth / sex / phone as sent by the lab: only used to PRE-FILL a registration when the result
+    # matches no patient (never to match or overwrite a record - matching stays on identifiers)
+    demographics: dict[str, Any] = field(default_factory=dict)
+
+
+_HL7_SEX = {"F": "female", "M": "male", "O": "other", "U": "unknown", "A": "other", "N": "unknown"}
+
+
+def _dob(v: str, hl7: bool) -> str | None:
+    v = (v or "").strip()
+    m = re.match(r"^(\d{4})(\d{2})(\d{2})", v) if hl7 else re.match(r"^(\d{4})-(\d{2})-(\d{2})$", v)
+    if not m:
+        return None
+    try:
+        return datetime(int(m[1]), int(m[2]), int(m[3])).date().isoformat()
+    except ValueError:
+        return None
+
+
+def _clip(v: Any, n: int = 100) -> str | None:
+    v = str(v or "").strip()
+    return v[:n] or None
 
 
 # a result whose specimen is older than this at receipt is reviewed (repeat the test, or act on it?) - CONFIRM
@@ -220,6 +242,12 @@ def parse_hl7v2(raw: str) -> ParsedResult:
         ident, alt = (ids[0] if ids else None), ids[1:]
         dob = _field(pid, 7)
         birth_year = int(dob[:4]) if len(dob) >= 4 and dob[:4].isdigit() else None
+        name = [unesc(x) for x in _field(pid, 5).split(rep)[0].split(comp)]
+        xtn = _field(pid, 13).split(rep)[0].split(comp)
+        phone = unesc(xtn[11] if len(xtn) > 11 and xtn[11] else xtn[0])
+        who = {"family_name": _clip(name[0]), "given_name": _clip(" ".join(x for x in name[1:3] if x.strip())),
+                "birth_date": _dob(dob, True), "gender": _HL7_SEX.get(_field(pid, 8).strip().upper()[:1]),
+                "phone": _clip(phone, 30)}
     obs = []
     for obx in (s for s in segs if s[0] == "OBX"):
         code = _field(obx, 3).split(comp)[0]
@@ -235,6 +263,8 @@ def parse_hl7v2(raw: str) -> ParsedResult:
         obs.append((code, val, unesc(_field(obx, 6).split(comp)[0]) or None, _field(obx, 11) or "F", val))
     r = _combine(control_id, ident, birth_year, obs)
     r.alt_identifiers, r.payload_sha256 = alt, digest
+    if pid is not None:
+        r.demographics = {k: v for k, v in who.items() if v}
     obr = next((s for s in segs if s[0] == "OBR"), None)
     times = ([_field(obr, 7)] if obr is not None else []) + [_field(s, 14) for s in segs if s[0] == "OBX"]
     r.collected_at = next((t for t in (parse_collection_time(x, True) for x in times) if t is not None), None)
@@ -286,6 +316,15 @@ def _parse_fhir_bundle(bundle: dict[str, Any]) -> ParsedResult:
             val, unit = o.get("valueString") or (o.get("valueCodeableConcept") or {}).get("text") or "", None
         obs.append((code, val, unit, fhir_status.get(o.get("status", "final"), "F"), val))
     r = _combine(str(mid), ident, birth_year, obs)
+    if pat is not None:
+        nm = next(iter(pat.get("name") or []), {}) or {}
+        tel = [t for t in (pat.get("telecom") or []) if isinstance(t, dict)]
+        who = {"family_name": _clip(nm.get("family")), "given_name": _clip(" ".join(str(g) for g in (nm.get("given") or [])[:2])),
+                "birth_date": _dob(pat.get("birthDate") or "", False),
+                "gender": pat.get("gender") if pat.get("gender") in ("female", "male", "other", "unknown") else None,
+                "phone": _clip(next((t.get("value") for t in tel if t.get("system") in ("phone", "sms")), None), 30),
+                "email": _clip(next((t.get("value") for t in tel if t.get("system") == "email"), None), 200)}
+        r.demographics = {k: v for k, v in who.items() if v}
     for o in (x for x in res if x.get("resourceType") == "Observation"):
         eff = o.get("effectiveDateTime") or (o.get("effectivePeriod") or {}).get("start")
         if (t := parse_collection_time(eff, False)) is not None:
@@ -361,7 +400,8 @@ def ingest(db: Session, source: str, r: ParsedResult, actor: Actor, now: datetim
                         result_status=r.status, cytology=(r.cytology or "")[:30] or None, status="processed",
                         payload_sha256=r.payload_sha256, flags=list(r.flags) or None,
                         alt_identifiers=list(r.alt_identifiers) or None,
-                        other_observations=r.other_observations or None)
+                        other_observations=r.other_observations or None,
+                        patient_demographics=dict(r.demographics) or None)
     p, why = _match(db, r)
     if r.programme is None:
         msg.status, msg.error = "needs_review", r.problem or "result could not be interpreted"

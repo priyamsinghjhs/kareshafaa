@@ -30,7 +30,7 @@ class ResolveIn(BaseModel):
 
 def _out(db: Session, msg: IngestMessage, ack: str | None = None) -> dict:
     c = db.get(Case, msg.case_id) if msg.case_id else None
-    out = {"ok": msg.status in ("processed", "resolved"), "message_id": msg.message_id, "status": msg.status,
+    out = {"ok": msg.status in ("processed", "resolved"), "id": msg.id, "message_id": msg.message_id, "status": msg.status,
            "reason": msg.error, "case": case_summary(db, c) if c else None, "actionable": c is not None}
     if ack is not None:
         out["ack"] = ack
@@ -139,7 +139,15 @@ def messages(status: str | None = None, actor: Actor = Depends(require("case:cre
         q = q.where(IngestMessage.status == status)
     return {"items": [{"id": m.id, "source": m.source, "message_id": m.message_id, "status": m.status,
                        "received_at": m.received_at.isoformat(), "patient_identifier": m.patient_identifier,
-                       "programme": m.programme, "reason": m.error, "case_id": m.case_id} for m in db.scalars(q)]}
+                       "programme": m.programme, "reason": m.error, "case_id": m.case_id,
+                       **_who(m)} for m in db.scalars(q)]}
+
+
+def _who(m: IngestMessage) -> dict:
+    """Name / date of birth from the lab message - shown only while it waits for a match, to help find the person."""
+    d = (m.patient_demographics or {}) if m.status == "needs_match_review" else {}
+    name = " ".join(x for x in (d.get("given_name"), d.get("family_name")) if x)
+    return {"patient_name": name or None, "patient_birth_date": d.get("birth_date")}
 
 
 @router.post("/messages/{msg_id}/resolve")

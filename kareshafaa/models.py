@@ -1,12 +1,13 @@
 """ORM models. Tables are FHIR-shaped (names/fields follow FHIR R4 resources) but kept relational."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import (
     text,
     JSON,
     Boolean,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -137,6 +138,22 @@ class Patient(Base):  # FHIR Patient (synthetic only)
     haemoglobinopathy: Mapped[bool] = mapped_column(Boolean, default=False)  # e.g. thalassaemia trait / Hb variant
     specialist_care: Mapped[str | None] = mapped_column(String(200), nullable=True)  # csv of programmes under specialist care
     synthetic: Mapped[bool] = mapped_column(Boolean, default=True)
+    # ---- registration (patients registered by staff; all nullable so older records and SYN- samples keep working)
+    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)  # birth_year / age_band are derived from it
+    nationality: Mapped[str | None] = mapped_column(String(80), nullable=True)  # country; nationality_group derived
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)  # E.164, e.g. +971501234567
+    email: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    address_line: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    emirate: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    preferred_channel: Mapped[str | None] = mapped_column(String(20), nullable=True)  # app | sms | whatsapp | phone
+    registration_source: Mapped[str | None] = mapped_column(String(30), nullable=True)  # staff_form | result_import
+    registered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    registered_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    updated_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # why the record was created although a similar record (same date of birth, similar name) exists - audited too
+    duplicate_override_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     managing_org: Mapped[Organization] = relationship(foreign_keys=[managing_org_id])
 
 
@@ -675,6 +692,7 @@ class IngestMessage(Base):  # inbound HL7 v2 / FHIR message log (idempotency + h
     flags: Mapped[list | None] = mapped_column(JSON, nullable=True)  # message-level review reasons
     other_observations: Mapped[list | None] = mapped_column(JSON, nullable=True)  # further values, same test
     alt_identifiers: Mapped[list | None] = mapped_column(JSON, nullable=True)  # PID-3 repetitions
+    patient_demographics: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # name/DOB/sex/phone in the message
 
 
 # ---- performance indexes (iteration 4: profiled at 10k+ cases) ------------------------------------------

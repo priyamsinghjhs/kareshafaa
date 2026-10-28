@@ -15,14 +15,18 @@ ROLES = ("patient", "coordinator", "gp", "specialist", "clinical_lead", "analyst
 _CLINICAL = {
     "case:read", "case:write", "queue:read", "comm:send", "consult:create", "consult:respond",
     "appointment:write", "lesson:write", "escalation:ack", "fhir:export", "consent:write",
+    "patient:read",  # patient record and search (scoped by organisation, see services/patients.py)
 }
+# front-line registration and record keeping: coordinators and GPs register patients, edit their details and invite
+# them to the patient app. Clinical lead (oversight) and admin (accounts only) do not.
+_REGISTRATION = {"patient:register", "patient:write", "patient:invite"}
 PERMISSIONS: dict[str, frozenset[str]] = {
     "patient": frozenset({"self:read", "self:respond"}),
     "coordinator": frozenset(_CLINICAL | {"case:triage", "case:assign", "case:transfer", "referral:create",
-                                          "call:record", "sweep:run", "case:create"}),
+                                          "call:record", "sweep:run", "case:create"} | _REGISTRATION),
     "gp": frozenset(_CLINICAL | {"case:triage", "case:triage_urgent", "case:assign", "case:transfer",
                                  "referral:create", "careplan:write", "closure:authorise", "call:record",
-                                 "confirm:order", "confirm:result", "case:create", "record:write"}),
+                                 "confirm:order", "confirm:result", "case:create", "record:write"} | _REGISTRATION),
     "specialist": frozenset(_CLINICAL | {"referral:decide", "careplan:write", "closure:authorise",
                                          "case:triage_urgent", "confirm:result", "case:transfer", "record:write"}),
     "clinical_lead": frozenset(_CLINICAL | {"case:triage", "case:triage_urgent", "case:assign", "case:transfer",

@@ -58,6 +58,17 @@ Status: **OK** = stored and shown back before this audit; **FIXED** = was lost o
 | Governance: content sign-off (lead, translator) | note | `POST /api/governance/content/signoff` | `content_approvals.note` | FIXED: note not shown; minimum length in the UI (3) did not match the API (5) |
 | Governance: model approve / reject / rollback, proposal decide | note | `/api/governance/...` | `model_versions.decision_note`, `rule_proposals.decision_note` | FIXED: note not shown; same length mismatch |
 
+## Patients (`/patients`, `/patients/new`, `/patients/{id}`; added 29 Oct 2026)
+
+| Form | Fields | Endpoint | Stored in | Status |
+|---|---|---|---|---|
+| Register a patient | given / family name, date of birth, sex, Emirates ID, nationality, language, mobile, email, WhatsApp, smartphone, preferred channel, address, city, emirate, region, health centre, GP, MRN, consent to be contacted + note | `POST /api/patients` | **`patients.birth_date/nationality/phone/email/address_line/city/emirate/preferred_channel/registration_source/registered_at/registered_by`** (new), `patients.*`, `consents` | NEW (API test + browser check) |
+| Possible duplicate: create anyway | reason (≥ 10 characters) | `POST /api/patients` (`create_anyway_reason`) | **`patients.duplicate_override_reason`** (new), audit | NEW |
+| Register from an unmatched result | as above, pre-filled from the message | `GET /api/patients/prefill`, `POST /api/patients` (`from_message_id`) | **`ingest_messages.patient_demographics`** (new), `patients`, `diagnostic_reports`, `cases` | NEW |
+| Edit personal details | names, date of birth, sex, Emirates ID, nationality, language | `POST /api/patients/{id}/demographics` | `patients` (+ `updated_at/updated_by`) | NEW |
+| Edit contact details | mobile, email, WhatsApp, smartphone, preferred channel, address, city, emirate, region | `POST /api/patients/{id}/contact` | `patients` | NEW |
+| Edit health centre / GP | health centre, GP | `POST /api/patients/{id}/care` | `patients.managing_org_id/gp_id` | NEW |
+
 ## Patient app (`/patient`, en / ar / hi / ur)
 
 | Field | Endpoint | Stored in | Status |

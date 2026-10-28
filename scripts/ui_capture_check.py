@@ -387,6 +387,56 @@ def run():
             an.ctx.close()
         step("analyst", analyst)
 
+        def patients_flow():  # Patients: register (every field), edit a section, possible-duplicate override
+            p = co.p; letters = "".join("bcdfghjklmnpqrstvwz"[int(c)] for c in RUN)
+            given, family = f"Zé{letters} عربي", f"Qa{letters}{VIEW[:3]} عربي"
+            body = f"784{1979}{random.randint(0, 9_999_999):07d}"
+            t_ = 0
+            for i, c in enumerate(reversed(body)):
+                x = int(c) * (2 if i % 2 == 0 else 1); t_ += x - 9 if x > 9 else x
+            eid = f"{body[:3]}-{body[3:7]}-{body[7:]}-{(10 - t_ % 10) % 10}"
+            addr, city = tok("pt.address"), tok("pt.city")
+            p.goto(BASE + "/patients/new"); p.wait_for_selector("#regf", timeout=20000)
+            f = p.locator("#regf")
+            f.locator("[name=given_name]").fill(given); f.locator("[name=family_name]").fill(family)
+            f.locator("[name=birth_date]").fill("1979-09-21"); f.locator("[name=gender]").select_option("female")
+            f.locator("[name=national_id]").fill(eid); f.locator("[name=nationality]").select_option("Jordan")
+            f.locator("[name=language]").select_option("ur"); f.locator("[name=phone]").fill("052 123 4567")
+            f.locator("[name=email]").fill(f"ui{RUN}{VIEW}@example.ae"); f.locator("[name=whatsapp]").check()
+            f.locator("[name=preferred_channel]").select_option("whatsapp"); f.locator("[name=address_line]").fill(addr)
+            f.locator("[name=city]").fill(city); f.locator("[name=emirate]").select_option("Abu Dhabi"); f.locator("[name=region]").select_option("Al Dhafra")
+            f.locator("[name=managing_org_id]").select_option(index=1)
+            f.locator("[name=consent_care_coordination]").select_option("permit")
+            co.shot("patient_register")
+            f.locator("button[type=submit]").click()
+            p.wait_for_url(re.compile(r".*/patients/\d+.*"), timeout=15000); p.wait_for_selector("#pr-root .case-head", timeout=15000)
+            pid = int(re.search(r"/patients/(\d+)", p.url).group(1)); S["new_patient"] = pid
+            p.reload(); p.wait_for_selector("#pr-root .case-head"); txt = p.inner_text("#pr-root")
+            row = q1("select birth_date, national_id, phone, email, region, preferred_channel, language, nationality from patients where id=?", pid)
+            for fld, t in (("given name", given), ("family name", family), ("address", addr), ("city", city)):
+                record(f"Register patient: {fld}", "/patients/new", t, None, txt)
+            RES.append({"field": "Register patient: date of birth, Emirates ID, phone, email, region, channel, language, nationality",
+                        "page": "/patients/new", "stored": row, "ok": row == ("1979-09-21", eid, "+971521234567", f"ui{RUN}{VIEW}@example.ae", "Al Dhafra", "whatsapp", "ur", "Jordan")
+                        and eid in txt and "+971521234567" in txt})
+            co.shot("patient_record")
+            p.click('[data-edit="contact"]'); t = tok("pt.address2")
+            p.fill('form[data-form="contact"] [name=address_line]', t); p.click('form[data-form="contact"] button[type=submit]')
+            p.wait_for_function("() => !document.querySelector('form[data-form=contact]')", timeout=15000)
+            p.reload(); p.wait_for_selector("#pr-root .case-head"); record("Edit patient contact: address", f"/patients/{pid}", t, None, p.inner_text("#pr-root"))
+            # same name + date of birth again: possible duplicate -> reason -> create anyway
+            p.goto(BASE + "/patients/new"); p.wait_for_selector("#regf"); f = p.locator("#regf")
+            f.locator("[name=given_name]").fill(given); f.locator("[name=family_name]").fill(family); f.locator("[name=birth_date]").fill("1979-09-21")
+            f.locator("[name=gender]").select_option("female"); f.locator("[name=nationality]").select_option("Jordan")
+            f.locator("[name=region]").select_option("Abu Dhabi"); f.locator("[name=managing_org_id]").select_option(index=1)
+            f.locator("button[type=submit]").click(); p.wait_for_selector("#anyway", timeout=15000)
+            kept = f.locator("[name=given_name]").input_value() == given
+            co.shot("patient_duplicate")
+            t = tok("pt.dupreason"); p.fill("[name=create_anyway_reason]", t); p.click("#anyway")
+            p.wait_for_url(re.compile(r".*/patients/\d+.*"), timeout=15000); p.wait_for_selector("#pr-root .case-head")
+            p.reload(); p.wait_for_selector("#pr-root .case-head")
+            record("Possible duplicate: create-anyway reason", "/patients/new", t, None, p.inner_text("#pr-root"), {"values_kept_on_warning": kept})
+        step("patients", patients_flow)
+
         for b in (co, gp, sp, lead, adm):
             if b.errs:
                 RES.append({"field": f"HTTP/JS errors seen as {b.user}", "errors": b.errs[-12:]})

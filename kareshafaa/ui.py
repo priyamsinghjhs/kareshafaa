@@ -14,11 +14,11 @@ FOOTER = ("KareShafaa v0.1 · Prototype software, not a certified medical device
 
 # icon keys refer to inline SVG symbols in templates/_icons.html
 NAV: dict[str, list[tuple[str, str, str]]] = {  # role -> [(href, label, icon)]
-    "coordinator": [("/queue", "Today's queue", "list"), ("/ingest", "Results inbox", "inbox")],
+    "coordinator": [("/queue", "Today's queue", "list"), ("/patients", "Patients", "users"), ("/ingest", "Results inbox", "inbox")],
     "gp": [("/queue?view=review", "Needs review", "check"), ("/queue", "All my cases", "list"),
-           ("/consults", "Ask a specialist", "chat")],
+           ("/patients", "Patients", "users"), ("/consults", "Ask a specialist", "chat")],
     "specialist": [("/queue?view=review", "Needs review", "check"), ("/queue", "My cases", "list"),
-                   ("/consults", "Consult requests", "chat")],
+                   ("/patients", "Patients", "users"), ("/consults", "Consult requests", "chat")],
     "clinical_lead": [("/overview", "Overview", "home"), ("/queue", "Work queue", "list"),
                       ("/governance", "Approvals", "shield"), ("/dashboard", "Outcomes", "chart"),
                       ("/audit", "Audit trail", "key")],
@@ -40,6 +40,7 @@ PAGE_PERMS: dict[str, tuple[str, ...] | None] = {
     "/walkthrough": ("user:admin",), "/ingest": ("case:create",), "/consults": ("consult:respond",),
     "/overview": ("proposal:decide",), "/advanced": ("config:read",), "/admin/users": ("user:admin",), "/admin/system": ("user:admin",),
     "/account/password": None,
+    "/patients": ("patient:read",), "/patients/new": ("patient:register",),
 }
 
 

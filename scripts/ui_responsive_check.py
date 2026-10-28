@@ -28,8 +28,9 @@ DEVICES = {  # name: (width, height, mobile/touch, scale)
 }
 LANDSCAPE = {"iphone-se", "iphone-15-pro", "pixel-7", "galaxy-s-small"}
 PLAN = {  # user: [(name, path)]
-    "aisha.rahman": [("coordinator_home", "/queue"), ("case", "/cases/{case}"), ("ingest", "/ingest")],
-    "omar.haddad": [("gp_home", "/queue?view=review"), ("gp_consults", "/consults")],
+    "aisha.rahman": [("coordinator_home", "/queue"), ("case", "/cases/{case}"), ("ingest", "/ingest"),
+                     ("patients_search", "/patients?q=SYN-"), ("patient_register", "/patients/new"), ("patient_record", "/patients/{patient}")],
+    "omar.haddad": [("gp_home", "/queue?view=review"), ("gp_consults", "/consults"), ("gp_patient_record", "/patients/{patient}")],
     "vikram.mehta": [("specialist_home", "/queue?view=review")],
     "fatima.al.mansoori": [("lead_home", "/overview"), ("lead_governance", "/governance"), ("lead_dashboard", "/dashboard"),
                            ("lead_advanced", "/advanced"), ("lead_audit", "/audit")],
@@ -104,6 +105,9 @@ def main() -> int:
                             r = ctx.request.get(BASE + "/api/queue?view=all&limit=1")
                             case_id = r.json()["items"][0]["id"]
                         path = path.replace("{case}", str(case_id))
+                    if "{patient}" in path:
+                        r = ctx.request.get(BASE + "/api/patients?q=SYN-")
+                        path = path.replace("{patient}", str(r.json()["items"][0]["id"]))
                     p.goto(BASE + path, wait_until="networkidle")
                     p.wait_for_timeout(600)
                     sw, iw = p.evaluate("[document.documentElement.scrollWidth, window.innerWidth]")

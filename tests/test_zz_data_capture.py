@@ -165,3 +165,64 @@ def test_content_signoff_note_and_validation_errors(client, db, staff):
     # a rejected form names the field so the page can show it next to the kept values
     r = P(client, lead, "/api/governance/content/signoff", content_id=items[0]["content_id"], kind="clinical", note="x")
     assert r.status_code == 422 and r.json().get("errors")
+
+
+def _name_tok() -> str:
+    """Unique letters-only Unicode name (names may not hold digits)."""
+    i, s = next(_n) + 7919, ""
+    while i:
+        i, r = divmod(i, 20)
+        s += "bcdfghjklmnpqrstvwz"[r % 19]
+    return f"Zé{s} عربي"
+
+
+def _eid(year: int = 1979) -> str:
+    import random
+    from kareshafaa.services.patients import emirates_id_check_digit
+    b = f"784{year}{random.randint(0, 9_999_999):07d}"
+    return f"{b[:3]}-{b[3:7]}-{b[7:14]}-{emirates_id_check_digit(b)}"
+
+
+def test_patient_registration_and_record_forms_capture_every_field(client, db, staff):
+    co = staff["co"]
+    given, family, addr, city = _name_tok(), _name_tok(), tok("address"), tok("city")
+    e = _eid()
+    r = P(client, co, "/api/patients", given_name=given, family_name=family, birth_date="1979-09-21", gender="female",
+          national_id=e, nationality="Jordan", language="ur", phone="0521234567", email="capture.reg@example.ae",
+          address_line=addr, city=city, emirate="Abu Dhabi", region="Al Dhafra", preferred_channel="whatsapp",
+          whatsapp=True, has_smartphone=True, managing_org_id=4, gp_id=None,
+          consent_care_coordination="permit", consent_note=tok("regconsent"))
+    assert r.status_code == 200, r.text
+    pid = r.json()["patient_id"]; rd = f"/api/patients/{pid}"
+    for v in (given, family, addr, city):
+        captured(client, db, r, v, rd, h=co)
+    rec = client.get(rd, headers=co).json()
+    d, c, k = rec["demographics"], rec["contact"], rec["care"]
+    assert (d["birth_date"], d["gender"], d["national_id"], d["nationality"], d["language"]) == ("1979-09-21", "female", e, "Jordan", "ur")
+    assert (c["phone"], c["email"], c["region"], c["preferred_channel"], c["whatsapp"], c["has_smartphone"]) == \
+        ("+971521234567", "capture.reg@example.ae", "Al Dhafra", "whatsapp", True, True)
+    assert k["managing_org_id"] == 4 and rec["consents"][0]["decision"] == "permit"
+    db.expire_all(); p = db.get(Patient, pid)
+    assert p.birth_year == 1979 and p.nationality_group == "Other Arab" and p.registered_by and p.registered_at
+    # each edit section: changed values stored and shown back
+    a2, c2 = tok("address2"), tok("city2")
+    captured(client, db, P(client, co, f"{rd}/contact", address_line=a2, city=c2, emirate="Dubai", phone="+971 4 123 4567",
+                           email="moved@example.ae", preferred_channel="phone", whatsapp=False, has_smartphone=False), a2, rd, h=co)
+    rec = client.get(rd, headers=co).json()
+    assert rec["contact"]["city"] == c2 and rec["contact"]["emirate"] == rec["contact"]["region"] == "Dubai" and rec["contact"]["phone"] == "+97141234567"
+    g2 = _name_tok()
+    captured(client, db, P(client, co, f"{rd}/demographics", given_name=g2, birth_date="1979-09-22", nationality="Philippines", language="tl"), g2, rd, h=co)
+    db.expire_all(); p = db.get(Patient, pid); assert p.nationality_group == "Filipino" and p.language == "tl"
+    assert P(client, co, f"{rd}/care", managing_org_id=3, gp_id=19).status_code < 400
+    # the patient's GP (now at health centre 3) can edit; a GP elsewhere cannot
+    assert P(client, staff["gp"], f"{rd}/contact", city=c2 + " GP").status_code < 400
+    assert client.get(rd, headers=co).json()["care"]["gp_id"] == 19
+    # a possible-duplicate override reason is stored (audited) and the duplicate warning names the first record
+    reason = tok("dupreason")
+    r2 = P(client, co, "/api/patients", given_name=g2, family_name=family, birth_date="1979-09-22", gender="female", nationality="Jordan",
+           language="ar", emirate="Abu Dhabi", region="Abu Dhabi", managing_org_id=3)
+    assert r2.status_code == 409 and r2.json()["code"] == "possible_duplicate"
+    r3 = P(client, co, "/api/patients", given_name=g2, family_name=family, birth_date="1979-09-22", gender="female", nationality="Jordan",
+           language="ar", emirate="Abu Dhabi", region="Abu Dhabi", managing_org_id=3, create_anyway_reason=reason)
+    assert r3.status_code == 200, r3.text
+    assert reason in client.get(f"/api/patients/{r3.json()['patient_id']}", headers=co).text

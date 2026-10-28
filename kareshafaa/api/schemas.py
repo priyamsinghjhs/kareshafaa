@@ -232,3 +232,62 @@ class MedicationIn(_In):
 
 class MedicationStopIn(_In):
     reason: str = Field(min_length=3, max_length=300)
+
+
+# ---------------------------------------------------------------------------------------------- patient registration
+from datetime import date as _date  # noqa: E402
+
+_S = lambda n: Field(default=None, max_length=n)  # noqa: E731
+
+
+class PatientCreateIn(_In):
+    given_name: str = Field(min_length=1, max_length=100)
+    family_name: str = Field(min_length=1, max_length=100)
+    birth_date: _date
+    gender: Literal["female", "male", "other", "unknown"]
+    national_id: str | None = _S(25)
+    nationality: str = Field(min_length=1, max_length=80)
+    language: Literal["ar", "en", "hi", "ur", "tl", "ml"]
+    phone: str | None = _S(30)
+    email: str | None = _S(200)
+    address_line: str | None = _S(300)
+    city: str | None = _S(100)
+    emirate: str = Field(min_length=1, max_length=40)
+    region: str | None = _S(60)
+    preferred_channel: Literal["app", "sms", "whatsapp", "phone"] | None = None
+    whatsapp: bool = False
+    has_smartphone: bool = False
+    managing_org_id: int
+    gp_id: int | None = None
+    mrn: str | None = _S(40)
+    consent_care_coordination: Literal["permit", "deny"] | None = None
+    consent_note: str | None = _S(500)
+    create_anyway_reason: str | None = _S(500)
+    from_message_id: int | None = None
+
+
+class PatientDemographicsIn(_In):
+    given_name: str | None = Field(default=None, min_length=1, max_length=100)
+    family_name: str | None = Field(default=None, min_length=1, max_length=100)
+    birth_date: _date | None = None
+    gender: Literal["female", "male", "other", "unknown"] | None = None
+    national_id: str | None = _S(25)
+    nationality: str | None = _S(80)
+    language: Literal["ar", "en", "hi", "ur", "tl", "ml"] | None = None
+
+
+class PatientContactIn(_In):
+    phone: str | None = _S(30)
+    email: str | None = _S(200)
+    address_line: str | None = _S(300)
+    city: str | None = _S(100)
+    emirate: str | None = _S(40)
+    region: str | None = _S(60)
+    preferred_channel: Literal["app", "sms", "whatsapp", "phone"] | None = None
+    whatsapp: bool | None = None
+    has_smartphone: bool | None = None
+
+
+class PatientCareIn(_In):
+    managing_org_id: int
+    gp_id: int | None = None
