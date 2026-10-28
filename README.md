@@ -313,4 +313,4 @@ Logo files live in `kareshafaa/static/brand/` (badge `icon.svg`, small-size badg
 `logo-horizontal*.svg`, `logo-stacked*.svg`, mono white / mono navy and on-dark variants, `og-1200x630.png`); app icons
 in `kareshafaa/static/icons/`, `favicon.ico` / `favicon.svg`. Rebuild everything with `python scripts/make_pwa_icons.py`
 (source geometry in `scripts/brand/`). Navy `#0A2B5E`, mint `#4FD1A1`, white. The wordmark is Figtree ExtraBold
-(SIL Open Font License 1.1) converted to outlines. Latin script only. Full rules: brand guide `BRAND.md` shipped with the logo pack.
+(SIL Open Font License 1.1) converted to outlines. Latin script only. Full rules: [`docs/BRAND.md`](docs/BRAND.md).

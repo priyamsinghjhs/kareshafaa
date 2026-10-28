@@ -3,7 +3,7 @@
 usage: LOGO_OUT=/tmp/logo python3 scripts/make_pwa_icons.py
 needs: fontTools (wordmark outlines from Figtree, SIL OFL 1.1), Pillow (favicon.ico), Playwright + Chrome (exact SVG
 rendering). Output is copied into kareshafaa/static/brand/, kareshafaa/static/icons/ and kareshafaa/static/favicon.*
-Brand rules: dist/logo/BRAND.md. Latin script only (no Arabic lettering in the mark or wordmark).
+Brand rules: docs/BRAND.md (also shipped as BRAND.md in the logo pack). Latin script only (no Arabic lettering in the mark or wordmark).
 """
 from __future__ import annotations
 
