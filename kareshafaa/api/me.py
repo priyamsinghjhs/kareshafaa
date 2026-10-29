@@ -175,3 +175,30 @@ def my_display_language(body: sch.LanguageIn, actor: Actor = Depends(require("se
                      detail={"from": old, "to": body.language})
     db.commit()
     return {"ok": True, "language": u.ui_language}
+
+
+@router.get("/profile")
+def my_profile(lang: str | None = Query(None, max_length=5), actor: Actor = Depends(require("self:read")),
+               db: Session = Depends(get_db)) -> dict:
+    """Own contact details plus appointment and result history, worded for the patient (no clinician notes)."""
+    from ..comms.self_service_text import SELF_TEXT
+    from ..services import self_service as ss
+    from ..services.patients import ABU_DHABI_REGIONS, EMIRATES
+
+    p = ss._me(db, actor)
+    u = db.get(User, actor.user_id) if actor.user_id else None
+    lang = lang if lang in SUPPORTED_LANGUAGES else ((u.ui_language if u is not None else None) or comms.comm_language(p))
+    lang = lang if lang in SELF_TEXT else "en"
+    return {"language": lang, "rtl": lang in RTL_LANGUAGES, "text": SELF_TEXT[lang], "contact": ss.contact_view(p),
+            "options": {"emirates": list(EMIRATES), "regions": list(ABU_DHABI_REGIONS)},
+            "history": ss.history(db, actor, lang)}
+
+
+@router.post("/contact")
+def my_contact(body: sch.SelfContactIn, actor: Actor = Depends(require("self:respond")),
+               db: Session = Depends(get_db)) -> dict:
+    from ..services import self_service as ss
+
+    changed = ss.update_own_contact(db, actor, body.model_dump(exclude_unset=True))
+    db.commit()
+    return {"ok": True, "changed": changed}

@@ -182,6 +182,12 @@ Every person signs in with a username and password; there is no account list on 
   automatically when the appointment is within 48 hours (`APPOINTMENT_REMINDER_HOURS`, CONFIRM; not within 2 hours),
   inside the 08:00–21:00 UAE patient message window, or staff can send one from the case. Message categories
   `appointment_reminder` / `appointment_changed` / `appointment_cancelled` in en/ar/hi/ur.
+* **Patient self-service** (patient app `/patient`, en/ar/hi/ur, right-to-left for ar/ur): **My contact details**
+  lets the patient change their own mobile, WhatsApp, email, preferred way of contact and address (same rules as
+  the staff form; the account can reach only its own record; audited as `patient.self_contact_updated` and shown on
+  the staff record as "by the patient"). **My appointments** and **My results** list their history in plain
+  words (no values, no clinician notes); a result that needs follow-up is shown as "your care team is looking at
+  this result" until the team has told the patient.
 * **Insurance and next of kin**: insurer (Thiqa, Daman, ADNIC, … or self-pay), plan, member / card number (required
   for an insurer) and cover end date; next of kin name, relationship, phone, legal-guardian flag and **proxy consent**
   (may the team discuss screening and follow-up with this person? stored as consent scope `proxy_contact`, needs

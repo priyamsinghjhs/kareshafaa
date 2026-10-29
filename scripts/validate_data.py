@@ -153,6 +153,12 @@ def run(max_examples: int = 5) -> dict:
                 src = db.get(_AP, ap.rescheduled_from_id)
                 if src is None or src.status != "cancelled":
                     bad("appointment.reschedule_source_cancelled", ap.id)
+        # patient self-service: only the patient's own account writes patient.self_contact_updated
+        from kareshafaa.models import AuditEvent as _AE
+        for ae in db.scalars(select(_AE).where(_AE.event == "patient.self_contact_updated")):
+            checked["self_service_changes"] += 1
+            if ae.actor_role != "patient":
+                bad("self_service.changed_by_patient_role", ae.id)
         # insurance and next of kin (services/coverage.py)
         from kareshafaa.services.coverage import PAYERS as _PAY, RELATIONSHIPS as _REL
         from kareshafaa.services.access import consent_status as _cst
@@ -492,7 +498,7 @@ INVARIANTS = [
     "account.patient_role_linked_to_patient", "account.invite_used_only_while_valid",
     "coverage.payer_valid", "coverage.insurer_has_member_number", "coverage.relationship_valid",
     "coverage.guardian_named", "coverage.proxy_consent_has_contact",
-    "report.future_specimen_reviewed", "report.orderer_site_clean",
+    "report.future_specimen_reviewed", "report.orderer_site_clean", "self_service.changed_by_patient_role",
 ]
 
 

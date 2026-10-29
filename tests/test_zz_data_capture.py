@@ -328,3 +328,19 @@ def test_result_ordering_clinician_site_and_collection_capture(client, db, staff
     msg = hl7(db.get(Patient, pid2).mrn, f"T-CAP-{pid2}").replace("Mushrif Healthcare Centre", t3)
     r = client.post("/api/ingest/hl7v2", headers={**co, "Content-Type": "text/plain"}, content=msg.encode())
     captured(client, db, r, t3, f"/api/patients/{pid2}", h=co)
+
+
+def test_patient_self_service_contact_capture(client, db, staff, as_user):
+    from kareshafaa.models import Patient
+    from tests.test_patient_self_service import _patient_login
+    pid, ph = _patient_login(client, as_user, db, language="ar")
+    t1, t2 = tok("selfaddress"), tok("selfcity")
+    r = P(client, ph, "/api/me/contact", address_line=t1, city=t2, emirate="Abu Dhabi", region="Al Ain",
+          phone="+971 50 765 1111", email="self.capture@example.ae", preferred_channel="sms", whatsapp=False)
+    captured(client, db, r, t1, "/api/me/profile?lang=ar", f"/api/patients/{pid}", h=ph)
+    captured(client, db, r, t2, f"/api/patients/{pid}", h=staff["co"])
+    db.expire_all()
+    p = db.get(Patient, pid)
+    assert (p.phone, p.email, p.region, p.preferred_channel, p.whatsapp) == ("+971507651111", "self.capture@example.ae", "Al Ain", "sms", False)
+    bad = P(client, ph, "/api/me/contact", phone="0001")
+    assert bad.status_code == 422 and db.get(Patient, pid).phone == "+971507651111"

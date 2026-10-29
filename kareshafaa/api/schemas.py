@@ -335,6 +335,17 @@ class PatientContactsIn(_In):
     proxy_note: str | None = _S(500)
 
 
+class SelfContactIn(_In):  # patient app: own contact details (same rules as the staff form)
+    phone: str | None = _S(30)
+    email: str | None = _S(200)
+    address_line: str | None = _S(300)
+    city: str | None = _S(100)
+    emirate: str | None = _S(40)
+    region: str | None = _S(60)
+    preferred_channel: Literal["app", "sms", "whatsapp", "phone"] | None = None
+    whatsapp: bool | None = None
+
+
 class AccountInviteIn(_In):
     channel: Literal["sms", "in_person"] = "sms"
 

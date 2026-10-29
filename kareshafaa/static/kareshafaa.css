@@ -464,3 +464,9 @@ label.check input { width: 20px; height: 20px; margin: 0; flex: none; }
 .result-meta { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--s-2); font-size: var(--fs-sm); }
 .result-meta div { padding: var(--s-1) var(--s-2); }
 .cov-banner { margin: var(--s-3) 0; }
+.hist { list-style: none; margin: 0; padding: 0; }
+.hist-item { padding: var(--s-2) 0; border-bottom: 1px solid var(--c-border); display: grid; gap: 2px; }
+.hist-item:last-child { border-bottom: 0; }
+.hist-item.cancelled b, .hist-item.past b { color: var(--c-muted); }
+.self-facts { margin-top: var(--s-2); }
+.rtl .hint, .rtl .facts dd { text-align: start; }

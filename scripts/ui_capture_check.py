@@ -356,6 +356,32 @@ def run():
                 pt.ctx.close()
         step("patient", patient)
 
+        def self_service():  # patient app: change own contact details (ur, RTL), history of appointments / results
+            pt = Browser(pw, "patient.ur"); p = pt.p; p.goto(BASE + "/patient?lang=ur"); p.wait_for_selector("#self-edit", timeout=20000)
+            p.click("#self-edit"); f = "#self-form"; t = tok("self.address")
+            p.fill(f"{f} [name=address_line]", t); p.select_option(f"{f} [name=emirate]", "Abu Dhabi"); p.select_option(f"{f} [name=region]", "Al Ain")
+            p.fill(f"{f} [name=phone]", "123"); p.click(f"{f} button[type=submit]"); p.wait_for_timeout(400)
+            err_shown = p.locator(f"{f} .form-error").count() > 0 or p.locator(".form-error").count() > 0
+            p.click('.lang-switch button[data-l="ar"]'); p.wait_for_selector(f"{f} [name=address_line]", timeout=15000); p.wait_for_timeout(600)
+            kept = p.input_value(f"{f} [name=address_line]") == t and p.input_value(f"{f} [name=phone]") == "123"
+            rtl = p.evaluate("() => document.getElementById('p-root').dir") == "rtl"
+            pt.shot("patient_self_form_ar")
+            p.fill(f"{f} [name=phone]", "050 765 2222"); p.click(f"{f} button[type=submit]")
+            p.wait_for_selector("#self-edit", timeout=15000); p.reload(); p.wait_for_selector("#self-details")
+            txt = p.inner_text("#pprofile"); sw, iw = p.evaluate("[document.documentElement.scrollWidth, window.innerWidth]")
+            row = q1("select phone, region, address_line from patients where id=(select patient_id from users where username='patient.ur')")
+            record("Patient app: own address", "/patient", t, None, txt, {"values_kept_on_error_and_language_switch": kept})
+            RES.append({"field": "Patient app: own phone / region saved, error shown, RTL, history shown", "page": "/patient", "stored": row,
+                        "ok": bool(row and row[0] == "+971507652222" and row[1] == "Al Ain") and err_shown and kept and rtl and sw <= iw
+                        and p.locator("#self-appts").count() == 1 and p.locator("#self-results").count() == 1,
+                        "error_shown": err_shown, "kept": kept, "rtl": rtl, "overflow": sw > iw})
+            p.locator("#self-results").scroll_into_view_if_needed(); pt.shot("patient_self_history_ar")
+            ev = q1("select count(*) from audit_events where event='patient.self_contact_updated' and actor_role='patient'")
+            RES.append({"field": "Patient app: self-service change audited", "ok": bool(ev and ev[0] >= 1)})
+            p.click('.lang-switch button[data-l="en"]'); p.wait_for_timeout(800)
+            pt.ctx.close()
+        step("self_service", self_service)
+
         def patient_tb():
             pt = Browser(pw, "patient.hi"); p = pt.p; p.goto(BASE + "/patient?lang=hi"); p.wait_for_selector(".lang-switch")
             if p.locator("#tbf").count():

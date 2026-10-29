@@ -96,6 +96,8 @@ Status: **OK** = stored and shown back before this audit; **FIXED** = was lost o
 | Display language | **`POST /api/me/display-language`** (new) | **`users.ui_language`** (new) | FIXED: choice lost on next visit (clinical comms language `patients.language` unchanged) |
 | Question for the clinician | `POST /api/me/consult` | `consult_requests.question` | FIXED: draft lost on language switch; too-short text gave no message |
 | Teach-back answers, confidence | `POST /api/me/teach-back` | `questionnaire_responses` | FIXED: answers lost on language switch |
+| My contact details: mobile, WhatsApp, email, preferred channel, address, city, emirate, region (added 29 Oct 2026) | **`POST /api/me/contact`** (new; own record only, same rules as the staff form), `GET /api/me/profile` | `patients.phone/email/address_line/city/emirate/region/preferred_channel/whatsapp`, audit `patient.self_contact_updated` | NEW (draft kept on error and on language switch; API + capture test + browser check in ar) |
+| My appointments and results (read only) | **`GET /api/me/profile`** (new) | from `appointments`, `diagnostic_reports` | NEW (patient wording in en/ar/hi/ur; an actionable result shows only after the team has told the patient) |
 | Decline + optional reason | `POST /api/me/decline` | `consents.note`, `lessons.detail` | OK (busy state, inline error) |
 
 ## Read-only roles
