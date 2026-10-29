@@ -60,6 +60,12 @@ def journey(db: Session, c: Case) -> list[dict]:
     return out
 
 
+def _gp_summaries(db: Session, c: Case, actor: Actor, now: datetime) -> list[dict]:
+    from ..services.gp_summary import for_case
+
+    return for_case(db, c, actor, now)
+
+
 def _recall_info(db: Session, c: Case, now: datetime) -> dict:
     from ..clinical_rules import RECALL_INTERVAL_MONTHS, SURVEILLANCE_MONTHS
     from ..models import Recall
@@ -133,6 +139,7 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
         "care_plans": [{"id": cp.id, "kind": cp.kind, "description": cp.description, "created_at": iso(cp.created_at),
                         "by": pname(db, cp.recorded_by_id), "review_due_on": iso(cp.review_due_on)} for cp in q(CarePlan)],
         "recall": _recall_info(db, c, now),
+        "gp_summaries": _gp_summaries(db, c, actor, now),
         "communications": [{"id": m.id, "category": m.category, "channel": m.channel, "status": m.status,
                             "language": m.language, "variant": m.template_variant, "content": m.content,
                             "to": pname(db, m.recipient_practitioner_id) or "patient", "sent_at": iso(m.sent_at),

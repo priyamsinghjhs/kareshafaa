@@ -567,3 +567,6 @@ RECALL_AFTER_CLOSURE_MONTHS = {
 }
 RECALL_LIST_AHEAD_DAYS = 60       # the "Due for recall" list shows recalls due within this many days (operational)
 RECALL_UPTAKE_WINDOW_DAYS = 180   # a recall counts as taken up if a new screening result arrives by due + 180 days
+
+# Care summary to the registered GP (written when care starts and when a case closes)
+GP_SUMMARY_ACK_DAYS = 7           # CONFIRM: the GP acknowledges within 7 days (shown as overdue after that)

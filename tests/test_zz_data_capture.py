@@ -253,3 +253,15 @@ def test_recall_cancel_reason_capture(client, db, staff, make_patient):
     r = P(client, co, f"/api/recalls/{rid}/cancel", reason="x"); assert r.status_code == 422  # same rule as the form (5+)
     t = tok("recallcancel")
     captured(client, db, P(client, co, f"/api/recalls/{rid}/cancel", reason=t), t, f"/api/patients/{pid}", "/api/recalls?view=upcoming", h=co)
+
+
+def test_gp_summary_ack_note_capture(client, db, staff, as_user, new_case):
+    from kareshafaa.models import GpSummary
+    from tests.test_gp_summary import _to_care
+    cid = new_case(value=250)["id"]
+    _to_care(client, as_user, cid)
+    db.expire_all()
+    sid = db.scalar(select(GpSummary.id).where(GpSummary.case_id == cid))
+    t = tok("gpack")
+    captured(client, db, P(client, staff["gp"], f"/api/gp-summaries/{sid}/ack", note=t), t, f"/api/cases/{cid}", "/api/gp-summaries?view=all", h=staff["gp"])
+    assert P(client, staff["gp"], f"/api/gp-summaries/{sid}/ack", note="x" * 1001).status_code == 422

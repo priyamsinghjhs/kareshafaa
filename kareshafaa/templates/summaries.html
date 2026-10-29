@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head"><div><h1>Care summaries</h1>
+<p class="lede">Written automatically when care starts and when a screening case closes, for patients registered with you or your practice. Read each one and acknowledge it (add a note if you are taking an action).</p></div></div>
+<div class="tabs" role="tablist" aria-label="Which summaries">
+  <button role="tab" id="t-unread" data-v="unread" aria-selected="true">To acknowledge <span class="count" id="n-unread"></span></button>
+  <button role="tab" id="t-all" data-v="all" aria-selected="false" class="secondary">All summaries</button>
+</div>
+<div id="slist" aria-live="polite"><div class="loading" role="status">Loading…</div></div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/summaries.js"></script>{% endblock %}

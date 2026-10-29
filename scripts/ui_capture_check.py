@@ -250,7 +250,11 @@ def run():
             sp.case(cid); sp.action("attendance"); sp.p.select_option("#aform select[name=attended]", "true"); sp.submit_form()
             sp.case(cid); sp.action("start_care"); t = tok("careplan")
             sp.p.select_option("#aform select[name=kind]", "surveillance"); sp.p.fill("#aform textarea[name=description]", t)
+            sp.p.fill("#aform input[name=review_due_on]", "2029-06-14")
             err = sp.submit_form(); sp.case(cid); record("Care plan: description", f"/cases/{cid}", t, err, sp.case_text(), {"kind": q1("select kind from care_plans where description like ?", f"%{key(t)}%")})
+            rd = q1("select review_due_on from care_plans where description like ?", f"%{key(t)}%")
+            RES.append({"field": "Care plan: review / re-test due date", "page": f"/cases/{cid}", "db_row": rd,
+                        "ok": bool(rd and str(rd[0]).startswith("2029-06-14") and "2029-06-14" in sp.case_text())})
             k = sp.p.eval_on_selector_all("#case-root aside [data-k]", "e=>e.map(x=>x.dataset.k)")
             sp.action("close_evidence" if "close_evidence" in k else k[0]); t = tok("close.note")
             sp.p.fill("#aform textarea[name=note]", t); err = sp.submit_form(); sp.case(cid); record("Close with evidence: note", f"/cases/{cid}", t, err, sp.case_text())
@@ -492,6 +496,23 @@ def run():
                     record("Recall: cancel reason", "/recalls", t, None, p.inner_text("#pr-root"), {"short_reason_refused": still})
             RES.extend(out)
         step("recall", recall_flow)
+
+        def summary_flow():  # Care summaries: GP acknowledges the closure summary with a note
+            row = sqlite3.connect(DB).execute("""select s.id, s.case_id from gp_summaries s join practitioners pr on pr.id=s.to_practitioner_id
+                where s.acknowledged_at is null and (s.to_practitioner_id=19 or s.to_org_id=pr.org_id) and s.to_practitioner_id=19 order by s.id desc limit 1""").fetchone()
+            if not row:
+                RES.append({"field": "Care summary (needs one unacknowledged for Omar)", "ok": False}); return
+            sid, cid_ = row; g = gp.p
+            g.goto(BASE + "/summaries"); g.wait_for_selector(f'form.ack-form[data-id="{sid}"]', timeout=20000)
+            gp.shot("summaries_inbox")
+            t = tok("gp.ack"); g.fill(f'form.ack-form[data-id="{sid}"] textarea[name=note]', t); g.click(f'form.ack-form[data-id="{sid}"] button[type=submit]')
+            g.wait_for_selector(f'form.ack-form[data-id="{sid}"]', state="detached", timeout=15000)
+            gp.case(cid_); txt = gp.case_text()
+            g.locator('.tabs button[data-t="events"]').click(); g.wait_for_timeout(200)
+            g.evaluate("() => document.querySelectorAll('#tabbody details').forEach(d => d.open = true)")
+            g.locator("#tabbody .sum-text").first.scroll_into_view_if_needed(); gp.shot("case_timeline_summary")
+            record("Care summary: GP acknowledgement note", "/summaries", t, None, txt)
+        step("summary", summary_flow)
 
         for b in (co, gp, sp, lead, adm):
             if b.errs:

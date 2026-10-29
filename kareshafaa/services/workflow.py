@@ -605,6 +605,8 @@ def close_case(db: Session, case: Case, actor: Actor, closure_type: str, *, evid
                          "evidence_id": evidence_id})
     from . import recall as _recall  # next screening due date from the programme interval (clinical_rules, CONFIRM)
     _recall.after_closure(db, case, actor, now)
+    from . import gp_summary as _gps  # closure summary to the registered GP (acknowledged from their inbox)
+    _gps.write(db, case, "case_closed", actor, now)
     return case
 
 
@@ -919,6 +921,8 @@ def start_care(db: Session, case: Case, actor: Actor, kind: str, description: st
     audit.record(db, actor, "C", "careplan.created", entity_type="CarePlan", entity_id=cp.id, case_id=case.id, ts=now,
                  detail={"kind": kind, "review_due_on": review_due_on.isoformat() if review_due_on else None})
     transition(db, case, S.TREATMENT_STARTED, actor, now=now)
+    from . import gp_summary as _gps
+    _gps.write(db, case, "care_started", actor, now)
     return cp
 
 

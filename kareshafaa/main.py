@@ -23,7 +23,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 
 from . import __version__, accounts, audit, public_demo, pwa, ui
-from .api import admin_users, auth, cases, demo_api, governance, ingest, me, ops, patients, recalls
+from .api import admin_users, auth, cases, demo_api, governance, ingest, me, ops, patients, recalls, gp_summaries
 from .api.deps import COOKIE, resolve_actor, resolve_user
 from .config import get_settings, storage_is_persistent
 from .db import init_db, session_factory, session_scope
@@ -533,7 +533,7 @@ def create_app() -> FastAPI:
         return JSONResponse({"detail": "invalid input", "errors": errs}, status_code=422)
 
     for r in (auth.router, admin_users.router, admin_users.system_router, cases.router, me.router, ops.router, governance.router, ingest.router, demo_api.router,
-              pwa.router, patients.router, recalls.router):
+              pwa.router, patients.router, recalls.router, gp_summaries.router):
         app.include_router(r)
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
@@ -807,6 +807,7 @@ def create_app() -> FastAPI:
         ("/patients", "patients.html", "/patients", "Patients"),
         ("/patients/new", "patient_register.html", "/patients/new", "Register a patient"),
         ("/recalls", "recalls.html", "/recalls", "Due for recall"),
+        ("/summaries", "summaries.html", "/summaries", "Care summaries"),
     ]
 
     def _mk(tpl: str, key: str, title: str):

@@ -72,13 +72,15 @@ Status: **OK** = stored and shown back before this audit; **FIXED** = was lost o
 | Cancel an activation code | reason | `POST /api/patients/{id}/account-invite/revoke` | **`patient_invites.revoke_reason/revoked_at/revoked_by`** | NEW |
 | Activate account (`/activate`, en / ar / hi / ur) | code or link, date of birth, password ×2 | `POST /activate` (pre-login CSRF) | `users.password_hash`, `patient_invites.used_at/failed_attempts` | NEW (code and date kept on error, password never echoed) |
 
-## Recall (`/recalls`, case screen; added 29 Oct 2026)
+## Recall and care summaries (`/recalls`, `/summaries`, case screen; added 29 Oct 2026)
 
 | Form | Fields | Endpoint | Stored in | Status |
 |---|---|---|---|---|
 | Surveillance care plan: review / re-test due | date (default from `SURVEILLANCE_MONTHS`, must be in the future) | `POST /api/cases/{id}/care-plan` (`review_due_on`) | **`care_plans.review_due_on`** (new) | NEW |
 | Case closure → next screening due | (derived from closure + rule) | `POST /api/cases/{id}/close` | **`cases.next_screening_due`** (new), **`recalls`** (new table) | NEW |
 | Send recall invitation (one / selected) | – | `POST /api/recalls/{id}/invite`, `POST /api/recalls/invite` | `recalls.status/invited_at/invite_count/last_invite_channel`, `communications` (simulated) | NEW |
+| Care summary to the GP (automatic) | – (written at care start / closure) | `POST /api/cases/{id}/care-plan`, `POST /api/cases/{id}/close` | **`gp_summaries`** (new table: content JSON + text) | NEW |
+| Acknowledge a care summary (`/summaries`, case timeline) | note (optional, ≤ 1000) | `POST /api/gp-summaries/{id}/ack` | **`gp_summaries.acknowledged_at/acknowledged_by/ack_note`** | NEW |
 | Cancel a recall | reason (≥ 5 characters) | `POST /api/recalls/{id}/cancel` | **`recalls.closed_note/closed_by`** | NEW |
 
 ## Patient app (`/patient`, en / ar / hi / ur)

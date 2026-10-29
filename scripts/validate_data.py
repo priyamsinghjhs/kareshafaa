@@ -133,6 +133,17 @@ def run(max_examples: int = 5) -> dict:
         for k, ids in open_rc.items():
             if len(ids) > 1:
                 bad("recall.one_open_per_programme", ids)
+        # care summaries to the GP: addressed to a GP; acknowledged ones say when and by whom
+        from kareshafaa.models import GpSummary as _GS, Practitioner as _PR
+        gp_ids = set(db.scalars(select(_PR.id).where(_PR.role == "gp")))
+        for gs in db.scalars(select(_GS)):
+            checked["gp_summaries"] += 1
+            if gs.to_practitioner_id not in gp_ids:
+                bad("gp_summary.addressed_to_gp", gs.id)
+            if (gs.acknowledged_at is None) != (gs.acknowledged_by is None) or (gs.ack_note and gs.acknowledged_at is None):
+                bad("gp_summary.ack_complete", gs.id)
+            if gs.acknowledged_at is not None and gs.acknowledged_at < gs.created_at:
+                bad("gp_summary.ack_after_created", gs.id)
 
         # --- report / observation level -------------------------------------------------------------
         for r in reports:

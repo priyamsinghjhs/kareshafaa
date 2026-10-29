@@ -453,3 +453,11 @@ label.check input { width: 20px; height: 20px; margin: 0; flex: none; }
 .auth-grid.activate-grid { grid-template-columns: minmax(0, 1fr); max-width: 520px; margin-inline: auto; }
 .activate-grid .lang-switch { margin-bottom: var(--s-3); }
 .facts dd .chip { white-space: normal; max-width: 100%; }
+/* care summaries (GP inbox, case timeline) */
+.sum-card { margin-bottom: var(--s-3); }
+.sum-card.unread { border-left: 4px solid var(--c-brand-mint); }
+.sum-card h3.small { margin: var(--s-3) 0 var(--s-1); font-size: var(--fs-sm); }
+.sum-card ul.small { margin: 0; padding-left: 1.2em; }
+.ack-form { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: flex-end; margin-top: var(--s-2); }
+.ack-form label { flex: 1 1 260px; }
+.sum-text { white-space: pre-wrap; font-size: var(--fs-sm); background: var(--c-surface-2); padding: var(--s-2); border-radius: var(--r-sm); max-width: 100%; overflow-wrap: anywhere; }

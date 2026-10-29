@@ -27,7 +27,8 @@ PERMISSIONS: dict[str, frozenset[str]] = {
                                           "call:record", "sweep:run", "case:create"} | _REGISTRATION),
     "gp": frozenset(_CLINICAL | {"case:triage", "case:triage_urgent", "case:assign", "case:transfer",
                                  "referral:create", "careplan:write", "closure:authorise", "call:record",
-                                 "confirm:order", "confirm:result", "case:create", "record:write"} | _REGISTRATION),
+                                 "confirm:order", "confirm:result", "case:create", "record:write",
+                                 "summary:ack"} | _REGISTRATION),  # care summaries from the screening pathway
     "specialist": frozenset(_CLINICAL | {"referral:decide", "careplan:write", "closure:authorise",
                                          "case:triage_urgent", "confirm:result", "case:transfer", "record:write"}),
     "clinical_lead": frozenset(_CLINICAL | {"case:triage", "case:triage_urgent", "case:assign", "case:transfer",

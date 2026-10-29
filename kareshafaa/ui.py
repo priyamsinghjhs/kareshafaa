@@ -17,7 +17,8 @@ NAV: dict[str, list[tuple[str, str, str]]] = {  # role -> [(href, label, icon)]
     "coordinator": [("/queue", "Today's queue", "list"), ("/patients", "Patients", "users"), ("/recalls", "Due for recall", "calendar"),
                     ("/ingest", "Results inbox", "inbox")],
     "gp": [("/queue?view=review", "Needs review", "check"), ("/queue", "All my cases", "list"),
-           ("/patients", "Patients", "users"), ("/recalls", "Recalls", "calendar"), ("/consults", "Ask a specialist", "chat")],
+           ("/summaries", "Care summaries", "inbox"), ("/patients", "Patients", "users"),
+           ("/consults", "Ask a specialist", "chat")],  # nav stays at 5: recalls open from the Patients page
     "specialist": [("/queue?view=review", "Needs review", "check"), ("/queue", "My cases", "list"),
                    ("/patients", "Patients", "users"), ("/consults", "Consult requests", "chat")],
     "clinical_lead": [("/overview", "Overview", "home"), ("/queue", "Work queue", "list"),
@@ -42,6 +43,7 @@ PAGE_PERMS: dict[str, tuple[str, ...] | None] = {
     "/overview": ("proposal:decide",), "/advanced": ("config:read",), "/admin/users": ("user:admin",), "/admin/system": ("user:admin",),
     "/account/password": None,
     "/patients": ("patient:read",), "/patients/new": ("patient:register",), "/recalls": ("recall:manage", "recall:read"),
+    "/summaries": ("summary:ack",),
 }
 
 

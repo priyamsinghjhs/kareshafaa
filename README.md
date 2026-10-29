@@ -128,6 +128,7 @@ Every person signs in with a username and password; there is no account list on 
 | Register a patient (`/patients/new`), incl. from an unmatched lab result | yes | yes | – | – | – | – | – |
 | Edit personal / contact / health-centre details | yes | patients they can see | – | – | – | – | own contact details only |
 | Create the patient app account / send or cancel an activation code | yes | patients they can see | – | – | – (Admin → Users only resets passwords / deactivates) | – | activates with the code |
+| Care summaries (`/summaries`): read and acknowledge the summary written at care start / closure | – | own patients and own practice | – | read on the case timeline | – | – | – |
 | Due for recall (`/recalls`): see, send a simulated invitation, cancel with a reason | yes (all) | own centre / own patients | – | read only, programme-wide | – | – | receives the invitation |
 
 * **Admin manages accounts, never clinical data**: no patient search, record or registration (403 on the API, no menu).
@@ -163,6 +164,12 @@ Every person signs in with a username and password; there is no account list on 
   ago (dashboard and `/recalls`). Sample (`SYN-`) records get their recalls from existing history by a one-time,
   audited background step. Audit: `recall.scheduled`, `recall.not_scheduled`, `recall.invited`, `recall.cancelled`,
   `recall.completed`.
+* **Care summary to the GP**: when care starts (treatment / surveillance plan) and when a case closes, a summary
+  (result, pathway, care plan, how it closed, next screening due) is written automatically to the patient's
+  registered GP (or the GP who owns the case). It appears on the case timeline and in the GP's **Care summaries**
+  inbox, where the GP acknowledges it with an optional note (target 7 days, `GP_SUMMARY_ACK_DAYS`, CONFIRM; shown as
+  overdue after that). If the GP recorded the step themselves it is filed as read. Internal correspondence, not a
+  patient message. Audit: `gp_summary.created`, `gp_summary.acknowledged`, `gp_summary.no_recipient`.
 * Every change is audited (`patient.registered`, `patient.duplicate_override`, `patient.register_blocked`,
   `patient.demographics_updated`, `patient.contact_updated`, `patient.care_updated`) and listed on the record.
 

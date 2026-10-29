@@ -365,6 +365,26 @@ class Recall(Base):
     closed_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
 
+class GpSummary(Base):  # FHIR Composition (discharge-style summary) sent to the registered GP; internal, not SIMULATED
+    """Written automatically when care starts and when a case closes; the GP acknowledges it (with an optional note)."""
+    __tablename__ = "gp_summaries"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))  # care_started | case_closed
+    to_practitioner_id: Mapped[int] = mapped_column(ForeignKey("practitioners.id"), index=True)
+    to_org_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)
+    title: Mapped[str] = mapped_column(String(200))
+    content: Mapped[dict] = mapped_column(JSON, default=dict)  # structured sections (result, pathway, outcome, next steps)
+    text: Mapped[str] = mapped_column(Text)                    # the same, as plain text (print / export)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    created_by: Mapped[str] = mapped_column(String(200))
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    acknowledged_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    acknowledged_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    ack_note: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+
+
 class Communication(Base):  # FHIR Communication (all channels SIMULATED)
     __tablename__ = "communications"
     id: Mapped[int] = mapped_column(primary_key=True)
