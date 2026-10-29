@@ -170,6 +170,12 @@ Every person signs in with a username and password; there is no account list on 
   inbox, where the GP acknowledges it with an optional note (target 7 days, `GP_SUMMARY_ACK_DAYS`, CONFIRM; shown as
   overdue after that). If the GP recorded the step themselves it is filed as read. Internal correspondence, not a
   patient message. Audit: `gp_summary.created`, `gp_summary.acknowledged`, `gp_summary.no_recipient`.
+* **Appointment lifecycle**: a booked appointment can be **moved** (case stays booked; old row kept as cancelled
+  with the reason) or **cancelled** (case returns to clinic-accepted for rebooking). When the patient asked for the
+  change, the barrier (transport, work, fear, …) is required and recorded as a lesson. A simulated reminder goes out
+  automatically when the appointment is within 48 hours (`APPOINTMENT_REMINDER_HOURS`, CONFIRM; not within 2 hours),
+  inside the 08:00–21:00 UAE patient message window, or staff can send one from the case. Message categories
+  `appointment_reminder` / `appointment_changed` / `appointment_cancelled` in en/ar/hi/ur.
 * Every change is audited (`patient.registered`, `patient.duplicate_override`, `patient.register_blocked`,
   `patient.demographics_updated`, `patient.contact_updated`, `patient.care_updated`) and listed on the record.
 

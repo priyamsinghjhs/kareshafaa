@@ -144,6 +144,16 @@ def run(max_examples: int = 5) -> dict:
                 bad("gp_summary.ack_complete", gs.id)
             if gs.acknowledged_at is not None and gs.acknowledged_at < gs.created_at:
                 bad("gp_summary.ack_after_created", gs.id)
+        from kareshafaa.models import Appointment as _AP
+        for ap in db.scalars(select(_AP)):
+            checked["appointments"] += 1
+            if ap.status == "cancelled" and not ap.cancel_reason:
+                bad("appointment.cancelled_has_reason", ap.id)
+            if ap.rescheduled_from_id is not None:
+                src = db.get(_AP, ap.rescheduled_from_id)
+                if src is None or src.status != "cancelled":
+                    bad("appointment.reschedule_source_cancelled", ap.id)
+
 
         # --- report / observation level -------------------------------------------------------------
         for r in reports:

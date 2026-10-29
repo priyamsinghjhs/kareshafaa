@@ -9,7 +9,7 @@ inactive to the programme's team pool, so that a case is never without an accoun
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -151,8 +151,60 @@ def run_sweep(db: Session, now: datetime | None = None, actor: Actor = SYSTEM, c
     db.flush()
     if in_patient_window(now):
         out["reminders_sent_after_deferral"] = _send_deferred_reminders(db, now, actor, case_ids)
+        n_appt = _appointment_reminders(db, now, actor, case_ids)
+        if n_appt:
+            out["appointment_reminders"] = n_appt
     audit.record(db, actor, "E", "sla.sweep", ts=now, detail=out)
     return out
+
+
+def remind_appointment(db: Session, case: Case, actor: Actor, now: datetime | None = None) -> dict:
+    """One appointment reminder (SIMULATED, patient's language) for the booked appointment of this case."""
+    from ..calendar_uae import local_display
+    from ..comms.service import send_with_ladder
+    from ..models import Appointment
+    from .errors import DomainError
+
+    now = now or utcnow()
+    appt = db.scalar(select(Appointment).where(Appointment.case_id == case.id, Appointment.status == "booked")
+                     .order_by(Appointment.id.desc()).limit(1))
+    if appt is None or S(case.state) != S.APPOINTMENT_BOOKED:
+        raise DomainError("no booked appointment")
+    if appt.start <= now:
+        raise DomainError("the appointment time has passed: record attendance or a no-show")
+    res = send_with_ladder(db, case, "appointment_reminder", actor, now=now, date=local_display(appt.start), max_channels=3)
+    appt.reminder_sent_at = now
+    audit.record(db, actor, "C", "appointment.reminder_sent", entity_type="Appointment", entity_id=appt.id,
+                 case_id=case.id, ts=now, detail={"start": appt.start.isoformat(), "delivered": res.get("delivered")})
+    return res
+
+
+def _appointment_reminders(db: Session, now: datetime, actor: Actor, case_ids: list[int] | None) -> int:
+    from ..clinical_rules import APPOINTMENT_REMINDER_HOURS, APPOINTMENT_REMINDER_MIN_HOURS
+    from ..models import Appointment
+    from .errors import DomainError
+
+    q = (select(Appointment, Case).join(Case, Case.id == Appointment.case_id)
+         .where(Appointment.status == "booked", Appointment.reminder_sent_at.is_(None), Case.state == S.APPOINTMENT_BOOKED,
+                Appointment.start > now + timedelta(hours=APPOINTMENT_REMINDER_MIN_HOURS),
+                Appointment.start <= now + timedelta(hours=APPOINTMENT_REMINDER_HOURS)))
+    if case_ids:
+        q = q.where(Case.id.in_(case_ids))
+    n = 0
+    for appt, case in db.execute(q.limit(500)).all():
+        if case.patient.deceased or consent_status(db, case.patient_id, "care_coordination") == "deny":
+            appt.reminder_sent_at = now  # handled: no automated message for this person (audited)
+            audit.record(db, actor, "E", "appointment.reminder_skipped", entity_type="Appointment", entity_id=appt.id,
+                         case_id=case.id, ts=now, detail={"why": "deceased or no consent to automated messages"})
+            continue
+        try:
+            remind_appointment(db, case, actor, now)
+            n += 1
+        except DomainError as e:
+            appt.reminder_sent_at = now
+            audit.record(db, actor, "E", "appointment.reminder_skipped", entity_type="Appointment", entity_id=appt.id,
+                         case_id=case.id, ts=now, detail={"why": str(e)[:200]})
+    return n
 
 
 def in_patient_window(now_utc: datetime) -> bool:

@@ -322,6 +322,13 @@ class Appointment(Base):  # FHIR Appointment
     status: Mapped[str] = mapped_column(String(20), default="booked")  # booked|fulfilled|noshow|cancelled
     barrier_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
     booking_note: Mapped[str | None] = mapped_column(Text, nullable=True)  # e.g. why it is after the pathway target
+    # lifecycle (added 29 Oct 2026): cancel / reschedule with a reason, reminder before the appointment
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    cancelled_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    cancel_reason: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    cancel_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rescheduled_from_id: Mapped[int | None] = mapped_column(ForeignKey("appointments.id"), nullable=True)
+    reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

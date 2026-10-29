@@ -130,7 +130,11 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
                               "reason_note": s.reason_note, "result": s.result, "summary": s.clinical_summary,
                               "created_at": iso(s.created_at), "decided_at": iso(s.decided_at)} for s in q(ServiceRequest)],
         "appointments": [{"id": a.id, "start": iso(a.start), "status": a.status, "org": oname(db, a.org_id),
-                          "barrier_code": a.barrier_code, "note": a.booking_note} for a in q(Appointment)],
+                          "barrier_code": a.barrier_code, "note": a.booking_note,
+                          "cancel_reason": a.cancel_reason, "cancel_note": a.cancel_note,
+                          "cancelled_at": iso(a.cancelled_at), "cancelled_by": a.cancelled_by,
+                          "rescheduled_from_id": a.rescheduled_from_id, "reminder_sent_at": iso(a.reminder_sent_at)}
+                         for a in q(Appointment)],
         "reviews": list(c.review_log or []),
         "lessons": [{"id": les.id, "kind": les.kind, "reason_code": les.reason_code, "detail": les.detail,
                      "state": les.state, "at": iso(les.created_at),

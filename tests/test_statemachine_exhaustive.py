@@ -21,7 +21,7 @@ EXPECTED = {
     "referral_sent": {"referral_accepted", "referral_rejected"},
     "referral_accepted": {"appointment_booked"},
     "referral_rejected": {"consultation", "referral_sent"},
-    "appointment_booked": {"appointment_attended", "no_show"},
+    "appointment_booked": {"appointment_attended", "no_show", "referral_accepted"},  # cancel -> rebook
     "appointment_attended": {"treatment_or_surveillance_started"},
     "treatment_or_surveillance_started": set(),
     "closed": {"triaged"},

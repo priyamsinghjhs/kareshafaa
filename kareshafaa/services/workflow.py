@@ -445,6 +445,9 @@ def _guard(db: Session, case: Case, dst: S) -> None:
         want = "accepted" if dst == S.REFERRAL_ACCEPTED else "rejected"
         ref = _latest(db, ServiceRequest, case.id, kind="referral")
         need(bool(ref and ref.status == want), f"{dst.value} requires the referral to be {want}")
+        if src == S.APPOINTMENT_BOOKED:
+            need(_latest(db, Appointment, case.id, status="booked") is None,
+                 "finish the current booking change first (with a reason)")
     elif dst == S.APPOINTMENT_BOOKED:
         need(bool(_latest(db, Appointment, case.id, status="booked")), "appointment_booked requires a booked appointment")
     elif dst == S.APPOINTMENT_ATTENDED:
@@ -500,7 +503,7 @@ def transition(db: Session, case: Case, dst: S | str, actor: Actor, *, owner_id:
         if actor.patient_id != case.patient_id or dst not in PATIENT_ALLOWED:
             raise Forbidden("patients may only acknowledge or decline their own case")
     else:
-        perm = TARGET_PERMISSION[dst]
+        perm = "appointment:write" if (src, dst) == (S.APPOINTMENT_BOOKED, S.REFERRAL_ACCEPTED) else TARGET_PERMISSION[dst]
         if not actor.can(perm):
             raise Forbidden(f"role {actor.role} lacks permission {perm}")
         if dst == S.TRIAGED and case.tier in CLINICIAN_CONFIRMED_TIERS and not actor.can("case:triage_urgent"):
@@ -823,6 +826,103 @@ def decide_referral(db: Session, case: Case, actor: Actor, accept: bool, *, reas
 MAX_BOOKING_AHEAD_DAYS = 365  # a booking further ahead is almost always a date typo
 
 
+# why an appointment was cancelled or moved (barrier code required when the patient asked: what got in the way)
+APPOINTMENT_CHANGE_REASONS = {
+    "patient_request": "Patient asked to change it",
+    "clinic_cancelled": "Clinic cancelled / slot no longer available",
+    "earlier_slot": "Earlier slot found",
+    "clinical_reason": "Clinical reason",
+    "booking_error": "Booked in error",
+}
+
+
+def _check_start(case: Case, start: datetime, now: datetime, beyond_target_reason: str | None) -> bool:
+    if start < now - timedelta(days=1):
+        raise Invalid("appointment start must not be in the past")
+    if start > now + timedelta(days=MAX_BOOKING_AHEAD_DAYS):
+        raise Invalid(f"appointment is more than {MAX_BOOKING_AHEAD_DAYS} days ahead: check the date (year typo?)")
+    beyond = case.target_due_at is not None and start > case.target_due_at
+    if beyond and (not beyond_target_reason or len(beyond_target_reason.strip()) < 10):
+        from ..calendar_uae import local_display
+
+        raise Invalid(f"appointment is after the pathway target ({local_display(case.target_due_at)[:10]}): book "
+                      "earlier, or give the reason (>= 10 characters, e.g. earliest slot, patient's choice)")
+    return beyond
+
+
+def _check_change(reason_code: str, barrier_code: str | None, note: str | None) -> None:
+    if reason_code not in APPOINTMENT_CHANGE_REASONS:
+        raise Invalid(f"reason must be one of {list(APPOINTMENT_CHANGE_REASONS)}")
+    if reason_code == "patient_request" and not barrier_code:
+        raise Invalid("when the patient asked for the change, record what got in the way (barrier)")
+    if barrier_code is not None and barrier_code not in NO_SHOW_BARRIERS:
+        raise Invalid(f"barrier_code must be one of {NO_SHOW_BARRIERS}")
+    if reason_code in ("clinical_reason", "booking_error") and len((note or "").strip()) < 5:
+        raise Invalid("add a short note (at least 5 characters) for this reason")
+
+
+def _cancel_appt(db: Session, case: Case, appt: Appointment, actor: Actor, reason_code: str, barrier_code: str | None,
+                 note: str | None, now: datetime, event: str) -> None:
+    appt.status, appt.cancelled_at, appt.cancelled_by = "cancelled", now, actor.display
+    appt.cancel_reason, appt.cancel_note, appt.updated_at = reason_code, (note or "").strip() or None, now
+    if reason_code == "patient_request":
+        appt.barrier_code = barrier_code
+        add_lesson(db, case, "appointment_change", barrier_code or "unknown", actor, now=now,
+                   detail=f"patient asked to {'move' if event == 'appointment.rescheduled' else 'cancel'} the appointment"
+                          + (f": {appt.cancel_note}" if appt.cancel_note else ""))
+
+
+def reschedule_appointment(db: Session, case: Case, actor: Actor, start: datetime, reason_code: str, *,
+                           barrier_code: str | None = None, note: str | None = None,
+                           beyond_target_reason: str | None = None, now: datetime | None = None) -> Appointment:
+    """Move the booked appointment: the old one is kept as cancelled (with the reason), a new one is booked.
+    The case stays at 'appointment booked' (same step owner and clock)."""
+    _claim(case)
+    now = _now(now)
+    if not actor.can("appointment:write"):
+        raise Forbidden("role lacks appointment:write")
+    old = _latest(db, Appointment, case.id, status="booked")
+    if old is None or S(case.state) != S.APPOINTMENT_BOOKED:
+        raise DomainError("no booked appointment to reschedule")
+    _check_change(reason_code, barrier_code, note)
+    if abs((start - old.start).total_seconds()) < 60:
+        raise Invalid("the new time is the same as the booked one")
+    beyond = _check_start(case, start, now, beyond_target_reason)
+    _cancel_appt(db, case, old, actor, reason_code, barrier_code, note, now, "appointment.rescheduled")
+    new = Appointment(case_id=case.id, service_request_id=old.service_request_id, org_id=old.org_id,
+                      practitioner_id=old.practitioner_id, start=start, status="booked", created_at=now,
+                      booking_note=(beyond_target_reason or "").strip() or None, rescheduled_from_id=old.id)
+    db.add(new)
+    db.flush()
+    audit.record(db, actor, "U", "appointment.rescheduled", entity_type="Appointment", entity_id=new.id, case_id=case.id,
+                 ts=now, detail={"from_appointment": old.id, "from": old.start.isoformat(), "to": start.isoformat(),
+                                 "reason": reason_code, "barrier": barrier_code, "note": old.cancel_note,
+                                 "beyond_target": beyond})
+    return new
+
+
+def cancel_appointment(db: Session, case: Case, actor: Actor, reason_code: str, *, barrier_code: str | None = None,
+                       note: str | None = None, now: datetime | None = None) -> Appointment:
+    """Cancel without a new date: the case goes back to 'clinic accepted' so the next booking is the next step
+    (the step clock restarts and escalates if nobody rebooks)."""
+    _claim(case)
+    now = _now(now)
+    if not actor.can("appointment:write"):
+        raise Forbidden("role lacks appointment:write")
+    appt = _latest(db, Appointment, case.id, status="booked")
+    if appt is None or S(case.state) != S.APPOINTMENT_BOOKED:
+        raise DomainError("no booked appointment to cancel")
+    _check_change(reason_code, barrier_code, note)
+    _cancel_appt(db, case, appt, actor, reason_code, barrier_code, note, now, "appointment.cancelled")
+    db.flush()
+    audit.record(db, actor, "U", "appointment.cancelled", entity_type="Appointment", entity_id=appt.id, case_id=case.id,
+                 ts=now, detail={"start": appt.start.isoformat(), "reason": reason_code, "barrier": barrier_code,
+                                 "note": appt.cancel_note})
+    transition(db, case, S.REFERRAL_ACCEPTED, actor, note="appointment cancelled: rebook", now=now)
+    return appt
+
+
+
 def book_appointment(db: Session, case: Case, actor: Actor, start: datetime, *, org_id: int | None = None,
                      practitioner_id: int | None = None, beyond_target_reason: str | None = None,
                      now: datetime | None = None) -> Appointment:
@@ -835,16 +935,7 @@ def book_appointment(db: Session, case: Case, actor: Actor, start: datetime, *, 
     ref = _latest(db, ServiceRequest, case.id, kind="referral", status="accepted")
     if ref is None:
         raise DomainError("no accepted referral")
-    if start < now - timedelta(days=1):
-        raise Invalid("appointment start must not be in the past")
-    if start > now + timedelta(days=MAX_BOOKING_AHEAD_DAYS):
-        raise Invalid(f"appointment is more than {MAX_BOOKING_AHEAD_DAYS} days ahead: check the date (year typo?)")
-    beyond = case.target_due_at is not None and start > case.target_due_at
-    if beyond and (not beyond_target_reason or len(beyond_target_reason.strip()) < 10):
-        from ..calendar_uae import local_display
-
-        raise Invalid(f"appointment is after the pathway target ({local_display(case.target_due_at)[:10]}): book "
-                      "earlier, or give the reason (>= 10 characters, e.g. earliest slot, patient's choice)")
+    beyond = _check_start(case, start, now, beyond_target_reason)
     appt = Appointment(case_id=case.id, service_request_id=ref.id, org_id=org_id or ref.performer_org_id,
                        practitioner_id=practitioner_id or ref.performer_id, start=start, status="booked", created_at=now,
                        booking_note=(beyond_target_reason or "").strip() or None)

@@ -74,6 +74,17 @@ class AppointmentIn(_In):
     beyond_target_reason: str | None = Field(default=None, max_length=500)  # required if after the pathway target
 
 
+class AppointmentChangeIn(_In):
+    reason_code: Literal["patient_request", "clinic_cancelled", "earlier_slot", "clinical_reason", "booking_error"]
+    barrier_code: str | None = Field(default=None, max_length=40)
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class RescheduleIn(AppointmentChangeIn):
+    start: datetime
+    beyond_target_reason: str | None = Field(default=None, max_length=500)
+
+
 class AttendanceIn(_In):
     attended: bool
     barrier_code: str | None = Field(default=None, max_length=40)
@@ -111,7 +122,7 @@ class CallIn(_In):
 
 
 class NotifyIn(_In):
-    category: Literal["result_notification", "reminder", "reassurance", "appointment_confirmation", "no_show"]
+    category: Literal["result_notification", "reminder", "reassurance", "appointment_confirmation", "appointment_reminder", "appointment_changed", "appointment_cancelled", "no_show"]
 
 
 class TeachBackIn(_In):

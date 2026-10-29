@@ -70,6 +70,9 @@ def available_actions(db: Session, actor: Actor, c: Case) -> list[dict]:
         add("book", "Book appointment" if st == S.REFERRAL_ACCEPTED else "Rebook appointment", "appointment:write", True)
     if st == S.APPOINTMENT_BOOKED:
         add("attendance", "Record attendance / no-show", "appointment:write", True)
+        add("reschedule", "Change appointment time", "appointment:write")
+        add("cancel_appointment", "Cancel appointment", "appointment:write")
+        add("appointment_reminder", "Send appointment reminder", "comm:send")
     if st == S.APPOINTMENT_ATTENDED:
         add("close_evidence", "Close with evidence (attended appointment)", "case:write", evidence_type="appointment_fulfilled")
     if st == S.TREATMENT_STARTED:

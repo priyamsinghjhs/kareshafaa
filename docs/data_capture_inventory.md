@@ -81,6 +81,9 @@ Status: **OK** = stored and shown back before this audit; **FIXED** = was lost o
 | Send recall invitation (one / selected) | – | `POST /api/recalls/{id}/invite`, `POST /api/recalls/invite` | `recalls.status/invited_at/invite_count/last_invite_channel`, `communications` (simulated) | NEW |
 | Care summary to the GP (automatic) | – (written at care start / closure) | `POST /api/cases/{id}/care-plan`, `POST /api/cases/{id}/close` | **`gp_summaries`** (new table: content JSON + text) | NEW |
 | Acknowledge a care summary (`/summaries`, case timeline) | note (optional, ≤ 1000) | `POST /api/gp-summaries/{id}/ack` | **`gp_summaries.acknowledged_at/acknowledged_by/ack_note`** | NEW |
+| Move appointment | new time, reason, barrier (if patient asked), note, beyond-target reason | `POST /api/cases/{id}/appointment/reschedule` | **`appointments.cancel_* / rescheduled_from_id`** (new), new booked row, `communications` | NEW |
+| Cancel appointment | reason, barrier (if patient asked), note | `POST /api/cases/{id}/appointment/cancel` | **`appointments.cancel_*`**, case → referral_accepted | NEW |
+| Appointment reminder (manual / sweep) | – | `POST /api/cases/{id}/appointment/remind`, sweep | **`appointments.reminder_sent_at`**, `communications` | NEW |
 | Cancel a recall | reason (≥ 5 characters) | `POST /api/recalls/{id}/cancel` | **`recalls.closed_note/closed_by`** | NEW |
 
 ## Patient app (`/patient`, en / ar / hi / ur)

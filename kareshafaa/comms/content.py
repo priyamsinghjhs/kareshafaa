@@ -111,7 +111,16 @@ TEMPLATES: dict[str, dict[str, dict[str, str]]] = {
         "appointment_confirmation": {
             "standard": "Hello {name}, your appointment is booked for {date}. It is for: {next_step}. Open {link} for directions and what to bring.",
             "simplified": "Hello {name}. Appointment: {date}. Open {link}."},
-        "decline_ack": {
+                "appointment_reminder": {
+            "standard": "Hello {name}, this is a reminder: your appointment is on {date}. It is for: {next_step}. Open {link} for directions and what to bring.",
+            "simplified": "Hello {name}. Reminder: your visit is on {date}. Open {link}."},
+        "appointment_changed": {
+            "standard": "Hello {name}, your appointment has been moved to {date}. It is for: {next_step}. Open {link} for the new details.",
+            "simplified": "Hello {name}. Your visit is now {date}. Open {link}."},
+        "appointment_cancelled": {
+            "standard": "Hello {name}, your appointment on {date} was cancelled. We will help you book a new time. Open {link} or reply to this message.",
+            "simplified": "Hello {name}. Your visit on {date} was cancelled. Open {link} to rebook."},
+"decline_ack": {
             "standard": "Thank you for telling us, {name}. It is your choice. A clinician will contact you to make sure you have all the information, and you can change your mind at any time.",
             "simplified": "Thank you, {name}. It is your choice. A clinician will call you. You can change your mind any time."},
     },
@@ -131,7 +140,16 @@ TEMPLATES: dict[str, dict[str, dict[str, str]]] = {
         "appointment_confirmation": {
             "standard": "مرحباً {name}، تم حجز موعدك في {date}. الموعد من أجل: {next_step}. افتح {link} للاطلاع على الاتجاهات وما يجب إحضاره.",
             "simplified": "مرحباً {name}. موعدك: {date}. افتح {link}."},
-        "decline_ack": {
+                "appointment_reminder": {
+            "standard": "مرحباً {name}، تذكير: موعدك في {date}. الموعد من أجل: {next_step}. افتح {link} للاطلاع على الاتجاهات وما يجب إحضاره.",
+            "simplified": "مرحباً {name}. تذكير: الموعد في {date}. افتح {link}."},
+        "appointment_changed": {
+            "standard": "مرحباً {name}، تم نقل موعدك إلى {date}. الموعد من أجل: {next_step}. افتح {link} للتفاصيل الجديدة.",
+            "simplified": "مرحباً {name}. موعدك الآن {date}. افتح {link}."},
+        "appointment_cancelled": {
+            "standard": "مرحباً {name}، أُلغي موعدك في {date}. سنساعدك في حجز وقت جديد. افتح {link} أو رد على هذه الرسالة.",
+            "simplified": "مرحباً {name}. أُلغي الموعد في {date}. افتح {link} لإعادة الحجز."},
+"decline_ack": {
             "standard": "شكراً لإخبارنا يا {name}. القرار لك. سيتواصل معك طبيب للتأكد من حصولك على جميع المعلومات، ويمكنك تغيير رأيك في أي وقت.",
             "simplified": "شكراً {name}. القرار لك. سيتصل بك طبيب. يمكنك تغيير رأيك في أي وقت."},
     },
@@ -151,7 +169,16 @@ TEMPLATES: dict[str, dict[str, dict[str, str]]] = {
         "appointment_confirmation": {
             "standard": "नमस्ते {name}, आपकी अपॉइंटमेंट {date} को बुक है। यह इसके लिए है: {next_step}। रास्ता और क्या साथ लाना है, जानने के लिए {link} खोलें।",
             "simplified": "नमस्ते {name}। अपॉइंटमेंट: {date}। {link} खोलें।"},
-        "decline_ack": {
+                "appointment_reminder": {
+            "standard": "नमस्ते {name}, याद दिलाना: आपकी अपॉइंटमेंट {date} को है। यह इसके लिए है: {next_step}। रास्ता और क्या साथ लाना है, जानने के लिए {link} खोलें।",
+            "simplified": "नमस्ते {name}। याद दिलाना: अपॉइंटमेंट {date}। {link} खोलें।"},
+        "appointment_changed": {
+            "standard": "नमस्ते {name}, आपकी अपॉइंटमेंट {date} पर बदल दी गई है। यह इसके लिए है: {next_step}। नई जानकारी के लिए {link} खोलें।",
+            "simplified": "नमस्ते {name}। अपॉइंटमेंट अब {date}। {link} खोलें।"},
+        "appointment_cancelled": {
+            "standard": "नमस्ते {name}, आपकी {date} की अपॉइंटमेंट रद्द हो गई। हम नया समय बुक करने में मदद करेंगे। {link} खोलें या इस संदेश का जवाब दें।",
+            "simplified": "नमस्ते {name}। {date} की अपॉइंटमेंट रद्द। दोबारा बुक करने के लिए {link} खोलें।"},
+"decline_ack": {
             "standard": "हमें बताने के लिए धन्यवाद, {name}। यह आपका फ़ैसला है। एक डॉक्टर आपसे संपर्क करेंगे ताकि आपके पास पूरी जानकारी हो, और आप कभी भी अपना मन बदल सकते हैं।",
             "simplified": "धन्यवाद, {name}। यह आपका फ़ैसला है। एक डॉक्टर आपको फ़ोन करेंगे। आप कभी भी मन बदल सकते हैं।"},
     },
@@ -171,7 +198,16 @@ TEMPLATES: dict[str, dict[str, dict[str, str]]] = {
         "appointment_confirmation": {
             "standard": "السلام علیکم {name}، آپ کی ملاقات {date} کو بک ہے۔ یہ اس کے لیے ہے: {next_step}۔ راستے اور ساتھ لانے والی چیزوں کے لیے {link} کھولیں۔",
             "simplified": "السلام علیکم {name}۔ ملاقات: {date}۔ {link} کھولیں۔"},
-        "decline_ack": {
+                "appointment_reminder": {
+            "standard": "السلام علیکم {name}، یاد دہانی: آپ کی ملاقات {date} کو ہے۔ یہ اس کے لیے ہے: {next_step}۔ راستے اور ساتھ لانے والی چیزوں کے لیے {link} کھولیں۔",
+            "simplified": "السلام علیکم {name}۔ یاد دہانی: ملاقات {date}۔ {link} کھولیں۔"},
+        "appointment_changed": {
+            "standard": "السلام علیکم {name}، آپ کی ملاقات {date} پر منتقل کر دی گئی ہے۔ یہ اس کے لیے ہے: {next_step}۔ نئی تفصیلات کے لیے {link} کھولیں۔",
+            "simplified": "السلام علیکم {name}۔ ملاقات اب {date}۔ {link} کھولیں۔"},
+        "appointment_cancelled": {
+            "standard": "السلام علیکم {name}، آپ کی {date} کی ملاقات منسوخ ہو گئی۔ ہم نیا وقت بک کرنے میں مدد کریں گے۔ {link} کھولیں یا اس پیغام کا جواب دیں۔",
+            "simplified": "السلام علیکم {name}۔ {date} کی ملاقات منسوخ۔ دوبارہ بک کرنے کے لیے {link} کھولیں۔"},
+"decline_ack": {
             "standard": "ہمیں بتانے کا شکریہ، {name}۔ یہ آپ کا فیصلہ ہے۔ ایک ڈاکٹر آپ سے رابطہ کریں گے تاکہ آپ کے پاس پوری معلومات ہوں، اور آپ کسی بھی وقت اپنا ارادہ بدل سکتے ہیں۔",
             "simplified": "شکریہ، {name}۔ یہ آپ کا فیصلہ ہے۔ ایک ڈاکٹر آپ کو فون کریں گے۔ آپ کسی بھی وقت ارادہ بدل سکتے ہیں۔"},
     },

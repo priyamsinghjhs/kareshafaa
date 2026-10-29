@@ -265,3 +265,18 @@ def test_gp_summary_ack_note_capture(client, db, staff, as_user, new_case):
     t = tok("gpack")
     captured(client, db, P(client, staff["gp"], f"/api/gp-summaries/{sid}/ack", note=t), t, f"/api/cases/{cid}", "/api/gp-summaries?view=all", h=staff["gp"])
     assert P(client, staff["gp"], f"/api/gp-summaries/{sid}/ack", note="x" * 1001).status_code == 422
+
+
+def test_appointment_change_reason_and_barrier_capture(client, db, staff, as_user, new_case):
+    from datetime import timedelta
+    from kareshafaa.models import Appointment, utcnow
+    from tests.test_appointment_lifecycle import _booked
+    cid, co, *_rest, start = _booked(client, as_user, new_case)
+    t = tok("apptbarrier")
+    # patient asked to move: barrier required; note optional here
+    r = P(client, co, f"/api/cases/{cid}/appointment/reschedule", start=(start + timedelta(days=2)).isoformat(),
+          reason_code="patient_request", barrier_code="transport", note=t)
+    captured(client, db, r, t, f"/api/cases/{cid}", h=co)
+    db.expire_all()
+    a = db.scalars(select(Appointment).where(Appointment.case_id == cid, Appointment.status == "cancelled")).one()
+    assert a.cancel_reason == "patient_request" and a.barrier_code == "transport"

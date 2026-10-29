@@ -73,7 +73,7 @@ def get_case(case_id: int, actor: Actor = Depends(current_actor), db: Session = 
 def case_actions(case_id: int, actor: Actor = Depends(require("case:read")), db: Session = Depends(get_db)) -> dict:
     c = _load(db, actor, case_id)
     return {"actions": available_actions(db, actor, c), "closure_reasons": AUTHORISED_CLOSURE_REASONS,
-            "reject_reasons": wf.REJECT_REASONS, "barriers": wf.NO_SHOW_BARRIERS, "delay_reasons": wf.DELAY_REASONS}
+            "reject_reasons": wf.REJECT_REASONS, "barriers": wf.NO_SHOW_BARRIERS, "appointment_change_reasons": wf.APPOINTMENT_CHANGE_REASONS, "delay_reasons": wf.DELAY_REASONS}
 
 
 @router.get("/cases/{case_id}/fhir")
@@ -216,6 +216,39 @@ def appointment(case_id: int, body: sch.AppointmentIn, actor: Actor = Depends(re
     # the patient sees UAE local time (was UTC: a 09:00 appointment was confirmed as 05:00)
     comms.send_with_ladder(db, c, "appointment_confirmation", actor, date=local_display(start), max_channels=3)
     return _done(db, c, actor, appointment_id=a.id)
+
+
+@router.post("/cases/{case_id}/appointment/reschedule")
+def appointment_reschedule(case_id: int, body: sch.RescheduleIn, actor: Actor = Depends(require("appointment:write")),
+                           db: Session = Depends(get_db)) -> dict:
+    c = _load(db, actor, case_id)
+    from ..calendar_uae import as_utc_naive, local_display
+
+    start = as_utc_naive(body.start)
+    a = wf.reschedule_appointment(db, c, actor, start, body.reason_code, barrier_code=body.barrier_code or None,
+                                  note=body.note, beyond_target_reason=body.beyond_target_reason)
+    comms.send_with_ladder(db, c, "appointment_changed", actor, date=local_display(start), max_channels=3)
+    return _done(db, c, actor, appointment_id=a.id)
+
+
+@router.post("/cases/{case_id}/appointment/cancel")
+def appointment_cancel(case_id: int, body: sch.AppointmentChangeIn, actor: Actor = Depends(require("appointment:write")),
+                       db: Session = Depends(get_db)) -> dict:
+    c = _load(db, actor, case_id)
+    from ..calendar_uae import local_display
+
+    a = wf.cancel_appointment(db, c, actor, body.reason_code, barrier_code=body.barrier_code or None, note=body.note)
+    comms.send_with_ladder(db, c, "appointment_cancelled", actor, date=local_display(a.start), max_channels=3)
+    return _done(db, c, actor, appointment_id=a.id)
+
+
+@router.post("/cases/{case_id}/appointment/remind")
+def appointment_remind(case_id: int, actor: Actor = Depends(require("comm:send")), db: Session = Depends(get_db)) -> dict:
+    c = _load(db, actor, case_id)
+    from ..services.escalation import remind_appointment
+
+    remind_appointment(db, c, actor)
+    return _done(db, c, actor)
 
 
 @router.post("/cases/{case_id}/attendance")
