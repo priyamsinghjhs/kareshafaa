@@ -253,6 +253,31 @@ def run():
             st = q1("select start from appointments where case_id=? order by id desc", cid)
             RES.append({"field": "Book appointment: time (local Dubai input -> UTC stored)", "entered_local": when, "db_start_utc": st[0] if st else None,
                         "ok": bool(st and st[0][:16] == q1("select datetime(?, '-4 hours')", when.replace("T", " "))[0][:16])})
+            # appointment lifecycle (item 5): move with a reason, send a reminder, cancel, then book again
+            try:
+                co.case(cid); co.action("reschedule")
+                nw = q1("select datetime('now','+1 day','+4 hours')")[0].replace(" ", "T")[:16]
+                co.p.fill("#aform input[name=start]", nw); co.p.select_option("#aform select[name=reason_code]", "earlier_slot")
+                t = tok("appt.move"); co.p.fill("#aform textarea[name=note]", t); co.p.locator("#aform form").scroll_into_view_if_needed(); co.shot("appointment_move_form")
+                err = co.submit_form(); co.case(cid); txt = co.case_text()
+                record("Move appointment: note", f"/cases/{cid}", t, err, txt, {"reason": q1("select cancel_reason from appointments where case_id=? and status='cancelled' order by id desc", cid)})
+                rb = co.p.locator('#case-root aside [data-k="appointment_reminder"]').first
+                if not rb.is_visible():
+                    co.p.locator("details.more-actions summary").click()
+                rb.click()
+                co.p.wait_for_timeout(1500); co.case(cid)
+                co.p.locator('.tabs button[data-t="events"]').click(); co.p.wait_for_timeout(300)
+                co.p.locator("#tabbody :text('Reminder sent')").first.scroll_into_view_if_needed(); co.shot("appointment_moved_reminder_timeline")
+                rem = q1("select reminder_sent_at from appointments where case_id=? and status='booked' order by id desc", cid)
+                RES.append({"field": "Appointment reminder sent from the case", "page": f"/cases/{cid}", "ok": bool(rem and rem[0])})
+                co.case(cid); co.action("cancel_appointment"); co.p.select_option("#aform select[name=reason_code]", "clinic_cancelled")
+                t = tok("appt.cancel"); co.p.fill("#aform textarea[name=note]", t); co.p.locator("#aform form").scroll_into_view_if_needed(); co.shot("appointment_cancel_form")
+                err = co.submit_form(); co.case(cid); txt = co.case_text()
+                record("Cancel appointment: note", f"/cases/{cid}", t, err, txt, {"state": q1("select state from cases where id=?", cid)})
+                co.p.locator('.tabs button[data-t="events"]').click(); co.p.wait_for_timeout(300); co.shot("appointment_cancelled_timeline")
+                co.case(cid); co.action("book"); co.p.fill("#aform input[name=start]", when); co.submit_form()
+            except Exception as e:  # noqa: BLE001
+                RES.append({"field": "appointment lifecycle", "error": "EXCEPTION " + str(e)[:300]})
             co.action("attendance"); co.p.select_option("#aform select[name=attended]", "false"); co.p.select_option("#aform select[name=barrier]", index=2)
             bar = co.p.eval_on_selector("#aform select[name=barrier]", "s=>s.value"); err = co.submit_form()
             RES.append({"field": "Attendance: no-show barrier", "error": err, "chosen": bar, "db": q1("select barrier_code from appointments where case_id=? order by id desc", cid)})
@@ -365,7 +390,7 @@ def run():
             p.click('.lang-switch button[data-l="ar"]'); p.wait_for_selector(f"{f} [name=address_line]", timeout=15000); p.wait_for_timeout(600)
             kept = p.input_value(f"{f} [name=address_line]") == t and p.input_value(f"{f} [name=phone]") == "123"
             rtl = p.evaluate("() => document.getElementById('p-root').dir") == "rtl"
-            pt.shot("patient_self_form_ar")
+            p.locator(f).scroll_into_view_if_needed(); pt.shot("patient_self_form_ar")
             p.fill(f"{f} [name=phone]", "050 765 2222"); p.click(f"{f} button[type=submit]")
             p.wait_for_selector("#self-edit", timeout=15000); p.reload(); p.wait_for_selector("#self-details")
             txt = p.inner_text("#pprofile"); sw, iw = p.evaluate("[document.documentElement.scrollWidth, window.innerWidth]")
