@@ -390,6 +390,10 @@ def run():
             p.click('.lang-switch button[data-l="ar"]'); p.wait_for_selector(f"{f} [name=address_line]", timeout=15000); p.wait_for_timeout(600)
             kept = p.input_value(f"{f} [name=address_line]") == t and p.input_value(f"{f} [name=phone]") == "123"
             rtl = p.evaluate("() => document.getElementById('p-root').dir") == "rtl"
+            arrow = p.evaluate("""() => { const s = document.querySelector('#self-form select[name=emirate]'), r = s.getBoundingClientRect(),
+                cs = getComputedStyle(s); return [cs.backgroundPosition, parseFloat(cs.paddingLeft), parseFloat(cs.paddingRight)]; }""")
+            RES.append({"field": "RTL select: arrow at the left, room left for it (no overlap with the text)", "page": "/patient?lang=ar",
+                        "computed": arrow, "ok": (arrow[0].startswith("left") or arrow[0].startswith("12px")) and arrow[1] >= 30})  # computed "12px 50%" = 12px from the left
             p.locator(f).scroll_into_view_if_needed(); pt.shot("patient_self_form_ar")
             p.fill(f"{f} [name=phone]", "050 765 2222"); p.click(f"{f} button[type=submit]")
             p.wait_for_selector("#self-edit", timeout=15000); p.reload(); p.wait_for_selector("#self-details")

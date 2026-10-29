@@ -171,6 +171,10 @@ textarea { min-height: 88px; resize: vertical; }
 select { appearance: none; -webkit-appearance: none; padding-inline-end: 36px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%234f5f68' stroke-width='2'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 12px center; }
+/* right-to-left (ar / ur): the arrow sits at the inline end (left), where padding-inline-end leaves room for it.
+   Two rules: browsers without :dir() would drop a combined selector list. */
+[dir="rtl"] select, .rtl select, select[dir="rtl"] { background-position: left 12px center; }
+select:dir(rtl) { background-position: left 12px center; }
 input:focus, select:focus, textarea:focus { border-color: var(--c-primary); outline: 3px solid rgba(29, 78, 216, .35); outline-offset: 0; }
 input[type="radio"], input[type="checkbox"] { display: inline-block; width: 22px; height: 22px; min-height: 0; margin: 0 var(--s-2) 0 0; vertical-align: middle; accent-color: var(--c-primary); }
 input[aria-invalid="true"] { border-color: var(--c-danger); }
