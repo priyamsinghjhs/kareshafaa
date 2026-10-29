@@ -154,6 +154,16 @@ class Patient(Base):  # FHIR Patient (synthetic only)
     updated_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
     # why the record was created although a similar record (same date of birth, similar name) exists - audited too
     duplicate_override_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # ---- insurance (payer) and next of kin / guardian (services/coverage.py); all nullable, additive
+    insurance_payer: Mapped[str | None] = mapped_column(String(30), nullable=True)  # coverage.PAYERS key
+    insurance_plan: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    insurance_member_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    insurance_valid_to: Mapped[date | None] = mapped_column(Date, nullable=True)
+    nok_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    nok_relationship: Mapped[str | None] = mapped_column(String(30), nullable=True)  # coverage.RELATIONSHIPS key
+    nok_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    nok_is_guardian: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    proxy_note: Mapped[str | None] = mapped_column(Text, nullable=True)  # decision itself is a Consent(scope=proxy_contact)
     managing_org: Mapped[Organization] = relationship(foreign_keys=[managing_org_id])
 
 

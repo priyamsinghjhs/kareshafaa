@@ -29,7 +29,7 @@ function header() {
    <div class="case-head"><h1>${W.esc(C.patient.name)}</h1>
    <p class="muted small" style="margin:0">Case #${C.id} · ${W.esc(C.patient.mrn)} · ${W.prog(C.programme)} screening</p>
    <div class="case-meta">${W.tier(C.tier)} ${W.sla(C.sla.status, C.sla.fraction)} ${C.sla.escalation_level ? `<span class="chip sla-red">Escalated (level ${C.sla.escalation_level})</span>` : ""}</div></div>
-   ${record()}
+   ${coverage()}${record()}
    <h2 class="sec-title" id="step-h">Current step on the care pathway</h2>
    <dl class="facts" aria-labelledby="step-h">
      <div><dt>Current step</dt><dd>${W.esc(C.state_label)}</dd></div>
@@ -43,6 +43,13 @@ function header() {
    ${C.transfer_pending ? `<div class="card notice">Transfer waiting for <b>${W.esc(C.transfer_pending.to_owner)}</b> to accept. The current owner stays accountable until then. <span class="small muted">${W.esc(C.transfer_pending.note || "")}</span></div>` : ""}
    ${C.closure ? `<div class="card ok"><b>Closed</b> (${W.esc(C.closure.type.replace(/_/g, " "))}: <b>${W.esc(C.closure.reason)}</b>) on ${W.dt(C.closure.closed_at)}. ${W.esc(C.closure.note || "")} ${C.closure.evidence_id ? `· evidence #${C.closure.evidence_id}` : ""}
      <br><span class="small">${C.recall && C.recall.next_screening_due ? `Next screening due <b>${W.esc(C.recall.next_screening_due)}</b>${C.recall.recall ? ` (recall ${W.esc(C.recall.recall.status)})` : ""}.` : "No automatic recall for this closure (follow-up set by the treating team, or the person left the programme)."}</span></div>` : ""}`;
+}
+
+function coverage() {
+  const V = C.coverage; if (!V) return "";
+  const e = V.eligibility, k = V.nok;
+  const nok = k ? `Next of kin: <b>${W.esc(k.name)}</b>${k.relationship ? ` (${W.esc(k.relationship)})` : ""}${k.guardian ? ' <span class="chip sla-amber">Guardian</span>' : ""}${k.phone ? " · " + W.esc(k.phone) : ""} · ${k.proxy_consent === "permit" ? '<span class="chip sla-green">May be contacted about care</span>' : k.proxy_consent === "deny" ? '<span class="chip sla-red">Do not discuss care</span>' : '<span class="chip">Proxy consent not asked</span>'}` : '<span class="muted">No next of kin recorded</span>';
+  return `<div class="card ${e.warn ? "notice" : "flat"} cov-banner" data-coverage="${W.esc(e.status)}"><p class="small" style="margin:0">${e.warn ? '<span class="shape" aria-hidden="true">!</span> ' : ""}<b>${W.esc(V.payer || "Insurance")}</b>: ${W.esc(e.message)} <a href="/patients/${C.patient.id}#sec-insurance">Update</a></p><p class="small" style="margin:.25rem 0 0">${nok}</p></div>`;
 }
 
 function deadline() {

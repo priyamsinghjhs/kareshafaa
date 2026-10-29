@@ -127,6 +127,7 @@ Every person signs in with a username and password; there is no account list on 
 | Find a patient, open the patient record (`/patients`) | all patients | own health centre, own patients, patients of cases they can see | patients of their referrals / cases | all (read only) | – | – | own record (`/patient`) |
 | Register a patient (`/patients/new`), incl. from an unmatched lab result | yes | yes | – | – | – | – | – |
 | Edit personal / contact / health-centre details | yes | patients they can see | – | – | – | – | own contact details only |
+| Insurance, next of kin / guardian, proxy consent (record and registration) | yes | patients they can see | sees the eligibility / next-of-kin line on the case | read only | – | – | – |
 | Create the patient app account / send or cancel an activation code | yes | patients they can see | – | – | – (Admin → Users only resets passwords / deactivates) | – | activates with the code |
 | Care summaries (`/summaries`): read and acknowledge the summary written at care start / closure | – | own patients and own practice | – | read on the case timeline | – | – | – |
 | Due for recall (`/recalls`): see, send a simulated invitation, cancel with a reason | yes (all) | own centre / own patients | – | read only, programme-wide | – | – | receives the invitation |
@@ -176,8 +177,16 @@ Every person signs in with a username and password; there is no account list on 
   automatically when the appointment is within 48 hours (`APPOINTMENT_REMINDER_HOURS`, CONFIRM; not within 2 hours),
   inside the 08:00–21:00 UAE patient message window, or staff can send one from the case. Message categories
   `appointment_reminder` / `appointment_changed` / `appointment_cancelled` in en/ar/hi/ur.
+* **Insurance and next of kin**: insurer (Thiqa, Daman, ADNIC, … or self-pay), plan, member / card number (required
+  for an insurer) and cover end date; next of kin name, relationship, phone, legal-guardian flag and **proxy consent**
+  (may the team discuss screening and follow-up with this person? stored as consent scope `proxy_contact`, needs
+  the next of kin's name and phone, and how the patient gave the answer). Insurance never blocks care: a missing,
+  self-pay, expired or soon-ending policy (within 30 days, `INSURANCE_EXPIRY_WARN_DAYS`, CONFIRM) shows a warning on
+  the patient record and the case screen, with the next of kin and their proxy consent. Audit:
+  `patient.insurance_updated`, `patient.contacts_updated`, `consent.recorded`.
 * Every change is audited (`patient.registered`, `patient.duplicate_override`, `patient.register_blocked`,
-  `patient.demographics_updated`, `patient.contact_updated`, `patient.care_updated`) and listed on the record.
+  `patient.demographics_updated`, `patient.contact_updated`, `patient.care_updated`, `patient.insurance_updated`,
+  `patient.contacts_updated`) and listed on the record.
 
 **Guided walkthrough** (`/walkthrough`, under Advanced; admin only; standard mode only - off in
 production because it adds sample patients). Each one creates a new sample patient record and runs through the real

@@ -25,9 +25,21 @@ const PF = {
       <div data-region ${v.emirate && v.emirate !== "Abu Dhabi" ? "hidden" : ""}>${PF.sel("region", "Region (Abu Dhabi emirate)", O.abu_dhabi_regions.map(r => [r, r]), v.region, { mark: true, hint: "Required inside Abu Dhabi emirate. Used to plan services and to check fairness across regions." })}</div>`; },
   care(v = {}) { const O = PF.opts;
     return `<div class="form-pair">${PF.sel("managing_org_id", "Registered health centre", O.health_centres.map(o => [o.id, o.name]), v.managing_org_id, { required: true })}${PF.sel("gp_id", "Family doctor (GP)", O.gps.filter(g => !v.managing_org_id || g.org_id === +v.managing_org_id).map(g => [g.id, g.name]), v.gp_id, { blank: "Not yet assigned" })}</div>`; },
+  insurance(v = {}) { const O = PF.opts;
+    return `${PF.sel("insurance_payer", "Insurer", Object.entries(O.payers), v.insurance_payer, { blank: "Not recorded", hint: "Thiqa for UAE nationals; choose self-pay if the patient has no cover." })}
+      <div data-policy ${v.insurance_payer === "self_pay" ? "hidden" : ""}><div class="form-pair">${PF.inp("insurance_plan", "Plan / network", v.insurance_plan, { attrs: 'maxlength="80"' })}${PF.inp("insurance_member_id", "Member / card number", v.insurance_member_id, { hint: "Needed when an insurer is chosen.", attrs: 'maxlength="40" autocomplete="off"' })}</div>
+      ${PF.inp("insurance_valid_to", "Cover ends on", v.insurance_valid_to, { type: "date", attrs: 'min="2000-01-01"' })}</div>`; },
+  contacts(v = {}) { const O = PF.opts;
+    return `<div class="form-pair">${PF.inp("nok_name", "Next of kin name", v.nok_name, { attrs: 'maxlength="200" autocomplete="off"' })}${PF.sel("nok_relationship", "Relationship", Object.entries(O.relationships), v.nok_relationship, { blank: "Not recorded" })}</div>
+      ${PF.inp("nok_phone", "Next of kin phone", v.nok_phone, { type: "tel", hint: "UAE mobile 05X XXX XXXX, or international with +", attrs: 'inputmode="tel" maxlength="30" autocomplete="off"' })}
+      <div class="checks">${PF.chk("nok_is_guardian", "Legal guardian (decides for the patient)", v.nok_is_guardian)}</div>
+      ${PF.sel("proxy_consent", "May we discuss screening and follow-up with this person?", [["permit", "Yes, the patient agrees"], ["deny", "No, the patient does not agree"]], v.proxy_consent, { blank: "Not asked yet", hint: "Ask the patient. Needs the next of kin's name and phone." }).replace('<select name="proxy_consent"', `<select name="proxy_consent" data-was="${W.esc(v.proxy_consent || "")}"`)}
+      ${PF.inp("proxy_note", "How did the patient give this answer?", v.proxy_note, { hint: "Needed when you record an answer (at least 10 characters), e.g. in person at the clinic.", attrs: 'maxlength="500"' })}`; },
   wire(form) { const O = PF.opts;
     const em = form.querySelector('[name="emirate"]'), reg = form.querySelector("[data-region]");
     if (em && reg) em.addEventListener("change", () => { reg.hidden = em.value !== "Abu Dhabi" && em.value !== ""; });
+    const py = form.querySelector('[name="insurance_payer"]'), pol = form.querySelector("[data-policy]");
+    if (py && pol) py.addEventListener("change", () => { pol.hidden = py.value === "self_pay"; });
     const hc = form.querySelector('[name="managing_org_id"]'), gp = form.querySelector('[name="gp_id"]');
     if (hc && gp) hc.addEventListener("change", () => { const cur = gp.value;
       gp.innerHTML = `<option value="">Not yet assigned</option>` + O.gps.filter(g => g.org_id === +hc.value).map(g => `<option value="${g.id}" ${String(g.id) === cur ? "selected" : ""}>${W.esc(g.name)}</option>`).join(""); });
@@ -48,6 +60,12 @@ const PF = {
     if (g("phone")) mark("phone", PF.phoneOk(g("phone").value), "Mobile phone: use 05X XXX XXXX or an international number starting with +.");
     if (g("email") && g("email").value.trim()) mark("email", /^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/.test(g("email").value.trim()), "Email address is not valid.");
     const ch = g("preferred_channel"); if (ch && ["sms", "whatsapp", "phone"].includes(ch.value) && g("phone") && !g("phone").value.trim()) bad.push("A phone number is needed for the preferred channel chosen.");
+    if (g("nok_phone")) mark("nok_phone", PF.phoneOk(g("nok_phone").value), "Next of kin phone: use 05X XXX XXXX or an international number starting with +.");
+    const py = g("insurance_payer"); if (py && py.value && py.value !== "self_pay" && g("insurance_member_id") && !g("insurance_member_id").value.trim()) mark("insurance_member_id", false, "Member / card number is required for an insurer.");
+    if (g("insurance_member_id") && g("insurance_member_id").value.trim() && !(py && py.value === "self_pay")) mark("insurance_member_id", /^[A-Za-z0-9][A-Za-z0-9 .\/-]{2,39}$/.test(g("insurance_member_id").value.trim()), "Member / card number: 3-40 letters, digits, spaces, dots, slashes or dashes.");
+    const pc = g("proxy_consent"); if (pc && pc.value === "permit" && (!g("nok_name").value.trim() || !g("nok_phone").value.trim())) bad.push("Proxy consent needs the next of kin's name and phone number.");
+    if (pc && pc.value && (g("proxy_note").value.trim().length < 10) && pc.dataset.was !== pc.value) mark("proxy_note", false, "Say how the patient gave the proxy consent answer (at least 10 characters).");
+    if (g("nok_is_guardian") && g("nok_is_guardian").checked && !g("nok_name").value.trim()) bad.push("A guardian needs a name.");
     if (g("emirate") && g("emirate").value === "Abu Dhabi" && g("region") && !g("region").value) { mark("region", false, "Region: choose Abu Dhabi, Al Ain or Al Dhafra."); }
     return bad; },
   collect(form, keys) { const fd = new FormData(form), out = {};
@@ -59,7 +77,9 @@ const PF = {
     return out; },
   KEYS: { demographics: ["given_name", "family_name", "birth_date", "gender", "national_id", "nationality", "language"],
     contact: ["phone", "email", "address_line", "city", "emirate", "region", "preferred_channel", "whatsapp", "has_smartphone"],
-    care: ["managing_org_id", "gp_id"] },
+    care: ["managing_org_id", "gp_id"],
+    insurance: ["insurance_payer", "insurance_plan", "insurance_member_id", "insurance_valid_to"],
+    contacts: ["nok_name", "nok_relationship", "nok_phone", "nok_is_guardian", "proxy_consent", "proxy_note"] },
   dupList(cands) { return `<ul class="dup-list">${cands.map(c => `<li><a href="/patients/${c.id}" target="_blank" rel="noopener"><b>${W.esc(c.name)}</b></a> · ${W.esc(c.mrn)} · born ${W.esc(c.birth_date || c.birth_year || "–")}${c.emirates_id ? " · EID " + W.esc(c.emirates_id) : ""} <span class="chip sla-amber">${W.esc(c.why)}</span></li>`).join("")}</ul>`; },
   label(map, k) { return (map && map[k]) || k || "–"; },
 };

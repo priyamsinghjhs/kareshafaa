@@ -280,3 +280,28 @@ def test_appointment_change_reason_and_barrier_capture(client, db, staff, as_use
     db.expire_all()
     a = db.scalars(select(Appointment).where(Appointment.case_id == cid, Appointment.status == "cancelled")).one()
     assert a.cancel_reason == "patient_request" and a.barrier_code == "transport"
+
+
+def test_insurance_next_of_kin_and_proxy_consent_capture(client, db, staff):
+    from datetime import date, timedelta
+    from kareshafaa.models import Patient
+    from tests.test_patient_registration import reg
+    co = staff["co"]
+    pid = reg(client, co).json()["patient_id"]
+    t = tok("insplan")
+    end = (date.today() + timedelta(days=200)).isoformat()
+    r = P(client, co, f"/api/patients/{pid}/insurance", insurance_payer="adnic", insurance_plan=t,
+          insurance_member_id="ADN/2026-0099", insurance_valid_to=end)
+    captured(client, db, r, t, f"/api/patients/{pid}", h=co)
+    t2 = tok("proxynote")
+    r = P(client, co, f"/api/patients/{pid}/contacts", nok_name="Layla Haddad", nok_relationship="sibling",
+          nok_phone="+44 7700 900123", nok_is_guardian=False, proxy_consent="permit", proxy_note=t2)
+    where = captured(client, db, r, t2, f"/api/patients/{pid}", h=co)
+    assert "patients.proxy_note" in where and "consents.note" in where
+    db.expire_all()
+    p = db.get(Patient, pid)
+    assert (p.insurance_payer, p.insurance_member_id, p.insurance_valid_to.isoformat()) == ("adnic", "ADN/2026-0099", end)
+    assert (p.nok_name, p.nok_relationship, p.nok_phone, p.nok_is_guardian) == ("Layla Haddad", "sibling", "+447700900123", False)
+    rec = client.get(f"/api/patients/{pid}", headers=co).json()
+    assert rec["insurance"]["insurance_member_id"] == "ADN/2026-0099" and rec["contacts"]["nok_name"] == "Layla Haddad"
+    assert rec["contacts"]["proxy_consent"] == "permit"

@@ -60,8 +60,17 @@ def prefill(message_id: int, actor: Actor = Depends(require("patient:register"))
 @router.post("")
 def register(body: sch.PatientCreateIn, actor: Actor = Depends(require("patient:register")),
              db: Session = Depends(get_db)) -> dict:
+    from ..models import utcnow
+    from ..services import coverage
+
+    cov_keys = set(coverage.INSURANCE_KEYS) | set(coverage.CONTACT_PERSON_KEYS)
     data = body.model_dump(exclude={"create_anyway_reason", "from_message_id", "consent_care_coordination",
-                                    "consent_note"})
+                                    "consent_note", *cov_keys})
+    given = body.model_dump(include=cov_keys)
+    ins = {k: v for k, v in given.items() if k in coverage.INSURANCE_KEYS and v not in (None, "")}
+    kin = {k: v for k, v in given.items() if k in coverage.CONTACT_PERSON_KEYS and v not in (None, "", False)}
+    coverage.validate_insurance(ins, utcnow())  # fail before anything is written, with the same messages as the record
+    coverage.validate_contacts(kin)
     msg = None
     if body.from_message_id is not None:
         msg = db.get(IngestMessage, body.from_message_id)
@@ -75,6 +84,10 @@ def register(body: sch.PatientCreateIn, actor: Actor = Depends(require("patient:
         if len(note) < 10:
             note = f"Recorded at registration: {note}"
         record_consent(db, p, actor, "care_coordination", body.consent_care_coordination, note)
+    if ins:
+        coverage.update_insurance(db, actor, p, ins)
+    if kin:
+        coverage.update_contacts(db, actor, p, kin)
     out: dict = {"ok": True, "patient_id": p.id, "mrn": p.mrn, "warnings": warnings}
     if msg is not None:
         from ..services.ingest import resolve_match
@@ -114,6 +127,28 @@ def edit_contact(patient_id: int, body: sch.PatientContactIn, actor: Actor = Dep
 def edit_care(patient_id: int, body: sch.PatientCareIn, actor: Actor = Depends(require("patient:write")),
               db: Session = Depends(get_db)) -> dict:
     return _update(db, actor, patient_id, "care", body)
+
+
+@router.post("/{patient_id}/insurance")
+def edit_insurance(patient_id: int, body: sch.PatientInsuranceIn, actor: Actor = Depends(require("patient:write")),
+                   db: Session = Depends(get_db)) -> dict:
+    from ..services import coverage
+
+    p = svc.get_patient(db, actor, patient_id)
+    changed = coverage.update_insurance(db, actor, p, body.model_dump(exclude_unset=True))
+    db.commit()
+    return {"ok": True, "changed": changed, "warnings": [], "eligibility": coverage.eligibility(p)}
+
+
+@router.post("/{patient_id}/contacts")
+def edit_contacts(patient_id: int, body: sch.PatientContactsIn, actor: Actor = Depends(require("patient:write")),
+                  db: Session = Depends(get_db)) -> dict:
+    from ..services import coverage
+
+    p = svc.get_patient(db, actor, patient_id)
+    changed = coverage.update_contacts(db, actor, p, body.model_dump(exclude_unset=True))
+    db.commit()
+    return {"ok": True, "changed": changed, "warnings": []}
 
 
 # ------------------------------------------------------------------------------------- patient app account

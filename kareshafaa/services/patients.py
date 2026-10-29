@@ -567,7 +567,14 @@ def build_patient_record(db: Session, actor: Actor, p: Patient, now: datetime | 
         "can_add_result": actor.is_human and actor.can("case:create"),
         "account": _account(db, actor, p),
         "recalls": _recalls(db, p),
+        **_coverage(db, p),
     }
+
+
+def _coverage(db: Session, p: Patient) -> dict:
+    from .coverage import view
+
+    return view(db, p)
 
 
 def _recalls(db: Session, p: Patient) -> list[dict]:
@@ -597,4 +604,10 @@ def options(db: Session) -> dict[str, Any]:
     return {"emirates": list(EMIRATES), "abu_dhabi_regions": list(ABU_DHABI_REGIONS), "genders": GENDERS,
             "languages": LANGUAGES, "channels": CHANNELS, "nationalities": sorted(NATIONALITIES, key=lambda n: (n == "Other", n)),
             "health_centres": [{"id": o.id, "name": o.name, "region": o.region} for o in orgs],
-            "gps": [{"id": g.id, "name": g.name, "org_id": g.org_id} for g in gps]}
+            "gps": [{"id": g.id, "name": g.name, "org_id": g.org_id} for g in gps], **_coverage_options()}
+
+
+def _coverage_options() -> dict:
+    from .coverage import options as cov_options
+
+    return cov_options()

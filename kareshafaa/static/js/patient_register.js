@@ -1,7 +1,7 @@
 // Register a patient: one form, server-side duplicate check, "create anyway" needs a written reason (audited).
 const FROM_MSG = new URLSearchParams(location.search).get("from_message");
 let PREFILL = null;
-const REG_EXTRA = [];  // further sections (insurance, next of kin) register themselves here: {title, html(v), keys, collect?}
+const REG_EXTRA = [{ title: "Insurance", html: v => PF.insurance(v), keys: PF.KEYS.insurance }, { title: "Next of kin and guardian (optional)", html: v => PF.contacts(v), keys: PF.KEYS.contacts }];  // {title, html(v), keys, collect?}
 
 function regForm(v) {
   const O = PF.opts;

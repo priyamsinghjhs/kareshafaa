@@ -514,6 +514,36 @@ def run():
             record("Care summary: GP acknowledgement note", "/summaries", t, None, txt)
         step("summary", summary_flow)
 
+        def coverage_flow():  # Insurance (expired -> warning), next of kin + guardian + proxy consent on the patient record
+            pid = S["new_patient"]; p = co.p
+            p.goto(f"{BASE}/patients/{pid}"); p.wait_for_selector("#sec-insurance", timeout=15000)
+            p.click('[data-edit="insurance"]'); f = 'form[data-form="insurance"]'
+            t = tok("ins.plan"); p.select_option(f"{f} [name=insurance_payer]", "daman_enhanced"); p.fill(f"{f} [name=insurance_plan]", t)
+            p.fill(f"{f} [name=insurance_member_id]", "x"); p.fill(f"{f} [name=insurance_valid_to]", "2026-01-31")
+            p.click(f"{f} button[type=submit]"); p.wait_for_timeout(500)
+            kept = p.locator(f).count() == 1 and p.input_value(f"{f} [name=insurance_plan]") == t
+            p.fill(f"{f} [name=insurance_member_id]", f"DMN-{RUN}"); p.click(f"{f} button[type=submit]")
+            p.wait_for_function("() => !document.querySelector('form[data-form=insurance]')", timeout=15000)
+            p.reload(); p.wait_for_selector("#sec-insurance"); txt = p.inner_text("#sec-insurance")
+            row = q1("select insurance_payer, insurance_member_id, insurance_valid_to from patients where id=?", pid)
+            record("Insurance: plan", f"/patients/{pid}", t, None, txt, {"values_kept_on_error": kept})
+            RES.append({"field": "Insurance: payer, member number, end date; expired warning shown", "page": f"/patients/{pid}", "stored": row,
+                        "ok": row == ("daman_enhanced", f"DMN-{RUN}", "2026-01-31") and p.locator('#sec-insurance [data-eligibility="expired"]').count() == 1 and kept})
+            co.shot("patient_insurance")
+            p.click('[data-edit="contacts"]'); f = 'form[data-form="contacts"]'
+            p.fill(f"{f} [name=nok_name]", "Huda Rahman"); p.select_option(f"{f} [name=nok_relationship]", "parent")
+            p.fill(f"{f} [name=nok_phone]", "055 765 4321"); p.check(f"{f} [name=nok_is_guardian]")
+            p.select_option(f"{f} [name=proxy_consent]", "permit"); t2 = tok("proxy.note"); p.fill(f"{f} [name=proxy_note]", t2)
+            p.click(f"{f} button[type=submit]"); p.wait_for_function("() => !document.querySelector('form[data-form=contacts]')", timeout=15000)
+            p.reload(); p.wait_for_selector("#sec-contacts"); txt = p.inner_text("#sec-contacts")
+            row = q1("select nok_name, nok_relationship, nok_phone, nok_is_guardian from patients where id=?", pid)
+            dec = q1("select decision from consents where patient_id=? and scope='proxy_contact' and status='active'", pid)
+            record("Next of kin: proxy consent note", f"/patients/{pid}", t2, None, txt)
+            RES.append({"field": "Next of kin: name, relationship, phone, guardian, proxy consent", "page": f"/patients/{pid}", "stored": [row, dec],
+                        "ok": row == ("Huda Rahman", "parent", "+971557654321", 1) and dec == ("permit",) and "Patient agrees" in txt})
+            p.locator("#sec-contacts").scroll_into_view_if_needed(); co.shot("patient_next_of_kin")
+        step("coverage", coverage_flow)
+
         for b in (co, gp, sp, lead, adm):
             if b.errs:
                 RES.append({"field": f"HTTP/JS errors seen as {b.user}", "errors": b.errs[-12:]})

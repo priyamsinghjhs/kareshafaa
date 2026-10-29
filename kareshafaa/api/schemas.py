@@ -276,6 +276,17 @@ class PatientCreateIn(_In):
     consent_note: str | None = _S(500)
     create_anyway_reason: str | None = _S(500)
     from_message_id: int | None = None
+    # optional at registration (services/coverage.py)
+    insurance_payer: str | None = _S(30)
+    insurance_plan: str | None = _S(80)
+    insurance_member_id: str | None = _S(40)
+    insurance_valid_to: str | None = _S(10)
+    nok_name: str | None = _S(200)
+    nok_relationship: str | None = _S(30)
+    nok_phone: str | None = _S(30)
+    nok_is_guardian: bool | None = None
+    proxy_consent: str | None = _S(10)
+    proxy_note: str | None = _S(500)
 
 
 class PatientDemographicsIn(_In):
@@ -303,6 +314,22 @@ class PatientContactIn(_In):
 class PatientCareIn(_In):
     managing_org_id: int
     gp_id: int | None = None
+
+
+class PatientInsuranceIn(_In):
+    insurance_payer: str | None = _S(30)
+    insurance_plan: str | None = _S(80)
+    insurance_member_id: str | None = _S(40)
+    insurance_valid_to: str | None = _S(10)  # YYYY-MM-DD; checked in services/coverage.py
+
+
+class PatientContactsIn(_In):
+    nok_name: str | None = _S(200)
+    nok_relationship: str | None = _S(30)
+    nok_phone: str | None = _S(30)
+    nok_is_guardian: bool | None = None
+    proxy_consent: str | None = _S(10)  # permit | deny
+    proxy_note: str | None = _S(500)
 
 
 class AccountInviteIn(_In):

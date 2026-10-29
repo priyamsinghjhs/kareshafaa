@@ -570,6 +570,7 @@ RECALL_UPTAKE_WINDOW_DAYS = 180   # a recall counts as taken up if a new screeni
 
 # Care summary to the registered GP (written when care starts and when a case closes)
 GP_SUMMARY_ACK_DAYS = 7           # CONFIRM: the GP acknowledges within 7 days (shown as overdue after that)
+INSURANCE_EXPIRY_WARN_DAYS = 30    # CONFIRM: warn on the record and case screen when cover ends within 30 days
 
 # Appointment reminders (sent by the background sweep, inside the 08:00-21:00 UAE patient message window)
 APPOINTMENT_REMINDER_HOURS = 48   # CONFIRM: one reminder when the appointment is within 48 h

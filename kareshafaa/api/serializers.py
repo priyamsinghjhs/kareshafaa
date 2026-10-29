@@ -116,6 +116,7 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
                    "observations": [{"display": o.display, "value": o.value, "value_text": o.value_text, "unit": o.unit,
                                      "interpretation": o.interpretation} for o in rep.observations]} if rep else None,
         "journey": journey(db, c),
+        "coverage": _coverage_banner(db, actor, p),
         "steps": steps,
         "transfer_pending": {"to_owner_id": c.transfer_pending_owner_id, "to_owner": pname(db, c.transfer_pending_owner_id),
                              "note": c.transfer_note} if c.transfer_pending_owner_id else None,
@@ -169,3 +170,9 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
                   for a in db.scalars(select(AuditEvent).where(AuditEvent.case_id == c.id).order_by(AuditEvent.id.desc())
                                       .limit(300))],
     }
+
+
+def _coverage_banner(db: Session, actor, p) -> dict | None:
+    from ..services.coverage import case_banner
+
+    return case_banner(db, actor, p)

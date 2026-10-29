@@ -153,6 +153,23 @@ def run(max_examples: int = 5) -> dict:
                 src = db.get(_AP, ap.rescheduled_from_id)
                 if src is None or src.status != "cancelled":
                     bad("appointment.reschedule_source_cancelled", ap.id)
+        # insurance and next of kin (services/coverage.py)
+        from kareshafaa.services.coverage import PAYERS as _PAY, RELATIONSHIPS as _REL
+        from kareshafaa.services.access import consent_status as _cst
+        for p in patients.values():
+            if p.insurance_payer is None and p.nok_name is None and p.nok_phone is None:
+                continue
+            checked["patient_coverage"] += 1
+            if p.insurance_payer is not None and p.insurance_payer not in _PAY:
+                bad("coverage.payer_valid", p.id)
+            if p.insurance_payer not in (None, "self_pay") and not p.insurance_member_id:
+                bad("coverage.insurer_has_member_number", p.id)
+            if p.nok_relationship is not None and p.nok_relationship not in _REL:
+                bad("coverage.relationship_valid", p.id)
+            if p.nok_is_guardian and not p.nok_name:
+                bad("coverage.guardian_named", p.id)
+            if _cst(db, p.id, "proxy_contact") == "permit" and not (p.nok_name and p.nok_phone):
+                bad("coverage.proxy_consent_has_contact", p.id)
 
 
         # --- report / observation level -------------------------------------------------------------
@@ -468,6 +485,8 @@ INVARIANTS = [
     "comms.sent_message_single_language", "patient.emirates_id_valid_checksum", "patient.birth_year_matches_birth_date",
     "patient.registration_has_registrar", "patient.registered_emirates_id_unique",
     "account.patient_role_linked_to_patient", "account.invite_used_only_while_valid",
+    "coverage.payer_valid", "coverage.insurer_has_member_number", "coverage.relationship_valid",
+    "coverage.guardian_named", "coverage.proxy_consent_has_contact",
 ]
 
 
