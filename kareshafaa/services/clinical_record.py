@@ -154,7 +154,8 @@ def build_record(db: Session, case: Case, actor: Actor, now: datetime | None = N
         tests.append({"date": iso(r.issued_at), "name": r.display, "category": r.category, "result": res,
                       "abnormal": bool(abnormal), "interpretation": r.conclusion.replace("_", " "),
                       "source": _oname(db, r.performer_org_id),
-                      "ordered_by": (_pname(db, sr.requester_id) if sr else "Screening programme"),
+                      "ordered_by": r.ordering_clinician or (_pname(db, sr.requester_id) if sr else "Screening programme"),
+                      "screening_site": r.screening_site, "collected_at": iso(r.specimen_collected_at),
                       "triggering": r.id == case.report_id, "case_id": r.case_id, "programme": r.programme})
     for i in db.scalars(select(Investigation).where(Investigation.patient_id == p.id)):
         tests.append({"date": iso(i.effective_at), "name": i.name, "category": "investigation",

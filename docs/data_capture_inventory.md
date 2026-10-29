@@ -49,6 +49,7 @@ Status: **OK** = stored and shown back before this audit; **FIXED** = was lost o
 | Page | Fields | Endpoint | Stored in | Status |
 |---|---|---|---|---|
 | Results inbox (`/ingest`) | HL7 message, resolve match | `POST /api/ingest/hl7`, `/resolve` | `inbound_messages`, `diagnostic_reports`, `cases` | OK (buttons now disabled while sending) |
+| Result: ordering clinician, screening site, specimen collected (added 29 Oct 2026) | HL7 ORC-12 (else OBR-16), ORC-21 (else PV1-3), OBR-7 / OBX-14; FHIR ServiceRequest.requester (else Practitioner), ServiceRequest.locationReference (else Encounter), Specimen.collection (else Observation.effective); typed-in `ordering_clinician`, `screening_site`, `specimen_collected_at` | `POST /api/ingest/hl7v2`, `/api/ingest/fhir`, `/resolve`, `POST /api/results` | **`diagnostic_reports.ordering_clinician/screening_site/specimen_collected_at`** (new), **`ingest_messages.*`** (same, kept through match review) | NEW (shown on the case screen patient card, the clinical record test table and the patient record; API + capture test + browser check) |
 | Ask a specialist (`/consults`) | answer | `POST /api/consults/{id}/respond` | `consult_requests.response` | OK (inline validation) |
 | Queue (`/queue`) | view, programme, search | – | URL | FIXED: filters lost on reload |
 | Users: add | username, name, role, site, team, temporary password | `POST /api/admin/users` | `users` | OK |

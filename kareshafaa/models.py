@@ -194,6 +194,11 @@ class DiagnosticReport(Base):  # FHIR DiagnosticReport
     issued_at: Mapped[datetime] = mapped_column(DateTime)
     performer_org_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"))
     status: Mapped[str] = mapped_column(String(20), default="final")
+    # who ordered the test, where the person was screened and when the specimen was taken (HL7 ORC/OBR, FHIR
+    # ServiceRequest/Specimen, or typed in); nullable, additive - older results show "Not recorded"
+    ordering_clinician: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    screening_site: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    specimen_collected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # UTC
     observations: Mapped[list[Observation]] = relationship(back_populates="report")
 
 
@@ -782,6 +787,9 @@ class IngestMessage(Base):  # inbound HL7 v2 / FHIR message log (idempotency + h
     other_observations: Mapped[list | None] = mapped_column(JSON, nullable=True)  # further values, same test
     alt_identifiers: Mapped[list | None] = mapped_column(JSON, nullable=True)  # PID-3 repetitions
     patient_demographics: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # name/DOB/sex/phone in the message
+    ordering_clinician: Mapped[str | None] = mapped_column(String(200), nullable=True)  # kept for match review
+    screening_site: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    specimen_collected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 # ---- performance indexes (iteration 4: profiled at 10k+ cases) ------------------------------------------

@@ -231,8 +231,9 @@ def flag_review(db: Session, case: Case, reasons: list[str], actor: Actor, now: 
 def ingest_result(db: Session, patient: Patient, programme: str, *, value: float | None, value_text: str | None,
                   performer_org_id: int, unit: str | None = None, test: str | None = None, status: str = "final",
                   cytology: str | None = None, actor: Actor = SYSTEM, now: datetime | None = None,
-                  extra_reasons: list[str] | None = None, other_observations: list[list] | None = None
-                  ) -> tuple[DiagnosticReport, Case | None]:
+                  extra_reasons: list[str] | None = None, other_observations: list[list] | None = None,
+                  ordering_clinician: str | None = None, screening_site: str | None = None,
+                  collected_at: datetime | None = None) -> tuple[DiagnosticReport, Case | None]:
     """Receive a screening result and apply the clinical rules (kareshafaa/clinical_rules.py).
 
     Fail-safe: nothing is dropped. Negative -> report only. Actionable -> one case. Anything uncertain (bad data,
@@ -254,7 +255,10 @@ def ingest_result(db: Session, patient: Patient, programme: str, *, value: float
     rep = DiagnosticReport(patient_id=patient.id, programme=programme, category="screening", code=prog.screening_code,
                            display=prog.screening_display, conclusion={"negative": "negative", "actionable": "actionable",
                                                                        "review": "needs_review"}[dec.disposition],
-                           issued_at=now, performer_org_id=performer_org_id, status=(status or "final")[:20])
+                           issued_at=now, performer_org_id=performer_org_id, status=(status or "final")[:20],
+                           ordering_clinician=(ordering_clinician or None) and ordering_clinician.strip()[:200] or None,
+                           screening_site=(screening_site or None) and screening_site.strip()[:200] or None,
+                           specimen_collected_at=collected_at)
     stored_text = ((value_text if not cytology else f"{value_text or ''}|{cytology}")[:100]
                    if (value_text or cytology) else None)
     stored_unit = (unit or None) and str(unit)[:30]

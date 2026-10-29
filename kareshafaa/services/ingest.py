@@ -58,6 +58,8 @@ class ParsedResult:
     other_observations: list[list] = field(default_factory=list)  # [loinc, test, raw value, unit] not chosen
     payload_sha256: str | None = None
     collected_at: datetime | None = None  # specimen collection time (UTC, naive) if the message carries one
+    ordering_clinician: str | None = None  # HL7 ORC-12 / OBR-16, FHIR ServiceRequest.requester
+    screening_site: str | None = None  # HL7 ORC-21 / PV1-3, FHIR ServiceRequest.locationReference / Encounter
     # name / date of birth / sex / phone as sent by the lab: only used to PRE-FILL a registration when the result
     # matches no patient (never to match or overwrite a record - matching stays on identifiers)
     demographics: dict[str, Any] = field(default_factory=dict)
@@ -268,6 +270,21 @@ def parse_hl7v2(raw: str) -> ParsedResult:
     obr = next((s for s in segs if s[0] == "OBR"), None)
     times = ([_field(obr, 7)] if obr is not None else []) + [_field(s, 14) for s in segs if s[0] == "OBX"]
     r.collected_at = next((t for t in (parse_collection_time(x, True) for x in times) if t is not None), None)
+    orc = next((x for x in segs if x[0] == "ORC"), None)
+    pv1 = next((x for x in segs if x[0] == "PV1"), None)
+
+    def xcn(v: str) -> str | None:  # ID^Family^Given^Middle^Suffix^Prefix -> "Dr Given Family" (ID if no name)
+        c = [unesc(x).strip() for x in v.split(rep)[0].split(comp)]
+        name = " ".join(x for x in ([c[5]] if len(c) > 5 else []) + c[2:4] + c[1:2] if x)
+        return _clip(name or (c[0] if c else ""), 200)
+
+    r.ordering_clinician = (xcn(_field(orc, 12)) if orc is not None else None) or \
+        (xcn(_field(obr, 16)) if obr is not None else None)
+    site = unesc(_field(orc, 21).split(rep)[0].split(comp)[0]).strip() if orc is not None else ""
+    if not site and pv1 is not None:
+        pl = [unesc(x).strip() for x in _field(pv1, 3).split(comp)]
+        site = (pl[3] if len(pl) > 3 and pl[3] else "") or (pl[0] if pl else "")
+    r.screening_site = _clip(site, 200)
     if len(pids) > 1:
         return ParsedResult(control_id, ident, birth_year, None, None, None, payload_sha256=digest,
                             problem="more than one patient (PID segment) in one message - split per patient")
@@ -325,11 +342,27 @@ def _parse_fhir_bundle(bundle: dict[str, Any]) -> ParsedResult:
                 "phone": _clip(next((t.get("value") for t in tel if t.get("system") in ("phone", "sms")), None), 30),
                 "email": _clip(next((t.get("value") for t in tel if t.get("system") == "email"), None), 200)}
         r.demographics = {k: v for k, v in who.items() if v}
-    for o in (x for x in res if x.get("resourceType") == "Observation"):
+    spec = next((x for x in res if x.get("resourceType") == "Specimen"), None)
+    if spec is not None:  # Specimen.collection is the authoritative collection time
+        col = spec.get("collection") or {}
+        r.collected_at = parse_collection_time(col.get("collectedDateTime") or (col.get("collectedPeriod") or {}).get("start"), False)
+    for o in (x for x in res if x.get("resourceType") == "Observation") if r.collected_at is None else ():
         eff = o.get("effectiveDateTime") or (o.get("effectivePeriod") or {}).get("start")
         if (t := parse_collection_time(eff, False)) is not None:
             r.collected_at = t
             break
+    sr = next((x for x in res if x.get("resourceType") == "ServiceRequest"), None) or {}
+    prac = next((x for x in res if x.get("resourceType") == "Practitioner"), None)
+    who_ord = (sr.get("requester") or {}).get("display")
+    if not who_ord and prac is not None:
+        nm = next(iter(prac.get("name") or []), {}) or {}
+        who_ord = nm.get("text") or " ".join(str(x) for x in [*(nm.get("prefix") or [])[:1], *(nm.get("given") or [])[:2], nm.get("family") or ""] if x)
+    r.ordering_clinician = _clip(who_ord, 200)
+    enc = next((x for x in res if x.get("resourceType") == "Encounter"), None) or {}
+    loc = next(iter(sr.get("locationReference") or []), {}) or {}
+    site = loc.get("display") or next(iter((enc.get("location") or [])), {}).get("location", {}).get("display") \
+        or (enc.get("serviceProvider") or {}).get("display")
+    r.screening_site = _clip(site, 200)
     r.payload_sha256 = hashlib.sha256(json.dumps(bundle, sort_keys=True, default=str).encode()).hexdigest()
     pats = [x for x in res if x.get("resourceType") == "Patient"]
     if len(pats) > 1:
@@ -365,7 +398,9 @@ def _create(db: Session, p: Patient, r: ParsedResult, actor: Actor, now: datetim
     rep, case = wf.ingest_result(db, p, r.programme, value=r.value, value_text=r.value_text, unit=r.unit, test=r.test,
                                  status=r.status, cytology=r.cytology,
                                  performer_org_id=lab.id if lab else p.managing_org_id, actor=actor, now=now,
-                                 extra_reasons=list(r.flags) or None, other_observations=r.other_observations or None)
+                                 extra_reasons=list(r.flags) or None, other_observations=r.other_observations or None,
+                                 ordering_clinician=r.ordering_clinician, screening_site=r.screening_site,
+                                 collected_at=r.collected_at)
     if case is not None and case.tier not in CLINICIAN_CONFIRMED_TIERS and S(case.state) == S.ISSUED \
             and not case.review_required:
         wf.transition(db, case, S.TRIAGED, SYSTEM, now=now, note="auto-triaged by deterministic programme rule")
@@ -401,7 +436,9 @@ def ingest(db: Session, source: str, r: ParsedResult, actor: Actor, now: datetim
                         payload_sha256=r.payload_sha256, flags=list(r.flags) or None,
                         alt_identifiers=list(r.alt_identifiers) or None,
                         other_observations=r.other_observations or None,
-                        patient_demographics=dict(r.demographics) or None)
+                        patient_demographics=dict(r.demographics) or None,
+                        ordering_clinician=r.ordering_clinician, screening_site=r.screening_site,
+                        specimen_collected_at=r.collected_at)
     p, why = _match(db, r)
     if r.programme is None:
         msg.status, msg.error = "needs_review", r.problem or "result could not be interpreted"
@@ -440,7 +477,8 @@ def resolve_match(db: Session, msg_id: int, patient_id: int, actor: Actor, now: 
         raise DomainError("the test could not be identified: handle this message manually with the lab")
     r = ParsedResult(msg.message_id, msg.patient_identifier, msg.birth_year, msg.programme, msg.value, msg.value_text,
                      msg.unit, msg.test, msg.result_status or "final", msg.cytology, flags=list(msg.flags or []),
-                     other_observations=list(msg.other_observations or []))
+                     other_observations=list(msg.other_observations or []), collected_at=msg.specimen_collected_at,
+                     ordering_clinician=msg.ordering_clinician, screening_site=msg.screening_site)
     msg.report_id, case = _create(db, p, r, actor, now)
     msg.case_id = case.id if case else None
     msg.status = "resolved"

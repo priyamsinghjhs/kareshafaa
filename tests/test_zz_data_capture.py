@@ -305,3 +305,26 @@ def test_insurance_next_of_kin_and_proxy_consent_capture(client, db, staff):
     rec = client.get(f"/api/patients/{pid}", headers=co).json()
     assert rec["insurance"]["insurance_member_id"] == "ADN/2026-0099" and rec["contacts"]["nok_name"] == "Layla Haddad"
     assert rec["contacts"]["proxy_consent"] == "permit"
+
+
+def test_result_ordering_clinician_site_and_collection_capture(client, db, staff, make_patient):
+    from kareshafaa.models import DiagnosticReport
+    co, gp = staff["co"], staff["gp"]
+    pid = make_patient(gp_id=19)
+    t1, t2 = tok("orderer"), tok("site")
+    r = P(client, co, "/api/results", patient_id=pid, programme="colorectal_fit", value=280, unit="ug/g",
+          ordering_clinician=t1, screening_site=t2, specimen_collected_at="2026-10-27T10:30:00+04:00")
+    cid = r.json()["case"]["id"]
+    captured(client, db, r, t1, f"/api/cases/{cid}", f"/api/cases/{cid}/record", h=gp)
+    captured(client, db, r, t2, f"/api/cases/{cid}", f"/api/patients/{pid}", h=co)
+    rep = db.scalars(select(DiagnosticReport).where(DiagnosticReport.patient_id == pid)).one()
+    assert rep.specimen_collected_at.isoformat() == "2026-10-27T06:30:00"
+    assert client.get(f"/api/cases/{cid}", headers=gp).json()["result"]["specimen_collected_at"].startswith("2026-10-27T06:30")
+    # HL7: ORC-12 / ORC-21 / OBR-7 land in the same columns
+    t3 = tok("hl7site")
+    from tests.test_result_metadata import hl7
+    from kareshafaa.models import Patient
+    pid2 = make_patient()
+    msg = hl7(db.get(Patient, pid2).mrn, f"T-CAP-{pid2}").replace("Mushrif Healthcare Centre", t3)
+    r = client.post("/api/ingest/hl7v2", headers={**co, "Content-Type": "text/plain"}, content=msg.encode())
+    captured(client, db, r, t3, f"/api/patients/{pid2}", h=co)

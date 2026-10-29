@@ -127,9 +127,28 @@ def sample(actor: Actor = Depends(require("case:create")), db: Session = Depends
     return "\r".join([
         f"MSH|^~\\&|LIS|CENTRAL_SCREENING_LAB|KARESHAFAA|EMIRATE_SCREENING|{ts}||ORU^R01^ORU_R01|LAB-{ts}-{p.id}|P|2.5.1",
         f"PID|1||{p.mrn}^^^KARESHAFAA^MR||{p.family_name.upper()}^{p.given_name.upper()}||{p.birth_year}0101|{p.gender[0].upper()}",
+        f"PV1|1|O|SCREEN^^^{_site(db, p)}",
+        f"ORC|RE|ORD-{p.id}|FIL-{ts[-6:]}|||||||||{_orderer(db, p)}",
         f"OBR|1|ORD-{p.id}|FIL-{ts[-6:]}|29771-3^FIT haemoglobin^LN|||{ts}|||||||||||||||{ts}|||F",
         "OBX|1|NM|29771-3^FIT haemoglobin^LN||{v}|ug/g|<120|H|||F".format(v=180 + (p.id % 200)),
     ])
+
+
+def _site(db: Session, p) -> str:
+    from ..models import Organization
+
+    o = db.get(Organization, p.managing_org_id)
+    return (o.name if o else "Screening clinic").replace("|", " ").replace("^", " ")
+
+
+def _orderer(db: Session, p) -> str:
+    from ..models import Practitioner
+
+    g = db.get(Practitioner, p.gp_id) if p.gp_id else None
+    if g is None:
+        return ""
+    parts = g.name.replace("Dr ", "").replace("Dr. ", "").split()
+    return f"{g.id}^{parts[-1] if parts else ''}^{' '.join(parts[:-1])}^^^Dr".replace("|", " ")
 
 
 @router.get("/messages")
@@ -140,6 +159,8 @@ def messages(status: str | None = None, actor: Actor = Depends(require("case:cre
     return {"items": [{"id": m.id, "source": m.source, "message_id": m.message_id, "status": m.status,
                        "received_at": m.received_at.isoformat(), "patient_identifier": m.patient_identifier,
                        "programme": m.programme, "reason": m.error, "case_id": m.case_id,
+                       "ordering_clinician": m.ordering_clinician, "screening_site": m.screening_site,
+                       "specimen_collected_at": m.specimen_collected_at.isoformat() if m.specimen_collected_at else None,
                        **_who(m)} for m in db.scalars(q)]}
 
 

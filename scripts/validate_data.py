@@ -176,6 +176,11 @@ def run(max_examples: int = 5) -> dict:
         for r in reports:
             checked["report"] += 1
             p = patients[r.patient_id]
+            if r.specimen_collected_at is not None and r.specimen_collected_at > r.issued_at + timedelta(days=1) \
+                    and r.case_id is None:  # a "future" specimen is always sent to clinician review (a case)
+                bad("report.future_specimen_reviewed", r.id)
+            if any(v is not None and (not v.strip() or len(v) > 200) for v in (r.ordering_clinician, r.screening_site)):
+                bad("report.orderer_site_clean", r.id)
             if r.category == "confirmatory":  # follow-up test outcome recorded by a clinician (no observation row)
                 if r.conclusion not in ("positive", "negative") or r.case_id is None:
                     bad("report.confirmatory_result_valid_and_linked", r.id)
@@ -487,6 +492,7 @@ INVARIANTS = [
     "account.patient_role_linked_to_patient", "account.invite_used_only_while_valid",
     "coverage.payer_valid", "coverage.insurer_has_member_number", "coverage.relationship_valid",
     "coverage.guardian_named", "coverage.proxy_consent_has_contact",
+    "report.future_specimen_reviewed", "report.orderer_site_clean",
 ]
 
 

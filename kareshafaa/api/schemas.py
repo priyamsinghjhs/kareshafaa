@@ -150,6 +150,9 @@ class ResultIn(_In):
     test: Literal["FIT", "HPV", "CYTOLOGY", "MAMMO", "HBA1C", "FPG"] | None = None
     status: Literal["final", "preliminary", "amended", "corrected", "entered-in-error", "cancelled"] = "final"
     cytology: str | None = Field(default=None, max_length=30)
+    ordering_clinician: str | None = Field(default=None, max_length=200)
+    screening_site: str | None = Field(default=None, max_length=200)
+    specimen_collected_at: datetime | None = None  # date or date-time; no offset = UAE local time
 
 
 class ReviewIn(_In):

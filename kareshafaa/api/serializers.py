@@ -113,6 +113,8 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
                     "channels": {"smartphone": p.has_smartphone, "whatsapp": p.whatsapp, "phone_valid": p.phone_valid},
                     "deceased": p.deceased},
         "result": {"id": rep.id, "display": rep.display, "issued_at": iso(rep.issued_at),
+                   "ordering_clinician": rep.ordering_clinician, "screening_site": rep.screening_site,
+                   "specimen_collected_at": iso(rep.specimen_collected_at),
                    "observations": [{"display": o.display, "value": o.value, "value_text": o.value_text, "unit": o.unit,
                                      "interpretation": o.interpretation} for o in rep.observations]} if rep else None,
         "journey": journey(db, c),

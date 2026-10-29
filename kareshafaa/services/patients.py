@@ -538,6 +538,7 @@ def build_patient_record(db: Session, actor: Actor, p: Patient, now: datetime | 
                       "closure_reason": c.closure_reason, "can_open": vis})
     results = [{"id": r.id, "programme": r.programme, "display": r.display, "category": r.category,
                 "conclusion": r.conclusion, "issued_at": _iso(r.issued_at), "case_id": r.case_id,
+                "ordered_by": r.ordering_clinician, "site": r.screening_site, "collected_at": _iso(r.specimen_collected_at),
                 "values": "; ".join(f"{o.value if o.value is not None else (o.value_text or '')}"
                                     f"{(' ' + o.unit) if o.unit else ''}".strip() for o in r.observations)}
                for r in db.scalars(select(DiagnosticReport).where(DiagnosticReport.patient_id == p.id)

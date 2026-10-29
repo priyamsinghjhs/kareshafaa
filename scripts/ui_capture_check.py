@@ -118,8 +118,12 @@ def hl7_for(pid, value=250, birth=None):
     ts = time.strftime("%Y%m%d%H%M%S", time.gmtime()) + "+0000"
     return "\n".join([f"MSH|^~\\&|LIS|CENTRAL_SCREENING_LAB|KARESHAFAA|EMIRATE_SCREENING|{ts}||ORU^R01^ORU_R01|LAB-{RUN}-{pid}-{VIEW}|P|2.5.1",
                       f"PID|1||{mrn}^^^KARESHAFAA^MR||{fam.upper()}^{giv.upper()}||{by}0101|{sex[0].upper()}",
+                      f"ORC|RE|ORD-{pid}|FIL-{ts[-6:]}|||||||||D19^Haddad^Omar^^^Dr|||||||||{SITE}",
                       f"OBR|1|ORD-{pid}|FIL-{ts[-6:]}|29771-3^FIT haemoglobin^LN|||{ts}|||||||||||||||{ts}|||F",
                       f"OBX|1|NM|29771-3^FIT haemoglobin^LN||{value}|ug/g|<120|H|||F"])
+
+
+SITE = tok("result.site")
 
 
 def run():
@@ -143,6 +147,15 @@ def run():
             co.shot("ingest")
         step("ingest", ingest)
         cid = S.get("case0"); S["cid"] = cid
+
+        def result_meta():  # ordering clinician, screening site and specimen time from ORC/OBR, shown on the case screen
+            co.case(cid); txt = co.case_text()
+            row = q1("select ordering_clinician, screening_site, specimen_collected_at is not null from diagnostic_reports where case_id=? order by id", cid)
+            record("Result: screening site (HL7 ORC-21)", f"/cases/{cid}", SITE, None, txt)
+            RES.append({"field": "Result: ordering clinician, site, specimen time stored and shown", "page": f"/cases/{cid}", "stored": row,
+                        "ok": bool(row and row[0] == "Dr Omar Haddad" and row[1] == SITE and row[2]) and "Dr Omar Haddad" in txt and "Specimen taken" in txt})
+            co.p.locator("[data-result-meta]").first.scroll_into_view_if_needed(); co.shot("case_result_meta")
+        step("result_meta", result_meta)
 
         def review_if_needed():
             for i in range(3):

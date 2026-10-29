@@ -141,6 +141,11 @@ Every person signs in with a username and password; there is no account list on 
 * **Duplicate check before every new record**: the same Emirates ID is refused (the attempt is audited) and the
   existing record is linked; a similar name with the same date of birth needs a written reason ("Create anyway"),
   stored on the record and in the audit trail.
+* **Result details**: every result keeps who ordered it, where the person was screened and when the specimen
+  was taken (HL7 ORC-12/OBR-16, ORC-21/PV1-3, OBR-7; FHIR ServiceRequest requester / location, Specimen collection;
+  or typed in on `POST /api/results`, where a time without an offset is UAE local time and a future date is refused).
+  They are shown on the case screen (patient card and clinical record) and the patient record; older results show
+  "Not recorded". A specimen older than 180 days goes to clinician review, as for lab messages.
 * **Unmatched lab results** (`/ingest`): name, date of birth, sex and phone from the message (HL7 PID-5/7/8/13, FHIR
   Patient) pre-fill the registration form; saving files the result to the new record as a tracked case. Matching
   itself still uses identifiers only.
@@ -373,7 +378,7 @@ deployment would need formal assessment.
 
 ## Repository map
 
-`kareshafaa/` app · `tests/` pytest (3,320) · `kareshafaa_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
+`kareshafaa/` app · `tests/` pytest (3,450+) · `kareshafaa_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
 `scripts/ui_smoke.py` / `scripts/ui_responsive_check.py` (optional Playwright: overflow + 44 px tap targets per role and device) · `ITERATIONS.md` build log with self-assessments · `Makefile` · `Dockerfile` · `.env.example`
 
 ## Logo and brand

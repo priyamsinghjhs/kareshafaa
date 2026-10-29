@@ -461,3 +461,6 @@ label.check input { width: 20px; height: 20px; margin: 0; flex: none; }
 .ack-form { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: flex-end; margin-top: var(--s-2); }
 .ack-form label { flex: 1 1 260px; }
 .sum-text { white-space: pre-wrap; font-size: var(--fs-sm); background: var(--c-surface-2); padding: var(--s-2); border-radius: var(--r-sm); max-width: 100%; overflow-wrap: anywhere; }
+.result-meta { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--s-2); font-size: var(--fs-sm); }
+.result-meta div { padding: var(--s-1) var(--s-2); }
+.cov-banner { margin: var(--s-3) 0; }
