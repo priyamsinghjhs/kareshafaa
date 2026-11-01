@@ -49,6 +49,8 @@ def prefill(message_id: int, actor: Actor = Depends(require("patient:register"))
             eid = None
         if eid:
             vals.setdefault("national_id", eid)
+            vals.setdefault("id_type", "emirates_id")
+            vals.setdefault("id_number", eid)
         elif re.fullmatch(r"[A-Za-z0-9-]{4,40}", i) and not i.upper().startswith("SYN-"):
             vals.setdefault("mrn", i.upper())
     if msg.birth_year and not vals.get("birth_date"):

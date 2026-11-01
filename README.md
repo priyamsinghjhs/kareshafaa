@@ -135,11 +135,14 @@ Every person signs in with a username and password; there is no account list on 
 * **Admin manages accounts, never clinical data**: no patient search, record or registration (403 on the API, no menu).
 * **Clinical lead** reads every record (oversight) but has no registration or admin tools.
 * **Registration rules** (same in the browser and on the server, `kareshafaa/services/patients.py`): full date of birth
-  (birth year and age band are derived from it for older reports), Emirates ID `784-YYYY-NNNNNNN-C` with its check digit,
+  (birth year and age band are derived from it for older reports), optional identity document: Emirates ID `784-YYYY-NNNNNNN-C` with its check digit (numeric keypad, dashes added while
+  typing), or a passport / GCC national ID / other document (5–20 letters and digits, text keyboard; a passport's issuing
+  country defaults to the nationality, a GCC ID must be from a GCC country),
   UAE mobile/landline or international `+` number, email, address, emirate (region required inside Abu Dhabi
   emirate), nationality, sex, language, registered health centre and GP (the GP must work at that centre).
 * **Duplicate check before every new record**: the same Emirates ID is refused (the attempt is audited) and the
-  existing record is linked; a similar name with the same date of birth needs a written reason ("Create anyway"),
+  existing record is linked; a similar name with the same date of birth, or the same passport / GCC / other document (type + country + number),
+  needs a written reason ("Create anyway"),
   stored on the record and in the audit trail.
 * **Result details**: every result keeps who ordered it, where the person was screened and when the specimen
   was taken (HL7 ORC-12/OBR-16, ORC-21/PV1-3, OBR-7; FHIR ServiceRequest requester / location, Specimen collection;

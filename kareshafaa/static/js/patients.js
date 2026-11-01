@@ -14,7 +14,8 @@ const PF = {
   demographics(v = {}) { const O = PF.opts;
     return `<div class="form-pair">${PF.inp("given_name", "Given name(s)", v.given_name, { required: true, attrs: 'maxlength="100" autocomplete="off"' })}${PF.inp("family_name", "Family name", v.family_name, { required: true, attrs: 'maxlength="100" autocomplete="off"' })}</div>
       <div class="form-pair">${PF.inp("birth_date", "Date of birth", v.birth_date, { type: "date", required: true, attrs: `max="${PF.today()}" min="1900-01-01"` })}${PF.sel("gender", "Sex", Object.entries(O.genders), v.gender, { required: true })}</div>
-      <div class="form-pair">${PF.inp("national_id", "Emirates ID", v.national_id, { hint: "784-YYYY-NNNNNNN-C. Checked against the card's check digit.", attrs: 'inputmode="numeric" maxlength="25" autocomplete="off" placeholder="784-1985-1234567-1"' })}${PF.sel("nationality", "Nationality", O.nationalities.map(n => [n, n]), v.nationality, { required: true })}</div>
+      ${PF.sel("nationality", "Nationality", O.nationalities.map(n => [n, n]), v.nationality, { required: true })}
+      ${PF.idDoc(v)}
       ${PF.sel("language", "Preferred language", Object.entries(O.languages), v.language, { required: true, hint: "Messages and the patient app use this language (Tagalog and Malayalam: English with an interpreter call)." })}`; },
   contact(v = {}) { const O = PF.opts;
     return `<div class="form-pair">${PF.inp("phone", "Mobile phone", v.phone, { type: "tel", hint: "UAE mobile 05X XXX XXXX, or international with +", attrs: 'inputmode="tel" maxlength="30" autocomplete="off"' })}${PF.inp("email", "Email", v.email, { type: "email", attrs: 'maxlength="200" autocomplete="off"' })}</div>
@@ -35,9 +36,37 @@ const PF = {
       <div class="checks">${PF.chk("nok_is_guardian", "Legal guardian (decides for the patient)", v.nok_is_guardian)}</div>
       ${PF.sel("proxy_consent", "May we discuss screening and follow-up with this person?", [["permit", "Yes, the patient agrees"], ["deny", "No, the patient does not agree"]], v.proxy_consent, { blank: "Not asked yet", hint: "Ask the patient. Needs the next of kin's name and phone." }).replace('<select name="proxy_consent"', `<select name="proxy_consent" data-was="${W.esc(v.proxy_consent || "")}"`)}
       ${PF.inp("proxy_note", "How did the patient give this answer?", v.proxy_note, { hint: "Needed when you record an answer (at least 10 characters), e.g. in person at the clinic.", attrs: 'maxlength="500"' })}`; },
+  // identity document: the keyboard, hint and checks follow the type (Emirates ID keeps its check digit)
+  ID_UI: {
+    emirates_id: { label: "Emirates ID number", hint: "784-YYYY-NNNNNNN-C. Dashes are added for you; checked against the card's check digit.", attrs: 'inputmode="numeric" pattern="[0-9-]*" maxlength="18" placeholder="784-1985-1234567-1"' },
+    passport: { label: "Passport number", hint: "5 to 20 letters and digits, as printed on the passport.", attrs: 'inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="24" placeholder="e.g. AB1234567"' },
+    gcc_id: { label: "GCC national ID number", hint: "5 to 20 letters and digits, as printed on the card.", attrs: 'inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="24"' },
+    other: { label: "Document number", hint: "5 to 20 letters and digits.", attrs: 'inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="24"' },
+  },
+  idDoc(v = {}) { const O = PF.opts, t = v.id_type || "", U = PF.ID_UI[t] || PF.ID_UI.other;
+    const countries = t === "gcc_id" ? O.gcc_countries : O.nationalities.filter(n => n !== "Other");
+    const country = v.id_country || (t === "passport" && v.nationality !== "Other" ? v.nationality : t === "gcc_id" && O.gcc_countries.includes(v.nationality) ? v.nationality : "");
+    return `<fieldset class="id-doc" data-id-doc><legend class="small">Identity document (optional)</legend>
+      <div class="form-pair">${PF.sel("id_type", "Document type", Object.entries(O.id_types), t, { blank: "None given", hint: "Visitors and new arrivals: choose Passport." })}
+      <div data-id-number ${t ? "" : "hidden"}>${PF.inp("id_number", U.label, v.id_number, { hint: U.hint, attrs: U.attrs + ' autocomplete="off"' })}</div></div>
+      <div data-id-country ${t && t !== "emirates_id" ? "" : "hidden"}>${PF.sel("id_country", "Issuing country", countries.map(n => [n, n]), country, { blank: t === "passport" ? "Same as nationality" : "Choose…", mark: t === "passport" || t === "gcc_id" })}</div></fieldset>`; },
+  eidFormat(raw) { const d = String(raw || "").replace(/\D/g, "").slice(0, 15), g = [3, 4, 7, 1], out = []; let i = 0;
+    for (const n of g) { if (i >= d.length) break; out.push(d.slice(i, i + n)); i += n; } return out.join("-"); },
+  wireIdDoc(form) { const box = form.querySelector("[data-id-doc]"); if (!box) return;
+    const typ = box.querySelector('[name="id_type"]'), nat = form.querySelector('[name="nationality"]');
+    const wireNum = () => { const num = box.querySelector('[name="id_number"]'); if (!num) return;
+      num.oninput = () => { if (typ.value !== "emirates_id") return; const end = num.selectionStart === num.value.length; const f = PF.eidFormat(num.value);
+        if (end && f !== num.value) num.value = f; }; };
+    typ.onchange = () => { const cur = { id_type: typ.value, id_number: "", id_country: "", nationality: nat ? nat.value : "" };
+      const keep = box.querySelector('[name="id_number"]'); if (keep && keep.value.trim() && (typ.value !== "emirates_id") === (keep.dataset.t !== "emirates_id")) cur.id_number = keep.value;
+      box.outerHTML = PF.idDoc(cur); PF.wireIdDoc(form); const n = form.querySelector('[name="id_number"]'); if (n) { n.dataset.t = typ.value; n.focus(); } };
+    const n0 = box.querySelector('[name="id_number"]'); if (n0) n0.dataset.t = typ.value;
+    wireNum(); },
+  docOk(raw) { const s = String(raw || "").replace(/[\s-]/g, "").toUpperCase(); return !s || /^[A-Z0-9]{5,20}$/.test(s); },
   wire(form) { const O = PF.opts;
     const em = form.querySelector('[name="emirate"]'), reg = form.querySelector("[data-region]");
     if (em && reg) em.addEventListener("change", () => { reg.hidden = em.value !== "Abu Dhabi" && em.value !== ""; });
+    PF.wireIdDoc(form);
     const py = form.querySelector('[name="insurance_payer"]'), pol = form.querySelector("[data-policy]");
     if (py && pol) py.addEventListener("change", () => { pol.hidden = py.value === "self_pay"; });
     const hc = form.querySelector('[name="managing_org_id"]'), gp = form.querySelector('[name="gp_id"]');
@@ -57,6 +86,14 @@ const PF = {
   check(form) { const g = n => form.querySelector(`[name="${n}"]`), bad = [];
     const mark = (n, ok, msg) => { const el = g(n); if (!el) return; el.setAttribute("aria-invalid", ok ? "false" : "true"); if (!ok) bad.push(msg); };
     if (g("national_id")) mark("national_id", PF.eidOk(g("national_id").value), "Emirates ID: 15 digits starting 784 with a valid check digit (784-YYYY-NNNNNNN-C).");
+    const it = g("id_type"), inum = g("id_number");
+    if (it && inum && inum.closest("[hidden]") === null) {
+      if (it.value === "emirates_id") mark("id_number", PF.eidOk(inum.value), "Emirates ID: 15 digits starting 784 with a valid check digit (784-YYYY-NNNNNNN-C).");
+      else if (it.value) mark("id_number", PF.docOk(inum.value), `${PF.ID_UI[it.value].label}: 5 to 20 letters and digits.`);
+      const ic = g("id_country");
+      if (it.value === "passport" && inum.value.trim() && ic && !ic.value && (!g("nationality") || !g("nationality").value || g("nationality").value === "Other")) mark("id_country", false, "Passport: choose the issuing country.");
+      if (it.value === "gcc_id" && inum.value.trim() && ic && !ic.value && !(g("nationality") && PF.opts.gcc_countries.includes(g("nationality").value))) mark("id_country", false, "GCC national ID: choose the issuing country.");
+    }
     if (g("phone")) mark("phone", PF.phoneOk(g("phone").value), "Mobile phone: use 05X XXX XXXX or an international number starting with +.");
     if (g("email") && g("email").value.trim()) mark("email", /^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/.test(g("email").value.trim()), "Email address is not valid.");
     const ch = g("preferred_channel"); if (ch && ["sms", "whatsapp", "phone"].includes(ch.value) && g("phone") && !g("phone").value.trim()) bad.push("A phone number is needed for the preferred channel chosen.");
@@ -75,11 +112,11 @@ const PF = {
       else { const v = String(fd.get(k) ?? "").trim(); out[k] = v === "" ? null : v; } });
     if (keys.includes("emirate") && out.emirate && out.emirate !== "Abu Dhabi") out.region = null;
     return out; },
-  KEYS: { demographics: ["given_name", "family_name", "birth_date", "gender", "national_id", "nationality", "language"],
+  KEYS: { demographics: ["given_name", "family_name", "birth_date", "gender", "id_type", "id_number", "id_country", "nationality", "language"],
     contact: ["phone", "email", "address_line", "city", "emirate", "region", "preferred_channel", "whatsapp", "has_smartphone"],
     care: ["managing_org_id", "gp_id"],
     insurance: ["insurance_payer", "insurance_plan", "insurance_member_id", "insurance_valid_to"],
     contacts: ["nok_name", "nok_relationship", "nok_phone", "nok_is_guardian", "proxy_consent", "proxy_note"] },
-  dupList(cands) { return `<ul class="dup-list">${cands.map(c => `<li><a href="/patients/${c.id}" target="_blank" rel="noopener"><b>${W.esc(c.name)}</b></a> · ${W.esc(c.mrn)} · born ${W.esc(c.birth_date || c.birth_year || "–")}${c.emirates_id ? " · EID " + W.esc(c.emirates_id) : ""} <span class="chip sla-amber">${W.esc(c.why)}</span></li>`).join("")}</ul>`; },
+  dupList(cands) { return `<ul class="dup-list">${cands.map(c => `<li><a href="/patients/${c.id}" target="_blank" rel="noopener"><b>${W.esc(c.name)}</b></a> · ${W.esc(c.mrn)} · born ${W.esc(c.birth_date || c.birth_year || "–")}${c.document ? " · " + W.esc(c.document.label) + " " + W.esc(c.document.number) : (c.emirates_id ? " · EID " + W.esc(c.emirates_id) : "")} <span class="chip sla-amber">${W.esc(c.why)}</span></li>`).join("")}</ul>`; },
   label(map, k) { return (map && map[k]) || k || "–"; },
 };

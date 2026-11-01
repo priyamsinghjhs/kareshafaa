@@ -63,10 +63,10 @@ Status: **OK** = stored and shown back before this audit; **FIXED** = was lost o
 
 | Form | Fields | Endpoint | Stored in | Status |
 |---|---|---|---|---|
-| Register a patient | given / family name, date of birth, sex, Emirates ID, nationality, language, mobile, email, WhatsApp, smartphone, preferred channel, address, city, emirate, region, health centre, GP, MRN, consent to be contacted + note | `POST /api/patients` | **`patients.birth_date/nationality/phone/email/address_line/city/emirate/preferred_channel/registration_source/registered_at/registered_by`** (new), `patients.*`, `consents` | NEW (API test + browser check) |
+| Register a patient | given / family name, date of birth, sex, identity document (type, number, issuing country), nationality, language, mobile, email, WhatsApp, smartphone, preferred channel, address, city, emirate, region, health centre, GP, MRN, consent to be contacted + note | `POST /api/patients` | **`patients.birth_date/nationality/phone/email/address_line/city/emirate/preferred_channel/registration_source/registered_at/registered_by`** (new), `patients.*`, `consents` | NEW (API test + browser check) |
 | Possible duplicate: create anyway | reason (≥ 10 characters) | `POST /api/patients` (`create_anyway_reason`) | **`patients.duplicate_override_reason`** (new), audit | NEW |
 | Register from an unmatched result | as above, pre-filled from the message | `GET /api/patients/prefill`, `POST /api/patients` (`from_message_id`) | **`ingest_messages.patient_demographics`** (new), `patients`, `diagnostic_reports`, `cases` | NEW |
-| Edit personal details | names, date of birth, sex, Emirates ID, nationality, language | `POST /api/patients/{id}/demographics` | `patients` (+ `updated_at/updated_by`) | NEW |
+| Edit personal details | names, date of birth, sex, identity document (type, number, issuing country), nationality, language | `POST /api/patients/{id}/demographics` | `patients` (+ `updated_at/updated_by`) | NEW |
 | Edit contact details | mobile, email, WhatsApp, smartphone, preferred channel, address, city, emirate, region | `POST /api/patients/{id}/contact` | `patients` | NEW |
 | Edit health centre / GP | health centre, GP | `POST /api/patients/{id}/care` | `patients.managing_org_id/gp_id` | NEW |
 | Patient app account: send code | channel (SMS / in person) | `POST /api/patients/{id}/account-invite` | **`patient_invites`** (new: hashes, last 4, channel, expiry), `users` (patient role, no password), `communications` (simulated SMS, code masked) | NEW |
@@ -107,3 +107,12 @@ Analyst: no data-changing controls offered (checked in the browser). Patients ne
 Dialogs keep typed values on a failed save and show the error inline; every form shows a friendly field message
 ("Please check note: at least 10 characters"), disables its button while saving (no double submits), and the new
 columns are audited and added by the safe start-up migration (verified on PostgreSQL).
+
+### Identity documents (passport, GCC national ID, other)
+
+| Form | Fields | Endpoint | Stored in | Status |
+|---|---|---|---|---|
+| Register a patient / Edit personal details: **Identity document** | document type (Emirates ID, Passport, GCC national ID, Other), number, issuing country | `POST /api/patients`, `POST /api/patients/{id}/demographics` | Emirates ID → `patients.national_id` (check digit validated, hard duplicate block); passport / GCC / other → **`patients.id_type/id_number/id_country`** (new, nullable; stored upper-case without spaces or dashes, 5–20 letters and digits) | NEW (`tests/test_identity_documents.py`, `test_zz_data_capture`, browser check `id_type_passport`) |
+
+Rules (server and form match): the ID stays optional. The Emirates ID field uses a numeric keypad and inserts the dashes while typing (784-YYYY-NNNNNNN-C). The other types use a text keyboard with capitals. A passport's issuing country defaults to the nationality. A GCC national ID must come from Saudi Arabia, Kuwait, Bahrain, Qatar or Oman. If another record has the same type, country and number, registration shows a strong possible duplicate and needs the audited "create anyway" reason (`patient.duplicate_override`). An edit that creates the same clash is saved with a warning and audited as `patient.duplicate_document`. Search matches the exact document number. The FHIR Patient gives MRN, Emirates ID (NI), passport (PPN) or GCC ID (NI) identifiers, with the issuing country as the assigner. Mobile numbers accept international `+` formats (e.g. +62 812 3456 7890).
+

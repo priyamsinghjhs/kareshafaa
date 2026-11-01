@@ -34,11 +34,34 @@ APPT_STATUS = {"booked": "booked", "fulfilled": "fulfilled", "noshow": "noshow",
 _COMM_STATUS = {"completed": "completed", "failed": "stopped", "not-done": "not-done", "pending": "in-progress",
                 "on-hold": "on-hold", "stopped": "stopped"}
 
+_V2_0203 = "http://terminology.hl7.org/CodeSystem/v2-0203"
+_DOC_CODE = {"passport": ("PPN", "Passport number"), "gcc_id": ("NI", "National unique individual identifier"),
+             "other": (None, None)}  # no specific v2-0203 code: text only
+
+
+def _patient_identifiers(p) -> list[dict]:
+    """MRN, Emirates ID and any passport / GCC / other document (type coded with HL7 v2-0203, issuer = country)."""
+    out = [{"system": "https://kareshafaa.example/mrn", "value": p.mrn,
+            "type": {"coding": [{"system": _V2_0203, "code": "MR", "display": "Medical record number"}]}}]
+    if p.national_id:
+        out.append({"system": "https://kareshafaa.example/emirates-id", "value": p.national_id,
+                    "type": {"coding": [{"system": _V2_0203, "code": "NI", "display": "National unique individual identifier"}],
+                             "text": "Emirates ID"}, "assigner": {"display": "United Arab Emirates"}})
+    if p.id_number and p.id_type in _DOC_CODE:
+        code, disp = _DOC_CODE[p.id_type]
+        coding = [{"system": _V2_0203, "code": code, "display": disp}] if p.id_type != "other" else []
+        out.append({"system": f"https://kareshafaa.example/{p.id_type.replace('_', '-')}", "value": p.id_number,
+                    "type": {**({"coding": coding} if coding else {}),
+                             "text": {"passport": "Passport", "gcc_id": "GCC national ID", "other": "Identity document"}[p.id_type]},
+                    **({"assigner": {"display": p.id_country}} if p.id_country else {})})
+    return out
+
+
 def export_case(db: Session, case: Case, include_audit: bool = True) -> dict:
     p = case.patient
     res: list[dict] = []
     res.append({"resourceType": "Patient", "id": str(p.id), "meta": {"tag": [{"system": SYS + "/data", "code": "synthetic"}]},
-                "identifier": [{"system": "https://kareshafaa.example/mrn", "value": p.mrn}],
+                "identifier": _patient_identifiers(p),
                 "name": [{"family": p.family_name, "given": [p.given_name]}], "gender": p.gender,
                 "birthDate": str(p.birth_year), "deceasedBoolean": p.deceased,
                 "communication": [{"language": {"coding": [{"system": "urn:ietf:bcp:47", "code": p.language}]},

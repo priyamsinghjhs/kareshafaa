@@ -94,6 +94,22 @@ def run(max_examples: int = 5) -> dict:
                         bad("patient.emirates_id_valid_checksum", p.id)
                 except Exception:  # noqa: BLE001
                     bad("patient.emirates_id_valid_checksum", p.id)
+            # identity document (passport / GCC national ID / other); the Emirates ID lives in national_id
+            if p.id_type is not None:
+                checked["patient_documents"] += 1
+                if p.id_type not in pt.ID_TYPES:
+                    bad("patient.document_type_valid", p.id)
+                if p.id_type == "emirates_id" and (p.id_number or not p.national_id):
+                    bad("patient.document_type_matches_number", p.id)
+                if p.id_type != "emirates_id":
+                    if not p.id_number or not pt.DOC_NUMBER_RE.match(p.id_number):
+                        bad("patient.document_number_format", p.id)
+                    if p.id_type in ("passport", "gcc_id") and not p.id_country:
+                        bad("patient.document_has_country", p.id)
+                    if p.id_type == "gcc_id" and p.id_country and p.id_country not in pt.GCC_COUNTRIES:
+                        bad("patient.gcc_id_country_is_gcc", p.id)
+            elif p.id_number or p.id_country:
+                bad("patient.document_type_matches_number", p.id)
             if p.birth_date is not None and p.birth_year != p.birth_date.year:
                 bad("patient.birth_year_matches_birth_date", p.id)
             if p.registered_at is not None and not p.registered_by:
@@ -496,6 +512,8 @@ INVARIANTS = [
     "comms.sent_message_single_language", "patient.emirates_id_valid_checksum", "patient.birth_year_matches_birth_date",
     "patient.registration_has_registrar", "patient.registered_emirates_id_unique",
     "account.patient_role_linked_to_patient", "account.invite_used_only_while_valid",
+    "patient.document_type_valid", "patient.document_type_matches_number", "patient.document_number_format",
+    "patient.document_has_country", "patient.gcc_id_country_is_gcc",
     "coverage.payer_valid", "coverage.insurer_has_member_number", "coverage.relationship_valid",
     "coverage.guardian_named", "coverage.proxy_consent_has_contact",
     "report.future_specimen_reviewed", "report.orderer_site_clean", "self_service.changed_by_patient_role",

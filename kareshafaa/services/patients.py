@@ -38,6 +38,9 @@ from .errors import DomainError, Forbidden, Invalid, NotFound
 EMIRATES = ("Abu Dhabi", "Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah")
 ABU_DHABI_REGIONS = ("Abu Dhabi", "Al Ain", "Al Dhafra")  # programme regions used by analytics / directory
 GENDERS = {"female": "Female", "male": "Male", "other": "Other", "unknown": "Not stated"}
+ID_TYPES = {"emirates_id": "Emirates ID", "passport": "Passport", "gcc_id": "GCC national ID", "other": "Other document"}
+GCC_COUNTRIES = ("Saudi Arabia", "Kuwait", "Bahrain", "Qatar", "Oman")
+DOC_NUMBER_RE = re.compile(r"^[A-Z0-9]{5,20}$")
 LANGUAGES = {"ar": "Arabic", "en": "English", "hi": "Hindi", "ur": "Urdu", "tl": "Tagalog", "ml": "Malayalam"}
 CHANNELS = {"app": "App", "sms": "SMS", "whatsapp": "WhatsApp", "phone": "Phone call"}
 # country -> nationality_group (the fairness-monitoring groups used across analytics and the model card)
@@ -93,6 +96,22 @@ def normalise_emirates_id(raw: str | None) -> str | None:
     if emirates_id_check_digit(digits[:14]) != int(digits[14]):
         raise Invalid("Emirates ID check digit does not match - please check the number on the card")
     return f"{digits[:3]}-{digits[3:7]}-{digits[7:14]}-{digits[14]}"
+
+
+def normalise_document_number(raw: str | None, label: str = "document number") -> str | None:
+    """Passport / GCC ID / other: letters and digits only, 5-20 characters, stored in capitals (spaces and dashes
+    typed between groups are dropped, as printed numbers often contain them)."""
+    if raw is None or not str(raw).strip():
+        return None
+    s = re.sub(r"[\s-]", "", str(raw)).upper()
+    if not DOC_NUMBER_RE.match(s):
+        raise Invalid(f"{label}: 5 to 20 letters and digits")
+    return s
+
+
+def doc_label(id_type: str | None, country: str | None = None) -> str:
+    name = ID_TYPES.get(id_type or "", "Identity document")
+    return f"{name} ({country})" if country and id_type != "emirates_id" else name
 
 
 def normalise_phone(raw: str | None) -> str | None:
@@ -206,8 +225,12 @@ def can_write_patient(db: Session, actor: Actor, p: Patient) -> bool:
 
 # ------------------------------------------------------------------------------------------------ duplicates
 def duplicate_candidates(db: Session, *, given: str, family: str, birth_date: date | None,
-                         national_id: str | None = None, exclude_id: int | None = None) -> dict[str, list[dict]]:
+                         national_id: str | None = None, exclude_id: int | None = None,
+                         document: tuple[str | None, str | None, str | None] | None = None) -> dict[str, list[dict]]:
     out: dict[str, list[dict]] = {"same_emirates_id": [], "similar": []}
+    if document:  # same passport / GCC ID / other document: a strong candidate (needs the audited "create anyway")
+        for p in same_document(db, *document, exclude_id=exclude_id):
+            out["similar"].append(_brief(p, f"Same {doc_label(document[0], document[1]).lower()} number", 1.0))
     if national_id:
         for p in db.scalars(select(Patient).where(Patient.national_id == national_id)):
             if p.id != exclude_id:
@@ -217,7 +240,7 @@ def duplicate_candidates(db: Session, *, given: str, family: str, birth_date: da
         q = select(Patient).where(or_(Patient.birth_date == birth_date,
                                       (Patient.birth_date.is_(None)) & (Patient.birth_year == birth_date.year)))
         for p in db.scalars(q.limit(5000)):
-            if p.id == exclude_id or any(c["id"] == p.id for c in out["same_emirates_id"]):
+            if p.id == exclude_id or any(c["id"] == p.id for c in out["same_emirates_id"] + out["similar"]):
                 continue
             score = name_similarity(full, f"{p.given_name} {p.family_name}")
             fam = name_similarity(family, p.family_name)
@@ -225,15 +248,25 @@ def duplicate_candidates(db: Session, *, given: str, family: str, birth_date: da
             if score >= 0.82 or (fam >= 0.9 and initial):
                 why = ("Same date of birth" if p.birth_date == birth_date else "Same birth year") + " and a similar name"
                 out["similar"].append(_brief(p, why, round(score, 2)))
-        out["similar"].sort(key=lambda c: -c["score"])
-        out["similar"] = out["similar"][:10]
+    out["similar"].sort(key=lambda c: -c["score"])
+    out["similar"] = out["similar"][:10]
     return out
 
 
 def _brief(p: Patient, why: str, score: float) -> dict:
     return {"id": p.id, "mrn": p.mrn, "name": f"{p.given_name} {p.family_name}",
             "birth_date": p.birth_date.isoformat() if p.birth_date else None, "birth_year": p.birth_year,
-            "emirates_id": _mask_eid(p.national_id), "why": why, "score": score}
+            "emirates_id": _mask_eid(p.national_id), "document": doc_brief(p), "why": why, "score": score}
+
+
+def doc_brief(p: Patient) -> dict | None:
+    """Identity document for lists (number masked: last 4 characters)."""
+    if p.id_type and p.id_type != "emirates_id" and p.id_number:
+        return {"type": p.id_type, "label": doc_label(p.id_type, p.id_country),
+                "number": "•" * max(0, len(p.id_number) - 4) + p.id_number[-4:]}
+    if p.national_id:
+        return {"type": "emirates_id", "label": "Emirates ID", "number": _mask_eid(p.national_id)}
+    return None
 
 
 def _mask_eid(eid: str | None) -> str | None:
@@ -248,7 +281,8 @@ class Fields:
     warnings: list[str]
 
 
-DEMOGRAPHIC_KEYS = ("given_name", "family_name", "birth_date", "gender", "national_id", "nationality", "language")
+DEMOGRAPHIC_KEYS = ("given_name", "family_name", "birth_date", "gender", "national_id", "id_type", "id_number",
+                    "id_country", "nationality", "language")
 CONTACT_KEYS = ("phone", "email", "address_line", "city", "emirate", "region", "preferred_channel", "whatsapp",
                 "has_smartphone")
 CARE_KEYS = ("managing_org_id", "gp_id", "mrn")
@@ -285,6 +319,8 @@ def validate_fields(db: Session, data: dict[str, Any], *, partial: bool = False,
         if n not in NATIONALITIES:
             raise Invalid("nationality: choose a country from the list (or Other)")
         v["nationality"] = n
+    if has("id_type") and (not partial or any(k in data for k in ("id_type", "id_number", "id_country"))):
+        _validate_document(data, v, warn)
     if has("language"):
         lg = (data.get("language") or "").strip()
         if lg not in LANGUAGES:
@@ -365,7 +401,15 @@ def _apply(p: Patient, v: dict[str, Any], now: datetime) -> list[str]:
         p.phone_valid = bool(p.phone)
         if not p.phone:
             p.whatsapp = False
+    sync_identity(p)
     return changed
+
+
+def sync_identity(p: Patient) -> None:
+    """id_type names the passport / GCC / other document in id_number; without one it is emirates_id when an
+    Emirates ID is on file (national_id), else empty. Both documents can be on file at the same time."""
+    if not p.id_number:
+        p.id_type, p.id_country = ("emirates_id" if p.national_id else None), None
 
 
 def _new_mrn(db: Session) -> str:
@@ -373,6 +417,55 @@ def _new_mrn(db: Session) -> str:
         m = f"KS-{secrets.randbelow(10**8):08d}"
         if db.scalar(select(Patient.id).where(Patient.mrn == m)) is None:
             return m
+
+
+def _validate_document(data: dict[str, Any], v: dict[str, Any], warn: list[str]) -> None:
+    """Identity document chosen on the form. Emirates ID -> national_id (check digit); others -> id_number/id_country.
+    An empty number means "no document of this type" (the ID stays optional)."""
+    t = (data.get("id_type") or "").strip() or None
+    raw = data.get("id_number")
+    if t is None:
+        if raw not in (None, "") and str(raw).strip():
+            raise Invalid("identity document: choose the document type")
+        if "id_type" in data:  # "no document" chosen: clear the non-Emirates document (an Emirates ID is kept)
+            v.update({"id_type": None, "id_number": None, "id_country": None})
+        return
+    if t not in ID_TYPES:
+        raise Invalid("identity document type must be Emirates ID, Passport, GCC national ID or Other")
+    if t == "emirates_id":
+        nid = normalise_emirates_id(raw if raw not in (None, "") else data.get("national_id"))
+        v["national_id"] = nid
+        bd = v.get("birth_date")
+        if nid and bd and int(nid[4:8]) != bd.year:
+            warn.append("The year in the Emirates ID differs from the year of birth - please check both.")
+        return
+    label = {"passport": "passport number", "gcc_id": "GCC national ID number"}.get(t, "document number")
+    num = normalise_document_number(raw, label)
+    if num is None:
+        v.update({"id_type": None, "id_number": None, "id_country": None})
+        return
+    country = (data.get("id_country") or "").strip() or None
+    nat = v.get("nationality") or data.get("nationality") or data.get("_existing_nationality")
+    if t == "passport" and country is None:
+        country = nat if nat in NATIONALITIES and nat != "Other" else None
+        if country is None:
+            raise Invalid("passport: choose the issuing country")
+    if t == "gcc_id":
+        country = country or (nat if nat in GCC_COUNTRIES else None)
+        if country not in GCC_COUNTRIES:
+            raise Invalid(f"GCC national ID: issuing country must be one of {', '.join(GCC_COUNTRIES)}")
+    if country is not None and country not in NATIONALITIES:
+        raise Invalid("issuing country: choose a country from the list")
+    v.update({"id_type": t, "id_number": num, "id_country": country})
+
+
+def same_document(db: Session, id_type: str | None, id_country: str | None, id_number: str | None,
+                  exclude_id: int | None = None) -> list[Patient]:
+    if not id_type or id_type == "emirates_id" or not id_number:
+        return []
+    q = select(Patient).where(Patient.id_type == id_type, Patient.id_number == id_number)
+    q = q.where(Patient.id_country == id_country) if id_country else q.where(Patient.id_country.is_(None))
+    return [p for p in db.scalars(q) if p.id != exclude_id]
 
 
 def register_patient(db: Session, actor: Actor, data: dict[str, Any], *, create_anyway_reason: str | None = None,
@@ -392,7 +485,8 @@ def register_patient(db: Session, actor: Actor, data: dict[str, Any], *, create_
         if db.scalar(select(Patient.id).where(Patient.mrn == mrn)) is not None:
             raise Conflict("that MRN is already used by another patient record", "duplicate_mrn")
     dups = duplicate_candidates(db, given=v["given_name"], family=v["family_name"], birth_date=v["birth_date"],
-                                national_id=v.get("national_id"))
+                                national_id=v.get("national_id"),
+                                document=(v.get("id_type"), v.get("id_country"), v.get("id_number")))
     if dups["same_emirates_id"]:
         audit.record(db, actor, "E", "patient.register_blocked", entity_type="Patient", ts=now,
                      detail={"reason": "same_emirates_id", "existing": [c["id"] for c in dups["same_emirates_id"]]})
@@ -446,7 +540,8 @@ def update_patient(db: Session, actor: Actor, p: Patient, data: dict[str, Any], 
         raise Invalid(f"fields not editable in this section: {', '.join(sorted(unknown))}")
     if section == "care" and "gp_id" in data and "managing_org_id" not in data:
         data = {**data, "managing_org_id": p.managing_org_id}
-    f = validate_fields(db, {**data, "_existing_phone": p.phone if "phone" not in data else None}, partial=True, now=now)
+    f = validate_fields(db, {**data, "_existing_phone": p.phone if "phone" not in data else None,
+                             "_existing_nationality": p.nationality}, partial=True, now=now)
     v = f.values
     if section == "demographics":
         nid = v.get("national_id", p.national_id)
@@ -456,6 +551,13 @@ def update_patient(db: Session, actor: Actor, p: Patient, data: dict[str, Any], 
             if same:
                 raise Conflict("This Emirates ID is already on another patient record.", "duplicate_emirates_id",
                                candidates=same)
+    if v.get("id_number") and (v["id_number"], v.get("id_country"), v.get("id_type")) != (p.id_number, p.id_country, p.id_type):
+        other = same_document(db, v.get("id_type"), v.get("id_country"), v["id_number"], exclude_id=p.id)
+        if other:  # saved (the same document can be shared by mistake on either record), but flagged and audited
+            f.warnings.append(f"Another record has the same {doc_label(v.get('id_type'), v.get('id_country')).lower()} "
+                              f"number: {', '.join(o.mrn for o in other[:3])}. Check both records.")
+            audit.record(db, actor, "E", "patient.duplicate_document", entity_type="Patient", entity_id=p.id, ts=now,
+                         detail={"id_type": v.get("id_type"), "others": [o.id for o in other]})
     changed = _apply(p, v, now)
     if changed:
         p.updated_at, p.updated_by = now, actor.display
@@ -481,6 +583,9 @@ def search_patients(db: Session, actor: Actor, q: str, limit: int = 30) -> list[
     elif len(digits) >= 5:
         conds.append(func.replace(Patient.national_id, "-", "").like(f"%{digits}%"))
         conds.append(Patient.phone.like(f"%{digits[-9:]}%"))
+    doc = re.sub(r"[\s-]", "", q).upper()
+    if 5 <= len(doc) <= 20 and doc.isalnum():  # passport / GCC ID / other document number: exact match
+        conds.append(Patient.id_number == doc)
     rows = db.scalars(select(Patient).where(or_(*conds)).order_by(Patient.family_name, Patient.given_name).limit(400))
     out = []
     for p in rows:
@@ -497,7 +602,8 @@ def patient_row(db: Session, p: Patient) -> dict:
                                                                          Case.state != "closed")) or 0
     return {"id": p.id, "mrn": p.mrn, "name": f"{p.given_name} {p.family_name}", "gender": p.gender,
             "birth_date": p.birth_date.isoformat() if p.birth_date else None, "birth_year": p.birth_year,
-            "emirates_id": _mask_eid(p.national_id), "phone": p.phone, "health_centre": org.name if org else None,
+            "emirates_id": _mask_eid(p.national_id), "document": doc_brief(p), "phone": p.phone,
+            "health_centre": org.name if org else None,
             "open_cases": open_cases, "deceased": p.deceased, "sample": (p.mrn or "").startswith("SYN-")}
 
 
@@ -553,6 +659,11 @@ def build_patient_record(db: Session, actor: Actor, p: Patient, now: datetime | 
                          "birth_date": _iso(p.birth_date), "birth_year": p.birth_year, "age": age,
                          "age_estimated": p.birth_date is None, "gender": p.gender,
                          "national_id": p.national_id, "nationality": p.nationality,
+                         "id_type": p.id_type or ("emirates_id" if p.national_id else None),
+                         "id_number": p.id_number or p.national_id, "id_country": p.id_country,
+                         "other_document": (
+                             {"type": p.id_type, "label": doc_label(p.id_type, p.id_country), "number": p.id_number}
+                             if p.id_number else None),
                          "nationality_group": p.nationality_group, "language": p.language},
         "contact": {"phone": p.phone, "email": p.email, "address_line": p.address_line, "city": p.city,
                     "emirate": p.emirate or ("Abu Dhabi" if p.region in ABU_DHABI_REGIONS else None), "region": p.region, "preferred_channel": p.preferred_channel,
@@ -603,6 +714,7 @@ def options(db: Session) -> dict[str, Any]:
     gps = db.scalars(select(Practitioner).where(Practitioner.role == "gp", Practitioner.active.is_(True),
                                                 Practitioner.is_pool.is_(False)).order_by(Practitioner.name)).all()
     return {"emirates": list(EMIRATES), "abu_dhabi_regions": list(ABU_DHABI_REGIONS), "genders": GENDERS,
+            "id_types": ID_TYPES, "gcc_countries": list(GCC_COUNTRIES),
             "languages": LANGUAGES, "channels": CHANNELS, "nationalities": sorted(NATIONALITIES, key=lambda n: (n == "Other", n)),
             "health_centres": [{"id": o.id, "name": o.name, "region": o.region} for o in orgs],
             "gps": [{"id": g.id, "name": g.name, "org_id": g.org_id} for g in gps], **_coverage_options()}

@@ -261,6 +261,9 @@ class PatientCreateIn(_In):
     birth_date: _date
     gender: Literal["female", "male", "other", "unknown"]
     national_id: str | None = _S(25)
+    id_type: Literal["emirates_id", "passport", "gcc_id", "other"] | None = None
+    id_number: str | None = _S(30)
+    id_country: str | None = _S(80)
     nationality: str = Field(min_length=1, max_length=80)
     language: Literal["ar", "en", "hi", "ur", "tl", "ml"]
     phone: str | None = _S(30)
@@ -298,6 +301,9 @@ class PatientDemographicsIn(_In):
     birth_date: _date | None = None
     gender: Literal["female", "male", "other", "unknown"] | None = None
     national_id: str | None = _S(25)
+    id_type: Literal["emirates_id", "passport", "gcc_id", "other"] | None = None
+    id_number: str | None = _S(30)
+    id_country: str | None = _S(80)
     nationality: str | None = _S(80)
     language: Literal["ar", "en", "hi", "ur", "tl", "ml"] | None = None
 

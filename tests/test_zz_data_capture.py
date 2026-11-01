@@ -344,3 +344,26 @@ def test_patient_self_service_contact_capture(client, db, staff, as_user):
     assert (p.phone, p.email, p.region, p.preferred_channel, p.whatsapp) == ("+971507651111", "self.capture@example.ae", "Al Ain", "sms", False)
     bad = P(client, ph, "/api/me/contact", phone="0001")
     assert bad.status_code == 422 and db.get(Patient, pid).phone == "+971507651111"
+
+
+def test_identity_document_type_number_and_country_capture(client, db, staff):
+    co = staff["co"]
+    given, family = _name_tok(), _name_tok()
+    r = P(client, co, "/api/patients", given_name=given, family_name=family, birth_date="1990-02-03", gender="male",
+          nationality="Indonesia", id_type="passport", id_number="zc 4455 6677", language="en", phone="+62 812 3456 7890",
+          emirate="Dubai", managing_org_id=4)
+    assert r.status_code == 200, r.text
+    pid = r.json()["patient_id"]; rd = f"/api/patients/{pid}"
+    captured(client, db, r, "ZC44556677", rd, h=co)
+    d = client.get(rd, headers=co).json()["demographics"]
+    assert (d["id_type"], d["id_number"], d["id_country"]) == ("passport", "ZC44556677", "Indonesia")
+    assert client.get(rd, headers=co).json()["contact"]["phone"] == "+6281234567890"
+    # edit: GCC national ID from Oman, stored and shown back
+    r = P(client, co, f"{rd}/demographics", id_type="gcc_id", id_number="OM99887766", id_country="Oman")
+    captured(client, db, r, "OM99887766", rd, h=co)
+    db.expire_all(); p = db.get(Patient, pid)
+    assert (p.id_type, p.id_country) == ("gcc_id", "Oman")
+    # invalid input is rejected with the same rule the form shows, and nothing changes
+    bad = P(client, co, f"{rd}/demographics", id_type="other", id_number="AB/12")
+    assert bad.status_code == 422 and "5 to 20 letters and digits" in bad.text
+    db.expire_all(); assert db.get(Patient, pid).id_number == "OM99887766"

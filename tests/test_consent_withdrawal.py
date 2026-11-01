@@ -71,8 +71,13 @@ def test_sweep_sends_no_reminder_after_withdrawal(db, new_case):
     c.state = step.state = "patient_notified"
     wf.record_consent(db, c.patient, _patient_actor(c.patient), "care_coordination", "deny")
     sla_h = (step.due_at - step.started_at).total_seconds() / 3600
-    cands = [step.started_at + timedelta(minutes=m) for m in range(int(sla_h * 30), int(sla_h * 57), 10)]
-    day = next(t for t in cands if 10 <= to_local(t).hour < 18)
+    cands = [step.started_at + timedelta(minutes=m) for m in range(int(sla_h * 6), int(sla_h * 60), 10)]
+    # a working-hours time that the alert policy itself puts at reminder level 1 (the SLA clock pauses at
+    # weekends, so a wall-clock fraction alone fails when the case opens on a Saturday or Sunday)
+    from kareshafaa.services.escalation import required_level
+    from kareshafaa.sla import SlaLookup
+    sla = SlaLookup.load(db)
+    day = next(t for t in cands if 10 <= to_local(t).hour < 18 and required_level(c, step, t, sla)[0] == 1)
     out = run_sweep(db, now=day, case_ids=[cid])
     assert out["reminders"] == 1  # the staff-facing L1 still fires
     sent = db.scalars(select(Communication).where(Communication.case_id == cid,

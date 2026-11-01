@@ -154,6 +154,11 @@ class Patient(Base):  # FHIR Patient (synthetic only)
     updated_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
     # why the record was created although a similar record (same date of birth, similar name) exists - audited too
     duplicate_override_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # ---- identity document (added 1 Nov 2026): Emirates ID stays in national_id (compatibility, cross-record checks);
+    # passport / GCC national ID / other documents for visitors and new arrivals use id_number + id_country
+    id_type: Mapped[str | None] = mapped_column(String(20), nullable=True)  # emirates_id | passport | gcc_id | other
+    id_number: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)  # non-Emirates ID documents
+    id_country: Mapped[str | None] = mapped_column(String(80), nullable=True)  # issuing country (NATIONALITIES name)
     # ---- insurance (payer) and next of kin / guardian (services/coverage.py); all nullable, additive
     insurance_payer: Mapped[str | None] = mapped_column(String(30), nullable=True)  # coverage.PAYERS key
     insurance_plan: Mapped[str | None] = mapped_column(String(80), nullable=True)

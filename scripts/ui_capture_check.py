@@ -472,7 +472,11 @@ def run():
             f = p.locator("#regf")
             f.locator("[name=given_name]").fill(given); f.locator("[name=family_name]").fill(family)
             f.locator("[name=birth_date]").fill("1979-09-21"); f.locator("[name=gender]").select_option("female")
-            f.locator("[name=national_id]").fill(eid); f.locator("[name=nationality]").select_option("Jordan")
+            f.locator("[name=nationality]").select_option("Jordan"); f.locator("[name=id_type]").select_option("emirates_id")
+            num = f.locator("[name=id_number]"); num.press_sequentially(eid.replace("-", ""), delay=5)
+            RES.append({"field": "Emirates ID: numeric keypad, dashes inserted while typing", "page": "/patients/new",
+                        "inputmode": num.get_attribute("inputmode"), "value": num.input_value(),
+                        "ok": num.get_attribute("inputmode") == "numeric" and num.input_value() == eid})
             f.locator("[name=language]").select_option("ur"); f.locator("[name=phone]").fill("052 123 4567")
             f.locator("[name=email]").fill(f"ui{RUN}{VIEW}@example.ae"); f.locator("[name=whatsapp]").check()
             f.locator("[name=preferred_channel]").select_option("whatsapp"); f.locator("[name=address_line]").fill(addr)
@@ -508,6 +512,32 @@ def run():
             p.reload(); p.wait_for_selector("#pr-root .case-head")
             record("Possible duplicate: create-anyway reason", "/patients/new", t, None, p.inner_text("#pr-root"), {"values_kept_on_warning": kept})
             S["dup_patient"] = int(re.search(r"/patients/(\d+)", p.url).group(1))
+            # visitor with a passport: text keyboard, issuing country defaults to the nationality, international mobile
+            p.goto(BASE + "/patients/new"); p.wait_for_selector("#regf"); f = p.locator("#regf")
+            pg, pf_ = f"Ana{letters}", f"Passport{letters}{VIEW[:3]}"
+            ppn = f"cx{RUN[-7:]}{'d' if VIEW == 'desktop' else 'm'}"
+            f.locator("[name=given_name]").fill(pg); f.locator("[name=family_name]").fill(pf_)
+            f.locator("[name=birth_date]").fill("1991-04-02"); f.locator("[name=gender]").select_option("female")
+            f.locator("[name=nationality]").select_option("Canada"); f.locator("[name=id_type]").select_option("passport")
+            num = f.locator("[name=id_number]"); num.press_sequentially(ppn, delay=5)
+            ctry = f.locator("[name=id_country]").input_value()
+            f.locator("[name=language]").select_option("en"); f.locator("[name=phone]").fill("+62 812 3456 7890")
+            f.locator("[name=region]").select_option("Abu Dhabi"); f.locator("[name=managing_org_id]").select_option(index=1)
+            attrs = {k: num.get_attribute(k) for k in ("inputmode", "autocapitalize", "type")}
+            RES.append({"field": "Passport: text keyboard with capitals, country defaults to nationality, +62 mobile accepted in the field",
+                        "page": "/patients/new", "attrs": attrs, "country": ctry, "phone_type": f.locator("[name=phone]").get_attribute("type"),
+                        "ok": attrs["inputmode"] == "text" and attrs["autocapitalize"] == "characters" and ctry == "Canada"
+                        and f.locator("[name=phone]").get_attribute("type") == "tel" and f.locator("[name=phone]").input_value().startswith("+62")})
+            f.locator("[name=id_type]").scroll_into_view_if_needed(); co.shot("id_type_passport")
+            f.locator("button[type=submit]").click()
+            p.wait_for_url(re.compile(r".*/patients/\d+.*"), timeout=15000); p.wait_for_selector("#pr-root .case-head", timeout=15000)
+            ppid = int(re.search(r"/patients/(\d+)", p.url).group(1)); p.reload(); p.wait_for_selector("#pr-root .case-head"); txt = p.inner_text("#pr-root")
+            row = q1("select id_type, id_number, id_country, national_id, phone from patients where id=?", ppid)
+            RES.append({"field": "Register patient: passport type, number, issuing country, international mobile", "page": "/patients/new", "stored": row,
+                        "ok": row == ("passport", ppn.upper(), "Canada", None, "+6281234567890") and ppn.upper() in txt and "passport (canada)" in txt.lower()})
+            co.shot("id_type_record")
+            p.goto(BASE + "/patients?q=" + ppn.upper()); p.wait_for_timeout(2500)
+            RES.append({"field": "Patient search by passport number", "page": "/patients", "ok": pg in p.inner_text("#plist")})
         step("patients", patients_flow)
 
         def invite_flow():  # Patient app account: code given in person -> patient activates on /activate (ar)
