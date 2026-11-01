@@ -477,3 +477,10 @@ label.check input { width: 20px; height: 20px; margin: 0; flex: none; }
 .id-doc { border: 0; padding: 0; margin: 0; min-width: 0; }
 .id-doc legend { padding: 0; margin-bottom: var(--s-1); font-weight: 650; color: var(--c-muted); }
 [data-id-number] input[autocapitalize="characters"] { text-transform: uppercase; }
+/* focus / scrollIntoView never leaves a field (or the hint under it) behind the sticky top bar or the fixed bottom nav */
+html { scroll-padding-top: calc(var(--topbar-h) + var(--safe-t) + 8px); scroll-padding-bottom: calc(var(--bottomnav-h) + var(--safe-b) + 12px); }
+input, select, textarea { scroll-margin-bottom: 3.5em; }
+@media (min-width: 600px) { html { scroll-padding-bottom: 12px; } }
+.field-err { display: block; color: var(--c-danger); font-weight: 600; margin-top: 4px; }
+/* identity document: type and number each get the full width on phones so the whole number stays visible */
+@media (max-width: 519px) { .id-doc .form-pair { grid-template-columns: minmax(0, 1fr); } }

@@ -116,3 +116,16 @@ columns are audited and added by the safe start-up migration (verified on Postgr
 
 Rules (server and form match): the ID stays optional. The Emirates ID field uses a numeric keypad and inserts the dashes while typing (784-YYYY-NNNNNNN-C). The other types use a text keyboard with capitals. A passport's issuing country defaults to the nationality. A GCC national ID must come from Saudi Arabia, Kuwait, Bahrain, Qatar or Oman. If another record has the same type, country and number, registration shows a strong possible duplicate and needs the audited "create anyway" reason (`patient.duplicate_override`). An edit that creates the same clash is saved with a warning and audited as `patient.duplicate_document`. Search matches the exact document number. The FHIR Patient gives MRN, Emirates ID (NI), passport (PPN) or GCC ID (NI) identifiers, with the issuing country as the assigner. Mobile numbers accept international `+` formats (e.g. +62 812 3456 7890).
 
+Phone check (`scripts/eid_mobile_e2e.py`, Chrome on Android emulation, 412×915, against a local copy, never the live site). It covers:
+- typing an Emirates ID slowly and fast;
+- backspacing over a dash;
+- editing or inserting digits in the middle;
+- pasting with or without dashes and spaces;
+- the check-digit error shown under the field, with values kept;
+- a full registration, then the record, search with and without dashes, and the audit entry;
+- refusal of a duplicate Emirates ID;
+- editing the Emirates ID;
+- fields and hints staying clear of the bottom nav.
+
+`tests/test_eid_input.py` runs the same form helpers in node. It also checks that every `pattern` attribute compiles with the `v` flag that Chrome uses.
+

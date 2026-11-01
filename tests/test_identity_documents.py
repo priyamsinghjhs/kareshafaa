@@ -133,4 +133,4 @@ def test_page_offers_document_types(client, as_user):
     o = client.get("/api/patients/options", headers=as_user(CO)).json()
     assert list(o["id_types"]) == ["emirates_id", "passport", "gcc_id", "other"] and "Oman" in o["gcc_countries"]
     js = client.get("/static/js/patients.js").text
-    assert 'inputmode="numeric" pattern="[0-9-]*"' in js and 'autocapitalize="characters"' in js
+    assert 'inputmode="numeric" pattern="[0-9\\\\-]*"' in js and 'autocapitalize="characters"' in js

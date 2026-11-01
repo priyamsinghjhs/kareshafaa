@@ -38,7 +38,7 @@ const PF = {
       ${PF.inp("proxy_note", "How did the patient give this answer?", v.proxy_note, { hint: "Needed when you record an answer (at least 10 characters), e.g. in person at the clinic.", attrs: 'maxlength="500"' })}`; },
   // identity document: the keyboard, hint and checks follow the type (Emirates ID keeps its check digit)
   ID_UI: {
-    emirates_id: { label: "Emirates ID number", hint: "784-YYYY-NNNNNNN-C. Dashes are added for you; checked against the card's check digit.", attrs: 'inputmode="numeric" pattern="[0-9-]*" maxlength="18" placeholder="784-1985-1234567-1"' },
+    emirates_id: { label: "Emirates ID number", hint: "784-YYYY-NNNNNNN-C. Dashes are added for you; checked against the card's check digit.", attrs: 'inputmode="numeric" pattern="[0-9\\-]*" maxlength="18" placeholder="784-1985-1234567-3"' },
     passport: { label: "Passport number", hint: "5 to 20 letters and digits, as printed on the passport.", attrs: 'inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="24" placeholder="e.g. AB1234567"' },
     gcc_id: { label: "GCC national ID number", hint: "5 to 20 letters and digits, as printed on the card.", attrs: 'inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="24"' },
     other: { label: "Document number", hint: "5 to 20 letters and digits.", attrs: 'inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="24"' },
@@ -52,11 +52,24 @@ const PF = {
       <div data-id-country ${t && t !== "emirates_id" ? "" : "hidden"}>${PF.sel("id_country", "Issuing country", countries.map(n => [n, n]), country, { blank: t === "passport" ? "Same as nationality" : "Choose…", mark: t === "passport" || t === "gcc_id" })}</div></fieldset>`; },
   eidFormat(raw) { const d = String(raw || "").replace(/\D/g, "").slice(0, 15), g = [3, 4, 7, 1], out = []; let i = 0;
     for (const n of g) { if (i >= d.length) break; out.push(d.slice(i, i + n)); i += n; } return out.join("-"); },
+  // Emirates ID typing: dashes are inserted as the groups fill, wherever the caret is (typing, deleting, editing in the
+  // middle, pasting with spaces or dashes); backspace on a dash removes the digit before it so the user is never stuck.
+  eidCaret(f, n) { if (n <= 0) return 0; let seen = 0; for (let i = 0; i < f.length; i++) if (/\d/.test(f[i]) && ++seen === n) return i + 1; return f.length; },
+  eidSet(num, digits, n) { const f = PF.eidFormat(digits), c = PF.eidCaret(f, Math.min(n, 15)); num.value = f;
+    if (document.activeElement === num) num.setSelectionRange(c, c); },
+  eidInput(num, active) { const dn = s => s.replace(/\D/g, "");
+    num.addEventListener("beforeinput", e => { if (!active()) return; const s = num.selectionStart, t = num.selectionEnd, v = num.value;
+      if (s !== t || s == null) return; const n = dn(v.slice(0, s)).length, d = dn(v);
+      if (e.inputType === "deleteContentBackward" && v[s - 1] === "-" && n > 0) { e.preventDefault(); PF.eidSet(num, d.slice(0, n - 1) + d.slice(n), n - 1); num.dispatchEvent(new Event("change", { bubbles: true })); }
+      else if (e.inputType === "deleteContentForward" && v[s] === "-") { e.preventDefault(); PF.eidSet(num, d.slice(0, n) + d.slice(n + 1), n); num.dispatchEvent(new Event("change", { bubbles: true })); } });
+    num.addEventListener("paste", e => { if (!active()) return; const txt = (e.clipboardData || window.clipboardData)?.getData("text") || ""; e.preventDefault();
+      const v = num.value, s = num.selectionStart ?? v.length, t = num.selectionEnd ?? v.length, before = dn(v.slice(0, s)), ins = dn(txt);
+      PF.eidSet(num, before + ins + dn(v.slice(t)), before.length + ins.length); num.dispatchEvent(new Event("input", { bubbles: true })); });
+    num.addEventListener("input", () => { if (!active()) return; const v = num.value, s = num.selectionStart ?? v.length;
+      const f = PF.eidFormat(v); if (f !== v) PF.eidSet(num, v, dn(v.slice(0, s)).length); }); },
   wireIdDoc(form) { const box = form.querySelector("[data-id-doc]"); if (!box) return;
     const typ = box.querySelector('[name="id_type"]'), nat = form.querySelector('[name="nationality"]');
-    const wireNum = () => { const num = box.querySelector('[name="id_number"]'); if (!num) return;
-      num.oninput = () => { if (typ.value !== "emirates_id") return; const end = num.selectionStart === num.value.length; const f = PF.eidFormat(num.value);
-        if (end && f !== num.value) num.value = f; }; };
+    const wireNum = () => { const num = box.querySelector('[name="id_number"]'); if (num) PF.eidInput(num, () => typ.value === "emirates_id"); };
     typ.onchange = () => { const cur = { id_type: typ.value, id_number: "", id_country: "", nationality: nat ? nat.value : "" };
       const keep = box.querySelector('[name="id_number"]'); if (keep && keep.value.trim() && (typ.value !== "emirates_id") === (keep.dataset.t !== "emirates_id")) cur.id_number = keep.value;
       box.outerHTML = PF.idDoc(cur); PF.wireIdDoc(form); const n = form.querySelector('[name="id_number"]'); if (n) { n.dataset.t = typ.value; n.focus(); } };
@@ -74,21 +87,31 @@ const PF = {
       gp.innerHTML = `<option value="">Not yet assigned</option>` + O.gps.filter(g => g.org_id === +hc.value).map(g => `<option value="${g.id}" ${String(g.id) === cur ? "selected" : ""}>${W.esc(g.name)}</option>`).join(""); });
   },
   // the same rules as the server, so mistakes show before saving (the server still decides)
-  eidOk(raw) { const d = String(raw || "").replace(/[\s-]/g, ""); if (!d) return true;
-    if (!/^784\d{12}$/.test(d)) return false; let t = 0;
-    [...d.slice(0, 14)].reverse().forEach((c, i) => { let x = +c * (i % 2 === 0 ? 2 : 1); t += x > 9 ? x - 9 : x; });
-    return (10 - t % 10) % 10 === +d[14]; },
+  // same rules and wording as services/patients.normalise_emirates_id
+  eidWhy(raw) { const d = String(raw || "").replace(/[\s-]/g, ""); if (!d) return "";
+    if (!/^\d{15}$/.test(d)) return "Emirates ID must have 15 digits, in the form 784-YYYY-NNNNNNN-C.";
+    if (!d.startsWith("784")) return "Emirates ID must start with 784.";
+    const y = +d.slice(3, 7); if (y < 1900 || y > new Date().getFullYear()) return "Emirates ID year part (digits 4-7) is not a valid year.";
+    let t = 0; [...d.slice(0, 14)].reverse().forEach((c, i) => { let x = +c * (i % 2 === 0 ? 2 : 1); t += x > 9 ? x - 9 : x; });
+    return (10 - t % 10) % 10 === +d[14] ? "" : "Emirates ID check digit does not match - please check the number on the card."; },
+  eidOk(raw) { return !PF.eidWhy(raw); },
   phoneOk(raw) { let s = String(raw || "").trim(); if (!s) return true; const plus = s.startsWith("+") || s.startsWith("00");
     let d = s.replace(/[\s().-]/g, "").replace(/^\+/, ""); if (d.startsWith("00")) d = d.slice(2); if (!/^\d+$/.test(d)) return false;
     if (!plus && d.startsWith("0") && (d.length === 9 || d.length === 10)) d = "971" + d.slice(1); else if (!plus && d.length === 9 && d[0] === "5") d = "971" + d;
     if (d.startsWith("971")) return /^5\d{8}$/.test(d.slice(3)) || /^[2-9]\d{7}$/.test(d.slice(3));
     return plus && d.length >= 8 && d.length <= 15; },
+  // the reason shown right under the field (as well as in the summary by the buttons), cleared as soon as it is edited
+  fieldError(el, msg) { const id = `err-${el.name}`; let e = el.parentElement.querySelector(`#${id}`);
+    if (!msg) { if (e) e.remove(); return; }
+    if (!e) { e = document.createElement("span"); e.id = id; e.className = "field-err small"; e.dir = "auto"; el.after(e);
+      el.setAttribute("aria-describedby", id); el.addEventListener("input", () => { e.remove(); el.removeAttribute("aria-invalid"); }, { once: true }); }
+    e.textContent = msg; },
   check(form) { const g = n => form.querySelector(`[name="${n}"]`), bad = [];
-    const mark = (n, ok, msg) => { const el = g(n); if (!el) return; el.setAttribute("aria-invalid", ok ? "false" : "true"); if (!ok) bad.push(msg); };
-    if (g("national_id")) mark("national_id", PF.eidOk(g("national_id").value), "Emirates ID: 15 digits starting 784 with a valid check digit (784-YYYY-NNNNNNN-C).");
+    const mark = (n, ok, msg) => { const el = g(n); if (!el) return; el.setAttribute("aria-invalid", ok ? "false" : "true"); PF.fieldError(el, ok ? "" : msg); if (!ok) bad.push(msg); };
+    if (g("national_id")) mark("national_id", PF.eidOk(g("national_id").value), PF.eidWhy(g("national_id").value));
     const it = g("id_type"), inum = g("id_number");
     if (it && inum && inum.closest("[hidden]") === null) {
-      if (it.value === "emirates_id") mark("id_number", PF.eidOk(inum.value), "Emirates ID: 15 digits starting 784 with a valid check digit (784-YYYY-NNNNNNN-C).");
+      if (it.value === "emirates_id") mark("id_number", PF.eidOk(inum.value), PF.eidWhy(inum.value));
       else if (it.value) mark("id_number", PF.docOk(inum.value), `${PF.ID_UI[it.value].label}: 5 to 20 letters and digits.`);
       const ic = g("id_country");
       if (it.value === "passport" && inum.value.trim() && ic && !ic.value && (!g("nationality") || !g("nationality").value || g("nationality").value === "Other")) mark("id_country", false, "Passport: choose the issuing country.");
