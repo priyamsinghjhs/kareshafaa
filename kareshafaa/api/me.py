@@ -37,6 +37,13 @@ def _my_case(db: Session, actor: Actor) -> Case:
     return c
 
 
+def _page_words(lang: str) -> dict:
+    from ..comms.self_service_text import SELF_TEXT
+
+    T = SELF_TEXT.get(lang) or SELF_TEXT["en"]
+    return {k: T[k] for k in ("hello", "jump", "appts_title", "results_title", "msgs_title", "details_title", "consent_title")}
+
+
 @router.get("/case")
 def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends(require("self:read")),
             db: Session = Depends(get_db)) -> dict:
@@ -49,7 +56,7 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
     if c is None:  # a newly registered patient: the account works before any result needs follow-up
         p0 = db.get(Patient, actor.patient_id)
         lang = lang if lang in SUPPORTED_LANGUAGES else (saved or comms.comm_language(p0))
-        return {"display_language_saved": saved, "case_id": None, "language": lang, "rtl": lang in RTL_LANGUAGES,
+        return {"display_language_saved": saved, "case_id": None, "self": _page_words(lang), "language": lang, "rtl": lang in RTL_LANGUAGES,
                 "languages": SUPPORTED_LANGUAGES, "ui": UI_TEXT[lang],
                 "label": "KareShafaa prototype - please check anything important with your care team",
                 "patient": {"given_name": p0.given_name, "preferred_language": p0.language}}
@@ -65,7 +72,13 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
                                                        ConsultRequest.requester_type == "patient")).all()
     variant = "standard"
     lock = pa.status(db, c, actor)
+    told = S(c.state) not in (S.ISSUED, S.TRIAGED)  # the care team has not told the patient yet: no result detail
+    closed = S(c.state) == S.CLOSED
+    tb_form = comms.teach_back_form(c, lang)
+    if not told:
+        tb_form = {**tb_form, "questions": []}
     return {
+        "told": told, "closed": closed, "self": _page_words(lang),
         "display_language_saved": saved,
         "label": "KareShafaa prototype - please check anything important with your care team", "case_id": c.id, "language": lang, "rtl": lang in RTL_LANGUAGES,
         "languages": SUPPORTED_LANGUAGES, "ui": UI_TEXT[lang],
@@ -73,8 +86,10 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
         "interpreter_notice": INTERPRETER_NOTICE.get(p.language) or (
             "This explanation is not yet available in your language. A navigator will call you with an interpreter."
             if prog.get("translation_pending") else None),
-        "programme": prog["name"], "meaning": prog["meaning"], "next_step": prog["next_step"],
-        "timeframe": TIMEFRAME[lang][c.tier], "urgency": URGENCY[lang][c.tier],
+        "programme": prog["name"], "meaning": prog["meaning"] if told else None,
+        "next_step": prog["next_step"] if told and not closed else None,
+        "timeframe": TIMEFRAME[lang][c.tier] if told and not closed else None,
+        "urgency": URGENCY[lang][c.tier] if told and not closed else None,
         "reassurance": TEMPLATES[lang]["reassurance"][variant],
         "care_team": {"owner": coord.name.split(" (")[0] if coord and not coord.is_pool else "Care coordination team",
                       "role": (coord.role if coord else "coordinator")},
@@ -83,10 +98,10 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
         # once answers are sent the form is locked; it opens again only after this patient asks to change them
         "can_teach_back": (S(c.state) == S.PATIENT_NOTIFIED and not lock["submitted"]) or lock["reopened"],
         "answers_lock": lock,
-        "teach_back": comms.teach_back_form(c, lang),
+        "teach_back": tb_form,
         "last_teach_back": {"passed": tb.passed, "score": tb.score, "total": tb.total} if tb else None,
         "messages": [{"channel": m.channel, "sent_at": m.sent_at.isoformat(), "content": m.content,
-                      "category": m.category} for m in msgs[-10:]],
+                      "category": m.category} for m in [m for m in msgs if m.channel != "phone"][-10:]],  # call notes are staff-only
         "consults": [{"question": q.question, "status": q.status, "response": q.response} for q in consults],
         "can_decline": S(c.state) in (S.PATIENT_NOTIFIED, S.ACKNOWLEDGED, S.CONFIRMATORY_TEST, S.CONSULTATION, S.NO_SHOW),
     }
@@ -189,9 +204,48 @@ def my_profile(lang: str | None = Query(None, max_length=5), actor: Actor = Depe
     u = db.get(User, actor.user_id) if actor.user_id else None
     lang = lang if lang in SUPPORTED_LANGUAGES else ((u.ui_language if u is not None else None) or comms.comm_language(p))
     lang = lang if lang in SELF_TEXT else "en"
+    from ..services import patient_loop as pl
+
     return {"language": lang, "rtl": lang in RTL_LANGUAGES, "text": SELF_TEXT[lang], "contact": ss.contact_view(p),
-            "options": {"emirates": list(EMIRATES), "regions": list(ABU_DHABI_REGIONS)},
-            "history": ss.history(db, actor, lang)}
+            "options": {"emirates": list(EMIRATES), "regions": list(ABU_DHABI_REGIONS), "barriers": list(pl.PATIENT_BARRIERS),
+                        "consent_scopes": list(pl.PATIENT_SCOPES)},
+            "history": ss.history(db, actor, lang),
+            "loop": [{**x, "programme_name": ss._prog_name(lang, x["programme"])} for x in pl.loop_view(db, actor)],
+            "messages": pl.messages_view(db, actor), "consent": pl.consent_view(db, actor),
+            "simulated_note": True}
+
+
+@router.post("/appointments/{appt_id}/confirm")
+def my_appointment_confirm(appt_id: int, actor: Actor = Depends(require("self:respond")),
+                           db: Session = Depends(get_db)) -> dict:
+    """'I will come': noted for the care team (audited); nothing else changes."""
+    from ..services import patient_loop as pl
+
+    r = pl.confirm_appointment(db, actor, appt_id)
+    db.commit()
+    return {"ok": True, "request_id": r.id}
+
+
+@router.post("/appointments/{appt_id}/change-request")
+def my_appointment_change(appt_id: int, body: sch.AppointmentChangeRequestIn,
+                          actor: Actor = Depends(require("self:respond")), db: Session = Depends(get_db)) -> dict:
+    """'Please change it': goes to the care team with what gets in the way. The appointment does NOT move."""
+    from ..services import patient_loop as pl
+
+    r = pl.request_change(db, actor, appt_id, body.barrier_code, body.note, body.preferred_times)
+    db.commit()
+    return {"ok": True, "request_id": r.id, "appointment_moved": False}
+
+
+@router.post("/contact-consent")
+def my_contact_consent(body: sch.ConsentIn, actor: Actor = Depends(require("self:respond")),
+                       db: Session = Depends(get_db)) -> dict:
+    """The patient's own contact / care-coordination consent (audited consent.recorded)."""
+    from ..services import patient_loop as pl
+
+    pl.record_own_consent(db, actor, body.scope, body.decision, body.note)
+    db.commit()
+    return {"ok": True, "consent": pl.consent_view(db, actor)}
 
 
 @router.post("/contact")

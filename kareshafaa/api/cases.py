@@ -251,6 +251,17 @@ def appointment_remind(case_id: int, actor: Actor = Depends(require("comm:send")
     return _done(db, c, actor)
 
 
+@router.post("/cases/{case_id}/appointment/requests/{request_id}/resolve")
+def appointment_request_resolve(case_id: int, request_id: int, body: sch.ReasonIn,
+                                actor: Actor = Depends(require("appointment:write")), db: Session = Depends(get_db)) -> dict:
+    """The patient's 'please change my appointment' request was dealt with without moving it (e.g. phoned)."""
+    from ..services.patient_loop import resolve_request
+
+    c = _load(db, actor, case_id)
+    resolve_request(db, c, actor, request_id, body.reason)
+    return _done(db, c, actor)
+
+
 @router.post("/cases/{case_id}/attendance")
 def attendance(case_id: int, body: sch.AttendanceIn, actor: Actor = Depends(require("appointment:write")),
                db: Session = Depends(get_db)) -> dict:

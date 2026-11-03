@@ -353,6 +353,26 @@ class Appointment(Base):  # FHIR Appointment
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class AppointmentRequest(Base):  # patient's answer to a booked appointment from the patient app (added 2 Nov 2026)
+    """'I will come' (confirm) or 'please change it' (change, with what gets in the way). A change request never moves
+    the appointment: it goes to the care team, who move or cancel it (which closes the request) or mark it handled."""
+    __tablename__ = "appointment_requests"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    appointment_id: Mapped[int] = mapped_column(ForeignKey("appointments.id"), index=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the patient's login
+    kind: Mapped[str] = mapped_column(String(20))  # confirm | change
+    barrier_code: Mapped[str | None] = mapped_column(String(40), nullable=True)  # workflow.NO_SHOW_BARRIERS
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)  # the patient's own words (optional)
+    preferred_times: Mapped[str | None] = mapped_column(String(200), nullable=True)  # e.g. "mornings, not Fridays"
+    status: Mapped[str] = mapped_column(String(20), default="open")  # open | handled (confirm rows: noted)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    handled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    handled_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    handled_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class CarePlan(Base):  # FHIR CarePlan - evidence that treatment or surveillance started
     __tablename__ = "care_plans"
     id: Mapped[int] = mapped_column(primary_key=True)

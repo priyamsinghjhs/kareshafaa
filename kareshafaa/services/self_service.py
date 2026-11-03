@@ -76,13 +76,29 @@ def history(db: Session, actor: Actor, lang: str, now: datetime | None = None) -
     cases = {c.id: c for c in db.scalars(select(Case).where(Case.patient_id == p.id))}
     appts = []
     if cases:
-        for a in db.scalars(select(Appointment).where(Appointment.case_id.in_(cases)).order_by(Appointment.start.desc()).limit(30)):
+        from .patient_loop import requests_for
+
+        rows = db.scalars(select(Appointment).where(Appointment.case_id.in_(cases)).order_by(Appointment.start.desc()).limit(30)).all()
+        moved_to = {a.rescheduled_from_id: a for a in rows if a.rescheduled_from_id}
+        reqs = requests_for(db, [a.id for a in rows])
+        for a in rows:
             c = cases[a.case_id]
             org = db.get(Organization, a.org_id)
             status = "upcoming" if a.status == "booked" and a.start >= now else ("past" if a.status == "booked" else a.status)
-            appts.append({"start": a.start.isoformat(), "place": org.name if org else None,
+            if a.status == "cancelled" and a.id in moved_to:
+                status = "moved"  # kept as history; the new time is its own entry
+            mine = reqs.get(a.id, [])
+            change = next((r for r in reversed(mine) if r.kind == "change"), None)
+            live = status == "upcoming" and c.state == S.APPOINTMENT_BOOKED.value
+            appts.append({"id": a.id, "start": a.start.isoformat(), "place": org.name if org else None,
                           "programme": _prog_name(lang, c.programme), "status": status,
-                          "status_text": T["appt_status"].get(status, status)})
+                          "status_text": T["appt_status"].get(status, status),
+                          "moved_to": moved_to[a.id].start.isoformat() if a.id in moved_to else None,
+                          "reminder_sent_at": a.reminder_sent_at.isoformat() if a.reminder_sent_at and a.status == "booked" else None,
+                          "confirmed": any(r.kind == "confirm" for r in mine),
+                          "change_request": {"status": change.status, "at": change.created_at.isoformat(),
+                                             "barrier_code": change.barrier_code} if change else None,
+                          "can_respond": live and not (change and change.status == "open")})
     results = []
     for r in db.scalars(select(DiagnosticReport).where(DiagnosticReport.patient_id == p.id)
                         .order_by(DiagnosticReport.issued_at.desc()).limit(30)):

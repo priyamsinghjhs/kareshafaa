@@ -60,6 +60,12 @@ def journey(db: Session, c: Case) -> list[dict]:
     return out
 
 
+def _patient_requests(db: Session, c: Case) -> list[dict]:
+    from ..services.patient_loop import staff_view
+
+    return staff_view(db, c)
+
+
 def _gp_summaries(db: Session, c: Case, actor: Actor, now: datetime) -> list[dict]:
     from ..services.gp_summary import for_case
 
@@ -138,6 +144,7 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
                           "cancelled_at": iso(a.cancelled_at), "cancelled_by": a.cancelled_by,
                           "rescheduled_from_id": a.rescheduled_from_id, "reminder_sent_at": iso(a.reminder_sent_at)}
                          for a in q(Appointment)],
+        "patient_requests": _patient_requests(db, c),
         "reviews": list(c.review_log or []),
         "lessons": [{"id": les.id, "kind": les.kind, "reason_code": les.reason_code, "detail": les.detail,
                      "state": les.state, "at": iso(les.created_at),

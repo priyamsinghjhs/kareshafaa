@@ -365,5 +365,11 @@ class AccountInviteIn(_In):
     channel: Literal["sms", "in_person"] = "sms"
 
 
+class AppointmentChangeRequestIn(_In):  # patient app: "please change my appointment" (never moves it)
+    barrier_code: str = Field(max_length=40)
+    note: str | None = Field(default=None, max_length=1000)
+    preferred_times: str | None = Field(default=None, max_length=200)
+
+
 class ReasonIn(_In):
     reason: str = Field(min_length=5, max_length=300)

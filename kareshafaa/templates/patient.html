@@ -30,28 +30,33 @@ async function load() {
   el.className = "patient-wrap" + (d.rtl ? " rtl" : "");
   el.dir = d.rtl ? "rtl" : "ltr"; el.lang = lang;  // real dir/lang attributes for screen readers and shaping
   const langBar = `<div class="lang-switch" role="group" aria-label="Language">${Object.entries(LANG_LABEL).map(([k, v]) => `<button class="${k === lang ? "" : "secondary outline"}" data-l="${k}" lang="${k}" aria-pressed="${k === lang}">${v}</button>`).join("")}</div>`;
-  if (d.case_id === null) { el.innerHTML = langBar + `<p class="small muted">${W.esc(d.label)}</p><div class="hero"><h2>${W.esc(d.patient.given_name)} – ${W.esc(x.noCaseTitle)}</h2><p>${W.esc(x.noCaseBody)}</p></div>` + '<div id="pprofile"></div>';
+  const T = d.self || {};
+  const jump = `<nav class="p-jump" aria-label="${W.esc(T.jump || "")}">${[["#self-appts", T.appts_title], ["#self-results", T.results_title], ["#pmsgs-card", T.msgs_title], d.case_id !== null ? ["#p-ask", tb ? tb.labels.talk : ""] : null, ["#self-details", T.details_title], ["#p-consent", T.consent_title]].filter(Boolean).map(([h, l]) => `<a href="${h}">${W.esc(l)}</a>`).join("")}</nav>`;
+  const head = langBar + `<p class="small muted">${W.esc(d.label)}</p>`
+    + `<section class="card p-hero" aria-labelledby="p-hello"><h2 id="p-hello">${W.esc((T.hello || "{name}").replace("{name}", d.patient.given_name))}</h2><div id="ploop"></div></section>` + jump;
+  if (d.case_id === null) { el.innerHTML = head + '<div id="pappts"></div><div id="pmsgs"></div><div id="pprofile"></div>';
     wireLang(el); window.renderProfile(d); return; }
-  el.innerHTML = `<div class="lang-switch" role="group" aria-label="Language">${Object.entries(LANG_LABEL).map(([k, v]) => `<button class="${k === lang ? "" : "secondary outline"}" data-l="${k}" lang="${k}" aria-pressed="${k === lang}">${v}</button>`).join("")}</div>
-   <p class="small muted">${W.esc(d.label)}</p>
-   ${d.interpreter_notice ? `<div class="card notice" role="note" lang="${W.esc(d.patient.preferred_language)}">🗣️ ${W.esc(d.interpreter_notice)}</div>` : ""}
-   <div class="hero"><h2>${W.esc(d.patient.given_name)} – ${W.esc(u.your_result)}: ${W.esc(d.programme)}</h2>
-     <p><b>${W.esc(u.urgency)}:</b> ${W.esc(d.urgency)}</p></div>
-   <div class="card"><h4>${W.esc(u.what_it_means)}</h4><p>${W.esc(d.meaning)}</p>
+  // the result itself is explained only once the care team has told the patient; after closure nothing stale is shown
+  const about = d.told && !d.closed ? `<div class="card" id="p-about"><h4>${W.esc(u.your_result)}: ${W.esc(d.programme)}</h4>
+     <h4>${W.esc(u.what_it_means)}</h4><p>${W.esc(d.meaning)}</p>
      <h4>${W.esc(u.next_step)}</h4><p><b>${W.esc(d.next_step)}</b> – ${W.esc(d.timeframe)}</p>
+     <p class="small"><b>${W.esc(u.urgency)}:</b> ${W.esc(d.urgency)}</p>
      <h4>${W.esc(u.your_team)}</h4><p>${W.esc(d.care_team.owner)}</p>
-     <p class="msg">${W.esc(d.reassurance)}</p></div>
-   <div class="card" id="tb"></div>
-   <div class="card"><h4>${W.esc(u.progress)}</h4><div class="stepper">${d.journey.filter(j => j.status !== "pending" || true).map(j => `<div class="st ${j.status}">${W.esc(j.label)}</div>`).join("")}</div></div>
-   <div class="card"><h4>${W.esc(tb.labels.talk)}</h4>${d.consults.map(c => `<div class="msg"><b>?</b> ${W.esc(c.question)}${c.response ? `<br><b>↳</b> ${W.esc(c.response)}` : ` <span class="chip sla-amber">…</span>`}</div>`).join("")}
+     <p class="msg">${W.esc(d.reassurance)}</p></div>` : "";
+  const showTb = d.can_teach_back || (d.answers_lock && d.answers_lock.submitted) || d.last_teach_back;
+  el.innerHTML = head + `
+   ${d.interpreter_notice ? `<div class="card notice" role="note" lang="${W.esc(d.patient.preferred_language)}">🗣️ ${W.esc(d.interpreter_notice)}</div>` : ""}
+   ${about}
+   ${showTb ? '<div class="card" id="tb"></div>' : ""}
+   <div id="pappts"></div><div id="pmsgs"></div>
+   <div class="card" id="p-ask"><h4>${W.esc(tb.labels.talk)}</h4>${d.consults.map(c => `<div class="msg"><b>?</b> ${W.esc(c.question)}${c.response ? `<br><b>↳</b> ${W.esc(c.response)}` : ` <span class="chip sla-amber">…</span>`}</div>`).join("")}
      <label for="q">${x.ask}<textarea id="q" rows="3" minlength="5" maxlength="4000"></textarea></label><div class="tb-actions"><button id="ask">${x.send}</button></div></div>
-   <div class="card"><h4>${W.esc(u.messages)}</h4>${d.messages.map(m => `<div class="msg"><span class="small muted">${W.dt(m.sent_at)} · ${W.esc(m.channel)}</span><br>${W.esc(m.content)}</div>`).join("") || "–"}</div>
-   ${d.can_decline ? `<details><summary class="small">${W.esc(tb.labels.decline)}</summary><label>${x.declineNote}<textarea id="dn" rows="2" maxlength="2000"></textarea></label><button class="secondary outline" id="decline" style="width:auto">${W.esc(tb.labels.decline)}</button></details>` : ""}
-   <div id="pprofile"></div>`;
+   <div id="pprofile"></div>
+   ${d.can_decline ? `<details class="p-decline"><summary class="small">${W.esc(tb.labels.decline)}</summary><label>${x.declineNote}<textarea id="dn" rows="2" maxlength="2000"></textarea></label><button class="secondary outline" id="decline" style="width:auto">${W.esc(tb.labels.decline)}</button></details>` : ""}`;
   document.getElementById("q").value = draftQ; const dn0 = document.getElementById("dn"); if (dn0) dn0.value = draftDn;
   // the chosen language is saved for the next visit (messages and calls keep the recorded language)
   wireLang(el); window.renderProfile(d);
-  const tbEl = document.getElementById("tb"), L = d.answers_lock || {}, sub = L.submitted;
+  const tbEl = document.getElementById("tb") || document.createElement("div"), L = d.answers_lock || {}, sub = L.submitted;
   const when = iso => { if (!iso) return "–"; const t = new Date(/Z|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + "Z");
     try { return t.toLocaleString({ en: "en-GB", ar: "ar-AE", hi: "hi-IN", ur: "ur-PK" }[lang] || undefined, { dateStyle: "medium", timeStyle: "short" }); } catch (e) { return W.dt(iso); } };
   const opts = (q, mark, ro) => q.options.map(o => { const on = mark && mark[q.id] === o.key;

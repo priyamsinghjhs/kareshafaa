@@ -60,6 +60,7 @@ function flags(r) {
   return [r.review_required ? `<span class="chip sla-red" title="${W.esc((r.review_reasons || []).join(", "))}">Needs review</span>` : "",
     r.escalation_level ? `<span class="chip sla-red" title="Escalation level ${r.escalation_level}">Escalated L${r.escalation_level}</span>` : "",
     r.call_task ? '<span class="chip flag">Call due</span>' : "", r.open_consult ? '<span class="chip flag">Question open</span>' : "",
+    r.patient_change_request ? '<span class="chip flag" title="The patient asked to change the appointment (it has not moved)">Patient asks to change appointment</span>' : "",
     r.transfer_pending ? '<span class="chip flag">Transfer</span>' : ""].join(" ");
 }
 function render() {

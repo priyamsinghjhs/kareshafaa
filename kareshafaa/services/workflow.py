@@ -870,6 +870,8 @@ def _cancel_appt(db: Session, case: Case, appt: Appointment, actor: Actor, reaso
                  note: str | None, now: datetime, event: str) -> None:
     appt.status, appt.cancelled_at, appt.cancelled_by = "cancelled", now, actor.display
     appt.cancel_reason, appt.cancel_note, appt.updated_at = reason_code, (note or "").strip() or None, now
+    from .patient_loop import close_open_requests  # the patient's "please change it" request is now dealt with
+    close_open_requests(db, appt, actor, "appointment moved" if event == "appointment.rescheduled" else "appointment cancelled", now)
     if reason_code == "patient_request":
         appt.barrier_code = barrier_code
         add_lesson(db, case, "appointment_change", barrier_code or "unknown", actor, now=now,
@@ -975,6 +977,9 @@ def record_attendance(db: Session, case: Case, actor: Actor, attended: bool, *, 
     appt.status = "fulfilled" if attended else "noshow"
     appt.barrier_code = None if attended else (barrier_code or "unknown")
     appt.updated_at = now
+    from .patient_loop import close_open_requests
+
+    close_open_requests(db, appt, actor, "attended" if attended else "no-show recorded", now)
     audit.record(db, actor, "U", "appointment." + appt.status, entity_type="Appointment", entity_id=appt.id,
                  case_id=case.id, ts=now, detail={"barrier": appt.barrier_code})
     if attended:

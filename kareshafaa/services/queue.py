@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import case as sa_case, or_, select
 from sqlalchemy.orm import Session, aliased
 
-from ..models import (Appointment, CallTask, Case, ConsultRequest, Escalation, Patient, Practitioner, ServiceRequest,
+from ..models import (Appointment, AppointmentRequest, CallTask, Case, ConsultRequest, Escalation, Patient, Practitioner, ServiceRequest,
                       StepTask, utcnow)
 from ..security import PROGRAMME_WIDE_ROLES, Actor
 from ..sla import SlaLookup, rag_status
@@ -150,9 +150,11 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
         return (rows, _org_scope(db, ids_),
                 set(db.scalars(select(CallTask.case_id).where(CallTask.status == "requested"))),
                 set(db.scalars(select(Escalation.case_id).where(Escalation.acknowledged_at.is_(None)))),
-                set(db.scalars(select(ConsultRequest.case_id).where(ConsultRequest.status == "requested"))))
+                set(db.scalars(select(ConsultRequest.case_id).where(ConsultRequest.status == "requested"))),
+                set(db.scalars(select(AppointmentRequest.case_id).where(AppointmentRequest.kind == "change",
+                                                                        AppointmentRequest.status == "open"))))
 
-    rows_db, orgs, open_calls, open_esc, open_consults = _BASE_CACHE.get((programme, search), load)
+    rows_db, orgs, open_calls, open_esc, open_consults, open_appt_req = _BASE_CACHE.get((programme, search), load)
     ids = [r[0] for r in rows_db]
     scoped = None
     if scoped_role:
@@ -175,7 +177,7 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
             "risk_score": None if risk is None else round(risk, 3), "risk_model_version": risk_v,
             "transfer_pending": pending is not None, "call_task": cid in open_calls,
             "open_escalation": cid in open_esc, "open_consult": cid in open_consults, "unassigned": unassigned,
-            "review_required": bool(review),
+            "review_required": bool(review), "patient_change_request": cid in open_appt_req,
         }
         member = {
             "all": True, "review": bool(review), "overdue": rag == "red", "unassigned": unassigned, "rejected": state == S.REFERRAL_REJECTED,

@@ -162,6 +162,22 @@ function patientCard() {
    ${r.score == null ? "" : `<details class="small"><summary>Why this estimate</summary>${(r.rationale || []).length ? `<ul>${r.rationale.map(w => `<li>${W.esc(w.text)} – <b>${w.direction}</b> the chance (${w.effect > 0 ? "+" : ""}${Math.round(w.effect * 100)} points)</li>`).join("")}</ul>` : "<p>No single factor stands out.</p>"}<p class="muted">${W.esc(r.ordering)}. ${W.esc(r.use)}.</p></details>`}</section>`;
 }
 
+// the patient's answers to a booked appointment (patient app): "I will come" / "please change it" (never moves it)
+const BARRIER_TEXT = { work: "work or study", transport: "transport", childcare: "childcare / family", cost: "cost", fear_anxiety: "worried / anxious",
+  language: "language / interpreter", ramadan_hours: "Ramadan or prayer times", unknown: "another reason" };
+function patientRequests() {
+  const R = (C.patient_requests || []).filter(r => r.kind === "change" && r.status === "open"), can = (W.me.permissions || []).includes("appointment:write");
+  const conf = (C.patient_requests || []).find(r => r.kind === "confirm" && C.appointments.some(a => a.id === r.appointment_id && a.status === "booked"));
+  if (!R.length && !conf) return "";
+  return `<section class="card notice" id="patient-requests" aria-labelledby="preq-h"><h2 id="preq-h" class="small" style="font-size:var(--fs-base)">From the patient app</h2>
+    ${R.map(r => `<div class="msg" data-req="${r.id}"><b>Asks to change the appointment</b> <span class="small muted">${W.dt(r.at)}</span>
+      <div class="small">What gets in the way: <b>${W.esc(BARRIER_TEXT[r.barrier_code] || r.barrier_code || "–")}</b></div>
+      ${r.preferred_times ? `<div class="small">Suits better: ${W.esc(r.preferred_times)}</div>` : ""}${r.note ? `<div class="small">“${W.esc(r.note)}”</div>` : ""}
+      <div class="small muted">The appointment has not moved. Move or cancel it (this closes the request), or mark it handled.</div>
+      ${can ? `<button class="secondary sm" data-resolve="${r.id}" type="button">Mark as handled</button>` : ""}</div>`).join("")}
+    ${conf ? `<p class="small">✓ Patient confirmed they will come (${W.dt(conf.at)}).</p>` : ""}</section>`;
+}
+
 function render() {
   const acts = C.actions, primary = acts.find(a => a.primary) || null, others = acts.filter(a => a !== primary);
   root().innerHTML = header() + `<div class="grid-2 case-grid"><div>
@@ -170,7 +186,7 @@ function render() {
     <aside aria-label="Actions and patient details"><section class="card ${primary ? "next-step" : ""}" aria-labelledby="act-h"><h2 id="act-h" style="font-size:var(--fs-lg)">${primary ? "Next step" : "Actions"}</h2>
       ${primary ? `<button class="primary-action" data-k="${primary.key}" data-ev="${primary.evidence_type || ""}">${W.esc(primary.label)}</button>` : ""}
       ${others.length ? (primary ? `<details class="more-actions"><summary>More actions (${others.length})</summary><div class="actions">${others.map(btn).join("")}</div></details>` : `<div class="actions">${others.map(btn).join("")}</div>`) : (primary ? "" : `<p class="small muted">There is nothing for your role to do on this case right now.</p>`)}
-      <div id="aform"></div></section>${patientCard()}</aside></div>`;
+      <div id="aform"></div></section>${patientRequests()}${patientCard()}</aside></div>`;
   const tabs = { steps, events, audit: auditTable };
   root().querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
     root().querySelectorAll(".tabs button").forEach(x => { x.className = "secondary"; x.setAttribute("aria-selected", "false"); }); b.className = ""; b.setAttribute("aria-selected", "true");
@@ -179,6 +195,8 @@ function render() {
   document.getElementById("tabbody").innerHTML = steps();
   root().querySelectorAll("[data-k]").forEach(b => b.onclick = () => openForm(b.dataset.k, b.dataset.ev));
   wireRecord();
+  root().querySelectorAll("[data-resolve]").forEach(b => b.onclick = () => W.ask("Patient's change request handled", "What was done (e.g. phoned, the patient keeps the time)", { ok: "Mark as handled", min: 5,
+    save: async note => { await W.api(`/api/cases/${CASE_ID}/appointment/requests/${b.dataset.resolve}/resolve`, { method: "POST", body: { reason: note } }); W.toast("Request marked as handled", "ok"); await load(); } }));
 }
 const btn = a => `<button class="secondary" data-k="${a.key}" data-ev="${a.evidence_type || ""}">${W.esc(a.label)}</button>`;
 
@@ -200,6 +218,7 @@ window.ackEsc = async id => { await W.ask("Acknowledge escalation", "What action
 function events() {
   const ev = [];
   C.communications.forEach(m => ev.push([m.sent_at, `<b>${W.esc(m.category)}</b> via ${W.esc(m.channel)} → ${W.esc(m.to)} <span class="chip ${m.status === "completed" ? "sla-green" : m.status === "failed" ? "sla-red" : "sla-none"}">${W.esc(m.status)}</span> ${m.language ? `<span class="small muted">${m.language}${m.variant ? "/" + m.variant : ""}</span>` : ""}<div class="small muted">${W.esc(m.content).slice(0, 260)}</div>`]));
+  (C.patient_requests || []).forEach(r => ev.push([r.at, r.kind === "confirm" ? "📱 patient confirmed the appointment (patient app)" : `📱 patient asked to change the appointment – ${W.esc(BARRIER_TEXT[r.barrier_code] || r.barrier_code || "")}${r.preferred_times ? " · suits better: " + W.esc(r.preferred_times) : ""}${r.note ? `<div class="small">${W.esc(r.note)}</div>` : ""}${r.status === "handled" ? `<div class="small muted">Handled ${W.dt(r.handled_at)} by ${W.esc(r.handled_by || "")}${r.handled_note ? ": " + W.esc(r.handled_note) : ""}</div>` : ""}`]));
   C.call_tasks.forEach(t => ev.push([t.completed_at || t.created_at, `📞 phone-call task (${W.esc(t.owner)}) – ${t.status}${t.outcome ? ": <b>" + W.esc(t.outcome) + "</b>" : ""}`]));
   C.teach_back.forEach(t => ev.push([t.at, `✅ teach-back (${t.mode}, ${t.language}): ${t.score}/${t.total} ${t.passed ? '<span class="chip sla-green">understood</span>' : '<span class="chip sla-red">not yet clear</span>'}${t.confidence ? " · confidence " + t.confidence + "/5" : ""}${t.patient_changed_answers ? (() => { const p = C.teach_back.find(o => o.id === t.replaces_id); return ` <span class="chip sla-amber">patient changed answers</span><div class="small muted">Replaces the answers sent ${p ? W.dt(p.at) + " (" + p.score + "/" + p.total + ")" : "earlier"}; both are kept in the record and the audit trail.</div>`; })() : ""}`]));
   C.service_requests.forEach(s => ev.push([s.decided_at || s.created_at, `📄 ${s.kind.replace("_", " ")} → ${W.esc(s.performer_org)} <span class="chip sla-none">${s.status}</span>${s.result ? " result <b>" + s.result + "</b>" : ""}${s.reason_code ? ` reason <b>${W.esc(s.reason_code)}</b>` : ""}${s.reason_note ? `: ${W.esc(s.reason_note)}` : ""}`]));

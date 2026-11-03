@@ -351,7 +351,7 @@ details[open] > summary::before { transform: rotate(90deg); }
 .msg { background: var(--c-surface-2); border-radius: var(--r-md); padding: var(--s-3); margin-bottom: var(--s-2); overflow-wrap: anywhere; }
 
 /* ---------------------------------------------------------------- patient page */
-.patient-wrap { max-width: 760px; margin: 0 auto; }
+.patient-wrap { max-width: 880px; margin: 0 auto; }
 .patient-wrap .hero { background: linear-gradient(135deg, #dff1ee, #eef6e6); border-radius: var(--r-lg); padding: var(--s-5); margin-bottom: var(--s-4); }
 .lang-switch { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-bottom: var(--s-3); }
 .lang-switch button { min-width: 96px; }
@@ -484,3 +484,55 @@ input, select, textarea { scroll-margin-bottom: 3.5em; }
 .field-err { display: block; color: var(--c-danger); font-weight: 600; margin-top: 4px; }
 /* identity document: type and number each get the full width on phones so the whole number stays visible */
 @media (max-width: 519px) { .id-doc .form-pair { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- patient app: place in the screening-to-care loop (tracker, next step, appointment answers, consent) ---- */
+.patient-wrap .p-hero { border-top: 4px solid var(--c-brand-mint); }
+.patient-wrap .p-hero h2 { color: var(--c-brand-navy); margin-bottom: var(--s-2); }
+.loop-title { font-size: var(--fs-base); margin: 0 0 2px; }
+.loop-prog { font-size: var(--fs-sm); color: var(--c-muted); margin: var(--s-3) 0 var(--s-2); font-weight: 650; }
+.tracker { list-style: none; margin: 0 0 var(--s-3); padding: 0; display: grid; gap: 0; }
+.tk { display: grid; grid-template-columns: 28px 1fr; gap: var(--s-2); align-items: start; position: relative; padding-bottom: var(--s-3); min-width: 0; }
+.tk:not(:last-child)::after { content: ""; position: absolute; inset-inline-start: 13px; top: 28px; bottom: 0; border-inline-start: 2px solid var(--c-border); }
+.tk.tk-done:not(:last-child)::after { border-color: var(--c-success); }
+.tk-dot { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: .8rem; font-weight: 800;
+  background: var(--c-surface); border: 2px solid var(--c-border-strong); color: var(--c-muted); }
+.tk-done .tk-dot { background: var(--c-success); border-color: var(--c-success); color: #fff; }
+.tk-current .tk-dot { background: var(--c-primary); border-color: var(--c-primary); color: #fff; box-shadow: 0 0 0 4px var(--c-primary-soft); }
+.tk-attention .tk-dot { background: var(--c-warning-bg); border-color: var(--c-warning); color: var(--c-warning); }
+.tk-skipped .tk-dot { border-style: dashed; }
+.tk-body { display: grid; min-width: 0; padding-top: 3px; }
+.tk-label { font-weight: 650; overflow-wrap: anywhere; }
+.tk-skipped .tk-label, .tk-todo .tk-label { color: var(--c-muted); font-weight: 550; }
+.tk-current .tk-label { color: var(--c-primary); }
+.tk-meta { font-size: var(--fs-xs); color: var(--c-muted); }
+.next-box { background: var(--c-primary-soft); border-radius: var(--r-md); padding: var(--s-3) var(--s-4); }
+.next-box h4 { margin: 0 0 var(--s-1); }
+.next-box p { margin: 0 0 var(--s-2); }
+.next-box .tb-actions { margin-top: var(--s-2); }
+.loop-more { margin-top: var(--s-3); border-top: 1px solid var(--c-border); padding-top: var(--s-2); }
+.loop-more > summary { cursor: pointer; min-height: var(--tap); display: flex; align-items: center; font-weight: 600; }
+.p-jump { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: 0 0 var(--s-4); }
+.p-jump a { display: inline-flex; align-items: center; min-height: 36px; padding: 0 var(--s-3); border: 1px solid var(--c-border); border-radius: var(--r-pill);
+  background: var(--c-surface); font-size: var(--fs-sm); text-decoration: none; color: var(--c-text); }
+.p-jump a:hover { background: var(--c-surface-2); }
+.patient-wrap [id] { scroll-margin-top: 72px; }
+.sim-chip { background: var(--c-violet-bg); color: var(--c-violet); margin-inline-start: 4px; }
+.msg-item > div:last-child { overflow-wrap: anywhere; }
+.consent-list { list-style: none; margin: 0 0 var(--s-3); padding: 0; }
+.consent-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); padding: var(--s-2) 0; border-bottom: 1px solid var(--c-border); }
+.consent-row .c-label { flex: 1 1 160px; min-width: 0; }
+.consent-row button { margin-inline-start: auto; }
+.appt-change { margin-top: var(--s-2); background: var(--c-surface-2); border-radius: var(--r-md); padding: var(--s-3); }
+.appt-change fieldset { border: 0; padding: 0; margin: 0 0 var(--s-2); display: grid; gap: 2px; }
+.appt-change legend { font-weight: 600; margin-bottom: var(--s-1); }
+@media (max-width: 599px) {
+  .patient-wrap .lang-switch { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .patient-wrap .lang-switch button { min-width: 0; padding-inline: 4px; }
+}
+@media (min-width: 900px) {
+  .p-hero .loop:not(.loop-other) .tracker { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--s-2); }
+  .p-hero .loop:not(.loop-other) .tk { grid-template-columns: 1fr; justify-items: center; text-align: center; padding-bottom: 0; }
+  .p-hero .loop:not(.loop-other) .tk:not(:last-child)::after { inset-inline-start: calc(50% + 18px); inset-inline-end: calc(-50% + 10px); top: 13px; bottom: auto;
+    border-inline-start: 0; border-top: 2px solid var(--c-border); }
+  .p-hero .loop:not(.loop-other) .tk.tk-done:not(:last-child)::after { border-top-color: var(--c-success); }
+}
