@@ -352,6 +352,18 @@ def run():
             p.click("dialog.dlg[open] [data-ok]"); p.wait_for_selector("dialog.dlg[open]", state="detached"); p.reload(); p.wait_for_selector("#users table"); p.select_option("#us", "")
             record("Reactivate user: reason", "/admin/users", t, None if t else "no reason field", p.inner_text("#users"))
             adm.shot("admin_users_saved")
+            # clinical account with a NEW staff directory record (every existing record already has an account)
+            p.click("#add"); gname = f"e2e.gp.{RUN}.{VIEW}"; p.fill("#f-name", f"Dr. E2E GP {RUN}"); p.fill("#f-user", gname)
+            p.select_option("#f-role", "gp"); p.wait_for_selector("#f-rec")
+            p.click("#add-form button[type=submit]"); msg = p.locator("#add-form .field-err").all_inner_texts()
+            RES.append({"field": "Add user (GP): missing practice is explained next to the field", "page": "/admin/users", "msg": msg, "ok": bool(msg)})
+            p.select_option("#f-org", index=1); t = tok("gpteam"); p.fill("#f-team", t)
+            p.click("#add-form button[type=submit]"); p.wait_for_selector("#created .card", timeout=10000)
+            row = q1("select u.role, p.role, o.kind, u.team from users u join practitioners p on p.id = u.practitioner_id "
+                     "join organizations o on o.id = p.org_id where u.username=?", gname)
+            RES.append({"field": "Add user (GP): staff directory record created at a GP practice", "page": "/admin/users", "db": row,
+                        "ok": bool(row) and row[:3] == ("gp", "gp", "primary_care") and row[3] == t})
+            adm.shot("admin_add_gp_saved")
         step("admin flow", admin_flow)
 
         def gov():

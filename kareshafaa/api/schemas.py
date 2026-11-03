@@ -200,13 +200,20 @@ class PasswordChangeIn(BaseModel):  # not stripped: spaces are allowed in passwo
     new_password: str = Field(min_length=1, max_length=256)
 
 
+class StaffRecordIn(_In):  # admin: a NEW staff directory record (practitioner) for a clinical account
+    org_id: int | None = None  # where they work: programme office (coordinator / lead), GP practice, hospital
+    specialty: str | None = Field(None, max_length=80)  # specialists only
+    programme: str | None = Field(None, max_length=40)  # coordinators (required) and clinical leads (optional)
+
+
 class UserCreateIn(_In):
     username: str = Field(min_length=3, max_length=80, pattern=r"^[a-z0-9][a-z0-9._-]{2,79}$")
     display_name: str = Field(min_length=2, max_length=200)
     role: str = Field(min_length=2, max_length=40)
     site: str | None = Field(None, max_length=120)
     team: str | None = Field(None, max_length=120)
-    practitioner_id: int | None = None
+    practitioner_id: int | None = None  # link an EXISTING staff directory record ...
+    staff_record: StaffRecordIn | None = None  # ... or create a new one (clinical roles)
     temporary_password: str | None = Field(None, max_length=256)
 
 
@@ -214,6 +221,8 @@ class UserRoleIn(_In):
     role: str = Field(min_length=2, max_length=40)
     site: str | None = Field(None, max_length=120)
     team: str | None = Field(None, max_length=120)
+    practitioner_id: int | None = None  # when the new role needs a (different) staff directory record
+    staff_record: StaffRecordIn | None = None
 
 
 class UserResetIn(_In):

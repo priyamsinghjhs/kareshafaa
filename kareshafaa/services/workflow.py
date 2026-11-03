@@ -116,7 +116,8 @@ def programme_pool(db: Session, programme: str) -> Practitioner:
 
 def programme_clinical_lead(db: Session, programme: str) -> Practitioner:
     p = db.scalar(select(Practitioner).where(Practitioner.role == "clinical_lead", Practitioner.active.is_(True),
-                                             Practitioner.programme.in_([programme, None])).order_by(Practitioner.programme.desc()))
+                                             Practitioner.programme.in_([programme, None]))
+                  .order_by(Practitioner.programme.desc(), Practitioner.id))  # oldest lead first (admins can add more)
     if p is None:  # never fail the ingest (that could lose the result): the programme team pool owns it
         return programme_pool(db, programme)
     return p
@@ -125,7 +126,7 @@ def programme_clinical_lead(db: Session, programme: str) -> Practitioner:
 def programme_director(db: Session) -> Practitioner:
     """Cross-programme medical director (L4 / duty clinician)."""
     p = db.scalar(select(Practitioner).where(Practitioner.role == "clinical_lead", Practitioner.active.is_(True),
-                                             Practitioner.programme.is_(None)).limit(1))
+                                             Practitioner.programme.is_(None)).order_by(Practitioner.id).limit(1))
     return p or programme_clinical_lead(db, "colorectal_fit")
 
 

@@ -12,15 +12,25 @@
 </div>
 <div id="created" aria-live="polite"></div>
 <div id="users"><div class="loading" role="status">Loading users…</div></div>
-<dialog class="dlg" id="add-dlg" aria-labelledby="add-h"><form id="add-form" method="dialog">
+<style>
+  .staff-rec { border: 1px solid var(--c-border); border-radius: var(--r-md); padding: var(--s-3); margin: 0 0 var(--s-3); min-width: 0; display: grid; gap: var(--s-2); }
+  .staff-rec legend { font-weight: 650; padding: 0 var(--s-1); }
+  .staff-rec .sr-mode { display: grid; gap: var(--s-1); }
+  .staff-rec .sr-mode label { font-weight: 500; display: flex; align-items: center; min-height: var(--tap); margin: 0; }
+  .staff-rec .sr-mode label.off { color: var(--c-muted); }
+  .staff-rec label { margin-bottom: 0; }
+  #add-form select[aria-invalid="true"], dialog.dlg select[aria-invalid="true"] { border-color: var(--c-danger); }
+</style>
+<dialog class="dlg" id="add-dlg" aria-labelledby="add-h"><form id="add-form" method="dialog" novalidate>
   <h2 id="add-h">Add a user</h2>
   <p class="small muted">They get a temporary password and must choose their own the first time they sign in.</p>
   <label for="f-name">Full name<input id="f-name" name="display_name" required minlength="2" autocomplete="off"></label>
   <label for="f-user">Username<input id="f-user" name="username" required pattern="[a-z0-9][a-z0-9._\-]{2,79}" autocapitalize="none" spellcheck="false" autocomplete="off" aria-describedby="f-user-h"><span class="field-hint" id="f-user-h">Lower-case letters, numbers, dots or dashes, e.g. sara.ali</span></label>
   <label for="f-role">Role<select id="f-role" name="role" required></select></label>
-  <label for="f-prac" id="f-prac-l">Staff directory record<select id="f-prac" name="practitioner_id"></select><span class="field-hint">Needed for clinical roles, so cases can be assigned to them.</span></label>
-  <div class="grid-2" style="gap:var(--s-3)"><label for="f-site">Site (optional)<input id="f-site" name="site" autocomplete="off"></label>
+  <div id="f-staff"></div>
+  <div class="grid-2" style="gap:var(--s-3)"><label for="f-site">Site (optional)<input id="f-site" name="site" autocomplete="off" list="f-site-list" aria-describedby="f-site-h"><span class="field-hint" id="f-site-h">Shown on the user list.</span></label>
   <label for="f-team">Team (optional)<input id="f-team" name="team" autocomplete="off"></label></div>
+  <datalist id="f-site-list"></datalist>
   <div class="dlg-buttons"><button type="button" class="secondary" data-close>Cancel</button><button type="submit">Create user</button></div>
 </form></dialog>
 {% endblock %}
@@ -47,6 +57,57 @@ async function storageNote() {  // one-time notice (per browser) when data is no
     document.getElementById("storage-ok").onclick = () => { localStorage.setItem("ks.storage-note.dismissed", "1"); el.innerHTML = ""; };
   } catch (e) { /* the System page shows the same information */ } }
 const byId = id => U.items.find(u => u.id === id);
+// ---- staff directory record (clinical roles only): link an existing record or create a new one ----
+const isClinical = r => !!(U.staff_rules || {})[r];
+const freeFor = r => U.unlinked_practitioners.filter(p => p.role === r);
+function staffBlock(px, role, { current = null } = {}) {  // px: id prefix so two forms never share ids
+  const rule = U.staff_rules[role], label = (U.roles.find(x => x.key === role) || {}).label || role, noun = rule ? rule.noun : label;
+  if (!rule) return `<p class="small muted" id="${px}-none">${W.esc(label)} accounts have no staff directory record (only care coordinators, GPs, specialists and clinical leads have one, so cases can be assigned to them).</p>`;
+  if (current && current.role === role) return `<p class="small muted" id="${px}-keep">Keeps the staff directory record: ${W.esc(current.name)}.</p>`;
+  const free = freeFor(role), orgs = U.organizations.filter(o => rule.org_kinds.includes(o.kind));
+  const opt = (v, t, sel) => `<option value="${W.esc(v)}" ${sel ? "selected" : ""}>${W.esc(t)}</option>`;
+  const orgOpts = (orgs.length === 1 ? "" : opt("", `Choose the ${rule.org_noun}…`)) + orgs.map(o => opt(o.id, o.name + (o.region ? ` (${o.region})` : ""), orgs.length === 1)).join("");
+  const progOpts = (rule.programme === "required" ? opt("", "Choose the programme…") : opt("", "All programmes (programme medical director)")) + U.programmes.map(p => opt(p.key, p.label)).join("");
+  const specOpts = opt("", "Choose the specialty…") + U.specialties.map(x => opt(x.key, x.label)).join("");
+  const pracOpts = opt("", `Choose a ${noun} record…`) + free.map(p => opt(p.id, p.name + (p.org ? ` – ${p.org}` : ""))).join("");
+  return `<fieldset class="staff-rec" id="${px}-rec"><legend>Staff directory record</legend>
+    <p class="small muted" style="margin:0">Needed so cases can be assigned to this ${W.esc(noun)}; it also sets which ${rule.org_kinds.includes("primary_care") ? "practice's" : rule.org_kinds.includes("hospital") ? "hospital's" : "programme's"} patients they see.</p>
+    <div class="sr-mode" role="radiogroup" aria-label="Staff directory record">
+      <label><input type="radio" name="${px}-mode" value="new" ${free.length ? "" : "checked"}> Create a new staff record</label>
+      <label class="${free.length ? "" : "off"}"><input type="radio" name="${px}-mode" value="link" ${free.length ? "checked" : "disabled"}> Link an existing record ${free.length ? `(${free.length} without an account)` : "(none without an account)"}</label></div>
+    <div id="${px}-link" ${free.length ? "" : "hidden"}><label for="${px}-prac">Existing ${W.esc(noun)} record<select id="${px}-prac" data-field="practitioner_id" data-what="existing ${W.esc(noun)} record" required>${pracOpts}</select></label></div>
+    <div id="${px}-new" class="grid-2" style="gap:var(--s-2) var(--s-3)" ${free.length ? "hidden" : ""}>
+      <label for="${px}-org">${W.esc(rule.org_label)}<select id="${px}-org" data-field="org_id" data-what="${W.esc(rule.org_noun)}" required>${orgOpts}</select></label>
+      ${rule.specialty ? `<label for="${px}-spec">Specialty<select id="${px}-spec" data-field="specialty" data-what="specialty" required>${specOpts}</select></label>` : ""}
+      ${rule.programme ? `<label for="${px}-prog">Screening programme${rule.programme === "optional" ? " (optional)" : ""}<select id="${px}-prog" data-field="programme" data-what="screening programme" ${rule.programme === "required" ? "required" : ""}>${progOpts}</select></label>` : ""}
+    </div></fieldset>`;
+}
+function wireStaff(root, px) {  // show the fields of the chosen mode; hidden fields are disabled (not sent, not validated)
+  const set = () => { const m = (root.querySelector(`input[name="${px}-mode"]:checked`) || {}).value;
+    [["link", `#${px}-link`], ["new", `#${px}-new`]].forEach(([k, sel]) => { const el = root.querySelector(sel); if (!el) return;
+      el.hidden = m !== k; el.querySelectorAll("select").forEach(x => { x.disabled = m !== k; x.removeAttribute("aria-invalid"); }); });
+    clearFieldErrs(root); };
+  root.querySelectorAll(`input[name="${px}-mode"]`).forEach(r => r.addEventListener("change", set)); set();
+}
+function staffBody(root, px) {  // -> {practitioner_id} | {staff_record} | {}
+  const m = (root.querySelector(`input[name="${px}-mode"]:checked`) || {}).value, v = id => { const el = root.querySelector("#" + px + "-" + id); return el && !el.disabled ? el.value : ""; };
+  if (!root.querySelector(`#${px}-rec`)) return {};
+  if (m === "link") return { practitioner_id: v("prac") ? +v("prac") : null };
+  return { staff_record: { org_id: v("org") ? +v("org") : null, specialty: v("spec") || null, programme: v("prog") || null } };
+}
+function clearFieldErrs(root) { root.querySelectorAll(".field-err[data-for]").forEach(e => e.remove()); root.querySelectorAll("[aria-invalid]").forEach(e => e.removeAttribute("aria-invalid")); }
+function fieldErr(root, field, msg) {  // message under the field the server (or the check below) named
+  const el = [...root.querySelectorAll(`[data-field="${field}"], [name="${field}"]`)].find(x => !x.disabled && !x.closest("[hidden]"));
+  if (!el) return false; el.setAttribute("aria-invalid", "true");
+  const m = document.createElement("span"); m.className = "field-err"; m.dataset.for = field; m.setAttribute("role", "alert"); m.textContent = msg;
+  (el.closest("label") || el).appendChild(m); return true;
+}
+function checkStaff(root, px) {  // clear messages before anything is sent
+  let first = null;
+  root.querySelectorAll(`#${px}-rec select[required]`).forEach(x => { if (!x.disabled && !x.value) {
+    fieldErr(root, x.dataset.field, `Choose the ${x.dataset.what}.`); first = first || x; } });
+  if (first) { first.focus(); return false; } return true;
+}
 function showTemp(u, pw, what) {
   document.getElementById("created").innerHTML = `<div class="card ok" role="status"><h2 style="font-size:var(--fs-lg)">${what} for ${W.esc(u.display_name)}</h2>
    <p>Temporary password (shown once - give it to them privately; they must change it when they sign in):</p>
@@ -64,26 +125,48 @@ window.act = async id => { const u = byId(id);
     save: async why => { await W.api(`/api/admin/users/${id}/activate`, { method: "POST", body: { reason: why || null } }); W.toast("Account reactivated", "ok"); await load(); } }); };
 window.changeRole = async id => { const u = byId(id);
   const opts = U.roles.map(r => `<option value="${r.key}" ${r.key === u.role ? "selected" : ""}>${W.esc(r.label)}</option>`).join("");
-  const v = await W._dialog(`<h2 id="dlg-title">Change role for ${W.esc(u.display_name)}</h2><label for="dr">Role<select id="dr">${opts}</select></label>
-    <label for="ds">Site<input id="ds" value="${W.esc(u.site || "")}"></label><label for="dt">Team<input id="dt" value="${W.esc(u.team || "")}"></label>
+  const cur = u.practitioner_id ? (U.practitioners_by_id || {})[u.practitioner_id] || { role: u.role, name: "linked record" } : null;
+  const pr = W._dialog(`<h2 id="dlg-title">Change role for ${W.esc(u.display_name)}</h2><label for="dr">Role<select id="dr">${opts}</select></label>
+    <div id="dr-staff-wrap"></div>
+    <label for="ds">Site<input id="ds" value="${W.esc(u.site || "")}" list="f-site-list"></label><label for="dt">Team<input id="dt" value="${W.esc(u.team || "")}"></label>
     <p class="small muted">A role change signs them out; the new permissions apply at their next sign-in.</p>
     <div class="dlg-buttons"><button type="button" class="secondary" data-cancel>Cancel</button><button type="submit" data-ok>Save</button></div>`,
-    f => ({ role: f.querySelector("#dr").value, site: f.querySelector("#ds").value.trim(), team: f.querySelector("#dt").value.trim() }), "",
-    async body => { await W.api(`/api/admin/users/${id}/role`, { method: "POST", body }); W.toast("Saved", "ok"); await load(); }); };
+    f => { clearFieldErrs(f); if (!checkStaff(f, "dr")) return false;
+      return { role: f.querySelector("#dr").value, site: f.querySelector("#ds").value.trim(), team: f.querySelector("#dt").value.trim(), ...staffBody(f, "dr") }; }, "",
+    async body => { try { await W.api(`/api/admin/users/${id}/role`, { method: "POST", body }); }
+      catch (e) { const f = document.querySelector("dialog.dlg[open] form"); if (f && e.data && e.data.field) fieldErr(f, e.data.field, e.message); throw e; }
+      W.toast("Saved", "ok"); await load(); });
+  const f = document.querySelector("dialog.dlg[open] form"), wrap = f.querySelector("#dr-staff-wrap"); f.noValidate = true;
+  const draw = () => { const r = f.querySelector("#dr").value; wrap.innerHTML = r === u.role && !isClinical(r) ? "" : staffBlock("dr", r, { current: r === u.role ? cur : (cur && cur.role === r ? cur : null) }); wireStaff(f, "dr"); };
+  f.querySelector("#dr").addEventListener("change", draw); draw();
+  return pr; };
 document.addEventListener("DOMContentLoaded", async () => {
   await W.ready; if (!W.requireLogin()) return;
   ["uq", "ur", "us"].forEach(i => document.getElementById(i).addEventListener("input", () => U && render()));
   storageNote(); try { await load(); } catch (e) { document.getElementById("users").innerHTML = W.empty("Could not load users", W.esc(e.message)); return; }
   const dlg = document.getElementById("add-dlg"), f = document.getElementById("add-form");
-  document.getElementById("f-role").innerHTML = U.roles.map(r => `<option value="${r.key}">${W.esc(r.label)}</option>`).join("");
-  document.getElementById("f-prac").innerHTML = `<option value="">None (non-clinical role)</option>` + U.unlinked_practitioners.map(p => `<option value="${p.id}">${W.esc(p.name)} – ${W.esc(W.role(p.role))}</option>`).join("");
+  const grp = (t, rs) => `<optgroup label="${W.esc(t)}">` + rs.map(r => `<option value="${r.key}">${W.esc(r.label)}</option>`).join("") + "</optgroup>";
+  document.getElementById("f-role").innerHTML = `<option value="">Choose a role…</option>` + grp("Clinical staff (staff directory record)", U.roles.filter(r => r.clinical)) + grp("Other staff", U.roles.filter(r => !r.clinical));
+  document.getElementById("f-site-list").innerHTML = U.organizations.map(o => `<option value="${W.esc(o.name)}"></option>`).join("");
+  const drawStaff = () => { const r = document.getElementById("f-role").value;
+    document.getElementById("f-staff").innerHTML = r ? staffBlock("f", r) : "";
+    document.getElementById("f-site-h").textContent = isClinical(r) ? "Leave empty to use the practice, hospital or programme office of their staff record." : "Shown on the user list.";
+    wireStaff(f, "f"); };
+  document.getElementById("f-role").addEventListener("change", () => { clearFieldErrs(f); drawStaff(); });
   dlg.querySelector("[data-close]").onclick = () => dlg.close();
-  document.getElementById("add").onclick = () => { if (!PD) { f.reset(); W.formError(f, ""); dlg.showModal(); document.getElementById("f-name").focus(); } };
+  document.getElementById("add").onclick = () => { if (!PD) { f.reset(); clearFieldErrs(f); W.formError(f, ""); drawStaff(); dlg.showModal(); document.getElementById("f-name").focus(); } };
   f.onsubmit = async ev => { ev.preventDefault(); const d = Object.fromEntries(new FormData(f)), sb = f.querySelector("button[type=submit]");
-    const body = { username: d.username.trim().toLowerCase(), display_name: d.display_name.trim(), role: d.role, site: d.site || null, team: d.team || null, practitioner_id: d.practitioner_id ? +d.practitioner_id : null };
-    W.busy(sb, true); W.formError(f, "");
+    clearFieldErrs(f); W.formError(f, "");
+    const need = [["display_name", "Enter their full name (at least 2 characters).", d.display_name.trim().length < 2],
+                  ["username", "Enter a username: at least 3 lower-case letters, numbers, dots or dashes, starting with a letter or number.", !/^[a-z0-9][a-z0-9._-]{2,79}$/.test(d.username.trim().toLowerCase())],
+                  ["role", "Choose a role.", !d.role]].filter(x => x[2]);
+    need.forEach(([k, m]) => fieldErr(f, k, m));
+    if (need.length) { f.querySelector(`[name="${need[0][0]}"]`).focus(); return; }
+    if (!checkStaff(f, "f")) return;
+    const body = { username: d.username.trim().toLowerCase(), display_name: d.display_name.trim(), role: d.role, site: d.site || null, team: d.team || null, ...staffBody(f, "f") };
+    W.busy(sb, true);
     try { const r = await W.api("/api/admin/users", { method: "POST", body }); dlg.close(); showTemp(r.user, r.temporary_password, "Account created"); await load(); }
-    catch (e) { W.formError(f, e.message); W.toast(e.message, "err"); } finally { W.busy(sb, false); } };
+    catch (e) { if (!(e.data && e.data.field && fieldErr(f, e.data.field, e.message))) W.formError(f, e.message); else W.formError(f, "Please fix the field marked above."); W.toast(e.message, "err"); } finally { W.busy(sb, false); } };
 });
 </script>
 {% endblock %}
