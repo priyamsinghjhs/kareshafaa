@@ -158,3 +158,30 @@ def content_signoff(body: sch.ContentSignoffIn, actor: Actor = Depends(require("
     a = content_gov.approve(db, actor, body.content_id, body.kind, body.note)
     db.commit()
     return {"id": a.id, "content_id": a.content_id, "kind": a.kind, "by": a.display, "sha256": a.sha256[:12]}
+
+
+# ---- explainability and data governance views ---------------------------------------------------------------
+@router.get("/rule-cards")
+def rule_cards(actor: Actor = Depends(require("model:read")), db: Session = Depends(get_db)) -> dict:
+    """Rule card (purpose, inputs, limits, known biases, human override, version) for the deterministic rules
+    engine, every rule with its source, and a summary of the outreach model card."""
+    from ..services.explain import model_card_summary, rule_cards as cards
+
+    return {**cards(), "model": model_card_summary(db)}
+
+
+@router.get("/overrides")
+def overrides(kind: str | None = None, limit: int = 200, actor: Actor = Depends(require("audit:read")),
+              db: Session = Depends(get_db)) -> dict:
+    """Register of human overrides: reviews resolved (incl. lowered tiers, with the reason), closures by clinician
+    decision, model and rule-change decisions."""
+    from ..services.explain import override_register
+
+    return override_register(db, limit=max(1, min(limit, 500)), kind=kind)
+
+
+@router.get("/data-protection")
+def data_protection(actor: Actor = Depends(require("model:read")), db: Session = Depends(get_db)) -> dict:
+    from ..services.explain import data_protection as dp
+
+    return dp(db)

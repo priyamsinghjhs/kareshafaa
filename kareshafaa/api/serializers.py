@@ -109,6 +109,7 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
         "needs_confirmation": c.needs_confirmation,
         "sla": {"status": cur["sla_status"] if cur else "none", "fraction": cur["sla_fraction"] if cur else None,
                 "due_at": cur["due_at"] if cur else None, "escalation_level": max(c.escalation_level or 0, c.target_alert_level or 0)},
+        "why": _why(db, c),
         "risk": {"score": None if c.risk_score is None else round(c.risk_score, 3), "model_version": c.risk_model_version,
                  "rationale": c.risk_rationale or [],
                  "ordering": "Orders cases WITHIN the same clinical urgency tier only; it never changes the tier",
@@ -185,3 +186,9 @@ def _coverage_banner(db: Session, actor, p) -> dict | None:
     from ..services.coverage import case_banner
 
     return case_banner(db, actor, p)
+
+
+def _why(db: Session, c: Case) -> dict:
+    from ..services.explain import why_priority
+
+    return why_priority(db, c)

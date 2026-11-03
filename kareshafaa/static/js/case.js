@@ -147,6 +147,17 @@ function wireRecord() {
       save: async why => { await W.api(`/api/cases/${CASE_ID}/medications/${b.dataset.stop}/stop`, { method: "POST", body: { reason: why } }); REC_OPEN.add("meds"); W.toast("Medicine stopped", "ok"); await load(); } }); });
 }
 
+function whyCard() {
+  const w = C.why; if (!w) return "";
+  const r = w.rule || {}, rev = w.review || {}, link = W.can("model:read") && r.id ? ` · <a href="/governance?tab=decisions#rule-${encodeURIComponent(r.id)}">rule card</a>` : "";
+  return `<section class="card flat" id="why-priority" aria-labelledby="why-h"><h2 id="why-h" class="small" style="font-size:var(--fs-base)">Why this priority</h2>
+   <p style="margin-bottom:var(--s-2)"><span class="chip">${W.esc(w.tier_label)}</span> <span class="small muted">set by the ${W.esc(w.decided_by)}</span></p>
+   <ol class="small" id="why-steps">${(w.steps.length ? w.steps : ["Tier set when the result arrived."]).map(t => `<li>${W.esc(t)}</li>`).join("")}</ol>
+   <dl class="facts small">${r.id ? `<div><dt>Rule</dt><dd><code>${W.esc(r.id)}</code>${link}</dd></div>` : ""}${r.source ? `<div><dt>Source</dt><dd>${W.esc(r.source)}</dd></div>` : ""}
+    ${w.target_text ? `<div><dt>Pathway target</dt><dd>${W.esc(w.target_text)}${w.target_due_at ? ` – by ${W.dt(w.target_due_at)}` : ""}</dd></div>` : ""}
+    ${rev.required ? `<div><dt>Waiting for clinician review</dt><dd>${rev.reasons.map(x => W.esc(x.replaceAll("_", " "))).join(", ")}</dd></div>` : ""}</dl>
+   <p class="xs muted">${W.esc(w.human_in_loop)}</p></section>`;
+}
 function patientCard() {
   const p = C.patient, o = C.result, r = C.risk;
   const ch = [p.channels.smartphone ? "App" : "", p.channels.whatsapp ? "WhatsApp" : "", p.channels.phone_valid ? "Phone" : ""].filter(Boolean);
@@ -157,6 +168,7 @@ function patientCard() {
    <h3 class="small" style="font-size:var(--fs-base)">Screening result</h3>${o ? `<p class="small">${W.esc(o.display)}: ${o.observations.map(x => `<b>${W.esc(x.value ?? x.value_text)}</b> ${W.esc(x.unit || "")}`).join(", ")}<br><span class="muted">issued ${W.dt(o.issued_at)}</span></p>
      <dl class="facts result-meta" data-result-meta><div><dt>Ordered by</dt><dd>${o.ordering_clinician ? W.esc(o.ordering_clinician) : '<span class="muted">Not recorded</span>'}</dd></div><div><dt>Screening site</dt><dd>${o.screening_site ? W.esc(o.screening_site) : '<span class="muted">Not recorded</span>'}</dd></div><div><dt>Specimen taken</dt><dd>${o.specimen_collected_at ? W.dt(o.specimen_collected_at) : '<span class="muted">Not recorded</span>'}</dd></div></dl>` : "<p class='small muted'>–</p>"}
    <h3 class="small" style="font-size:var(--fs-base)">Consent</h3><p class="small">${C.consents.filter(c => c.status === "active").map(c => `<span class="chip ${c.decision === "permit" ? "sla-green" : "sla-red"}">${c.decision === "permit" ? "✓" : "✕"} ${W.esc(c.scope.replace(/_/g, " "))}: ${c.decision === "permit" ? "yes" : "no"}</span>${c.note ? ` <span class="small muted">${W.esc(c.note)}</span>` : ""}`).join(" ") || "–"}</p></section>
+   ${whyCard()}
    <section class="card flat" aria-labelledby="ml-h"><h2 id="ml-h" class="small" style="font-size:var(--fs-base)">Outreach priority <span class="muted xs">(model v${r.model_version ?? "–"}, ordering only)</span></h2>
    <p style="margin-bottom:var(--s-2)"><b>${r.score == null ? "–" : Math.round(r.score * 100) + "%"}</b> <span class="small muted">chance of missing the next step</span></p>
    ${r.score == null ? "" : `<details class="small"><summary>Why this estimate</summary>${(r.rationale || []).length ? `<ul>${r.rationale.map(w => `<li>${W.esc(w.text)} – <b>${w.direction}</b> the chance (${w.effect > 0 ? "+" : ""}${Math.round(w.effect * 100)} points)</li>`).join("")}</ul>` : "<p>No single factor stands out.</p>"}<p class="muted">${W.esc(r.ordering)}. ${W.esc(r.use)}.</p></details>`}</section>`;

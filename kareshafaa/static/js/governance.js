@@ -70,11 +70,63 @@ tabsG.content = async el => {
   el.innerHTML = `<div class="card"><p class="small">${s.items} patient-facing texts · ${s.readability_ok} pass reading-level &amp; tone checks · ${s.gated_live}/${s.gated} governed pathway texts live. A sign-off is bound to the exact wording (sha256): any edit needs a new sign-off. Arabic, Hindi and Urdu need a <b>professional translator</b> and a <b>clinician</b> (two different people); until then patients get English plus an interpreter-supported call.</p>
   <table class="compact"><thead><tr><th>Content</th><th>Lang</th><th>Text</th><th>Reading level / tone</th><th>Clinical</th><th>Translator</th><th>Live</th></tr></thead><tbody>${rows.map(x => `<tr><td class="small">${W.esc(x.group + ":" + x.key)}${x.gated ? "" : ' <span class="small muted">(not yet gated)</span>'}</td><td>${x.lang}</td><td class="small" dir="auto" style="max-width:28rem">${W.esc(x.text.replace(/[{}"]/g, " ").slice(0, 220))}${x.translation_status ? `<div><span class="chip sla-amber">${W.esc(x.translation_status)}</span></div>` : ""}</td><td>${rd(x)}</td><td>${so(x, "clinical")}</td><td>${so(x, "translation")}</td><td>${x.live ? '<span class="chip sla-green">live</span>' : (x.gated ? '<span class="chip sla-red">not used</span>' : '<span class="small muted">–</span>')}</td></tr>`).join("")}</tbody></table></div>`;
 };
-let current = "models";
+tabsG.decisions = async el => {
+  const r = await W.api("/api/governance/rule-cards"), e = r.engine, m = r.model;
+  const li = a => `<ul class="small">${a.map(x => `<li>${W.esc(x)}</li>`).join("")}</ul>`;
+  el.innerHTML = `<div class="card ok" role="note" id="human-in-loop"><b>A person decides.</b> ${W.esc(r.human_in_loop)}</div>
+   <div class="grid-2"><section class="card" id="rule-card" aria-labelledby="rc-h"><h3 id="rc-h">Rule card: ${W.esc(e.name)}</h3>
+     <dl class="facts"><div><dt>Type</dt><dd>${W.esc(e.kind)}</dd></div><div><dt>Version</dt><dd>state machine ${W.esc(e.state_machine_version)} · rules in ${W.esc(e.rules_document)}</dd></div><div><dt>Status</dt><dd>${W.esc(e.status)}</dd></div></dl>
+     <h4>Purpose</h4><p class="small">${W.esc(r.purpose)}</p>
+     <h4>Inputs</h4>${li(r.inputs)}<p class="small"><b>Never used:</b> ${r.not_inputs.map(W.esc).join(", ")}.</p>
+     <h4>Limits</h4>${li(r.limits)}<h4>Known biases</h4>${li(r.known_biases)}
+     <h4>Human override</h4><p class="small">${W.esc(r.human_override)}</p>
+     <h4>End-to-end targets when the pathway has none</h4><p class="small">${Object.entries(r.tier_targets_days).map(([t, d]) => `${W.esc((KS.tiers[t] || {}).name ? `${KS.tiers[t].name} (${KS.tiers[t].code})` : t)}: ${d} day${d === 1 ? "" : "s"}`).join(" · ")}</p></section>
+   <section class="card" aria-labelledby="mc-h"><h3 id="mc-h">Model card: outreach priority</h3>${m ? `<dl class="facts"><div><dt>Version</dt><dd>v${m.version} · ${W.esc(m.algorithm)} · ${W.esc(m.status)}</dd></div></dl>
+     <h4>Purpose</h4><p class="small">${W.esc(m.purpose)}</p><h4>Never</h4><p class="small">${W.esc(m.never)}</p>
+     <h4>Monitored for fairness, never model inputs</h4><p class="small">${m.monitored_not_used.map(W.esc).join(", ")}</p>
+     <h4>How a version goes live</h4><p class="small">${W.esc(m.approval)}</p><p class="small"><a href="?tab=models" data-go="models">Metrics, fairness gates and drift</a></p>` : W.empty("No model in production", "Cases are ordered by tier and deadline only.")}</section></div>
+   <h3>Every rule, with its source</h3>
+   ${r.families.map(f => `<details class="card" data-family="${W.esc(f.code)}"><summary><b>${W.esc(f.programme)}</b> <span class="small muted">${f.rules.length} rules</span></summary><div class="table-scroll"><table class="compact"><thead><tr><th>Rule</th><th>When</th><th>Decision</th><th>Tier</th><th>Pathway</th><th>Target</th><th>Source</th></tr></thead><tbody>
+     ${f.rules.map(x => `<tr id="rule-${W.esc(x.id)}"><td><code>${W.esc(x.id)}</code></td><td class="small">${W.esc(x.input)}</td><td class="small">${W.esc(x.decision)}</td><td class="small">${W.esc(x.tier)}</td><td class="small">${W.esc(x.pathway.replaceAll("_", " "))}</td><td class="small">${W.esc(x.target)}</td><td class="small">${W.esc(x.source)}</td></tr>`).join("")}</tbody></table></div></details>`).join("")}`;
+  el.querySelectorAll("[data-go]").forEach(a => a.onclick = ev => { ev.preventDefault(); show(a.dataset.go); });
+  const h = location.hash.slice(1); if (h.startsWith("rule-")) { const row = document.getElementById(h); if (row) { row.closest("details").open = true; row.classList.add("row-flag"); row.scrollIntoView({ block: "center" }); } }
+};
+tabsG.overrides = async el => {
+  const r = await W.api("/api/governance/overrides");
+  const n = Object.values(r.counts).reduce((a, b) => a + b, 0);
+  const PAGE = 25; let shown = PAGE, filt = "";
+  const row = x => `<tr data-override="${x.id}" ${x.lowered_tier ? 'class="row-flag"' : ""}><td class="small">${W.dt(x.at)}</td><td class="small">${W.esc(x.by)}</td><td class="small"><b>${W.esc(x.label)}</b>${x.what ? `<br>${W.esc(x.what)}` : ""}</td><td class="small">${W.esc(x.reason.replaceAll("_", " ")) || '<span class="muted">–</span>'}</td><td>${x.case_id ? `<a href="/cases/${x.case_id}">#${x.case_id}</a>` : "–"}</td></tr>`;
+  const pick = () => r.items.filter(x => !filt || (filt === "lowered" ? x.lowered_tier : x.event === filt));
+  const draw = () => { const rows = pick(); const tb = el.querySelector("#override-list tbody"); if (!tb) return;
+    tb.innerHTML = rows.slice(0, shown).map(row).join("") || `<tr><td colspan="5" class="muted small">Nothing of this kind in the latest ${r.listed} entries.</td></tr>`;
+    el.querySelector("#override-count").textContent = `Showing ${Math.min(shown, rows.length)} of ${rows.length} (latest ${r.listed} entries)`;
+    el.querySelector("#override-more").hidden = shown >= rows.length; };
+  el.innerHTML = `<div class="card info small" role="note">${W.esc(r.note)}</div>
+   <div class="grid-4">${Object.entries(r.counts).map(([k, v]) => `<div class="card kpi"><div class="l">${W.esc(r.labels[k])}</div><div class="v">${v}</div></div>`).join("")}<div class="card kpi"><div class="l">Of which a tier was lowered</div><div class="v">${r.lowered_tiers}</div></div></div>
+   ${n ? `<div class="row"><label for="override-kind">Show<select id="override-kind"><option value="">All overrides</option><option value="lowered">Lowered tiers only</option>${Object.entries(r.labels).map(([k, l]) => `<option value="${k}">${W.esc(l)}</option>`).join("")}</select></label></div>
+     <p class="small muted" id="override-count" aria-live="polite"></p>
+     <div class="table-scroll"><table class="compact" id="override-list"><thead><tr><th>When</th><th>Who</th><th>What</th><th>Reason given</th><th>Case</th></tr></thead><tbody></tbody></table></div>
+     <button type="button" class="secondary sm" id="override-more">Show ${PAGE} more</button>`
+     : W.empty("No overrides yet", "When a clinician lowers a tier, closes a case by decision or decides on a model or rule change, it is listed here.")}`;
+  if (!n) return;
+  el.querySelector("#override-kind").onchange = e => { filt = e.target.value; shown = PAGE; draw(); };
+  el.querySelector("#override-more").onclick = () => { shown += PAGE; draw(); };
+  draw();
+};
+tabsG.privacy = async el => {
+  const r = await W.api("/api/governance/data-protection");
+  el.innerHTML = `<div class="card notice small" role="note"><b>${W.esc(r.hosting.residency)}</b> Database: ${W.esc(r.hosting.database)}. ${W.esc(r.disclaimer)} Sources checked ${W.esc(r.checked)}.</div>
+   <h3>How the system maps to UAE and Abu Dhabi rules</h3>
+   ${r.frameworks.map(f => `<section class="card" data-framework><h4><a href="${W.esc(f.url)}" target="_blank" rel="noopener">${W.esc(f.framework)}</a> <span class="chip ${f.status === "met" ? "sla-green" : "sla-amber"}">${f.status === "met" ? "✓ met" : "● partly – pilot steps listed"}</span></h4>
+     <dl class="facts"><div><dt>What it asks</dt><dd>${W.esc(f.asks)}</dd></div><div><dt>In this system now</dt><dd>${W.esc(f.prototype)}</dd></div><div><dt>Before a pilot</dt><dd>${W.esc(f.pilot)}</dd></div></dl></section>`).join("")}
+   <h3>Data retention</h3><div class="table-scroll"><table class="compact" id="retention"><thead><tr><th>Data</th><th>Kept for</th><th>How</th><th>Basis</th><th>Automatic</th></tr></thead><tbody>${r.retention.map(x => `<tr><td class="small">${W.esc(x.data)}</td><td class="small">${W.esc(x.keep)}</td><td class="small">${W.esc(x.how)}</td><td class="small">${W.esc(x.basis)}</td><td>${x.automatic ? "Yes" : "No"}</td></tr>`).join("")}</tbody></table></div>
+   <p class="small muted">The audit chain can be checked end to end by an administrator (Audit trail → “Check the log is intact”).</p>`;
+};
+let current = "decisions";
 async function show(t) {
   current = t; document.querySelectorAll(".tabs button").forEach(b => b.className = b.dataset.t === t ? "" : "secondary outline");
   const el = document.getElementById("gov"); el.innerHTML = W.loading();
   try { await tabsG[t](el); } catch (e) { el.innerHTML = W.empty("Could not load", W.esc(e.message)); }
 }
 document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return;
-  document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => show(b.dataset.t)); const qt = new URLSearchParams(location.search).get("tab"); show(qt && tabsG[qt] ? qt : (!can("model:read") && can("content:read") ? "content" : "models")); });
+  document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => show(b.dataset.t)); const qt = new URLSearchParams(location.search).get("tab"); show(qt && tabsG[qt] ? qt : (!can("model:read") && can("content:read") ? "content" : "decisions")); });
