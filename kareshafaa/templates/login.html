@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block bodyclass %} auth-page{% endblock %}
 {% block content %}
-<div class="auth-grid">
+<div class="auth-grid{% if lang != 'en' %} activate-grid{% endif %}" lang="{{ lang }}" dir="{{ 'rtl' if rtl else 'ltr' }}">
+  {% if lang == 'en' %}
   <section class="pitch" aria-labelledby="pitch-h">
     <h2 id="pitch-h">Every actionable screening result, carried all the way to care.</h2>
     <p class="muted">KareShafaa gives each abnormal screening result one accountable owner, a clear deadline, plain-language
@@ -13,28 +14,38 @@
       <li><b>Patients</b> read their result in Arabic, English, Hindi or Urdu.</li>
     </ul>
   </section>
+  {% endif %}
   <div class="auth-card">
     <img class="logo-full auth-logo" src="/static/brand/logo-horizontal.svg" alt="KareShafaa" width="199" height="56">
-    <h1>Sign in</h1>
-    <p class="small muted">Use the username and password you were given.</p>
-    {% if signed_out %}<div class="notice-inline ok" role="status">You have signed out.</div>{% endif %}
+    <div class="lang-switch" role="group" aria-label="{{ t.lang_label }}">
+      {% for k, v in langs.items() %}<a role="button" class="{{ '' if k == lang else 'secondary outline' }} sm" href="/login?lang={{ k }}{% if next %}&next={{ next|urlencode }}{% endif %}" lang="{{ k }}" aria-current="{{ 'true' if k == lang else 'false' }}">{{ v }}</a>{% endfor %}
+    </div>
+    <h1>{{ t.title }}</h1>
+    <p class="small muted">{{ t.intro }}</p>
+    {% if signed_out %}<div class="notice-inline ok" role="status">{{ t.signed_out }}</div>{% endif %}
     {% if error %}<div class="notice-inline err" role="alert" id="login-error">{{ error }}</div>{% endif %}
     <form method="post" action="/login" id="login-form" novalidate>
       <input type="hidden" name="csrf_token" value="{{ login_csrf }}">
       <input type="hidden" name="next" value="{{ next }}">
-      <label for="username">Username
-        <input id="username" name="username" type="text" value="{{ username }}" autocomplete="username" autocapitalize="none"
+      <input type="hidden" name="lang" value="{{ lang }}">
+      <label for="username">{{ t.username }}
+        <input id="username" name="username" type="text" value="{{ username }}" dir="ltr" autocomplete="username" autocapitalize="none"
                autocorrect="off" spellcheck="false" inputmode="text" required {% if error %}aria-invalid="true" aria-describedby="login-error"{% endif %} autofocus>
       </label>
-      <label for="password">Password
-        <span class="pw-field"><input id="password" name="password" type="password" autocomplete="current-password" required {% if error %}aria-invalid="true" aria-describedby="login-error"{% endif %}>
-        <button type="button" class="reveal" data-reveal="password" aria-controls="password" aria-pressed="false">Show</button></span>
+      <label for="password">{{ t.password }}
+        <span class="pw-field"><input id="password" name="password" type="password" dir="ltr" autocomplete="current-password" required {% if error %}aria-invalid="true" aria-describedby="login-error"{% endif %}>
+        <button type="button" class="reveal" data-reveal="password" aria-controls="password" aria-pressed="false">{{ t.show }}</button></span>
       </label>
-      <button type="submit">Sign in</button>
+      <button type="submit">{{ t.submit }}</button>
     </form>
-    <p class="xs muted" style="margin-top:var(--s-3)">Sessions end after 30 minutes without activity. Shared computer? Sign out when you finish.</p>
+    <nav class="auth-help" aria-label="{{ t.help_links }}">
+      <a id="forgot-username" href="/forgot-username?lang={{ lang }}">{{ t.forgot_username }}</a>
+      <a id="forgot-password" href="/forgot-password?lang={{ lang }}">{{ t.forgot_password }}</a>
+    </nav>
+    <p class="small auth-activate">{{ t.activate_q }} <a href="/activate?lang={{ lang }}">{{ t.activate_link }}</a></p>
+    <p class="xs muted" style="margin-top:var(--s-3)">{{ t.idle_note }}</p>
   </div>
 </div>
 {% endblock %}
-{% block scripts %}<script>document.querySelectorAll("[data-reveal]").forEach(b => b.onclick = () => { const i = document.getElementById(b.dataset.reveal); const show = i.type === "password"; i.type = show ? "text" : "password"; b.textContent = show ? "Hide" : "Show"; b.setAttribute("aria-pressed", String(show)); });
-document.getElementById("login-form").addEventListener("submit", e => { const f = e.target; if (!f.username.value.trim() || !f.password.value) { e.preventDefault(); W.toast("Enter your username and password.", "err"); (f.username.value.trim() ? f.password : f.username).focus(); return; } f.querySelector("button[type=submit]").setAttribute("aria-busy", "true"); });</script>{% endblock %}
+{% block scripts %}<script>document.querySelectorAll("[data-reveal]").forEach(b => b.onclick = () => { const i = document.getElementById(b.dataset.reveal); const show = i.type === "password"; i.type = show ? "text" : "password"; b.textContent = show ? {{ t.hide|tojson }} : {{ t.show|tojson }}; b.setAttribute("aria-pressed", String(show)); });
+document.getElementById("login-form").addEventListener("submit", e => { const f = e.target; if (!f.username.value.trim() || !f.password.value) { e.preventDefault(); W.toast({{ t.err_missing|tojson }}, "err"); (f.username.value.trim() ? f.password : f.username).focus(); return; } f.querySelector("button[type=submit]").setAttribute("aria-busy", "true"); });</script>{% endblock %}

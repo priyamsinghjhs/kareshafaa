@@ -171,7 +171,8 @@ def account_invite(patient_id: int, body: sch.AccountInviteIn, request: Request,
     from ..services import invites
 
     p = svc.get_patient(db, actor, patient_id)
-    new = invites.create_invite(db, actor, p, channel=body.channel, base_url=base_url(request))
+    new = invites.create_invite(db, actor, p, channel=body.channel, base_url=base_url(request),
+                                verify_method=body.verify_method)
     db.commit()
     return {"ok": True, "username": new.user.username, "code": invites.fmt_code(new.code), "link": new.link,
             "expires_at": new.invite.expires_at.isoformat(), "purpose": new.invite.purpose, "channel": new.invite.channel,

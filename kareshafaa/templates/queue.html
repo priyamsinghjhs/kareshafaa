@@ -29,6 +29,11 @@
   <p class="small muted">Sent from the patient app. Nothing is booked until you confirm. Answer-by times: T0 2 h, T1 8 h, T2 24 h, T3 and screening 48 h. If you decline, the patient is told the reason in their language.</p>
   <div id="preq-list" aria-live="polite"></div>
 </section>
+<section class="card preq" id="preset" hidden aria-labelledby="preset-h">
+  <div class="preq-head"><h2 id="preset-h">Patient password reset requests</h2><span id="preset-count" class="small muted"></span></div>
+  <p class="small muted">From "Forgot password?" on the sign-in page, after the patient's date of birth, ID ending and mobile matched. Check who the patient is (in person with photo ID, or a call to the registered mobile), then send a one-time reset code from the patient record.</p>
+  <div id="preset-list" aria-live="polite"></div>
+</section>
 <dialog id="preq-dlg" class="dlg" aria-labelledby="preq-dlg-h"><form id="preq-form" method="dialog" novalidate>
   <h2 id="preq-dlg-h"></h2><div id="preq-dlg-body"></div><p class="form-error" role="alert" hidden></p>
   <div class="dlg-buttons"><button type="button" class="secondary" id="preq-cancel">Cancel</button><button type="submit" id="preq-ok"></button></div></form></dialog>
@@ -123,6 +128,18 @@ async function loadRequests() {
   L.querySelectorAll("[data-rq-confirm]").forEach(b => b.onclick = () => openRq(+b.dataset.rqConfirm, "confirm"));
   L.querySelectorAll("[data-rq-decline]").forEach(b => b.onclick = () => openRq(+b.dataset.rqDecline, "decline"));
 }
+async function loadResets() {
+  if (!W.me || W.me.role !== "coordinator") return;
+  const R = await W.api("/api/signin-help?audience=patient&status=open"), box = document.getElementById("preset");
+  box.hidden = false;
+  document.getElementById("preset-count").textContent = R.open ? `${R.open} waiting${R.overdue ? ` · ${R.overdue} past reply-due time` : ""}` : "none waiting";
+  const L = document.getElementById("preset-list");
+  L.innerHTML = R.items.length ? `<ul class="preq-list">${R.items.map(r => `<li class="preq-item" data-reset-request="${r.id}">
+    <div class="chips">${W.sla(r.rag, r.elapsed)} <span class="small muted">reply due ${W.ago(r.due_at)}</span></div>
+    <div><b>${W.esc(r.patient ? r.patient.name : "–")}</b> <span class="sub">${W.esc(r.patient ? r.patient.mrn : "")} · asked ${W.dt(r.created_at)} · page in ${W.esc(r.language || "en")}</span></div>
+    <div class="tb-actions"><a role="button" class="sm" href="/patients/${r.patient ? r.patient.id : ""}#sec-account">Open the patient record…</a></div></li>`).join("")}</ul>`
+    : '<p class="small muted" data-preset-empty>No password resets are waiting.</p>';
+}
 function openRq(id, mode) {
   const r = RQ.items.find(x => x.id === id), dlg = document.getElementById("preq-dlg"), f = document.getElementById("preq-form");
   const err = f.querySelector(".form-error"); err.hidden = true; err.textContent = "";
@@ -176,6 +193,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("search").oninput = () => { clearTimeout(timer); timer = setTimeout(() => { offset = 0; load(); }, 250); };
   document.getElementById("prog").onchange = () => { offset = 0; load(); };
   document.getElementById("view").onchange = e => setView(e.target.value);
+  loadResets().catch(e => { document.getElementById("preset").hidden = false; document.getElementById("preset-list").innerHTML = W.empty("Could not load password reset requests", W.esc(e.message)); });
   loadRequests().catch(e => { const L = document.getElementById("preq-list"); document.getElementById("preq").hidden = false; L.innerHTML = W.empty("Could not load patient requests", W.esc(e.message)); });
   try { await load(); } catch (e) { document.getElementById("qtable").innerHTML = W.empty("Could not load the queue", W.esc(e.message), '<button onclick="location.reload()">Try again</button>'); }
 });

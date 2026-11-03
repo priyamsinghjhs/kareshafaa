@@ -548,3 +548,15 @@ input, select, textarea { scroll-margin-bottom: 3.5em; }
 .preq-list { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s-2); }
 .preq-item { border: 1px solid var(--c-border, #d0d7de); border-radius: 8px; padding: var(--s-2) var(--s-3); }
 #preq-dlg h2 { font-size: 1.15rem; }
+
+/* sign-in help: forgot username / password */
+.auth-help { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--s-2) var(--s-4); margin-top: var(--s-3); font-size: var(--fs-sm, .9rem); }
+.auth-help a { min-height: 44px; display: inline-flex; align-items: center; }
+.auth-activate { margin: var(--s-2) 0 0; }
+.who-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); margin-bottom: var(--s-3); }
+.who-switch a { text-align: center; white-space: normal; }
+.help-grid fieldset { border: 0; padding: 0; margin: 0 0 var(--s-2); }
+.help-grid fieldset legend { font-weight: 600; margin-bottom: var(--s-1, 4px); }
+.help-grid fieldset label.check { margin-inline-end: var(--s-4); }
+#found-username { font-size: 1.1em; }
+.notice-inline.warn { background: var(--c-warning-bg, #fff4e0); color: var(--c-warning, #8a5a00); }

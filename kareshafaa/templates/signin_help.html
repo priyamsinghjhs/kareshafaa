@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block bodyclass %} auth-page{% endblock %}
+{% block content %}
+{% set other = 'password' if mode == 'username' else 'username' %}
+<div class="auth-grid activate-grid help-grid" lang="{{ lang }}" dir="{{ 'rtl' if rtl else 'ltr' }}">
+  <div class="auth-card">
+    <img class="logo-full auth-logo" src="/static/brand/logo-horizontal.svg" alt="KareShafaa" width="199" height="56">
+    <div class="lang-switch" role="group" aria-label="{{ lt.lang_label }}">
+      {% for k, v in langs.items() %}<a role="button" class="{{ '' if k == lang else 'secondary outline' }} sm" href="/forgot-{{ mode }}?lang={{ k }}&who={{ who }}" lang="{{ k }}" aria-current="{{ 'true' if k == lang else 'false' }}">{{ v }}</a>{% endfor %}
+    </div>
+    <h1 id="help-title">{{ t['title_' + mode] }}</h1>
+    <div class="who-switch" role="group" aria-label="{{ t.who_label }}">
+      <a role="button" id="who-patient" class="{{ '' if who == 'patient' else 'secondary outline' }} sm" href="/forgot-{{ mode }}?lang={{ lang }}&who=patient" aria-current="{{ 'true' if who == 'patient' else 'false' }}">{{ t.who_patient }}</a>
+      <a role="button" id="who-staff" class="{{ '' if who == 'staff' else 'secondary outline' }} sm" href="/forgot-{{ mode }}?lang={{ lang }}&who=staff" aria-current="{{ 'true' if who == 'staff' else 'false' }}">{{ t.who_staff }}</a>
+    </div>
+    {% if found %}
+      <div class="notice-inline ok" role="status" id="help-result" data-result="found"><b>{{ t.found_title }}.</b> {{ t.found_body }} <b dir="ltr" id="found-username">{{ found }}</b></div>
+      <p class="small">{{ t.found_keep }}</p>
+      <a role="button" href="/login?lang={{ lang }}" id="help-signin">{{ lt.submit }}</a>
+    {% elif sent %}
+      <div class="notice-inline ok" role="status" id="help-result" data-result="sent">{{ t.generic_password }}</div>
+      <p class="small">{{ t.have_code }} <a href="/reset-password?lang={{ lang }}" id="help-reset">{{ t.reset_link }}</a></p>
+    {% elif staff_sent %}
+      <div class="notice-inline ok" role="status" id="help-result" data-result="staff_sent">{{ t.s_sent }}</div>
+    {% else %}
+      {% if error %}<div class="notice-inline err" role="alert" id="help-error">{{ error }}</div>{% endif %}
+      {% if notice %}<div class="notice-inline info" role="status" id="help-result" data-result="no_match">{{ notice }}</div>{% endif %}
+      {% if who == 'patient' %}
+      <p class="small muted">{{ t['p_intro_' + mode] }}</p>
+      <form method="post" action="/forgot-{{ mode }}" id="help-form" data-who="patient" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ login_csrf }}"><input type="hidden" name="lang" value="{{ lang }}"><input type="hidden" name="who" value="patient">
+        <label for="birth_date">{{ t.dob }}
+          <input id="birth_date" name="birth_date" type="date" dir="ltr" min="1900-01-01" value="{{ v.birth_date or '' }}" required {% if 'birth_date' in bad %}aria-invalid="true" aria-describedby="help-error"{% endif %}></label>
+        <fieldset class="id-type"><legend>{{ t.id_type }}</legend>
+          <label class="check"><input type="radio" name="id_type" value="emirates_id" {% if (v.id_type or 'emirates_id') == 'emirates_id' %}checked{% endif %}> {{ t.id_eid }}</label>
+          <label class="check"><input type="radio" name="id_type" value="passport" {% if v.id_type == 'passport' %}checked{% endif %}> {{ t.id_passport }}</label></fieldset>
+        <label for="id_last4">{{ t.id_last4 }}
+          <input id="id_last4" name="id_last4" type="text" dir="ltr" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false"
+                 inputmode="{{ 'text' if v.id_type == 'passport' else 'numeric' }}" value="{{ v.id_last4 or '' }}" required {% if 'id_last4' in bad %}aria-invalid="true" aria-describedby="help-error"{% endif %}>
+          <span class="hint small muted">{{ t.id_last4_hint }}</span></label>
+        <label for="phone">{{ t.phone }}
+          <input id="phone" name="phone" type="tel" dir="ltr" inputmode="tel" maxlength="30" autocomplete="tel" value="{{ v.phone or '' }}" required {% if 'phone' in bad %}aria-invalid="true" aria-describedby="help-error"{% endif %}>
+          <span class="hint small muted">{{ t.phone_hint }}</span></label>
+        <button type="submit">{{ t['submit_' + mode] }}</button>
+      </form>
+      {% else %}
+      <p class="small" id="staff-intro">{{ t.s_intro }}</p>
+      <form method="post" action="/forgot-{{ mode }}" id="help-form" data-who="staff" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ login_csrf }}"><input type="hidden" name="lang" value="{{ lang }}"><input type="hidden" name="who" value="staff">
+        <label for="full_name">{{ t.s_name }}<input id="full_name" name="full_name" maxlength="200" autocomplete="name" value="{{ v.full_name or '' }}" required {% if 'name' in bad %}aria-invalid="true"{% endif %}></label>
+        <label for="role">{{ t.s_role }}<select id="role" name="role" required {% if 'role' in bad %}aria-invalid="true"{% endif %}><option value="">{{ t.choose }}</option>{% for k, l in t.roles.items() %}<option value="{{ k }}" {% if v.role == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+        <label for="org">{{ t.s_org }}<input id="org" name="org" maxlength="200" autocomplete="organization" value="{{ v.org or '' }}" required {% if 'org' in bad %}aria-invalid="true"{% endif %}></label>
+        <label for="contact">{{ t.s_contact }}<input id="contact" name="contact" dir="ltr" maxlength="200" autocomplete="email" value="{{ v.contact or '' }}" required {% if 'contact' in bad %}aria-invalid="true"{% endif %}></label>
+        <fieldset><legend>{{ t.s_need }}</legend>
+          <label class="check"><input type="radio" name="need" value="username" {% if (v.need or mode) == 'username' %}checked{% endif %}> {{ t.need_username }}</label>
+          <label class="check"><input type="radio" name="need" value="password" {% if (v.need or mode) == 'password' %}checked{% endif %}> {{ t.need_password }}</label></fieldset>
+        <label for="note">{{ t.s_note }}<textarea id="note" name="note" rows="2" maxlength="1000">{{ v.note or '' }}</textarea></label>
+        <button type="submit">{{ t.s_submit }}</button>
+      </form>
+      {% endif %}
+    {% endif %}
+    <nav class="auth-help" aria-label="{{ lt.help_links }}">
+      <a href="/forgot-{{ other }}?lang={{ lang }}&who={{ who }}" id="help-other">{{ t['other_q_' + mode] }}</a>
+      {% if who == 'patient' and mode == 'password' and not sent %}<a href="/reset-password?lang={{ lang }}" id="help-have-code">{{ t.have_code }}</a>{% endif %}
+      <a href="/login?lang={{ lang }}" id="help-back">{{ t.back }}</a>
+    </nav>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+const hf = document.getElementById("help-form");
+if (hf) {
+  hf.querySelectorAll('input[name="id_type"]').forEach(r => r.onchange = () => { document.getElementById("id_last4").inputMode = r.value === "passport" ? "text" : "numeric"; });
+  hf.addEventListener("submit", e => {
+    hf.querySelectorAll("[aria-invalid]").forEach(x => x.removeAttribute("aria-invalid"));
+    const miss = [...hf.querySelectorAll("input[required], select[required]")].filter(i => !i.value.trim());
+    if (miss.length) { e.preventDefault(); miss.forEach(i => i.setAttribute("aria-invalid", "true")); W.toast({{ t.missing|tojson }}, "err"); miss[0].focus(); return; }
+    const l4 = document.getElementById("id_last4");
+    if (l4 && !/^[0-9A-Za-z]{4}$/.test(l4.value.trim())) { e.preventDefault(); l4.setAttribute("aria-invalid", "true"); W.toast({{ t.bad_last4|tojson }}, "err"); l4.focus(); return; }
+    hf.querySelector("button[type=submit]").setAttribute("aria-busy", "true"); });
+}
+</script>{% endblock %}

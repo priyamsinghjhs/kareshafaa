@@ -14,28 +14,38 @@ const ACCOUNT_STATE = { none: ["No app account yet", ""], invited: ["Invited –
   invite_expired: ["Activation code expired – send a new one", "sla-red"], active: ["Active", "sla-green"], inactive: ["Deactivated by an administrator", "sla-none"] };
 function accountSection(R) {
   const A = R.account, [label, cls] = ACCOUNT_STATE[A.state] || [A.state, ""], C = R.contact;
-  const code = SHOWN_CODE ? `<div class="card ok" role="status" id="new-code"><b>Activation code (shown once):</b>
+  const isReset = SHOWN_CODE && SHOWN_CODE.purpose === "reset";
+  const code = SHOWN_CODE ? `<div class="card ok" role="status" id="new-code"><b>${isReset ? "Password reset code" : "Activation code"} (shown once):</b>
       <p class="code-big" dir="ltr">${W.esc(SHOWN_CODE.code)}</p>
       <p class="small">Username <b dir="ltr">${W.esc(SHOWN_CODE.username)}</b> · expires ${W.dt(SHOWN_CODE.expires_at)} · single use.
-      ${SHOWN_CODE.channel === "sms" ? "Sent by simulated SMS (code masked in the stored message)." : "Give it to the patient in person; they open the address below, enter the code and their date of birth, and choose a password."}</p>
-      <p class="small">Activation page: <a href="${W.esc(SHOWN_CODE.link)}" target="_blank" rel="noopener noreferrer">${W.esc(SHOWN_CODE.link.split("?")[0])}</a> ${SHOWN_CODE.channel === "sms" ? " (the SMS holds the full personal link)" : ""}</p>
+      ${SHOWN_CODE.channel === "sms" ? "Sent by simulated SMS (code masked in the stored message)." : "Give it to the patient in person; they open the address below, enter the code and their date of birth, and choose a password."}${isReset ? " Their other sessions end when they set the new password." : ""}</p>
+      <p class="small">${isReset ? "Reset page" : "Activation page"}: <a href="${W.esc(SHOWN_CODE.link)}" target="_blank" rel="noopener noreferrer">${W.esc(SHOWN_CODE.link.split("?")[0])}</a> ${SHOWN_CODE.channel === "sms" ? " (the SMS holds the full personal link)" : ""}</p>
       <div class="row"><button class="secondary sm" id="copy-code">Copy code</button><button class="ghost sm" id="hide-code">Done</button></div></div>` : "";
   const inv = A.invite ? `<p class="small">Open code …${W.esc(A.invite.code_hint.slice(-4))} created ${W.dt(A.invite.created_at)} by ${W.esc(A.invite.created_by)} (${A.invite.channel === "sms" ? "SMS" : "in person"}), expires ${W.dt(A.invite.expires_at)}.</p>` : "";
   const last = !A.invite && A.last_invite && A.last_invite.revoked_at ? `<p class="small muted">Last code cancelled ${W.dt(A.last_invite.revoked_at)}${A.last_invite.revoke_reason ? ": " + W.esc(A.last_invite.revoke_reason) : ""}.</p>` : "";
-  const can = A.can_invite && A.state !== "inactive";
+  const can = A.can_invite && A.state !== "inactive" && (A.state !== "active" || A.can_reset);
+  const RR = A.reset_request;
+  const rr = RR ? `<div class="notice-inline warn" role="status" id="reset-request"><b>Password reset requested</b> from the sign-in page ${W.dt(RR.created_at)} (the patient's date of birth, ID ending and mobile matched).
+      ${RR.due_at ? `Reply due ${W.ago(RR.due_at)}.` : ""} ${A.can_reset ? "Check who you are speaking to, then send a reset code below." : "A care coordinator handles it."}</div>` : "";
+  const verify = A.state === "active" && A.can_reset ? `<label for="verify-method">How did you check who the patient is?<select id="verify-method" name="verify_method" required>
+        <option value="">Choose…</option><option value="in_person_id">Seen in person with photo ID</option>
+        <option value="phone_call_checks">Phone call to the registered mobile: date of birth, ID number and address checked</option>
+        <option value="video_call_id">Video call with photo ID</option></select></label>` : "";
   const smsOk = C.phone && C.phone_valid;
   const btnText = A.state === "none" ? "Create account and send code" : A.state === "active" ? "Send a new code (forgotten password)" : "Send a new code";
   return `<section class="card pr-sec" id="sec-account"><h2 class="sec-title">Patient app account</h2>
     ${facts([["Status", `<span class="chip ${cls}">${W.esc(label)}</span>`], ["Username", A.username ? `<span dir="ltr">${W.esc(A.username)}</span>` : NR],
       ["Activated", A.activated_at ? W.dt(A.activated_at) : '<span class="muted">Not yet</span>'], ["Last sign-in", A.last_login_at ? W.dt(A.last_login_at) : '<span class="muted">Never</span>']])}
-    ${code}${inv}${last}
-    ${can ? `<form class="action-form" id="invite-form" aria-label="Patient app account">
+    ${rr}${code}${inv}${last}
+    ${can ? `<form class="action-form" id="invite-form" aria-label="Patient app account" novalidate>
       <fieldset class="checks" style="border:0;padding:0;margin:0 0 var(--s-2)"><legend class="small"><b>How should the patient get the code?</b></legend>
         <label class="check"><input type="radio" name="channel" value="sms" ${smsOk ? "checked" : "disabled"}> By SMS to ${smsOk ? W.esc(C.phone) : "(no valid mobile number)"}</label>
         <label class="check"><input type="radio" name="channel" value="in_person" ${smsOk ? "" : "checked"}> I will give it in person</label></fieldset>
+      ${verify}
       ${R.demographics.birth_date ? "" : `<p class="notice-inline err small">Add the full date of birth first – the patient confirms it when activating.</p>`}
-      <div class="form-buttons"><button type="submit" ${R.demographics.birth_date ? "" : "disabled"}>${btnText}</button>${A.invite ? `<button type="button" class="secondary" id="revoke-code">Cancel the open code</button>` : ""}</div></form>` :
-      (A.state === "inactive" ? `<p class="small muted">An administrator can reactivate this account (Admin → Users).</p>` : "")}
+      <div class="form-buttons"><button type="submit" ${R.demographics.birth_date ? "" : "disabled"}>${btnText}</button>${A.invite ? `<button type="button" class="secondary" id="revoke-code">Cancel the open code</button>` : ""}${RR && A.can_reset ? `<button type="button" class="secondary" id="close-reset">Close the request without a code</button>` : ""}</div></form>` :
+      (A.state === "inactive" ? `<p class="small muted">An administrator can reactivate this account (Admin → Users).</p>`
+        : A.state === "active" && A.can_invite ? `<p class="small muted" id="reset-coord-only">Password resets are done by care coordinators, after checking who the patient is.</p>` : "")}
     ${A.invite_messages.length ? `<details class="small"><summary>Messages sent (${A.invite_messages.length})</summary>${A.invite_messages.map(m => `<p class="msg"><span class="muted">${W.dt(m.at)} · ${W.esc(m.channel)}</span><br>${W.esc(m.content)}</p>`).join("")}</details>` : ""}
   </section>`;
 }
@@ -44,8 +54,10 @@ function wireAccount() {
   if (f) f.onsubmit = async ev => { ev.preventDefault(); W.formError(f, "");
     const ch = (f.querySelector("input[name=channel]:checked") || {}).value;
     if (!ch) { W.formError(f, "Choose how the patient gets the code."); return; }
+    const vm = f.querySelector("#verify-method"); if (vm) vm.removeAttribute("aria-invalid");
+    if (vm && !vm.value) { vm.setAttribute("aria-invalid", "true"); W.formError(f, "Say how you checked who the patient is before sending a reset code."); vm.focus(); return; }
     const b = f.querySelector("button[type=submit]"); W.busy(b, true);
-    try { const r = await W.api(`/api/patients/${PID}/account-invite`, { method: "POST", body: { channel: ch } });
+    try { const r = await W.api(`/api/patients/${PID}/account-invite`, { method: "POST", body: { channel: ch, verify_method: vm ? vm.value : null } });
       SHOWN_CODE = r; W.toast(ch === "sms" ? "Account ready – code sent (simulated SMS)" : "Account ready – give the code to the patient", "ok"); await load();
       document.getElementById("new-code")?.scrollIntoView({ block: "center" }); }
     catch (e) { W.busy(b, false); W.formError(f, e.message); } };
@@ -53,6 +65,11 @@ function wireAccount() {
   if (rv) rv.onclick = async () => { const why = await W.ask("Cancel the open activation code?", "Reason", { ok: "Cancel the code", min: 5, danger: true, placeholder: "e.g. sent to the wrong number" });
     if (!why) return;
     try { await W.api(`/api/patients/${PID}/account-invite/revoke`, { method: "POST", body: { reason: why } }); SHOWN_CODE = null; W.toast("Code cancelled", "ok"); await load(); }
+    catch (e) { W.toast(e.message, "err"); } };
+  const cr = document.getElementById("close-reset");
+  if (cr) cr.onclick = async () => { const why = await W.ask("Close the password reset request?", "What happened (kept in the audit trail)", { ok: "Close the request", min: 5, placeholder: "e.g. could not confirm who the caller was; asked them to come in with ID" });
+    if (!why) return;
+    try { await W.api(`/api/signin-help/${R.account.reset_request.id}/close`, { method: "POST", body: { outcome: "closed", note: why } }); W.toast("Request closed", "ok"); await load(); }
     catch (e) { W.toast(e.message, "err"); } };
   const cp = document.getElementById("copy-code");
   if (cp) cp.onclick = () => navigator.clipboard && navigator.clipboard.writeText(SHOWN_CODE.code).then(() => W.toast("Copied", "ok"));
@@ -119,6 +136,8 @@ function wire() {
   wireAccount();
 }
 
-async function load() { R = await W.api(`/api/patients/${PID}`); render(); }
+async function load() { R = await W.api(`/api/patients/${PID}`); render();
+  if (!load.done && /^#[a-z][\w-]*$/.test(location.hash)) { const el = document.querySelector(location.hash); if (el) el.scrollIntoView({ block: "start" }); }
+  load.done = true; }
 document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return;
   try { await PF.options(); await load(); } catch (e) { pr().innerHTML = W.empty("Could not open this record", W.esc(e.message), '<a role="button" href="/patients">Back to patients</a>'); } });

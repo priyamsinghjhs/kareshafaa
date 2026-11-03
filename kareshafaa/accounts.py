@@ -248,12 +248,13 @@ def is_locked(db: Session, username: str, ip: str | None) -> bool:
     last_ok = _last_success(db, username, scope_ip)
     if last_ok and last_ok > since:
         since = last_ok
+    u = db.scalar(select(User).where(User.username == username)) if not s.public_demo else None
+    if u is not None and u.password_changed_at and u.password_changed_at > since:
+        since = u.password_changed_at  # a reset (admin, or a patient reset code) clears earlier failures
     if _failures_since(db, username, scope_ip, since) >= s.login_max_failures:
         return True
-    if not s.public_demo:
-        u = db.scalar(select(User).where(User.username == username))
-        if u is not None and u.locked_until and u.locked_until > now:
-            return True
+    if u is not None and u.locked_until and u.locked_until > now:
+        return True
     return False
 
 

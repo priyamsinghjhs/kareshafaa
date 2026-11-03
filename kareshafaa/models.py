@@ -373,6 +373,34 @@ class AppointmentRequest(Base):  # patient's answer to a booked appointment from
     handled_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class SigninHelpRequest(Base):  # "Forgot username / password" from the sign-in page (added 3 Nov 2026)
+    """audience patient: the identity check matched an active patient account; coordinators verify the patient and
+    send a one-time reset code. audience staff: what the person typed (never matched to an account on the page, so
+    the page reveals nothing); only administrators see it."""
+    __tablename__ = "signin_help_requests"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    audience: Mapped[str] = mapped_column(String(10), index=True)  # patient | staff
+    kind: Mapped[str] = mapped_column(String(10))  # password | username
+    patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), nullable=True, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    full_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    role_text: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    org_text: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    contact: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    language: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(12), default="open", index=True)  # open | done | closed
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    handled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    handled_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    handled_by_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    outcome_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    verify_method: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    invite_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
 class PatientRequest(Base):  # patient app: a REQUEST for an appointment (added 3 Nov 2026). Patients never book.
     """kind: screening (programme + preferred site, days and times), recall (the same, started from a due recall and
     linked to it) or follow_up (an open case whose follow-up can be booked: a slot the patient picked inside the

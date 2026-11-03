@@ -367,3 +367,44 @@ def test_identity_document_type_number_and_country_capture(client, db, staff):
     bad = P(client, co, f"{rd}/demographics", id_type="other", id_number="AB/12")
     assert bad.status_code == 422 and "5 to 20 letters and digits" in bad.text
     db.expire_all(); assert db.get(Patient, pid).id_number == "OM99887766"
+
+
+def test_signin_help_staff_request_and_admin_note_capture(client, db, as_user, app):
+    """Forgot username / password (staff): what the person typed reaches the administrators' list; the handled
+    note is stored and shown back."""
+    import re as _re
+
+    from fastapi.testclient import TestClient
+
+    c = TestClient(app, client=("10.88.0.1", 50000), follow_redirects=False)
+    ctok = _re.search(r'name="csrf_token" value="([^"]+)"', c.get("/forgot-password?who=staff").text).group(1)
+    name, org, note = tok("help_name"), tok("help_org"), tok("help_note")
+    r = c.post("/forgot-password", data={"csrf_token": ctok, "lang": "en", "who": "staff", "full_name": name,
+                                         "role": "gp", "org": org, "contact": "02 555 0199", "need": "password", "note": note})
+    ad = as_user("admin")
+    for v in (name, org, note):
+        captured(client, db, r, v, "/api/signin-help?audience=staff", h=ad)
+    hid = next(x["id"] for x in client.get("/api/signin-help?audience=staff", headers=ad).json()["items"] if x["full_name"] == name)
+    done = tok("help_done")
+    r = P(client, ad, f"/api/signin-help/{hid}/close", outcome="done", note=done)
+    captured(client, db, r, done, "/api/signin-help?audience=staff&status=all", h=ad)
+
+
+def test_patient_appointment_request_capture(client, db, as_user, make_patient):
+    """Patient app: screening request note, and the coordinator's decline note (work list)."""
+    from kareshafaa.models import Organization
+
+    pid = make_patient(language="en")
+    u = User(username=f"zc.req{next(_n)}.{pid}", display_name="Capture Patient", role="patient", patient_id=pid)
+    db.add(u)
+    db.commit()
+    ph = as_user(u.username)
+    site = db.scalar(select(Organization.id).where(Organization.kind == "primary_care"))
+    note = tok("req_note")
+    r = P(client, ph, "/api/me/requests/screening", programme="breast", site_org_id=site, days=["tue"], times=["afternoon"], note=note)
+    co = as_user("aisha.rahman")
+    captured(client, db, r, note, "/api/me/profile", "/api/patient-requests", h=co)
+    rid = r.json()["request_id"]
+    dn = tok("decline_note")
+    r = P(client, co, f"/api/patient-requests/{rid}/decline", reason_code="other", note=dn)
+    captured(client, db, r, dn, "/api/patient-requests?status=declined", h=co)

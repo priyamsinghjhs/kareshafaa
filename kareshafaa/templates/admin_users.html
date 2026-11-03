@@ -10,6 +10,11 @@
   <label for="ur">Role<select id="ur"><option value="">All roles</option>{% for k, v in role_labels.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
   <label for="us">Status<select id="us"><option value="">Active and inactive</option><option value="active" selected>Active</option><option value="inactive">Deactivated</option></select></label>
 </div>
+<section class="card" id="help-reqs" hidden aria-labelledby="help-reqs-h">
+  <div class="preq-head"><h2 id="help-reqs-h" style="font-size:var(--fs-lg);margin:0">Sign-in help requests</h2><span id="help-count" class="small muted"></span></div>
+  <p class="small muted">Sent by staff from "Forgot username?" / "Forgot password?" on the sign-in page. Call them back on a number or address you already trust (not only the one typed here) before giving any sign-in details. To reset a password: "Find in the list", then "Reset password" on their row (a temporary password is shown once; they must choose a new one at sign-in, and all their sessions end).</p>
+  <div id="help-list" aria-live="polite"></div>
+</section>
 <div id="created" aria-live="polite"></div>
 <div id="users"><div class="loading" role="status">Loading users…</div></div>
 <style>
@@ -46,7 +51,7 @@ function render() {
     <td><b>${W.esc(u.display_name.split(" (")[0])}</b><span class="sub">${W.esc(u.username)}</span></td>
     <td>${W.esc(u.role_label)}</td><td class="small">${W.esc(u.site || "–")}${u.team ? `<span class="sub">${W.esc(u.team)}</span>` : ""}</td><td>${status(u)}${u.status_reason ? `<span class="sub">${u.active ? "Reactivated" : "Deactivated"}${u.status_changed_by ? " by " + W.esc(u.status_changed_by) : ""}${u.status_changed_at ? " · " + W.dt(u.status_changed_at) : ""}: ${W.esc(u.status_reason)}</span>` : ""}</td>
     <td class="small">${u.last_login_at ? W.dt(u.last_login_at) : "Never"}</td>
-    <td>${PD ? '<span class="small muted">Read-only</span>' : `<div class="row">${u.role !== "patient" && u.id !== W.me.user_id ? `<button class="secondary sm" onclick="changeRole(${u.id})">Change role</button>` : ""}<button class="secondary sm" onclick="resetPw(${u.id})">Reset password</button>${u.id === W.me.user_id ? "" : u.active ? `<button class="danger secondary sm" onclick="deact(${u.id})">Deactivate</button>` : `<button class="secondary sm" onclick="act(${u.id})">Reactivate</button>`}</div>`}</td></tr>`).join("")}</tbody></table>` : W.empty("No users match", "Try a different name or filter.");
+    <td>${PD ? '<span class="small muted">Read-only</span>' : `<div class="row">${u.role !== "patient" && u.id !== W.me.user_id ? `<button class="secondary sm" onclick="changeRole(${u.id})">Change role</button>` : ""}${u.role === "patient" ? "" : `<button class="secondary sm" onclick="resetPw(${u.id})">Reset password</button>`}${u.id === W.me.user_id ? "" : u.active ? `<button class="danger secondary sm" onclick="deact(${u.id})">Deactivate</button>` : `<button class="secondary sm" onclick="act(${u.id})">Reactivate</button>`}</div>`}</td></tr>`).join("")}</tbody></table>` : W.empty("No users match", "Try a different name or filter.");
 }
 async function load() { U = await W.api("/api/admin/users"); render(); }
 async function storageNote() {  // one-time notice (per browser) when data is not stored permanently
@@ -57,6 +62,27 @@ async function storageNote() {  // one-time notice (per browser) when data is no
     document.getElementById("storage-ok").onclick = () => { localStorage.setItem("ks.storage-note.dismissed", "1"); el.innerHTML = ""; };
   } catch (e) { /* the System page shows the same information */ } }
 const byId = id => U.items.find(u => u.id === id);
+// ---- sign-in help requests from staff (admins only) ----
+let H = null, HELP_FOR = null;
+const NEED = { username: "Forgot username", password: "Needs a new password" };
+async function loadHelp() {
+  H = await W.api("/api/signin-help?audience=staff&status=open");
+  const box = document.getElementById("help-reqs"); box.hidden = false;
+  document.getElementById("help-count").textContent = H.open ? `${H.open} waiting${H.overdue ? ` · ${H.overdue} past reply-due time` : ""}` : "none waiting";
+  const roleLabel = k => (U && (U.roles || []).find(r => r.key === k) || {}).label || (k === "other" ? "Other" : k);
+  document.getElementById("help-list").innerHTML = H.items.length ? `<ul class="preq-list">${H.items.map(r => `<li class="preq-item" data-help-request="${r.id}">
+    <div class="chips">${W.sla(r.rag, r.elapsed)} <span class="small muted">reply due ${W.ago(r.due_at)}</span> <span class="chip">${W.esc(NEED[r.kind] || r.kind)}</span>${HELP_FOR === r.id ? ' <span class="chip flag">Selected for reset</span>' : ""}</div>
+    <div><b>${W.esc(r.full_name)}</b> <span class="sub">${W.esc(roleLabel(r.role))} · ${W.esc(r.org)} · asked ${W.dt(r.created_at)}</span></div>
+    <div class="small">Contact: <span dir="ltr">${W.esc(r.contact)}</span></div>${r.note ? `<div class="small muted">Note: ${W.esc(r.note)}</div>` : ""}
+    <div class="tb-actions">${PD ? "" : `<button type="button" class="secondary sm" data-help-find="${r.id}">Find in the list</button><button type="button" class="secondary sm" data-help-close="${r.id}">Mark handled…</button>`}</div></li>`).join("")}</ul>`
+    : '<p class="small muted" data-help-empty>No sign-in help requests are waiting.</p>';
+  document.querySelectorAll("[data-help-find]").forEach(b => b.onclick = () => { const r = H.items.find(x => x.id === +b.dataset.helpFind); HELP_FOR = r.id;
+    const uq = document.getElementById("uq"); uq.value = r.full_name.split(" ")[0]; document.getElementById("us").value = ""; render(); loadHelp();
+    W.toast("Check the matches below, then use Reset password on the right row", "ok"); document.getElementById("users").scrollIntoView({ block: "start" }); });
+  document.querySelectorAll("[data-help-close]").forEach(b => b.onclick = async () => { const r = H.items.find(x => x.id === +b.dataset.helpClose);
+    await W.ask(`Mark the request from ${r.full_name} as handled?`, "What did you do? (kept in the audit trail)", { ok: "Mark handled", min: 5, placeholder: "e.g. called back on the ward number; told them their username",
+      save: async note => { await W.api(`/api/signin-help/${r.id}/close`, { method: "POST", body: { outcome: "done", note } }); if (HELP_FOR === r.id) HELP_FOR = null; W.toast("Request closed", "ok"); await loadHelp(); } }); });
+}
 // ---- staff directory record (clinical roles only): link an existing record or create a new one ----
 const isClinical = r => !!(U.staff_rules || {})[r];
 const freeFor = r => U.unlinked_practitioners.filter(p => p.role === r);
@@ -114,9 +140,10 @@ function showTemp(u, pw, what) {
    <p><code style="font-size:var(--fs-lg)" id="tmp-pw">${W.esc(pw)}</code></p><div class="row"><button class="secondary sm" onclick="navigator.clipboard && navigator.clipboard.writeText(document.getElementById('tmp-pw').textContent).then(() => W.toast('Copied', 'ok'))">Copy</button><button class="ghost sm" onclick="document.getElementById('created').innerHTML=''">Done</button></div></div>`;
   document.getElementById("created").scrollIntoView({ behavior: "smooth" });
 }
-window.resetPw = async id => { const u = byId(id);
-  if (!(await W.confirm(`Reset the password for ${u.display_name}?`, "They will be signed out everywhere and must choose a new password at next sign-in.", { ok: "Reset password" }))) return;
-  try { const r = await W.api(`/api/admin/users/${id}/reset-password`, { method: "POST", body: {} }); showTemp(u, r.temporary_password, "Password reset"); load(); } catch (e) { W.toast(e.message, "err"); } };
+window.resetPw = async id => { const u = byId(id), hr = HELP_FOR && H ? H.items.find(x => x.id === HELP_FOR) : null;
+  if (!(await W.confirm(`Reset the password for ${u.display_name}?`, `They will be signed out everywhere and must choose a new password at next sign-in.${hr ? ` This also closes the sign-in help request from ${W.esc(hr.full_name)}.` : ""}`, { ok: "Reset password" }))) return;
+  try { const r = await W.api(`/api/admin/users/${id}/reset-password`, { method: "POST", body: hr ? { help_request_id: hr.id } : {} }); showTemp(u, r.temporary_password, "Password reset");
+    if (hr) { HELP_FOR = null; loadHelp().catch(() => {}); } load(); } catch (e) { W.toast(e.message, "err"); } };
 window.deact = async id => { const u = byId(id);
   await W.ask(`Deactivate ${u.display_name}?`, "Reason (shown on the user list and kept in the audit trail)", { ok: "Deactivate", danger: true, min: 3, body: "They are signed out at once and can no longer sign in. Their history is kept.",
     save: async why => { await W.api(`/api/admin/users/${id}/deactivate`, { method: "POST", body: { reason: why } }); W.toast("Account deactivated", "ok"); await load(); } }); };
@@ -143,7 +170,7 @@ window.changeRole = async id => { const u = byId(id);
 document.addEventListener("DOMContentLoaded", async () => {
   await W.ready; if (!W.requireLogin()) return;
   ["uq", "ur", "us"].forEach(i => document.getElementById(i).addEventListener("input", () => U && render()));
-  storageNote(); try { await load(); } catch (e) { document.getElementById("users").innerHTML = W.empty("Could not load users", W.esc(e.message)); return; }
+  storageNote(); try { await load(); loadHelp().catch(e => { document.getElementById("help-reqs").hidden = false; document.getElementById("help-list").innerHTML = W.empty("Could not load sign-in help requests", W.esc(e.message)); }); } catch (e) { document.getElementById("users").innerHTML = W.empty("Could not load users", W.esc(e.message)); return; }
   const dlg = document.getElementById("add-dlg"), f = document.getElementById("add-form");
   const grp = (t, rs) => `<optgroup label="${W.esc(t)}">` + rs.map(r => `<option value="${r.key}">${W.esc(r.label)}</option>`).join("") + "</optgroup>";
   document.getElementById("f-role").innerHTML = `<option value="">Choose a role…</option>` + grp("Clinical staff (staff directory record)", U.roles.filter(r => r.clinical)) + grp("Other staff", U.roles.filter(r => !r.clinical));

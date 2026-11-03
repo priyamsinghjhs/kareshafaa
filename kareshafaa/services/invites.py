@@ -25,6 +25,7 @@ from ..security import Actor
 from .errors import DomainError, Forbidden, Invalid
 
 INVITE_TTL_HOURS = 72          # time to activate (operational setting, not clinical)
+RESET_TTL_HOURS = 24           # CONFIRM (security): a password-RESET code (account already active) expires sooner
 MAX_FAILED_ATTEMPTS = 5        # wrong date of birth for one invite -> invite revoked, staff send a new one
 IP_MAX_FAILURES = 20           # per IP in the login window (shared with the sign-in rate limit)
 ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I/L
@@ -94,12 +95,21 @@ def account_status(db: Session, p: Patient, now: datetime | None = None) -> dict
     return {"state": state, "username": u.username if u else None,
             "activated_at": u.password_changed_at.isoformat() if u and u.password_hash and u.password_changed_at else None,
             "last_login_at": u.last_login_at.isoformat() if u and u.last_login_at else None,
+            "reset_request": _reset_request(db, p.id),
             "invite": ({"id": inv.id, "code_hint": "…" + inv.code_last4, "expires_at": inv.expires_at.isoformat(),
                         "created_at": inv.created_at.isoformat(), "created_by": inv.created_by, "channel": inv.channel,
                         "purpose": inv.purpose} if inv else None),
             "last_invite": ({"created_at": last.created_at.isoformat(), "used_at": last.used_at.isoformat() if last.used_at else None,
                              "revoked_at": last.revoked_at.isoformat() if last.revoked_at else None,
                              "revoke_reason": last.revoke_reason, "expires_at": last.expires_at.isoformat()} if last else None)}
+
+
+def _reset_request(db: Session, patient_id: int) -> dict | None:
+    from .signin_help import open_patient_request
+
+    r = open_patient_request(db, patient_id)
+    return {"id": r.id, "created_at": r.created_at.isoformat(), "due_at": r.due_at.isoformat() if r.due_at else None,
+            "language": r.language} if r is not None else None
 
 
 @dataclass
@@ -112,8 +122,10 @@ class NewInvite:
 
 
 def create_invite(db: Session, actor: Actor, p: Patient, *, channel: str, base_url: str,
-                  now: datetime | None = None) -> NewInvite:
-    """Create (or re-use) the patient's account and a fresh one-time code. Earlier open invites are revoked."""
+                  verify_method: str | None = None, now: datetime | None = None) -> NewInvite:
+    """Create (or re-use) the patient's account and a fresh one-time code. Earlier open invites are revoked.
+    For an account that already has a password this is a password RESET: only care coordinators send it, after
+    checking who the patient is (verify_method), and the code expires after RESET_TTL_HOURS."""
     from .patients import can_write_patient
 
     now = now or utcnow()
@@ -139,16 +151,25 @@ def create_invite(db: Session, actor: Actor, p: Patient, *, channel: str, base_u
     elif not u.active:
         raise Invalid("this patient's account is deactivated - an administrator must reactivate it first")
     purpose = "reset" if u.password_hash else "activate"
+    if purpose == "reset":
+        from .signin_help import VERIFY_METHODS
+
+        if actor.role != "coordinator":
+            raise Forbidden("password resets for patients are handled by care coordinators")
+        if verify_method not in VERIFY_METHODS:
+            raise Invalid("say how you checked who the patient is before sending a reset code")
     for old in db.scalars(select(PatientInvite).where(PatientInvite.patient_id == p.id, PatientInvite.used_at.is_(None),
                                                       PatientInvite.revoked_at.is_(None))):
         old.revoked_at, old.revoked_by, old.revoke_reason = now, actor.display, "replaced by a new code"
     code, token = _new_code(), secrets.token_urlsafe(24)
     inv = PatientInvite(patient_id=p.id, user_id=u.id, code_hash=_h("code", code), link_hash=_h("link", token),
                         code_last4=code[-4:], purpose=purpose, channel=channel, created_at=now, created_by=actor.display,
-                        expires_at=now + timedelta(hours=INVITE_TTL_HOURS), failed_attempts=0)
+                        expires_at=now + timedelta(hours=RESET_TTL_HOURS if purpose == "reset" else INVITE_TTL_HOURS),
+                        failed_attempts=0)
     db.add(inv)
     db.flush()
-    link = base_url.rstrip("/") + "/activate?t=" + token
+    page_path = "/reset-password" if purpose == "reset" else "/activate"
+    link = base_url.rstrip("/") + page_path + "?t=" + token
     sms = None
     if channel == "sms":
         from ..comms.service import SIM_PREFIX, comm_language
@@ -157,16 +178,25 @@ def create_invite(db: Session, actor: Actor, p: Patient, *, channel: str, base_u
         lang = comm_language(p)
         lang = lang if lang in SMS_TEXT else "en"
         exp = to_local(inv.expires_at).strftime("%d/%m/%Y %H:%M")
-        masked = SMS_TEXT[lang].format(link=base_url.rstrip("/") + "/activate", code="****-" + code[-4:], expires=exp)
+        from ..comms.signin_text import SMS_RESET_TEXT
+
+        texts = SMS_RESET_TEXT if purpose == "reset" else SMS_TEXT
+        masked = texts[lang].format(link=base_url.rstrip("/") + page_path, code="****-" + code[-4:], expires=exp)
         sms = Communication(patient_id=p.id, direction="outbound", category="account_invite", channel="sms",
-                            language=lang, template_key="account_invite", template_variant="standard",
+                            language=lang, template_key="account_reset" if purpose == "reset" else "account_invite",
+                            template_variant="standard",
                             content=SIM_PREFIX + masked, status="completed", simulated=True, sent_at=now)
         db.add(sms)
         db.flush()
         inv.communication_id = sms.id
     audit.record(db, actor, "C", "patient.account_invited", entity_type="Patient", entity_id=p.id, ts=now,
                  detail={"invite_id": inv.id, "user_id": u.id, "username": u.username, "account_created": created,
-                         "purpose": purpose, "channel": channel, "expires_at": inv.expires_at.isoformat()})
+                         "purpose": purpose, "channel": channel, "expires_at": inv.expires_at.isoformat(),
+                         "verify_method": verify_method if purpose == "reset" else None})
+    if purpose == "reset":
+        from .signin_help import reset_code_issued
+
+        reset_code_issued(db, actor, p.id, inv.id, verify_method, now)  # type: ignore[arg-type]
     return NewInvite(inv, u, code, link, sms)
 
 
@@ -205,7 +235,8 @@ def find_invite(db: Session, *, code: str | None = None, token: str | None = Non
 
 
 def activate(db: Session, *, code: str | None, token: str | None, birth_date: date | None, password: str,
-             confirm: str, ip: str | None, now: datetime | None = None) -> tuple[User | None, str]:
+             confirm: str, ip: str | None, purpose: str | None = None,
+             now: datetime | None = None) -> tuple[User | None, str]:
     """Returns (user, "ok") or (None, reason). reason in: rate_limited, invalid, expired, used, revoked,
     wrong_dob, locked, mismatch, weak:<problem>. Failed attempts are recorded for rate limiting."""
     now = now or utcnow()
@@ -223,8 +254,8 @@ def activate(db: Session, *, code: str | None, token: str | None, birth_date: da
     if _ip_blocked(db, ip, now):
         return None, "rate_limited"
     inv = find_invite(db, code=code, token=token)
-    if inv is None:
-        return fail("invalid")
+    if inv is None or (purpose is not None and inv.purpose != purpose):
+        return fail("invalid", inv)
     if inv.used_at is not None:
         return fail("used", inv)
     if inv.revoked_at is not None:
@@ -254,6 +285,9 @@ def activate(db: Session, *, code: str | None, token: str | None, birth_date: da
     db.add(LoginAttempt(username=u.username, ip=(ip or "")[:64] or None, at=now, success=True))
     audit.record(db, actor, "U", "patient.account_activated", entity_type="Patient", entity_id=p.id, ts=now,
                  detail={"invite_id": inv.id, "user_id": u.id, "purpose": inv.purpose})
+    if inv.purpose == "reset":
+        audit.record(db, actor, "U", "patient.password_reset", entity_type="User", entity_id=u.id, ts=now,
+                     detail={"invite_id": inv.id, "patient_id": p.id, "sessions_ended": True})
     return u, "ok"
 
 

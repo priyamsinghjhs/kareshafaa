@@ -234,8 +234,17 @@ def change_role(uid: int, body: UserRoleIn, actor: Actor = Depends(require("user
 @router.post("/{uid}/reset-password")
 def reset_password(uid: int, body: UserResetIn | None = None,
                    actor: Actor = Depends(require("user:admin")), db: Session = Depends(get_db)) -> dict:
+    """Staff accounts only: a one-time temporary password shown once to the administrator, a change forced at next
+    sign-in, every session ended, earlier failed sign-ins cleared. Patient accounts are reset by a care coordinator
+    after an identity check (one-time reset code from the patient record)."""
+    from ..services import signin_help
+
     u = _get(db, uid)
+    if u.role == "patient":
+        raise Forbidden("patient passwords are reset by a care coordinator from the patient record (identity check "
+                        "and a one-time reset code)")
     given = body.temporary_password if body else None
+    help_id = body.help_request_id if body else None
     temp = given or accounts.generate_password(16)
     probs = accounts.password_problems(temp, u.username, u.display_name)
     if probs:
@@ -243,7 +252,10 @@ def reset_password(uid: int, body: UserResetIn | None = None,
     accounts.set_password(u, temp, must_change=True)
     accounts.revoke_user_sessions(db, u.id)
     audit.record(db, actor, "U", "user.password_reset", entity_type="User", entity_id=u.id,
-                 detail={"forced_change": True})
+                 detail={"forced_change": True, "sessions_ended": True, "help_request_id": help_id})
+    if help_id:
+        signin_help.close_request(db, actor, help_id, "done", f"Password reset for {u.username} (temporary password, "
+                                                             "change forced at next sign-in)")
     db.commit()
     return {"ok": True, "user": accounts.public_user(u), "temporary_password": None if given else temp}
 

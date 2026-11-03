@@ -226,6 +226,7 @@ class UserRoleIn(_In):
 
 
 class UserResetIn(_In):
+    help_request_id: int | None = None  # the "Sign-in help" request this answers (closed as done)
     temporary_password: str | None = Field(None, max_length=256)
 
 
@@ -363,6 +364,12 @@ class SelfContactIn(_In):  # patient app: own contact details (same rules as the
 
 class AccountInviteIn(_In):
     channel: Literal["sms", "in_person"] = "sms"
+    verify_method: str | None = Field(default=None, max_length=30)  # needed for a password RESET (coordinators)
+
+
+class SigninHelpCloseIn(_In):
+    outcome: Literal["done", "closed"]
+    note: str = Field(min_length=5, max_length=1000)
 
 
 class AppointmentChangeRequestIn(_In):  # patient app: "please change my appointment" (never moves it)

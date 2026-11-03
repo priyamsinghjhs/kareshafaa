@@ -701,6 +701,7 @@ def _account(db: Session, actor: Actor, p: Patient) -> dict:
     st = account_status(db, p)
     st["can_invite"] = bool(actor.is_human and actor.can("patient:invite") and can_write_patient(db, actor, p)
                             and not p.deceased)
+    st["can_reset"] = bool(st["can_invite"] and actor.role == "coordinator")  # resets: coordinators only
     st["invite_messages"] = [{"at": m.sent_at.isoformat(), "channel": m.channel, "content": m.content}
                              for m in db.scalars(select(Communication).where(Communication.patient_id == p.id,
                                                                              Communication.category == "account_invite")
