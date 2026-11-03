@@ -55,7 +55,15 @@ regular `pg_dump` to storage you control.
 | Google Cloud Run | Always-free request tier, needs a billing account (card) | `gcloud run deploy kareshafaa --source . --set-env-vars KARESHAFAA_MODE=production,...` |
 | Koyeb | One free 512 MB service, may ask for a card | Docker from GitHub |
 
+## Health checks and logs
+
+* `/healthz`: the process is alive (Render's health check). `/readyz`: the database answers and the initial records
+  are present (503 until then); use it for a load balancer or Kubernetes readiness probe.
+* `KARESHAFAA_LOG_FORMAT=json` writes one JSON object per log line; the default is plain text.
+* The public API description is switched off; administrators download it from Admin → About.
+
 ## Not for real patient data
 
 None of these free tiers is suitable for real health data. A pilot needs UAE data residency (hosting inside the UAE),
-a hosting agreement with the health authority, backups and monitoring - not a free hobby tier.
+a hosting agreement with the health authority, backups and monitoring - not a free hobby tier. See
+`docs/deployment_uae.md` (UAE cloud regions, on-premises with `docker-compose.yml`) and `docs/background_jobs.md`.

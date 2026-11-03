@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head"><div><h1>About the system</h1>
+<p class="lede">How KareShafaa is built, what it connects to, and how it is run. For administrators; no patient data on this page.</p></div>
+<div class="page-actions"><a role="button" class="secondary sm" href="/api/admin/about/openapi.json" download>Download API description (OpenAPI)</a><a role="button" class="ghost sm" href="/fhir/metadata" target="_blank" rel="noopener">FHIR capability statement</a></div></div>
+<section class="card" aria-labelledby="arch-h" id="arch">
+  <h2 id="arch-h">Architecture</h2>
+  <div class="arch" role="img" aria-label="Results flow from laboratory and clinic systems into KareShafaa, which tracks each case to care and serves staff and patients">
+    <div class="arch-col"><h3>Sources</h3><div class="arch-box">Laboratory and radiology<br><span>HL7 v2 ORU^R01</span></div><div class="arch-box">Clinic systems<br><span>FHIR R4 Bundles</span></div><div class="arch-box dashed">Malaffi (Abu Dhabi HIE)<br><span>planned, not connected</span></div></div>
+    <div class="arch-arrow" aria-hidden="true">→</div>
+    <div class="arch-col arch-core"><h3>KareShafaa</h3>
+      <div class="arch-box">Results inbox<br><span>match review, acknowledgement</span></div>
+      <div class="arch-box">Clinical rules engine<br><span>deterministic tier and pathway</span></div>
+      <div class="arch-box">Loop engine<br><span>one owner, deadlines, escalation</span></div>
+      <div class="arch-box">Patient messages<br><span>templates, teach-back, fallback</span></div>
+      <div class="arch-box">Outreach model<br><span>orders calls within a tier only</span></div>
+      <div class="arch-box">Audit trail<br><span>hash-chained, append-only</span></div>
+      <div class="arch-box db">PostgreSQL<br><span>FHIR-shaped tables</span></div></div>
+    <div class="arch-arrow" aria-hidden="true">→</div>
+    <div class="arch-col"><h3>People</h3><div class="arch-box">Care coordinators</div><div class="arch-box">Family doctors and specialists</div><div class="arch-box">Clinical lead</div><div class="arch-box">Patients (app, SMS, call)</div></div>
+  </div>
+  <p class="small muted">The same diagram, with more detail, is in <code>docs/architecture.md</code>.</p>
+  <div id="components"></div>
+</section>
+<div id="about"><div class="loading" role="status">Loading…</div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  await W.ready; if (!W.requireLogin()) return;
+  const el = document.getElementById("about");
+  try {
+    const a = await W.api("/api/admin/about");
+    document.getElementById("components").innerHTML = `<details><summary class="small">What each part does</summary><div class="table-scroll"><table class="compact"><thead><tr><th>Part</th><th>What it does</th><th>Code</th></tr></thead><tbody>${a.components.map(c => `<tr><td class="small"><b>${W.esc(c.name)}</b></td><td class="small">${W.esc(c.does)}</td><td class="small"><code>${W.esc(c.code)}</code></td></tr>`).join("")}</tbody></table></div></details>`;
+    const st = s => `<span class="chip ${/^(receiving|available|ready)/.test(s) ? "sla-green" : /not connected|to do|simulated/.test(s) ? "sla-none" : "sla-amber"}">${W.esc(s)}</span>`;
+    el.innerHTML = `<section class="card" aria-labelledby="int-h" id="integrations"><h2 id="int-h">Integrations</h2>
+      <div class="table-scroll"><table class="compact"><thead><tr><th>Inbound</th><th>Endpoint</th><th>Received</th><th>Last 7 days</th><th>Waiting for match review</th><th>Rejected</th><th>Last message</th><th>State</th></tr></thead><tbody>
+      ${a.integrations.inbound.map(i => `<tr data-source="${i.source}"><td class="small"><b>${W.esc(i.label)}</b></td><td class="small"><code>${W.esc(i.endpoint)}</code></td><td>${i.total}</td><td>${i.last_7_days}</td><td>${i.waiting_for_match_review}</td><td>${i.rejected}</td><td class="small">${W.dt(i.last_received_at)}</td><td>${st(i.state)}</td></tr>`).join("")}</tbody></table></div>
+      <div class="table-scroll"><table class="compact"><thead><tr><th>Outbound and other</th><th>Endpoint</th><th>State</th></tr></thead><tbody>${a.integrations.outbound.map(o => `<tr><td class="small">${W.esc(o.label)}</td><td class="small"><code>${W.esc(o.endpoint)}</code></td><td>${st(o.state)}</td></tr>`).join("")}</tbody></table></div></section>
+     <section class="card" aria-labelledby="mal-h" id="malaffi"><h2 id="mal-h">Malaffi (Abu Dhabi health information exchange) readiness</h2><p class="small muted">${W.esc(a.notes.malaffi)}</p>
+      <div class="table-scroll"><table class="compact"><thead><tr><th>Requirement</th><th>What is needed</th><th>Status</th><th>Where we are</th></tr></thead><tbody>${a.malaffi.map(m => `<tr><td class="small"><b>${W.esc(m.item)}</b></td><td class="small">${W.esc(m.need)}</td><td>${st(m.status)}</td><td class="small">${W.esc(m.evidence)}</td></tr>`).join("")}</tbody></table></div></section>
+     <div class="grid-2"><section class="card" aria-labelledby="em-h"><h2 id="em-h">Deployment profiles by emirate</h2><div class="table-scroll"><table class="compact"><thead><tr><th>Emirates</th><th>Regulator</th><th>Exchange</th><th>Configured</th></tr></thead><tbody>${a.emirates.map(e => `<tr><td class="small">${W.esc(e.emirates)}</td><td class="small">${W.esc(e.regulator)}</td><td class="small">${W.esc(e.hie)}</td><td>${e.configured ? "Yes" : "Not yet"}</td></tr>`).join("")}</tbody></table></div>
+       <p class="small muted">Programmes, deadlines, languages and channel order are configuration, so another emirate needs its own rule sign-off and exchange connection, not new code.</p></section>
+      <section class="card" aria-labelledby="jobs-h"><h2 id="jobs-h">Background jobs</h2><ul class="small">${a.jobs.map(j => `<li><b>${W.esc(j.name)}</b> – ${W.esc(j.runs)}. ${W.esc(j.how)}.</li>`).join("")}</ul>
+       <p class="small"><a href="/healthz">Liveness (/healthz)</a> · <a href="/readyz">Readiness (/readyz)</a> · <a href="/governance?tab=privacy">Data protection and retention</a> · <a href="/audit">Audit trail and chain check</a></p></section></div>
+     <section class="card" aria-labelledby="api-h" id="api-ref"><h2 id="api-h">API reference</h2><p class="small muted">Every endpoint checks the caller's role; writes need the CSRF token or a bearer token. Version ${W.esc(a.version)}.</p>
+      ${a.api.map(g => `<details data-tag="${W.esc(g.tag)}"><summary><b>${W.esc(g.tag)}</b> <span class="small muted">${g.endpoints.length}</span></summary><div class="table-scroll"><table class="compact"><tbody>${g.endpoints.map(e => `<tr><td><code>${e.method}</code></td><td class="small"><code>${W.esc(e.path)}</code></td><td class="small">${W.esc(e.doc || e.summary)}</td></tr>`).join("")}</tbody></table></div></details>`).join("")}</section>`;
+  } catch (e) { el.innerHTML = W.empty("Could not load", W.esc(e.message)); }
+});
+</script>
+{% endblock %}

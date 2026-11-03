@@ -223,6 +223,8 @@ Installable PWA: `/manifest.webmanifest` and `/sw.js`. The service worker caches
 
 ## Architecture
 
+Diagrams (mermaid) and component notes: `docs/architecture.md`; in the product: Admin → About.
+
 ```
 Browser (Jinja + vanilla JS + one tokenised CSS file, mobile-first; RTL aware)          HL7 v2 / FHIR R4 senders
         │  session cookie (+CSRF) or bearer token                         │

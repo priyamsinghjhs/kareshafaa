@@ -15,6 +15,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN useradd --create-home --uid 10001 kareshafaa && mkdir -p /app/data/models && chown -R kareshafaa /app
 COPY --chown=kareshafaa kareshafaa ./kareshafaa
+# the signed-off rule tables: the case screen and the rule cards quote them to explain each decision
+COPY --chown=kareshafaa docs/clinical_rules.md ./docs/clinical_rules.md
 USER kareshafaa
 # build-time secret only signs nothing that persists; the runtime secret comes from KARESHAFAA_SECRET_KEY
 # The image carries the initial records (reference data, staff directory, sample patient records). On first start the
@@ -26,7 +28,7 @@ RUN if [ "$SEED_AT_BUILD" = "1" ]; then \
       KARESHAFAA_SECRET_KEY=build-time-only KARESHAFAA_DATABASE_URL=sqlite:////app/data/kareshafaa.db python -m kareshafaa.bootstrap; \
     fi
 EXPOSE 8000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s CMD python -c "import os,urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"PORT\",\"8000\")}/healthz', timeout=4)"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s CMD python -c "import os,urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"PORT\",\"8000\")}/readyz', timeout=4)"
 # Start: prepare the database (create tables; fill an EMPTY database once; never reset existing data), then serve.
 # KARESHAFAA_MODE=public_demo (internal showcase mode only) restores the bundled copy instead.
 CMD ["sh", "-c", "python -m kareshafaa.bootstrap && python -m kareshafaa.public_demo && exec uvicorn kareshafaa.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers ${WEB_WORKERS:-4} --proxy-headers --forwarded-allow-ips='*'"]

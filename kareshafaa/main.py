@@ -23,7 +23,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 
 from . import __version__, accounts, audit, public_demo, pwa, ui
-from .api import admin_users, auth, cases, demo_api, governance, ingest, me, ops, patient_requests, patients, recalls, gp_summaries, signin_help
+from .api import about, admin_users, auth, cases, demo_api, governance, ingest, me, ops, patient_requests, patients, recalls, gp_summaries, signin_help
 from .api.deps import COOKIE, resolve_actor, resolve_user
 from .config import get_settings, storage_is_persistent
 from .db import init_db, session_factory, session_scope
@@ -53,6 +53,16 @@ METHOD_ACTION = {"GET": "R", "HEAD": "R", "POST": "E", "PUT": "U", "PATCH": "U",
 
 
 _LAST_SWEEP_AT = None  # process-local wall-clock guard
+
+
+def _purge_once() -> dict:
+    from .services.retention import purge_operational
+
+    db = session_factory()()
+    try:
+        return purge_operational(db)
+    finally:
+        db.close()
 
 
 def _sweep_once() -> dict:
@@ -121,6 +131,10 @@ async def _sweep_loop(interval: int) -> None:
             log.info("background SLA sweep: %s in %.0f ms", out, (time.time() - t) * 1000)
         except Exception:  # noqa: BLE001
             log.exception("background SLA sweep failed")
+        try:
+            await asyncio.to_thread(_purge_once)
+        except Exception:  # noqa: BLE001
+            log.exception("retention purge failed")
 
 
 async def _data_steps_task(stop: "threading.Event", delay: float = 20.0) -> None:
@@ -323,7 +337,8 @@ class TimeBudgetMiddleware:
 def create_app() -> FastAPI:
     s = get_settings()
     if not logging.getLogger().handlers:
-        logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s %(message)s")
+        from .logjson import configure_logging
+        configure_logging()
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         init_db()
@@ -349,8 +364,9 @@ def create_app() -> FastAPI:
         if hb:
             hb.cancel()
 
+    # API reference is not public: administrators read it in the app (About the system) or download the OpenAPI file
     app = FastAPI(title="KareShafaa - Closing the Screening-to-Care Loop", version=__version__, lifespan=lifespan,
-                  description=FOOTER)
+                  description=FOOTER, docs_url=None, redoc_url=None, openapi_url=None)
 
     inflight = {"n": 0, "shed": 0}
 
@@ -534,7 +550,8 @@ def create_app() -> FastAPI:
         return JSONResponse({"detail": "invalid input", "errors": errs}, status_code=422)
 
     for r in (auth.router, admin_users.router, admin_users.system_router, cases.router, me.router, ops.router, governance.router, ingest.router, demo_api.router,
-              pwa.router, patients.router, recalls.router, gp_summaries.router, patient_requests.router, signin_help.router):
+              pwa.router, patients.router, recalls.router, gp_summaries.router, patient_requests.router, signin_help.router,
+              about.router):
         app.include_router(r)
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
@@ -554,6 +571,33 @@ def create_app() -> FastAPI:
                 "storage": "persistent" if storage_is_persistent(s) else "temporary",
                 "request_timeouts": TIMEOUTS["count"],
                 "slow_committing_requests": TIMEOUTS["slow_committing"]}
+
+    @app.get("/readyz")
+    def readyz() -> JSONResponse:
+        """Readiness: the database answers and the initial records are in place (load balancers send traffic only
+        then). /healthz stays the liveness check."""
+        from sqlalchemy import func as _f, select as _sel
+
+        from .models import User
+        checks = {}
+        db = session_factory()()
+        try:
+            db.execute(text("SELECT 1"))
+            checks["database"] = "ok"
+            checks["accounts"] = "ok" if (db.scalar(_sel(_f.count(User.id))) or 0) > 0 else "not bootstrapped"
+        except Exception as e:  # noqa: BLE001
+            checks["database"] = f"error: {type(e).__name__}"
+        finally:
+            db.close()
+        ready = all(v == "ok" for v in checks.values())
+        return JSONResponse({"status": "ready" if ready else "not ready", "version": __version__, "checks": checks,
+                             "storage": "persistent" if storage_is_persistent(s) else "temporary"},
+                            status_code=200 if ready else 503)
+
+    @app.get("/fhir/metadata")
+    def fhir_metadata(request: Request) -> JSONResponse:
+        from .integration import capability_statement
+        return JSONResponse(capability_statement(str(request.base_url)), media_type="application/fhir+json")
 
     from .api.auth import (do_login, do_logout, do_password_change, ensure_login_csrf, login_csrf_ok,
                            start_session)
@@ -950,6 +994,7 @@ def create_app() -> FastAPI:
         ("/overview", "overview.html", "/overview", "Overview"), ("/advanced", "advanced.html", "/advanced", "Advanced"),
         ("/admin/users", "admin_users.html", "/admin/users", "Users"),
         ("/admin/system", "admin_system.html", "/admin/system", "System"),
+        ("/admin/about", "admin_about.html", "/admin/about", "About the system"),
         ("/patients", "patients.html", "/patients", "Patients"),
         ("/patients/new", "patient_register.html", "/patients/new", "Register a patient"),
         ("/recalls", "recalls.html", "/recalls", "Due for recall"),
