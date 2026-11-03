@@ -6,6 +6,7 @@ import threading
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -67,6 +68,24 @@ def sweep(body: sch.SweepIn | None = None, actor: Actor = Depends(require("sweep
 @router.get("/analytics/kpis")
 def kpis(actor: Actor = Depends(require("analytics:read")), db: Session = Depends(get_db)) -> dict:
     return analytics.cached("kpis", db, lambda: analytics.kpis(db))
+
+
+@router.get("/analytics/impact")
+def impact(programme: str | None = Query(None, max_length=40), format: str = Query("json", pattern="^(json|csv)$"),
+           actor: Actor = Depends(require("analytics:read")), db: Session = Depends(get_db)):
+    """Loop-closure impact report (aggregates only, small cells suppressed). CSV export is audited."""
+    from ..services.impact import PROGRAMME_LABEL, impact_csv, impact_report
+
+    if programme and programme not in PROGRAMME_LABEL:
+        raise Invalid("unknown programme")
+    rep = analytics.cached(f"impact:{programme or 'all'}", db, lambda: impact_report(db, programme))
+    if format == "csv":
+        audit.record(db, actor, "E", "analytics.impact_export", detail={"programme": programme, "format": "csv"})
+        db.commit()
+        name = f"kareshafaa_impact_{programme or 'all'}_{rep['generated_at'][:10]}.csv"
+        return Response(impact_csv(rep), media_type="text/csv; charset=utf-8",
+                        headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
+    return rep
 
 
 @router.get("/analytics/fairness")

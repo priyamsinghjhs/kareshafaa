@@ -3,7 +3,37 @@ const KLABEL = { median_days_to_notification: "Median days to notification", med
   pct_notified: "% notified", pct_understood: "% understood (teach-back)", pct_referral_completed: "% referrals completed", pct_appointment_attended: "% appointments attended",
   pct_care_reached_or_resolved: "% treatment / surveillance started or resolved", pct_documented_closure: "% documented closure", pct_open_unresolved_at_horizon: "% open & unresolved at day 120",
   mean_confidence_1to5: "Mean patient confidence (1–5)" };
+const TIERWORD = { critical: "T0", urgent: "T1", high: "T2", routine: "T3" };
+function impactCard(l, v, hint) { return `<div class="card kpi"><div class="l">${l}</div><div class="v">${v ?? "–"}</div>${hint ? `<div class="l">${hint}</div>` : ""}</div>`; }
+const supp = v => v === "suppressed" ? '<span class="muted" title="fewer than 5 – hidden to protect privacy">&lt;5</span>' : v;
 const tabs = {
+  async impact(el) {
+    const prog = new URLSearchParams(location.search).get("programme") || "";
+    const r = await W.api("/api/analytics/impact" + (prog ? `?programme=${encodeURIComponent(prog)}` : ""));
+    const h = r.headline || {}, d = r.definitions, st = r.settings;
+    document.getElementById("impact-csv").href = "/api/analytics/impact?format=csv" + (prog ? `&programme=${encodeURIComponent(prog)}` : "");
+    const sel = `<label for="imp-prog" class="small" style="max-width:20rem">Screening programme<select id="imp-prog"><option value="">All programmes</option>${Object.entries(r.programmes).map(([k, l]) => `<option value="${k}" ${k === prog ? "selected" : ""}>${W.esc(l)}</option>`).join("")}</select></label>`;
+    if (!h.mature_cases && h.mature_cases !== "suppressed") { el.innerHTML = sel + W.empty("No cases yet", "The report fills in as results arrive and cases move through their pathway."); wireProg(); return; }
+    el.innerHTML = `<div class="card notice" id="impact-data-label" role="note"><b>${W.esc(r.data.label)}.</b> <span class="small">Generated ${W.dt(r.generated_at)}. Groups smaller than ${st.suppression_threshold} are hidden. Patients who opted out of analytics are not counted.</span></div>
+     ${sel}
+     <div class="grid-4" id="impact-headline">
+      ${impactCard("Loop closed", W.pct(supp(h.loop_closure_rate)), `of ${supp(h.mature_cases)} cases at least ${st.loop_maturity_days} days old`)}
+      ${impactCard("Lost to follow-up", W.pct(supp(h.lost_to_follow_up_rate)), `${supp(h.lost_to_follow_up_now)} open cases lost now`)}
+      ${impactCard("First specialist contact", h.median_days_to_specialist == null ? "–" : h.median_days_to_specialist + " days", "median, from result to attended appointment")}
+      ${impactCard("Seen within pathway target", W.pct(supp(h.within_target_rate)), `${supp(h.waiting_past_target_now)} still waiting past target`)}
+      ${impactCard("Closed by clinician decision", W.pct(supp(h.closed_by_decision_rate)), "informed decline, care elsewhere and similar")}
+      ${impactCard("Recall uptake", W.pct(supp(h.recall_uptake_rate)), `screened within ${h.recall_uptake_window_days} days of the due date`)}</div>
+     <div class="card"><h4>Time to first specialist contact, by urgency tier</h4><div class="table-scroll"><table class="compact" id="impact-tiers"><thead><tr><th>Tier</th><th>Cases</th><th>Seen</th><th>Median days</th><th>90th percentile</th><th>Default target</th><th>Seen within target</th><th>Waiting past target</th></tr></thead><tbody>
+      ${r.by_tier.map(t => `<tr data-tier="${t.tier}"><td><span class="chip">${W.esc(t.label)}</span></td><td>${supp(t.cases)}</td><td>${supp(t.seen)}</td><td>${t.median_days ?? "–"}</td><td>${t.p90_days ?? "–"}</td><td>${t.target_days_default} ${t.target_days_default === 1 ? "day" : "days"}</td><td>${W.pct(supp(t.within_target_rate))}</td><td>${supp(t.waiting_past_target)}</td></tr>`).join("")}</tbody></table></div>
+      <p class="small muted">Each case has its own end-to-end target from its pathway (for example colonoscopy within 31 days of a positive FIT); the default column shows the fallback per tier.</p></div>
+     <div class="card"><h4>By screening programme</h4><div class="table-scroll"><table class="compact"><thead><tr><th>Programme</th><th>Cases</th><th>Loop closed</th><th>Lost to follow-up</th><th>Median days to specialist</th></tr></thead><tbody>
+      ${r.by_programme.map(p => `<tr><td>${W.esc(p.label)}</td><td>${supp(p.cases)}</td><td>${W.pct(supp(p.loop_closure_rate))}</td><td>${W.pct(supp(p.lost_rate))}</td><td>${p.median_days_to_specialist ?? "–"}</td></tr>`).join("")}</tbody></table></div></div>
+     <div class="grid-3" id="impact-equity">${Object.entries(r.equity).map(([k, e]) => `<div class="card"><h4>Equity by ${W.esc(e.label.toLowerCase())}</h4><div class="table-scroll"><table class="compact"><thead><tr><th>Group</th><th>n</th><th>Loop closed</th><th>Gap</th></tr></thead><tbody>
+      ${e.rows.map(g => `<tr ${g.flag ? 'class="row-flag"' : ""}><td>${W.esc(g.group)}</td><td>${supp(g.n)}</td><td>${W.pct(supp(g.loop_closure_rate))}</td><td>${g.gap_pp == null ? "–" : (g.gap_pp > 0 ? `${g.gap_pp} pts below` : `${Math.abs(g.gap_pp)} pts above`)}${g.flag ? ' <span class="chip sla-red">▲ check</span>' : ""}</td></tr>`).join("")}</tbody></table></div></div>`).join("")}</div>
+     <p class="small muted">A group is marked “check” when its loop-closure rate is ${st.equity_gap_pp} or more percentage points below the overall rate.</p>
+     <details class="card"><summary>How each figure is defined</summary><dl class="facts">${Object.entries(d).map(([k, v]) => `<div><dt>${W.esc(k.replaceAll("_", " "))}</dt><dd>${W.esc(v)}</dd></div>`).join("")}</dl></details>`;
+    wireProg();
+  },
   async sim(el) {
     const s = await W.api("/api/analytics/simulation");
     if (!s.available) { el.innerHTML = `<div class="empty">No simulation run yet.</div>`; return; }
@@ -49,10 +79,13 @@ const tabs = {
       <div class="card"><h4>By language</h4><table class="compact">${l.by_language.map(r => `<tr><td>${W.esc(r.kind)}</td><td>${W.esc(r.language)}</td><td>${r.n}</td></tr>`).join("")}</table></div>`;
   },
 };
+function wireProg() { const s = document.getElementById("imp-prog"); if (s) s.onchange = () => { const u = new URL(location.href); s.value ? u.searchParams.set("programme", s.value) : u.searchParams.delete("programme"); history.replaceState(null, "", u); show("impact"); }; }
 async function show(t) {
+  document.getElementById("impact-actions").hidden = t !== "impact";
   document.querySelectorAll(".tabs button").forEach(b => b.className = b.dataset.t === t ? "" : "secondary outline");
   const el = document.getElementById("dash"); el.innerHTML = W.loading();
   try { await tabs[t](el); } catch (e) { el.innerHTML = W.empty("Could not load", W.esc(e.message)); }
 }
 document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return;
-  document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => show(b.dataset.t)); show("sim"); });
+  document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => show(b.dataset.t)); show("impact");
+  document.getElementById("impact-print").onclick = () => window.print(); });
