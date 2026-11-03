@@ -1,4 +1,4 @@
-# Data-capture inventory (23 Oct 2026)
+# Data-capture inventory (23 Oct 2026, updated 3 Nov 2026)
 
 Every data-entry control in the staff and patient UI, the endpoint it posts to, the column that stores it, and the
 result of the browser check (`scripts/ui_capture_check.py`, desktop 1280 px + mobile 390 px, Unicode tokens, value
@@ -59,6 +59,11 @@ Status: **OK** = stored and shown back before this audit; **FIXED** = was lost o
 | Sign-in help requests panel (admin only; added 3 Nov 2026) | close note (≥ 5 characters) | `GET /api/signin-help?audience=staff`, `POST /api/signin-help/{id}/close` | **`signin_help_requests.status/handled_at/handled_by/outcome_note`** (new table) | NEW (API + capture test + browser check) |
 | Governance: content sign-off (lead, translator) | note | `POST /api/governance/content/signoff` | `content_approvals.note` | FIXED: note not shown; minimum length in the UI (3) did not match the API (5) |
 | Governance: model approve / reject / rollback, proposal decide | note | `/api/governance/...` | `model_versions.decision_note`, `rule_proposals.decision_note` | FIXED: note not shown; same length mismatch |
+| Outcomes → Loop impact (lead, analyst, admin; added 3 Nov 2026) | programme filter; Download CSV; Print or save as PDF | `GET /api/analytics/impact?programme=&format=json\|csv` | nothing stored (filter in the URL); each CSV export is recorded in the audit log as `analytics.impact_export` | NEW, read-only (API test: labels, suppression, access, export audit) |
+| Case screen → Why this priority (added 3 Nov 2026) | – (read-only explanation of rule, tier, target and clinician changes) | part of `GET /api/cases/{id}` (`why`) | read from `cases.rule_id/tier/review_log` and `docs/clinical_rules.md` | NEW, read-only; the tier change itself is the existing clinician review form (`POST /api/cases/{id}/review`, reason required) |
+| Governance → How decisions are made, Human overrides, Data protection (added 3 Nov 2026) | – | `GET /api/governance/rule-cards`, `/overrides`, `/data-protection` | read from the audit log and configuration | NEW, read-only |
+| Admin → About the system (added 3 Nov 2026) | – (OpenAPI download) | `GET /api/admin/about`, `/api/admin/about/openapi.json` | – | NEW, read-only, administrators only |
+| Getting-started guide (all staff roles; added 3 Nov 2026) | "Got it", "Show the guide" | – | browser `localStorage` only (`ks-guide-<role>-v1`), nothing sent to the server | NEW |
 
 ## Patients (`/patients`, `/patients/new`, `/patients/{id}`; added 29 Oct 2026)
 

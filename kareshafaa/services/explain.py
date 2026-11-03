@@ -158,12 +158,28 @@ def why_priority(db: Session, c: Case, sla_hours: float | None = None) -> dict[s
         d = d or {}
         steps.append(f"Raised from {TIER_WORDS.get(d.get('from'), d.get('from'))} to {TIER_WORDS.get(d.get('to'), d.get('to'))}"
                      f" because: {', '.join(r.replace('_', ' ') for r in d.get('reasons') or []) or 'safety rule'}.")
+    if reasons and not escalated:
+        steps.append(f"Flagged for a clinician's review because: {', '.join(r.replace('_', ' ') for r in reasons)}; "
+                     + (f"handled as {TIER_WORDS.get(c.tier, c.tier)} until a clinician decides." if c.review_required
+                      else f"handled as {TIER_WORDS.get(c.tier, c.tier)} while a clinician reviewed it."))
+    if not overrides and reasons:  # older records: the decision is only in the audit trail
+        for ts, who, d in db.execute(select(AuditEvent.ts, AuditEvent.actor_display, AuditEvent.detail)
+                                     .where(AuditEvent.case_id == c.id, AuditEvent.event == "case.review_resolved")
+                                     .order_by(AuditEvent.id)).all():
+            d = d or {}
+            overrides.append({"at": ts.isoformat(), "by": who, "note": d.get("note"), "tier_from": d.get("tier_from"),
+                              "tier_to": d.get("tier_to"),
+                              "kind": "lowered" if d.get("downgrade") else ("raised" if d.get("tier_from") != d.get("tier_to") else "confirmed")})
     for o in overrides:
         if o["kind"] != "confirmed":
-            steps.append(f"{o['by']} {o['kind']} the tier to {TIER_WORDS.get(o['tier_to'], o['tier_to'])}: “{o['note']}”.")
+            steps.append(f"{o['by']} {o['kind']} the tier to {TIER_WORDS.get(o['tier_to'], o['tier_to'])}: “{(o['note'] or '').rstrip('.')}”.")
+        else:
+            steps.append(f"{o['by']} reviewed it and kept {TIER_WORDS.get(o['tier_to'], o['tier_to'])}"
+                         + (f": “{o['note'].rstrip('.')}”." if o.get("note") else "."))
     return {
         "tier": c.tier, "tier_label": TIER_WORDS.get(c.tier, c.tier),
-        "decided_by": "rules engine" if not any(o["kind"] != "confirmed" for o in overrides) else "rules engine, then a clinician",
+        "decided_by": ("rules engine, then a clinician" if any(o["kind"] != "confirmed" for o in overrides)
+                       else "rules engine, confirmed by a clinician" if overrides else "rules engine"),
         "rule": rule or ({"id": c.rule_id} if c.rule_id else None),
         "pathway": c.pathway, "target_text": c.target_text,
         "target_due_at": c.target_due_at.isoformat() if c.target_due_at else None,

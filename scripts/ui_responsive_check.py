@@ -33,9 +33,10 @@ PLAN = {  # user: [(name, path)]
     "omar.haddad": [("gp_home", "/queue?view=review"), ("gp_consults", "/consults"), ("gp_patient_record", "/patients/{patient}"), ("gp_recalls", "/recalls?view=upcoming"), ("gp_summaries", "/summaries?view=all")],
     "vikram.mehta": [("specialist_home", "/queue?view=review")],
     "fatima.al.mansoori": [("lead_home", "/overview"), ("lead_governance", "/governance"), ("lead_dashboard", "/dashboard"),
-                           ("lead_advanced", "/advanced"), ("lead_audit", "/audit")],
+                           ("lead_advanced", "/advanced"), ("lead_audit", "/audit"),
+                           ("lead_gov_overrides", "/governance?tab=overrides"), ("lead_gov_privacy", "/governance?tab=privacy")],
     "analyst": [("analyst_home", "/dashboard")],
-    "admin": [("admin_users", "/admin/users"), ("admin_system", "/admin/system")],
+    "admin": [("admin_users", "/admin/users"), ("admin_system", "/admin/system"), ("admin_about", "/admin/about")],
     "translator": [("translator_home", "/governance?tab=content")],
     "patient.ar": [("patient_ar", "/patient")], "patient.en": [("patient_en", "/patient")],
 }
