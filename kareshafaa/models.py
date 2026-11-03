@@ -373,6 +373,42 @@ class AppointmentRequest(Base):  # patient's answer to a booked appointment from
     handled_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class PatientRequest(Base):  # patient app: a REQUEST for an appointment (added 3 Nov 2026). Patients never book.
+    """kind: screening (programme + preferred site, days and times), recall (the same, started from a due recall and
+    linked to it) or follow_up (an open case whose follow-up can be booked: a slot the patient picked inside the
+    case's tier deadline, or a request for another time with what gets in the way). A care coordinator confirms
+    (books it) or declines it with a reason; the patient is told by a simulated message. Every step is audited."""
+    __tablename__ = "patient_requests"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the patient's login
+    kind: Mapped[str] = mapped_column(String(20))  # screening | recall | follow_up
+    programme: Mapped[str] = mapped_column(String(40), index=True)
+    case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True, index=True)  # follow_up
+    recall_id: Mapped[int | None] = mapped_column(ForeignKey("recalls.id"), nullable=True)  # recall
+    tier: Mapped[str] = mapped_column(String(20), default="routine")  # urgency tier of the response clock
+    preferred_org_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)
+    preferred_days: Mapped[list | None] = mapped_column(JSON, nullable=True)  # e.g. ["mon", "wed"]
+    preferred_times: Mapped[list | None] = mapped_column(JSON, nullable=True)  # e.g. ["morning"]
+    chosen_start: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # follow_up: the picked slot (UTC)
+    barrier_code: Mapped[str | None] = mapped_column(String(40), nullable=True)  # follow_up: why no slot suits
+    preferred_text: Mapped[str | None] = mapped_column(String(200), nullable=True)  # "mornings, not Fridays"
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)  # the patient's own words
+    language: Mapped[str | None] = mapped_column(String(8), nullable=True)  # language of the patient's messages
+    status: Mapped[str] = mapped_column(String(20), default="open", index=True)  # open | confirmed | declined | withdrawn
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # coordinator answer due (SLA)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    decided_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    decided_by_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    decline_reason: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    decision_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confirmed_start: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    confirmed_org_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)
+    appointment_id: Mapped[int | None] = mapped_column(ForeignKey("appointments.id"), nullable=True)  # follow_up
+    notified_comm_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the simulated message
+
+
 class CarePlan(Base):  # FHIR CarePlan - evidence that treatment or surveillance started
     __tablename__ = "care_plans"
     id: Mapped[int] = mapped_column(primary_key=True)

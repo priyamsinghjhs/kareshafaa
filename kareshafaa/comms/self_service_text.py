@@ -358,3 +358,9 @@ _MOVED = {"en": "Moved to a new time", "ar": "نُقل إلى وقت جديد", 
 for _l, _t in LOOP_TEXT.items():
     SELF_TEXT[_l].update(_t)
     SELF_TEXT[_l]["appt_status"]["moved"] = _MOVED[_l]
+from .request_text import REQ_TEXT as _REQ  # noqa: E402  (appointment requests: patient_requests.py)
+
+for _l in SELF_TEXT:
+    SELF_TEXT[_l]["req"] = _REQ[_l]
+    SELF_TEXT[_l]["msg_kind"]["appointment_request"] = {"en": "Your appointment request", "ar": "طلب موعدك",
+                                                         "hi": "आपका अपॉइंटमेंट अनुरोध", "ur": "آپ کی اپوائنٹمنٹ کی درخواست"}[_l]

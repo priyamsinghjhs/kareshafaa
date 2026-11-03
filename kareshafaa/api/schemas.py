@@ -373,3 +373,32 @@ class AppointmentChangeRequestIn(_In):  # patient app: "please change my appoint
 
 class ReasonIn(_In):
     reason: str = Field(min_length=5, max_length=300)
+
+
+class ScreeningRequestIn(_In):  # patient app: ask for a screening appointment (never books it)
+    programme: str = Field(max_length=40)
+    site_org_id: int | None = None
+    days: list[str] = Field(default_factory=list, max_length=7)
+    times: list[str] = Field(default_factory=list, max_length=3)
+    note: str | None = Field(default=None, max_length=1000)
+    recall_id: int | None = None  # 'Book your next screening' from a due recall
+
+
+class FollowUpRequestIn(_In):  # patient app: pick an offered follow-up time, or ask for another one
+    case_id: int
+    slot: datetime | None = None
+    barrier_code: str | None = Field(default=None, max_length=40)
+    preferred_times: str | None = Field(default=None, max_length=200)
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class RequestConfirmIn(_In):  # coordinator
+    start: datetime | None = None
+    org_id: int | None = None
+    note: str | None = Field(default=None, max_length=1000)
+    beyond_target_reason: str | None = Field(default=None, max_length=500)
+
+
+class RequestDeclineIn(_In):  # coordinator: the patient is told the reason
+    reason_code: str = Field(max_length=40)
+    note: str = Field(min_length=5, max_length=1000)

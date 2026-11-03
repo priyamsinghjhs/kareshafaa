@@ -4,6 +4,8 @@
 // Same checks as the staff form (PF rules in patients.js mirror services/patients.py); the server still decides.
 (function () {
   let OPEN = false, DRAFT = null, P = null, CHANGE = null, CHANGE_DRAFT = {};
+  // appointment REQUESTS (patients never book): REQ = open screening form {programme, recall_id}; PICK = case id
+  let REQ = null, REQ_DRAFT = {}, PICK = null, PICK_DRAFT = {};
   const phoneOk = raw => { let s = String(raw || "").trim(); if (!s) return true; const plus = s.startsWith("+") || s.startsWith("00");
     let d = s.replace(/[\s().-]/g, "").replace(/^\+/, ""); if (d.startsWith("00")) d = d.slice(2); if (!/^\d+$/.test(d)) return false;
     if (!plus && d.startsWith("0") && (d.length === 9 || d.length === 10)) d = "971" + d.slice(1); else if (!plus && d.length === 9 && d[0] === "5") d = "971" + d;
@@ -63,12 +65,18 @@
     if (L.situation === "answer") go.push(`<a role="button" class="sm" href="#tb">${W.esc(T.go_answer)}</a>`);
     if (L.situation === "booked" && a) go.push(`<button type="button" class="sm" data-confirm="${a.id}">${W.esc(T.confirm_btn)}</button><button type="button" class="secondary sm" data-change="${a.id}">${W.esc(T.change_btn)}</button>`);
     if (/^booked/.test(L.situation)) go.push(`<a role="button" class="secondary outline sm" href="#self-appts">${W.esc(T.go_appt)}</a>`);
+    const RQ = T.req;
+    if (L.choose_time) go.push(`<button type="button" class="sm" data-pick="${L.case_id}">${W.esc(RQ.choose_btn)}</button>`);
+    if (L.book_recall) go.push(`<button type="button" class="sm" data-book-recall="${L.book_recall.recall_id}" data-programme="${W.esc(L.programme)}">${W.esc(RQ.recall_btn)}</button>`);
     if (L.situation === "unreachable") go.push(`<a role="button" class="sm" href="#self-details">${W.esc(T.go_details)}</a>`);
     if (["missed", "declined", "unreachable"].includes(L.situation) && document.getElementById("p-ask")) go.push(`<a role="button" class="secondary outline sm" href="#p-ask">${W.esc(T.go_ask)}</a>`);
     return `<div class="loop ${primary ? "" : "loop-other"}" data-programme="${W.esc(L.programme)}" data-situation="${W.esc(L.situation)}">
       ${primary ? "" : ""}<h3 class="loop-prog">${W.esc(cap(L.programme_name))}</h3>
       <ol class="tracker" aria-label="${W.esc(T.loop_title)}: ${W.esc(cap(L.programme_name))}">${st}</ol>
-      <div class="next-box" role="status"><h4>${W.esc(T.next_title)}</h4><p>${W.esc(text)}</p>${recall}${go.length ? `<div class="tb-actions">${go.join("")}</div>` : ""}</div></div>`;
+      <div class="next-box" role="status"><h4>${W.esc(T.next_title)}</h4><p>${W.esc(text)}</p>${recall}
+      ${L.open_request ? `<p class="small" data-open-request="${L.open_request.id}">✓ ${W.esc(RQ.open_note)}</p>` : ""}
+      ${go.length ? `<div class="tb-actions">${go.join("")}</div>` : ""}
+      ${PICK && PICK === L.case_id && L.choose_time ? pickForm(L, T, lang) : ""}${REQ && REQ.recall_id && L.book_recall && REQ.recall_id === L.book_recall.recall_id ? requestForm(T) : ""}</div></div>`;
   }
 
   function loopBox(lang) {
@@ -77,7 +85,7 @@
     if (!L.length) { box.innerHTML = `<h3 class="loop-title">${W.esc(T.loop_title)}</h3><div class="next-box" role="status"><p>${W.esc(T.situation.none)}</p><p class="small muted">${W.esc(T.recall_none)}</p></div>`; return; }
     const [first, ...rest] = L;
     box.innerHTML = `<h3 class="loop-title">${W.esc(T.loop_title)}</h3><p class="small muted">${W.esc(T.loop_intro)}</p>${tracker(first, T, lang, true)}
-      ${rest.map(x => `<details class="loop-more"><summary>${W.esc(cap(x.programme_name))} · ${W.esc((T.situation[x.situation] || "").split(/[.।۔]/)[0])}</summary>${tracker(x, T, lang, false)}</details>`).join("")}`;
+      ${rest.map(x => `<details class="loop-more" ${x.book_recall || x.choose_time || (PICK && PICK === x.case_id) ? "open" : ""}><summary>${W.esc(cap(x.programme_name))} · ${W.esc((T.situation[x.situation] || "").split(/[.।۔]/)[0])}</summary>${tracker(x, T, lang, false)}</details>`).join("")}`;
   }
 
   // ---------------------------------------------------------------- appointments and results
@@ -100,12 +108,102 @@
       <div class="small">${W.esc(cap(a.programme))}${a.place ? " · " + W.esc(a.place) : ""}</div>${notes.map(n => `<div class="small muted">${W.esc(n)}</div>`).join("")}
       ${CHANGE === a.id && a.can_respond ? changeForm(T, a.id) : acts}</li>`;
   }
+  // ---------------------------------------------------------------- appointment requests (never a booking)
+  function requestForm(T) {
+    const RQ = T.req, O = P.request_options, d = REQ_DRAFT, rec = REQ && REQ.recall_id;
+    const prog = d.programme || (REQ && REQ.programme) || "";
+    const chk = (name, vals, labels, cur) => vals.map(v => `<label class="check"><input type="checkbox" name="${name}" value="${v}" ${(cur || []).includes(v) ? "checked" : ""}> ${W.esc(labels[v])}</label>`).join("");
+    return `<form class="action-form req-form" id="req-form" novalidate><h4>${W.esc(rec ? RQ.recall_title : RQ.form_title)}</h4>
+      <label>${W.esc(RQ.programme)}<select name="programme" ${rec ? "disabled" : ""} required><option value="">${W.esc(RQ.choose)}</option>${O.programmes.map(k => `<option value="${k}" ${k === prog ? "selected" : ""}>${W.esc(cap(O.programme_names[k] || k))}</option>`).join("")}</select></label>
+      <label>${W.esc(RQ.site)}<select name="site" required><option value="">${W.esc(RQ.choose)}</option>${O.sites.map(o => `<option value="${o.id}" ${String(d.site || "") === String(o.id) ? "selected" : ""}>${W.esc(o.name)}${o.region ? " – " + W.esc(o.region) : ""}</option>`).join("")}</select></label>
+      <fieldset data-f="days"><legend>${W.esc(RQ.days)}</legend><div class="req-checks">${chk("days", O.days, RQ.day, d.days)}</div></fieldset>
+      <fieldset data-f="times"><legend>${W.esc(RQ.times)}</legend><div class="req-checks">${chk("times", O.times, RQ.time, d.times)}</div></fieldset>
+      <label>${W.esc(RQ.note)}<textarea name="note" rows="2" maxlength="1000">${W.esc(d.note || "")}</textarea></label>
+      <p class="small muted">${W.esc(RQ.not_booked)}</p>
+      <div class="tb-actions"><button type="submit">${W.esc(RQ.send)}</button><button type="button" class="secondary outline" data-req-cancel>${W.esc(RQ.cancel)}</button></div></form>`;
+  }
+  function pickForm(L, T, lang) {
+    const RQ = T.req, C = L.choose_time, d = PICK_DRAFT[L.case_id] || {};
+    const dl = day(C.deadline, lang);
+    const slots = C.slots.length ? `<fieldset data-f="slot"><legend>${W.esc(fill(RQ.choose_intro, { date: dl }))}</legend><div class="slot-list">${C.slots.map(x => `<label class="check slot"><input type="radio" name="slot" value="${x}" ${d.slot === x ? "checked" : ""}> <span>${W.esc(when(x, lang))}</span></label>`).join("")}</div>
+        ${C.place ? `<p class="small muted">${W.esc(fill(RQ.choose_at, { place: C.place }))}</p>` : ""}</fieldset>` : `<p class="notice-inline info">${W.esc(fill(RQ.no_slots, { date: dl }))}</p>`;
+    const other = d.other || !C.slots.length;
+    return `<form class="action-form pick-form" id="pick-form" data-case="${L.case_id}" novalidate><h4>${W.esc(RQ.choose_title)}</h4>${slots}
+      ${C.slots.length ? `<label class="check"><input type="checkbox" name="other" ${other ? "checked" : ""}> ${W.esc(RQ.none_suit)}</label>` : ""}
+      <div data-other ${other ? "" : "hidden"}><fieldset data-f="barrier"><legend>${W.esc(T.change_why)}</legend>${P.options.barriers.map(b => `<label class="check"><input type="radio" name="barrier" value="${b}" ${d.barrier === b ? "checked" : ""}> ${W.esc(T.barriers[b])}</label>`).join("")}</fieldset>
+      <label>${W.esc(T.change_when)}<input name="preferred" maxlength="200" placeholder="${W.esc(T.change_when_ph)}" value="${W.esc(d.preferred || "")}"></label>
+      <label>${W.esc(T.change_note)}<textarea name="note" rows="2" maxlength="1000">${W.esc(d.note || "")}</textarea></label></div>
+      <p class="small muted">${W.esc(RQ.not_booked)}</p>
+      <div class="tb-actions"><button type="submit">${W.esc(other ? RQ.change_send : RQ.choose_send)}</button><button type="button" class="secondary outline" data-pick-cancel>${W.esc(RQ.cancel)}</button></div></form>`;
+  }
+  function requestsCard(T, lang) {
+    const RQ = T.req, R = P.requests || [];
+    if (!R.length) return "";
+    const chip = st => st === "confirmed" ? "sla-green" : st === "declined" ? "sla-red" : st === "open" ? "sla-amber" : "";
+    const sep = ["ar", "ur"].includes(lang) ? "، " : ", ";
+    const what = r => [r.days.map(x => RQ.day[x]).join(sep), r.times.map(x => RQ.time[x]).join(sep)].filter(Boolean).join(" · ");
+    return `<div class="card" id="self-requests"><h4>${W.esc(RQ.mine_title)}</h4><ul class="hist">${R.map(r => `<li class="hist-item" data-request="${r.id}" data-status="${r.status}">
+      <div><b>${W.esc(RQ.kind[r.kind])}</b> · ${W.esc(cap(P.request_options.programme_names[r.programme] || r.programme))} <span class="chip ${chip(r.status)}">${W.esc(RQ.status[r.status])}</span></div>
+      <div class="small muted">${W.esc(when(r.at, lang))}${r.site ? " · " + W.esc(r.site) : ""}</div>
+      ${r.chosen_start ? `<div class="small">${W.esc(fill(RQ.asked_for, { when: when(r.chosen_start, lang) }))}</div>` : ""}
+      ${r.days.length || r.times.length ? `<div class="small">${W.esc(fill(RQ.prefers, { what: what(r) }))}</div>` : ""}
+      ${r.barrier_code ? `<div class="small">${W.esc(T.barriers[r.barrier_code] || "")}${r.preferred_text ? " · " + W.esc(r.preferred_text) : ""}</div>` : ""}
+      ${r.status === "confirmed" && r.confirmed_start ? `<div class="small"><b>${W.esc(fill(RQ.confirmed_for, { when: when(r.confirmed_start, lang), place: r.confirmed_place || "" }))}</b></div>` : ""}
+      ${r.status === "declined" ? `<div class="small">${W.esc(fill(RQ.declined_why, { reason: RQ.decline_reason[r.decline_reason] || RQ.decline_reason.other }))}</div>` : ""}
+      ${r.status === "open" ? `<div class="tb-actions"><button type="button" class="secondary outline sm" data-withdraw="${r.id}">${W.esc(RQ.withdraw)}</button></div>` : ""}</li>`).join("")}</ul></div>`;
+  }
+  function wireRequests(lang, rtl) {
+    const T = P.text, RQ = T.req;
+    const f = document.getElementById("req-form");
+    if (f) {
+      const keep = () => { const fd = new FormData(f); REQ_DRAFT = { programme: fd.get("programme") || (REQ && REQ.programme) || "", site: fd.get("site"), days: fd.getAll("days"), times: fd.getAll("times"), note: fd.get("note") }; };
+      f.oninput = f.onchange = keep;
+      f.querySelector("[data-req-cancel]").onclick = () => { REQ = null; REQ_DRAFT = {}; render(lang, rtl); };
+      f.onsubmit = async ev => { ev.preventDefault(); keep(); W.formError(f, ""); f.querySelectorAll("[aria-invalid]").forEach(x => x.removeAttribute("aria-invalid"));
+        const d = REQ_DRAFT, bad = [];
+        if (!d.programme) bad.push(["programme", RQ.err_programme]); if (!d.site) bad.push(["site", RQ.err_site]);
+        if (!d.days.length) bad.push(["days", RQ.err_days]); if (!d.times.length) bad.push(["times", RQ.err_times]);
+        if (bad.length) { bad.forEach(([k]) => { const el = f.querySelector(`[name="${k}"]`) && k !== "days" && k !== "times" ? f.querySelector(`[name="${k}"]`) : f.querySelector(`[data-f="${k}"]`); if (el) el.setAttribute("aria-invalid", "true"); });
+          W.formError(f, bad.map(x => x[1]).join(" ")); (f.querySelector('[aria-invalid="true"] input') || f.querySelector('[aria-invalid="true"]')).focus(); return; }
+        const b = f.querySelector("button[type=submit]"); W.busy(b, true);
+        try { await W.api(`/api/me/requests/screening?lang=${lang}`, { method: "POST", body: { programme: d.programme, site_org_id: +d.site, days: d.days, times: d.times, note: d.note || null, recall_id: REQ.recall_id || null } });
+          REQ = null; REQ_DRAFT = {}; W.toast(RQ.sent, "ok"); await load(lang, rtl); }
+        catch (e) { W.busy(b, false); W.formError(f, e.message); } };
+    }
+    const g = document.getElementById("pick-form");
+    if (g) {
+      const cid = +g.dataset.case;
+      const keep = () => { const fd = new FormData(g); PICK_DRAFT[cid] = { slot: fd.get("slot"), other: !!fd.get("other") || !g.querySelector("input[name=slot]"), barrier: fd.get("barrier"), preferred: fd.get("preferred"), note: fd.get("note") }; };
+      g.oninput = keep;
+      g.onchange = ev => { keep(); if (ev.target.name === "other") render(lang, rtl); };
+      g.querySelector("[data-pick-cancel]").onclick = () => { PICK = null; render(lang, rtl); };
+      g.onsubmit = async ev => { ev.preventDefault(); keep(); W.formError(g, ""); const d = PICK_DRAFT[cid];
+        if (d.other ? !d.barrier : !d.slot) { W.formError(g, d.other ? T.err_barrier : RQ.err_slot); const el = g.querySelector(d.other ? "input[name=barrier]" : "input[name=slot]"); if (el) el.focus(); return; }
+        const body = d.other ? { case_id: cid, barrier_code: d.barrier, preferred_times: d.preferred || null, note: d.note || null } : { case_id: cid, slot: d.slot };
+        const b = g.querySelector("button[type=submit]"); W.busy(b, true);
+        try { await W.api(`/api/me/requests/follow-up?lang=${lang}`, { method: "POST", body }); PICK = null; delete PICK_DRAFT[cid]; W.toast(RQ.sent, "ok"); await load(lang, rtl); }
+        catch (e) { W.busy(b, false); W.formError(g, e.message); } };
+    }
+    document.querySelectorAll("#p-root [data-req-new]").forEach(b => b.onclick = () => { REQ = { programme: "" }; render(lang, rtl); focusForm("req-form"); });
+    document.querySelectorAll("#p-root [data-book-recall]").forEach(b => b.onclick = () => { REQ = { programme: b.dataset.programme, recall_id: +b.dataset.bookRecall }; REQ_DRAFT = { ...REQ_DRAFT, programme: b.dataset.programme }; render(lang, rtl); focusForm("req-form"); });
+    document.querySelectorAll("#p-root [data-pick]").forEach(b => b.onclick = () => { PICK = +b.dataset.pick; render(lang, rtl); focusForm("pick-form"); });
+    document.querySelectorAll("#p-root [data-withdraw]").forEach(b => b.onclick = async () => {
+      if (!(await W.confirm(RQ.withdraw + "?", "", { ok: RQ.withdraw, cancel: T.keep, dir: rtl ? "rtl" : "ltr" }))) return;
+      W.busy(b, true); try { await W.api(`/api/me/requests/${b.dataset.withdraw}/withdraw`, { method: "POST", body: {} }); W.toast(RQ.withdrawn, "ok"); await load(lang, rtl); }
+      catch (e) { W.busy(b, false); W.toast(e.message, "err"); } });
+  }
+  function focusForm(id) { const f = document.getElementById(id); if (f) { f.scrollIntoView({ block: "center" }); const i = f.querySelector("select:not([disabled]), input"); if (i) i.focus(); } }
+
   function historyBox(lang) {
     const box = document.getElementById("pappts"); if (!box || !P) return;
     const T = P.text, H = P.history;
-    const appts = H.appointments.length ? `<ul class="hist">${H.appointments.map(a => apptItem(a, T, lang)).join("")}</ul>` : `<p class="small muted">${W.esc(T.no_appts)}</p>`;
+    const RQ = T.req, reqBtn = `<button type="button" class="${H.appointments.length ? "secondary " : ""}sm" data-req-new>${W.esc(RQ.request_btn)}</button>`;
+    const showForm = REQ && !REQ.recall_id;
+    const appts = (H.appointments.length ? `<ul class="hist">${H.appointments.map(a => apptItem(a, T, lang)).join("")}</ul>${showForm ? "" : `<div class="tb-actions">${reqBtn}</div>`}`
+      : `<div class="empty-req" data-empty-appts><p>${W.esc(RQ.request_intro)}</p>${showForm ? "" : `<div class="tb-actions">${reqBtn}</div>`}</div>`)
+      + (showForm ? requestForm(T) : "");
     const results = H.results.length ? `<ul class="hist">${H.results.map(r => `<li class="hist-item"><div><b>${W.esc(when(r.date, lang, false))}</b> · ${W.esc(cap(r.programme))} <span class="small muted">(${W.esc(r.kind)})</span></div><div><span class="chip ${r.outcome === "normal" ? "sla-green" : r.outcome === "follow_up" ? "sla-amber" : ""}" data-outcome="${r.outcome}">${W.esc(r.outcome_text)}</span>${r.site ? ` <span class="small muted">${W.esc(r.site)}</span>` : ""}</div></li>`).join("")}</ul>` : `<p class="small muted">${W.esc(T.no_results)}</p>`;
-    box.innerHTML = `<div class="card" id="self-appts"><h4>${W.esc(T.appts_title)}</h4>${appts}</div>
+    box.innerHTML = `<div class="card" id="self-appts"><h4>${W.esc(T.appts_title)}</h4>${appts}</div>${requestsCard(T, lang)}
       <div class="card" id="self-results"><h4>${W.esc(T.results_title)}</h4>${results}</div>`;
     const f = CHANGE ? document.getElementById("chg-" + CHANGE) : null;
     if (f) {
@@ -189,7 +287,7 @@
       catch (e) { W.busy(b, false); W.toast(e.message, "err"); } });
   }
 
-  function render(lang, rtl = ["ar", "ur"].includes(lang)) { if (!P) return; loopBox(lang); historyBox(lang); messagesBox(lang); detailsBox(lang, rtl); wire(lang, rtl); }
+  function render(lang, rtl = ["ar", "ur"].includes(lang)) { if (!P) return; loopBox(lang); historyBox(lang); messagesBox(lang); detailsBox(lang, rtl); wire(lang, rtl); wireRequests(lang, rtl); }
 
   async function load(lang, rtl) {
     if (rtl === undefined) rtl = ["ar", "ur"].includes(lang);

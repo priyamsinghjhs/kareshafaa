@@ -24,6 +24,14 @@
   </ul>
   <p class="footnote">Later steps have their own deadlines (set by the clinical lead). "Outreach priority" is a model estimate of the chance the patient misses the next step; it only orders patients within the same urgency and never changes a case.</p>
 </details>
+<section class="card preq" id="preq" hidden aria-labelledby="preq-h">
+  <div class="preq-head"><h2 id="preq-h">Patient appointment requests</h2><span id="preq-count" class="small muted"></span></div>
+  <p class="small muted">Sent from the patient app. Nothing is booked until you confirm. Answer-by times: T0 2 h, T1 8 h, T2 24 h, T3 and screening 48 h. If you decline, the patient is told the reason in their language.</p>
+  <div id="preq-list" aria-live="polite"></div>
+</section>
+<dialog id="preq-dlg" class="dlg" aria-labelledby="preq-dlg-h"><form id="preq-form" method="dialog" novalidate>
+  <h2 id="preq-dlg-h"></h2><div id="preq-dlg-body"></div><p class="form-error" role="alert" hidden></p>
+  <div class="dlg-buttons"><button type="button" class="secondary" id="preq-cancel">Cancel</button><button type="submit" id="preq-ok"></button></div></form></dialog>
 <div id="qtable" aria-live="polite">{{ "" }}<div class="loading" role="status">Loading the queue…</div></div>
 {% endblock %}
 {% block scripts %}
@@ -88,6 +96,77 @@ function render() {
      <button class="secondary" ${to < data.total ? "" : "disabled"} onclick="page(1)">Next</button></span></nav>`;
   document.querySelectorAll("tr.clickable").forEach(tr => tr.onclick = e => { if (!e.target.closest("a,button")) location.href = tr.dataset.href; });
 }
+// ---- patient appointment requests (coordinators confirm or decline; other roles do not see this panel)
+const RQ_KIND = { screening: "Screening", recall: "Next screening (recall due)", follow_up: "Follow-up time" };
+const RQ_DAY = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri" }, RQ_TIME = { morning: "morning", afternoon: "afternoon", evening: "evening" };
+const RQ_BARRIER = { work: "work or study", transport: "transport", childcare: "childcare or caring", language: "language", cost: "cost", worry: "worried about the test", other: "other" };
+const RQ_DECLINE = { no_capacity: "No appointments at that site or time", not_due: "Not due yet", already_booked: "Already booked", clinical_review: "Needs a clinician to review first", other: "Other reason" };
+let RQ = null;
+const localInput = iso => { if (!iso) return ""; const d = new Date(iso.endsWith("Z") ? iso : iso + "Z"); return new Date(d.getTime() + 4 * 36e5).toISOString().slice(0, 16); };
+async function loadRequests() {
+  const box = document.getElementById("preq");
+  if (!W.me || W.me.role !== "coordinator") return;
+  RQ = await W.api("/api/patient-requests?status=open");
+  box.hidden = false;
+  document.getElementById("preq-count").textContent = RQ.open ? `${RQ.open} waiting${RQ.overdue ? ` · ${RQ.overdue} past answer-by time` : ""}` : "none waiting";
+  const L = document.getElementById("preq-list");
+  if (!RQ.items.length) { L.innerHTML = '<p class="small muted" data-preq-empty>No requests are waiting.</p>'; return; }
+  const asked = r => r.chosen_start ? `Chose <b>${W.esc(W.dt(r.chosen_start))}</b>` : r.kind === "follow_up"
+    ? `Asked for another time${r.barrier_code ? ` (${W.esc(RQ_BARRIER[r.barrier_code] || r.barrier_code)})` : ""}${r.preferred_text ? `: “${W.esc(r.preferred_text)}”` : ""}`
+    : `Prefers ${W.esc(r.days.map(d => RQ_DAY[d]).join(", ") || "any day")}, ${W.esc(r.times.map(t => RQ_TIME[t]).join(", ") || "any time")}${r.site ? ` at ${W.esc(r.site)}` : ""}`;
+  L.innerHTML = `<ul class="preq-list">${RQ.items.map(r => `<li class="preq-item" data-request="${r.id}" data-kind="${r.kind}">
+    <div class="chips">${r.kind === "follow_up" ? W.tier(r.tier) : `<span class="chip">${W.esc(r.tier_label)}</span>`} ${W.sla(r.rag, r.elapsed)} <span class="small muted">reply due ${W.ago(r.due_at)}</span></div>
+    <div><b>${W.esc(r.patient.name)}</b> <span class="sub">${W.esc(r.patient.mrn)} · speaks ${W.esc(r.patient.language)}${r.case_id ? ` · <a href="/cases/${r.case_id}">case #${r.case_id}</a>` : ""}</span></div>
+    <div class="small">${W.esc(RQ_KIND[r.kind])} · ${W.progText(r.programme)}</div><div class="small">${asked(r)}</div>
+    ${r.note ? `<div class="small muted">Patient note: ${W.esc(r.note)}</div>` : ""}
+    <div class="tb-actions"><button type="button" class="sm" data-rq-confirm="${r.id}">Confirm…</button><button type="button" class="secondary outline sm" data-rq-decline="${r.id}">Decline…</button></div></li>`).join("")}</ul>`;
+  L.querySelectorAll("[data-rq-confirm]").forEach(b => b.onclick = () => openRq(+b.dataset.rqConfirm, "confirm"));
+  L.querySelectorAll("[data-rq-decline]").forEach(b => b.onclick = () => openRq(+b.dataset.rqDecline, "decline"));
+}
+function openRq(id, mode) {
+  const r = RQ.items.find(x => x.id === id), dlg = document.getElementById("preq-dlg"), f = document.getElementById("preq-form");
+  const err = f.querySelector(".form-error"); err.hidden = true; err.textContent = "";
+  document.getElementById("preq-dlg-h").textContent = `${mode === "confirm" ? "Confirm" : "Decline"}: ${r.patient.name} · ${RQ_KIND[r.kind]}`;
+  const sites = RQ.sites.map(o => `<option value="${o.id}" ${o.id === r.preferred_org_id ? "selected" : ""}>${W.esc(o.name)}${o.region ? " – " + W.esc(o.region) : ""}</option>`).join("");
+  let body;
+  if (mode === "confirm") {
+    body = r.kind === "follow_up" && r.chosen_start ? `<p>Book the time the patient chose: <b>${W.esc(W.dt(r.chosen_start))}</b>.</p>`
+      : `<label>Appointment date and time (UAE)<input type="datetime-local" name="start" required value="${localInput(r.chosen_start)}"></label>` +
+        (r.kind === "follow_up" ? `<label>If this is after the deadline, why? <input name="beyond" maxlength="500"></label>` : `<label>Screening site<select name="org" required>${sites}</select></label>`);
+    body += `<label>Note (optional)<input name="note" maxlength="1000"></label><p class="small muted">The patient gets a confirmation message in their language.</p>`;
+    document.getElementById("preq-ok").textContent = r.kind === "follow_up" ? "Confirm and book" : "Confirm";
+    document.getElementById("preq-ok").className = "";
+  } else {
+    body = `<label>Reason<select name="reason" required><option value="">Choose…</option>${(Array.isArray(RQ.decline_reasons) ? RQ.decline_reasons : Object.keys(RQ.decline_reasons)).map(k => `<option value="${k}">${W.esc(RQ_DECLINE[k] || k)}</option>`).join("")}</select></label>
+      <label>What happens next (at least 5 characters) <textarea name="note" rows="3" maxlength="1000" required></textarea></label><p class="small muted">The patient is told the reason in their language.</p>`;
+    document.getElementById("preq-ok").textContent = "Decline request";
+    document.getElementById("preq-ok").className = "danger";
+  }
+  document.getElementById("preq-dlg-body").innerHTML = body;
+  document.getElementById("preq-cancel").onclick = () => dlg.close();
+  f.onsubmit = async ev => {
+    ev.preventDefault(); const g = n => f.querySelector(`[name="${n}"]`), bad = [];
+    f.querySelectorAll("[aria-invalid]").forEach(x => x.removeAttribute("aria-invalid"));
+    const mark = (n, m) => { const el = g(n); if (el) el.setAttribute("aria-invalid", "true"); bad.push(m); };
+    let url, payload;
+    if (mode === "confirm") {
+      payload = { note: g("note").value.trim() || null };
+      if (g("start")) { if (!g("start").value) mark("start", "Choose the appointment date and time."); else payload.start = g("start").value + ":00+04:00"; }
+      if (g("org")) { if (!g("org").value) mark("org", "Choose the screening site."); else payload.org_id = +g("org").value; }
+      if (g("beyond") && g("beyond").value.trim()) payload.beyond_target_reason = g("beyond").value.trim();
+      url = `/api/patient-requests/${id}/confirm`;
+    } else {
+      if (!g("reason").value) mark("reason", "Choose a reason.");
+      if (g("note").value.trim().length < 5) mark("note", "Say what happens next (at least 5 characters); the patient is told the reason.");
+      payload = { reason_code: g("reason").value, note: g("note").value.trim() }; url = `/api/patient-requests/${id}/decline`;
+    }
+    if (bad.length) { err.textContent = bad.join(" "); err.hidden = false; f.querySelector('[aria-invalid="true"]').focus(); return; }
+    const b = document.getElementById("preq-ok"); W.busy(b, true);
+    try { await W.api(url, { method: "POST", body: payload }); dlg.close(); W.toast(mode === "confirm" ? "Request confirmed; the patient has been told." : "Request declined; the patient has been told why.", "ok"); await loadRequests(); }
+    catch (e) { err.textContent = e.message; err.hidden = false; } finally { W.busy(b, false); }
+  };
+  dlg.showModal(); const first = f.querySelector("input, select, textarea"); (first || document.getElementById("preq-ok")).focus();
+}
 window.page = d => { offset = Math.max(0, offset + d * PAGE); load().then(() => document.getElementById("q-title").scrollIntoView()); };
 document.addEventListener("DOMContentLoaded", async () => {
   await W.ready; if (!W.requireLogin()) return;
@@ -97,6 +176,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("search").oninput = () => { clearTimeout(timer); timer = setTimeout(() => { offset = 0; load(); }, 250); };
   document.getElementById("prog").onchange = () => { offset = 0; load(); };
   document.getElementById("view").onchange = e => setView(e.target.value);
+  loadRequests().catch(e => { const L = document.getElementById("preq-list"); document.getElementById("preq").hidden = false; L.innerHTML = W.empty("Could not load patient requests", W.esc(e.message)); });
   try { await load(); } catch (e) { document.getElementById("qtable").innerHTML = W.empty("Could not load the queue", W.esc(e.message), '<button onclick="location.reload()">Try again</button>'); }
 });
 </script>

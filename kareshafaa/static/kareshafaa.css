@@ -536,3 +536,15 @@ input, select, textarea { scroll-margin-bottom: 3.5em; }
     border-inline-start: 0; border-top: 2px solid var(--c-border); }
   .p-hero .loop:not(.loop-other) .tk.tk-done:not(:last-child)::after { border-top-color: var(--c-success); }
 }
+
+/* appointment requests: patient app form + coordinator panel */
+.req-checks, .slot-list { display: flex; flex-wrap: wrap; gap: 0 var(--s-3); }
+.slot-list label.slot { min-width: 14rem; }
+.req-form fieldset, .pick-form fieldset { border: 0; padding: 0; margin: 0 0 var(--s-2); }
+.req-form fieldset[aria-invalid="true"] legend, .pick-form fieldset[aria-invalid="true"] legend { color: var(--c-danger); }
+.empty-req { border: 1px dashed var(--c-border, #c9d1d9); border-radius: 8px; padding: var(--s-3); }
+.preq-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); flex-wrap: wrap; }
+.preq-head h2 { font-size: 1.1rem; margin: 0; }
+.preq-list { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s-2); }
+.preq-item { border: 1px solid var(--c-border, #d0d7de); border-radius: 8px; padding: var(--s-2) var(--s-3); }
+#preq-dlg h2 { font-size: 1.15rem; }

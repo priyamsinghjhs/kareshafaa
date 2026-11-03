@@ -205,12 +205,17 @@ def my_profile(lang: str | None = Query(None, max_length=5), actor: Actor = Depe
     lang = lang if lang in SUPPORTED_LANGUAGES else ((u.ui_language if u is not None else None) or comms.comm_language(p))
     lang = lang if lang in SELF_TEXT else "en"
     from ..services import patient_loop as pl
+    from ..services import patient_requests as pr
 
+    loop = [{**x, "programme_name": ss._prog_name(lang, x["programme"])} for x in pl.loop_view(db, actor)]
+    pr.loop_extras(db, actor, loop)
     return {"language": lang, "rtl": lang in RTL_LANGUAGES, "text": SELF_TEXT[lang], "contact": ss.contact_view(p),
             "options": {"emirates": list(EMIRATES), "regions": list(ABU_DHABI_REGIONS), "barriers": list(pl.PATIENT_BARRIERS),
                         "consent_scopes": list(pl.PATIENT_SCOPES)},
             "history": ss.history(db, actor, lang),
-            "loop": [{**x, "programme_name": ss._prog_name(lang, x["programme"])} for x in pl.loop_view(db, actor)],
+            "loop": loop,
+            "requests": pr.mine(db, actor, lang), "request_options": {**pr.options(db), "programme_names": {
+                k: ss._prog_name(lang, k) for k in pr.PROGRAMMES}},
             "messages": pl.messages_view(db, actor), "consent": pl.consent_view(db, actor),
             "simulated_note": True}
 
@@ -235,6 +240,43 @@ def my_appointment_change(appt_id: int, body: sch.AppointmentChangeRequestIn,
     r = pl.request_change(db, actor, appt_id, body.barrier_code, body.note, body.preferred_times)
     db.commit()
     return {"ok": True, "request_id": r.id, "appointment_moved": False}
+
+
+@router.post("/requests/screening")
+def my_screening_request(body: sch.ScreeningRequestIn, lang: str | None = Query(None, max_length=5),
+                         actor: Actor = Depends(require("self:respond")), db: Session = Depends(get_db)) -> dict:
+    """Ask for a screening appointment (or the next screening from a due recall). Nothing is booked: a care
+    coordinator confirms or declines it."""
+    from ..services import patient_requests as pr
+
+    r = pr.request_screening(db, actor, body.programme, body.site_org_id, body.days, body.times, body.note,
+                             recall_id=body.recall_id, lang=lang if lang in SUPPORTED_LANGUAGES else None)
+    db.commit()
+    return {"ok": True, "request_id": r.id, "status": r.status, "booked": False}
+
+
+@router.post("/requests/follow-up")
+def my_follow_up_request(body: sch.FollowUpRequestIn, lang: str | None = Query(None, max_length=5),
+                         actor: Actor = Depends(require("self:respond")), db: Session = Depends(get_db)) -> dict:
+    """Pick one of the offered follow-up times, or ask for another time (with what gets in the way)."""
+    from ..calendar_uae import as_utc_naive
+    from ..services import patient_requests as pr
+
+    r = pr.request_follow_up(db, actor, body.case_id, slot=as_utc_naive(body.slot) if body.slot else None,
+                             barrier_code=body.barrier_code, preferred_text=body.preferred_times, note=body.note,
+                             lang=lang if lang in SUPPORTED_LANGUAGES else None)
+    db.commit()
+    return {"ok": True, "request_id": r.id, "status": r.status, "booked": False}
+
+
+@router.post("/requests/{request_id}/withdraw")
+def my_request_withdraw(request_id: int, actor: Actor = Depends(require("self:respond")),
+                        db: Session = Depends(get_db)) -> dict:
+    from ..services import patient_requests as pr
+
+    r = pr.withdraw(db, actor, request_id)
+    db.commit()
+    return {"ok": True, "status": r.status}
 
 
 @router.post("/contact-consent")
