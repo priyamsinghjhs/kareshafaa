@@ -22,6 +22,9 @@ def _env(tmp_path_factory) -> Iterator[None]:
         "KARESHAFAA_DEMO_LOGINS": "true",
         "KARESHAFAA_SWEEP_INTERVAL_SECONDS": "0",
         "KARESHAFAA_DATA_STEPS": "off",
+        # tests that switch the settings to production / dev must never write the developer's real credentials file
+        # (<repo parent>/demo_credentials.txt): random demo passwords always go to the test's temp directory
+        "KARESHAFAA_DEMO_CREDENTIALS_FILE": str(d / "demo_credentials.txt"),
     })
     from kareshafaa.config import get_settings
     from kareshafaa.db import reset_engine
