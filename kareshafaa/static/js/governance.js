@@ -86,7 +86,7 @@ tabsG.decisions = async el => {
      <h4>Monitored for fairness, never model inputs</h4><p class="small">${m.monitored_not_used.map(W.esc).join(", ")}</p>
      <h4>How a version goes live</h4><p class="small">${W.esc(m.approval)}</p><p class="small"><a href="?tab=models" data-go="models">Metrics, fairness gates and drift</a></p>` : W.empty("No model in production", "Cases are ordered by tier and deadline only.")}</section></div>
    <h3>Every rule, with its source</h3>
-   ${r.families.map(f => `<details class="card" data-family="${W.esc(f.code)}"><summary><b>${W.esc(f.programme)}</b> <span class="small muted">${f.rules.length} rules</span></summary><div class="table-scroll"><table class="compact"><thead><tr><th>Rule</th><th>When</th><th>Decision</th><th>Tier</th><th>Pathway</th><th>Target</th><th>Source</th></tr></thead><tbody>
+   ${r.families.map(f => `<details class="card" data-family="${W.esc(f.code)}"><summary><b>${W.esc(f.programme)}</b> <span class="small muted">${f.rules.length} rules</span></summary><div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><thead><tr><th>Rule</th><th>When</th><th>Decision</th><th>Tier</th><th>Pathway</th><th>Target</th><th>Source</th></tr></thead><tbody>
      ${f.rules.map(x => `<tr id="rule-${W.esc(x.id)}"><td><code>${W.esc(x.id)}</code></td><td class="small">${W.esc(x.input)}</td><td class="small">${W.esc(x.decision)}</td><td class="small">${W.esc(x.tier)}</td><td class="small">${W.esc(x.pathway.replaceAll("_", " "))}</td><td class="small">${W.esc(x.target)}</td><td class="small">${W.esc(x.source)}</td></tr>`).join("")}</tbody></table></div></details>`).join("")}`;
   el.querySelectorAll("[data-go]").forEach(a => a.onclick = ev => { ev.preventDefault(); show(a.dataset.go); });
   const h = location.hash.slice(1); if (h.startsWith("rule-")) { const row = document.getElementById(h); if (row) { row.closest("details").open = true; row.classList.add("row-flag"); row.scrollIntoView({ block: "center" }); } }
@@ -105,7 +105,7 @@ tabsG.overrides = async el => {
    <div class="grid-4">${Object.entries(r.counts).map(([k, v]) => `<div class="card kpi"><div class="l">${W.esc(r.labels[k])}</div><div class="v">${v}</div></div>`).join("")}<div class="card kpi"><div class="l">Of which a tier was lowered</div><div class="v">${r.lowered_tiers}</div></div></div>
    ${n ? `<div class="row"><label for="override-kind">Show<select id="override-kind"><option value="">All overrides</option><option value="lowered">Lowered tiers only</option>${Object.entries(r.labels).map(([k, l]) => `<option value="${k}">${W.esc(l)}</option>`).join("")}</select></label></div>
      <p class="small muted" id="override-count" aria-live="polite"></p>
-     <div class="table-scroll"><table class="compact" id="override-list"><thead><tr><th>When</th><th>Who</th><th>What</th><th>Reason given</th><th>Case</th></tr></thead><tbody></tbody></table></div>
+     <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact" id="override-list"><thead><tr><th>When</th><th>Who</th><th>What</th><th>Reason given</th><th>Case</th></tr></thead><tbody></tbody></table></div>
      <button type="button" class="secondary sm" id="override-more">Show ${PAGE} more</button>`
      : W.empty("No overrides yet", "When a clinician lowers a tier, closes a case by decision or decides on a model or rule change, it is listed here.")}`;
   if (!n) return;
@@ -119,7 +119,7 @@ tabsG.privacy = async el => {
    <h3>How the system maps to UAE and Abu Dhabi rules</h3>
    ${r.frameworks.map(f => `<section class="card" data-framework><h4><a href="${W.esc(f.url)}" target="_blank" rel="noopener">${W.esc(f.framework)}</a> <span class="chip ${f.status === "met" ? "sla-green" : "sla-amber"}">${f.status === "met" ? "✓ met" : "● partly – pilot steps listed"}</span></h4>
      <dl class="facts"><div><dt>What it asks</dt><dd>${W.esc(f.asks)}</dd></div><div><dt>In this system now</dt><dd>${W.esc(f.prototype)}</dd></div><div><dt>Before a pilot</dt><dd>${W.esc(f.pilot)}</dd></div></dl></section>`).join("")}
-   <h3>Data retention</h3><div class="table-scroll"><table class="compact" id="retention"><thead><tr><th>Data</th><th>Kept for</th><th>How</th><th>Basis</th><th>Automatic</th></tr></thead><tbody>${r.retention.map(x => `<tr><td class="small">${W.esc(x.data)}</td><td class="small">${W.esc(x.keep)}</td><td class="small">${W.esc(x.how)}</td><td class="small">${W.esc(x.basis)}</td><td>${x.automatic ? "Yes" : "No"}</td></tr>`).join("")}</tbody></table></div>
+   <h3>Data retention</h3><div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact" id="retention"><thead><tr><th>Data</th><th>Kept for</th><th>How</th><th>Basis</th><th>Automatic</th></tr></thead><tbody>${r.retention.map(x => `<tr><td class="small">${W.esc(x.data)}</td><td class="small">${W.esc(x.keep)}</td><td class="small">${W.esc(x.how)}</td><td class="small">${W.esc(x.basis)}</td><td>${x.automatic ? "Yes" : "No"}</td></tr>`).join("")}</tbody></table></div>
    <p class="small muted">The audit chain can be checked end to end by an administrator (Audit trail → “Check the log is intact”).</p>`;
 };
 let current = "decisions";

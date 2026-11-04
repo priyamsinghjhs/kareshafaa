@@ -46,7 +46,7 @@ def main() -> int:
     axe = AXE.read_text()
     report, problems = {}, []
     with sync_playwright() as pw:
-        b = pw.chromium.launch(channel="chrome", headless=True)
+        b = pw.chromium.launch(channel=os.environ.get("KARESHAFAA_BROWSER_CHANNEL", "chrome") or None, headless=True)
         for user, pages in PLAN.items():
             ctx = b.new_context(viewport={"width": 1280, "height": 900})
             ctx.add_init_script("for (const r of ['coordinator','gp','specialist','clinical_lead','analyst','admin','translator']) localStorage.setItem('ks-guide-'+r+'-v1','1');")

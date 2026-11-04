@@ -97,7 +97,7 @@ const W = {
   labelTables(root = document) {
     root.querySelectorAll("table").forEach(t => {
       const heads = [...t.querySelectorAll("thead th")].map(th => th.textContent.trim());
-      if (!t.closest(".table-scroll")) { const w = document.createElement("div"); w.className = "table-scroll"; t.parentNode.insertBefore(w, t); w.appendChild(t); }
+      if (!t.closest(".table-scroll")) { const w = document.createElement("div"); w.className = "table-scroll"; w.tabIndex = 0; w.setAttribute("role", "region"); w.setAttribute("aria-label", "Table, scrolls sideways"); t.parentNode.insertBefore(w, t); w.appendChild(t); }
       if (!heads.length) return;
       t.querySelectorAll("tbody tr").forEach(tr => [...tr.children].forEach((td, i) => { if (!td.hasAttribute("data-label")) td.setAttribute("data-label", heads[i] || ""); }));
     });

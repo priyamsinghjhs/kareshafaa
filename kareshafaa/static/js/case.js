@@ -64,7 +64,7 @@ const NR = () => `<span class="muted">${W.esc((REC && REC.none) || "None recorde
 const val = v => (v === null || v === undefined || v === "") ? NR() : W.esc(v);
 const day = s => s ? new Date(/Z|[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z").toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : NR();
 const flagChip = (abn, txt) => abn ? `<span class="chip sla-red"><span class="shape" aria-hidden="true">▲</span>${W.esc(txt || "Abnormal")}</span>` : `<span class="chip sla-green"><span class="shape" aria-hidden="true">✓</span>${W.esc(txt || "Normal")}</span>`;
-const tbl = (heads, rows) => rows.length ? `<div class="table-scroll"><table class="compact rec-table"><thead><tr>${heads.map(h => `<th scope="col">${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>` : `<p class="small">${NR()}</p>`;
+const tbl = (heads, rows) => rows.length ? `<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact rec-table"><thead><tr>${heads.map(h => `<th scope="col">${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>` : `<p class="small">${NR()}</p>`;
 function sec(id, title, count, body, defOpen) {
   const open = REC_OPEN.has(id) ? true : REC_OPEN.has("!" + id) ? false : defOpen && matchMedia("(min-width: 900px)").matches;
   return `<details class="card rec-sec" data-sec="${id}" ${open ? "open" : ""}><summary><h3>${title}</h3><span class="count">${count}</span></summary><div class="rec-body">${body}</div></details>`;
