@@ -104,57 +104,74 @@ def _sweep_once() -> dict:
     return {}
 
 
+_TIMED_JOBS_LOCK = None  # worker_lock.PgAdvisoryLock (PostgreSQL) or FileLock (SQLite), held while elected
+
+
 def _elect_sweeper() -> bool:
-    """With several uvicorn workers only one process runs the SLA job (non-blocking flock election)."""
-    global _SWEEP_LOCK_FD
+    """Only ONE process runs the timed jobs: across every container on PostgreSQL (session advisory lock on a
+    dedicated connection), across the uvicorn workers of this host on SQLite (flock). Non-blocking; True = elected.
+    Called again before every run: the holder re-checks (and if its session was lost, re-takes) the lock, and a
+    process that lost the election retries, so another container takes over within one interval."""
+    global _TIMED_JOBS_LOCK
+    from .worker_lock import timed_jobs_lock
+
     try:
-        import fcntl
-        import os
-        from sqlalchemy.engine import make_url
-
-        from .audit import lock_key
-        u = make_url(get_settings().database_url)
-        ident = os.path.realpath(u.database) if u.database and u.database != ":memory:" else str(u)
-        # one sweeper per DATABASE (round 21: a shared lock let a server on another database "own" the sweep)
-        fd = os.open(str(get_settings().data_dir / f".sla-sweeper-{lock_key(ident)}.lock"), os.O_CREAT | os.O_RDWR,
-                     0o600)
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        _SWEEP_LOCK_FD = fd  # held for the life of the process
-        return True
-    except BlockingIOError:
+        if _TIMED_JOBS_LOCK is None:
+            _TIMED_JOBS_LOCK = timed_jobs_lock()
+        return _TIMED_JOBS_LOCK.renew()
+    except Exception:  # noqa: BLE001 - never fatal: not elected this time, retried next interval
+        log.exception("timed-jobs election failed")
         return False
-    except ImportError:  # pragma: no cover
-        return True
 
 
-_SWEEP_LOCK_FD: int | None = None
+def _release_sweeper() -> None:
+    global _TIMED_JOBS_LOCK
+    if _TIMED_JOBS_LOCK is not None:
+        try:
+            _TIMED_JOBS_LOCK.release()
+        except Exception:  # noqa: BLE001
+            log.warning("could not release the timed-jobs lock", exc_info=True)
+        _TIMED_JOBS_LOCK = None
+
+
+async def _run_timed_jobs() -> None:
+    try:
+        t = time.time()
+        out = await asyncio.to_thread(_sweep_once)
+        log.info("background SLA sweep: %s in %.0f ms", out, (time.time() - t) * 1000)
+    except Exception:  # noqa: BLE001
+        log.exception("background SLA sweep failed")
+    try:
+        await asyncio.to_thread(_purge_once)
+    except Exception:  # noqa: BLE001
+        log.exception("retention purge failed")
+    try:
+        out = await asyncio.to_thread(_reconcile_audit_once)
+        if out.get("reconciled") or out.get("remaining"):
+            log.warning("audit fallback reconciliation: %s", out)
+    except Exception:  # noqa: BLE001
+        log.exception("audit fallback reconciliation failed (retried at the next interval)")
 
 
 async def _sweep_loop(interval: int) -> None:
-    """Background SLA job: evaluates every open step clock and raises the escalation ladder.
-    Runs in a worker thread so request handling is never blocked; failures are logged, never fatal."""
-    if not _elect_sweeper():
-        log.info("another worker owns the background SLA sweep")
-        return
-    log.info("background SLA sweep every %ss", interval)
-    while True:
-        await asyncio.sleep(interval)
-        try:
-            t = time.time()
-            out = await asyncio.to_thread(_sweep_once)
-            log.info("background SLA sweep: %s in %.0f ms", out, (time.time() - t) * 1000)
-        except Exception:  # noqa: BLE001
-            log.exception("background SLA sweep failed")
-        try:
-            await asyncio.to_thread(_purge_once)
-        except Exception:  # noqa: BLE001
-            log.exception("retention purge failed")
-        try:
-            out = await asyncio.to_thread(_reconcile_audit_once)
-            if out.get("reconciled") or out.get("remaining"):
-                log.warning("audit fallback reconciliation: %s", out)
-        except Exception:  # noqa: BLE001
-            log.exception("audit fallback reconciliation failed (retried at the next interval)")
+    """Background timed jobs: SLA sweep (step clocks + escalation ladder), retention purge, audit-fallback
+    reconciliation. Run in worker threads so request handling is never blocked; failures are logged, never fatal.
+    The election is re-checked before every run (see _elect_sweeper); the lock is released when the loop stops."""
+    try:
+        elected = await asyncio.to_thread(_elect_sweeper)
+        log.info("background timed jobs every %ss: %s", interval,
+                 "this process runs them" if elected else "another process runs them (re-checked every interval)")
+        while True:
+            await asyncio.sleep(interval)
+            now_elected = await asyncio.to_thread(_elect_sweeper)  # holder: still held? others: free now?
+            if now_elected != elected:
+                (log.info if now_elected else log.warning)("this process %s the background timed jobs",
+                                                           "now runs" if now_elected else "no longer runs")
+                elected = now_elected
+            if elected:
+                await _run_timed_jobs()
+    finally:
+        _release_sweeper()
 
 
 async def _data_steps_task(stop: "threading.Event", delay: float = 20.0) -> None:
@@ -424,7 +441,11 @@ def create_app() -> FastAPI:
         if nightly:
             nightly.cancel()
         if task:
-            task.cancel()
+            task.cancel()  # its finally releases the timed-jobs lock (advisory lock / flock)
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                pass
         if hb:
             hb.cancel()
 

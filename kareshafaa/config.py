@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # (Render sets RENDER=true and its free plan has no persistent disk).
     storage_persistent: bool | None = None
     database_url: str = f"sqlite:///{BASE_DIR / 'data' / 'kareshafaa.db'}"
+    # PostgreSQL only: DIRECT (unpooled) URL for the timed-jobs advisory lock session (kareshafaa/worker_lock.py).
+    # None = DATABASE_URL (a Neon "-pooler" host is mapped to its direct host automatically).
+    worker_lock_database_url: str | None = None
     data_dir: Path = BASE_DIR / "data"
     model_dir: Path = BASE_DIR / "data" / "models"
     # Secret for signing session tokens. Never hard-coded: read from env, else a random
@@ -168,6 +171,8 @@ def derive(s: Settings) -> Settings:
     if os.environ.get("DATABASE_URL") and not os.environ.get("KARESHAFAA_DATABASE_URL"):
         s.database_url = os.environ["DATABASE_URL"]
     s.database_url = normalise_database_url(s.database_url)
+    if s.worker_lock_database_url:
+        s.worker_lock_database_url = normalise_database_url(s.worker_lock_database_url)
     s.mode = (s.mode or "standard").strip().lower()
     if "KARESHAFAA_MODE" not in os.environ and os.environ.get("RENDER"):
         s.mode = "production"  # Render (RENDER=true) runs the working system unless a mode is set explicitly

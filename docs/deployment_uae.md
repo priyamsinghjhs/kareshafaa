@@ -34,7 +34,11 @@ Steps:
    `KARESHAFAA_MODE=production`, `KARESHAFAA_DEMO_LOGINS=false`, `KARESHAFAA_SECRET_KEY` (from the secrets
    manager), `DATABASE_URL`, `WEB_WORKERS=2-4`, `KARESHAFAA_LOG_FORMAT=json`.
 4. Health checks: liveness `/healthz`, readiness `/readyz`.
-5. Run the timed jobs in one place (see `docs/background_jobs.md`).
+5. Timed jobs (deadline check, retention purge, audit-fallback reconciliation): every container may keep
+   `KARESHAFAA_SWEEP_INTERVAL_SECONDS` on; a PostgreSQL session advisory lock (key 727001, held on a dedicated
+   connection) lets exactly one container run them and another takes over within one interval if it stops. This
+   needs a **direct** database connection: if `DATABASE_URL` goes through PgBouncer or another transaction-mode
+   pooler, set `KARESHAFAA_WORKER_LOCK_DATABASE_URL` to the direct URL (see `docs/background_jobs.md`).
 6. Ship JSON logs to the provider's log service in the same region; keep the audit trail in the database (it is
    never deleted, see Governance → Data protection).
 7. Restrict administrator pages to the organisation network or VPN; put the service behind the organisation's

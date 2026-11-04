@@ -125,6 +125,12 @@ closure.
   hash-chained trail with their **original timestamps**, marked `reconciled_late`, after every deadline check or at once
   with **Add them to the audit trail now** (`POST /api/admin/system/audit-fallback/reconcile`, permission `user:admin`).
   A read whose access cannot be logged is still refused (503).
+* **One timed-jobs worker across containers.** On PostgreSQL the deadline check, retention purge and audit
+  reconciliation run in exactly one process, elected by a session advisory lock (`pg_try_advisory_lock`, key 727001)
+  held on a dedicated connection, re-checked before every run and released at shutdown; another container takes over
+  within one interval if the holder stops. SQLite keeps the per-host file lock. Needs the **direct (unpooled)**
+  connection: a Neon `-pooler` host is mapped to the direct host automatically, other poolers need
+  `KARESHAFAA_WORKER_LOCK_DATABASE_URL` (see `docs/background_jobs.md`).
 
 ## Roles
 
@@ -207,9 +213,10 @@ guide: [`DEPLOY.md`](DEPLOY.md). Environment variables (set in the Render dashbo
 | `KARESHAFAA_DEMO_PASSWORD` | First password for staff accounts that have none yet (secret; never overwrites a changed password). |
 | `KARESHAFAA_MODE` | `production` on Render. |
 | `WEB_WORKERS`, `KARESHAFAA_SWEEP_INTERVAL_SECONDS` | Worker count and SLA-sweep interval. |
+| `KARESHAFAA_WORKER_LOCK_DATABASE_URL` | Optional, PostgreSQL only: direct (unpooled) URL for the timed-jobs lock session when `DATABASE_URL` goes through PgBouncer or another pooler (secret). Neon `-pooler` hosts are mapped automatically. |
 
-Neon note: prefer the **unpooled (direct) connection string** from Neon's *Connect* dialog for the app's long-lived
-connections and transaction-scoped advisory locks. On first start against an empty database, `python -m
+Neon note: use the **unpooled (direct) connection string** from Neon's *Connect* dialog: the timed-jobs election
+uses a session-level advisory lock, which a transaction pooler (PgBouncer) cannot keep for one client. On first start against an empty database, `python -m
 kareshafaa.bootstrap` creates the schema and copies in the initial records once; existing data is never reset.
 
 ## Documentation
