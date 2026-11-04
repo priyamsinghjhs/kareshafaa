@@ -5,22 +5,4 @@
 <div id="storage"></div>
 <div id="sys"><div class="loading" role="status">Loading…</div></div>
 {% endblock %}
-{% block scripts %}
-<script>
-document.addEventListener("DOMContentLoaded", async () => {
-  await W.ready; if (!W.requireLogin()) return;
-  try {
-    const s = await W.api("/api/admin/system");
-    document.getElementById("storage").innerHTML = s.storage_persistent
-      ? `<div class="card ok" role="status"><b>✓ Data is stored permanently</b> <span class="small">(${W.esc(s.database)}${s.database_host ? " · " + W.esc(s.database_host) : ""}).</span></div>`
-      : `<div class="card notice" role="note"><b>▲ Data is not stored permanently.</b><p class="small">${W.esc(s.storage_note)}</p></div>`;
-    const rows = [["Version", s.version], ["Database", s.database + (s.database_host ? " · " + s.database_host : "")],
-      ["Active accounts", s.users_active], ["Patients", s.patients], ["Cases", s.cases],
-      ["Sign-in sessions end after", s.session_idle_minutes + " minutes without activity"]];
-    if (s.write_limit_per_minute) rows.push(["Change limit (abuse protection)", s.write_limit_per_minute + " changes per minute per user"]);
-    document.getElementById("sys").innerHTML = `<article class="card"><dl class="facts">${rows.map(([k, v]) => `<div><dt>${W.esc(k)}</dt><dd>${W.esc(String(v))}</dd></div>`).join("")}</dl>
-      <div class="row" style="margin-top:var(--s-4)"><a role="button" class="secondary" href="/admin/users">Manage users</a><a role="button" class="ghost" href="/healthz">Health check (JSON)</a></div></article>`;
-  } catch (e) { document.getElementById("sys").innerHTML = W.empty("Could not load", W.esc(e.message)); }
-});
-</script>
-{% endblock %}
+{% block scripts %}<script src="{{ asset('js/admin_system.js') }}"></script>{% endblock %}

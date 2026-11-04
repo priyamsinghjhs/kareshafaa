@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 from .. import audit
 from ..models import AuditEvent, Case, Communication, Organization, Patient, Practitioner, utcnow
 from ..security import PROGRAMME_WIDE_ROLES, Actor
-from .access import can_view_case
+from .access import OTHER_EPISODES_NOTE, can_view_case, case_visible
 from .errors import DomainError, Forbidden, Invalid, NotFound
 
 EMIRATES = ("Abu Dhabi", "Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah")
@@ -186,13 +186,22 @@ def _norm_name(s: str) -> str:
     return " ".join(toks)
 
 
-def name_similarity(a: str, b: str) -> float:
-    na, nb = _norm_name(a), _norm_name(b)
+def _ratio(na: str, nb: str) -> float:
     if not na or not nb:
         return 0.0
     straight = SequenceMatcher(None, na, nb).ratio()
     swapped = SequenceMatcher(None, " ".join(sorted(na.split())), " ".join(sorted(nb.split()))).ratio()
     return max(straight, swapped)
+
+
+def name_similarity(a: str, b: str) -> float:
+    """0..1, order-insensitive (swapped given/family), on the plain normalised names AND on the transliteration-aware
+    canonical names (services/name_keys.py: Mohammed = Muhammad, Abdul Rahman = Abd al-Rahman, Al-/El- dropped)."""
+    from .name_keys import canonical_tokens
+
+    plain = _ratio(_norm_name(a), _norm_name(b))
+    canon = _ratio(" ".join(canonical_tokens(a)), " ".join(canonical_tokens(b)))
+    return max(plain, canon)
 
 
 # ------------------------------------------------------------------------------------------------ access
@@ -246,30 +255,78 @@ def can_write_patient(db: Session, actor: Actor, p: Patient) -> bool:
 # ------------------------------------------------------------------------------------------------ duplicates
 def duplicate_candidates(db: Session, *, given: str, family: str, birth_date: date | None,
                          national_id: str | None = None, exclude_id: int | None = None,
-                         document: tuple[str | None, str | None, str | None] | None = None) -> dict[str, list[dict]]:
-    out: dict[str, list[dict]] = {"same_emirates_id": [], "similar": []}
+                         document: tuple[str | None, str | None, str | None] | None = None,
+                         phone: str | None = None, email: str | None = None) -> dict[str, list[dict]]:
+    """Possible duplicates of a person being registered.
+
+    Candidates are narrowed IN SQL (indexed, no cap that could drop a true match):
+    * strong identifiers: the same Emirates ID (blocks), the same passport / GCC / other document, the same
+      normalised phone or email;
+    * the same date of birth (or, for older records holding only a birth year, the same year) AND at least one
+      shared normalised/phonetic name key (patient_name_keys; records without keys yet are always included).
+    They are then ranked by name similarity. The same name with a DIFFERENT date of birth is never a match on its
+    own (relatives often share names); it needs a strong identifier."""
+    from ..models import PatientNameKey
+    from .name_keys import name_keys
+
+    out: dict[str, list[dict]] = {"same_emirates_id": [], "similar": [], "weak": []}
+    seen: set[int] = set()
+    if exclude_id is not None:
+        seen.add(exclude_id)
     if document:  # same passport / GCC ID / other document: a strong candidate (needs the audited "create anyway")
         for p in same_document(db, *document, exclude_id=exclude_id):
             out["similar"].append(_brief(p, f"Same {doc_label(document[0], document[1]).lower()} number", 1.0))
+            seen.add(p.id)
     if national_id:
         for p in db.scalars(select(Patient).where(Patient.national_id == national_id)):
-            if p.id != exclude_id:
+            if p.id not in seen:
                 out["same_emirates_id"].append(_brief(p, "Same Emirates ID", 1.0))
+                seen.add(p.id)
+    full = f"{given} {family}"
+    keys = sorted(name_keys(given, family))
+    strong = []
+    if phone:
+        strong.append(Patient.phone == phone)
+    if email:
+        strong.append(Patient.email == email.lower())
+    conds = []
     if birth_date is not None:
-        full = f"{given} {family}"
-        q = select(Patient).where(or_(Patient.birth_date == birth_date,
-                                      (Patient.birth_date.is_(None)) & (Patient.birth_year == birth_date.year)))
-        for p in db.scalars(q.limit(5000)):
-            if p.id == exclude_id or any(c["id"] == p.id for c in out["same_emirates_id"] + out["similar"]):
+        has_key = PatientNameKey.__table__.c
+        shares = select(has_key.patient_id).where(has_key.key.in_(keys)) if keys else None
+        no_keys = ~select(has_key.patient_id).where(has_key.patient_id == Patient.id).exists()
+        name_ok = or_(Patient.id.in_(shares), no_keys) if shares is not None else no_keys
+        same_dob = or_(Patient.birth_date == birth_date,
+                       (Patient.birth_date.is_(None)) & (Patient.birth_year == birth_date.year))
+        conds.append(same_dob & name_ok)
+    conds += strong
+    if conds:
+        for p in db.scalars(select(Patient).where(or_(*conds)).order_by(Patient.id)):
+            if p.id in seen:
                 continue
             score = name_similarity(full, f"{p.given_name} {p.family_name}")
             fam = name_similarity(family, p.family_name)
             initial = _norm_name(given)[:1] == _norm_name(p.given_name)[:1]
-            if score >= 0.82 or (fam >= 0.9 and initial):
+            dob = birth_date is not None and (p.birth_date == birth_date or
+                                              (p.birth_date is None and p.birth_year == birth_date.year))
+            same = [w for w, hit in (("phone number", phone and p.phone == phone),
+                                     ("email", email and (p.email or "").lower() == email.lower())) if hit]
+            name_like = score >= 0.82 or (fam >= 0.9 and initial)
+            if dob and name_like:
                 why = ("Same date of birth" if p.birth_date == birth_date else "Same birth year") + " and a similar name"
-                out["similar"].append(_brief(p, why, round(score, 2)))
+                if same:
+                    why += f" (also the same {' and '.join(same)})"
+                out["similar"].append(_brief(p, why, round(min(1.0, score + 0.05 * len(same)), 2)))
+            elif dob and same and score >= 0.5:
+                out["similar"].append(_brief(p, f"Same date of birth and the same {' and '.join(same)}",
+                                             round(max(score, 0.85), 2)))
+            elif same and name_like:  # a different date of birth: not a duplicate match (relatives share names
+                # and phones) - returned separately and shown as a warning, never blocking registration
+                out["weak"].append(_brief(p, f"Same {' and '.join(same)} and a similar name, but a different "
+                                             "date of birth", round(score * 0.7, 2)))
+            seen.add(p.id)
     out["similar"].sort(key=lambda c: -c["score"])
     out["similar"] = out["similar"][:10]
+    out["weak"] = sorted(out["weak"], key=lambda c: -c["score"])[:5]
     return out
 
 
@@ -506,7 +563,8 @@ def register_patient(db: Session, actor: Actor, data: dict[str, Any], *, create_
             raise Conflict("that MRN is already used by another patient record", "duplicate_mrn")
     dups = duplicate_candidates(db, given=v["given_name"], family=v["family_name"], birth_date=v["birth_date"],
                                 national_id=v.get("national_id"),
-                                document=(v.get("id_type"), v.get("id_country"), v.get("id_number")))
+                                document=(v.get("id_type"), v.get("id_country"), v.get("id_number")),
+                                phone=v.get("phone"), email=v.get("email"))
     if dups["same_emirates_id"]:
         audit.record(db, actor, "E", "patient.register_blocked", entity_type="Patient", ts=now,
                      detail={"reason": "same_emirates_id", "existing": [c["id"] for c in dups["same_emirates_id"]]})
@@ -515,8 +573,8 @@ def register_patient(db: Session, actor: Actor, data: dict[str, Any], *, create_
                        "a second one.", "duplicate_emirates_id", candidates=dups["same_emirates_id"])
     reason = (create_anyway_reason or "").strip()
     if dups["similar"] and len(reason) < MIN_OVERRIDE_REASON:
-        raise Conflict("Possible duplicate: a patient with the same date of birth and a similar name is already "
-                       "registered. Check the records below. If this is a different person, give the reason and "
+        raise Conflict("Possible duplicate: a patient with the same date of birth and a similar name (or the same "
+                       "phone, email or document) is already registered. Check the records below. If this is a different person, give the reason and "
                        "choose 'Create anyway'.", "possible_duplicate", candidates=dups["similar"],
                        min_reason=MIN_OVERRIDE_REASON)
     age = age_on(v["birth_date"], now)
@@ -543,6 +601,9 @@ def register_patient(db: Session, actor: Actor, data: dict[str, Any], *, create_
         p.duplicate_override_reason = reason
         audit.record(db, actor, "E", "patient.duplicate_override", entity_type="Patient", entity_id=p.id, ts=now,
                      detail={"candidates": [c["id"] for c in dups["similar"]], "reason": reason})
+    for c in dups.get("weak", []):  # same phone/email and a similar name but another date of birth: check, not block
+        f.warnings.append(f"{c['why']}: {c['name']} ({c['mrn']}). Check this is a different person (for example a "
+                          "relative sharing the phone).")
     return p, f.warnings
 
 
@@ -656,20 +717,25 @@ def build_patient_record(db: Session, actor: Actor, p: Patient, now: datetime | 
     now = now or utcnow()
     org = db.get(Organization, p.managing_org_id)
     gp = db.get(Practitioner, p.gp_id) if p.gp_id else None
-    cases = []
+    # case privacy: only cases the reader may open are listed; the rest are omitted entirely (no id, dates, programme,
+    # step, tier or clinician) and only a neutral flag says other care episodes exist
+    cases, hidden_ids = [], set()
     for c in db.scalars(select(Case).where(Case.patient_id == p.id).order_by(Case.id.desc())):
-        vis = can_view_case(db, actor, c)
+        if not case_visible(db, actor, c):
+            hidden_ids.add(c.id)
+            continue
         cases.append({"id": c.id, "programme": c.programme, "programme_name": PROGRAMMES[c.programme].name,
                       "state": c.state, "state_label": LABELS.get(c.state, c.state), "tier": c.tier,
                       "created_at": _iso(c.created_at), "closed_at": _iso(c.closed_at),
-                      "closure_reason": c.closure_reason, "can_open": vis})
+                      "closure_reason": c.closure_reason, "can_open": True})
     results = [{"id": r.id, "programme": r.programme, "display": r.display, "category": r.category,
                 "conclusion": r.conclusion, "issued_at": _iso(r.issued_at), "case_id": r.case_id,
                 "ordered_by": r.ordering_clinician, "site": r.screening_site, "collected_at": _iso(r.specimen_collected_at),
                 "values": "; ".join(f"{o.value if o.value is not None else (o.value_text or '')}"
                                     f"{(' ' + o.unit) if o.unit else ''}".strip() for o in r.observations)}
                for r in db.scalars(select(DiagnosticReport).where(DiagnosticReport.patient_id == p.id)
-                                   .order_by(DiagnosticReport.issued_at.desc()).limit(50))]
+                                   .order_by(DiagnosticReport.issued_at.desc()).limit(50))
+               if r.case_id is None or r.case_id not in hidden_ids]
     consents = [{"scope": k.scope, "decision": k.decision, "status": k.status, "at": _iso(k.recorded_at), "note": k.note}
                 for k in db.scalars(select(Consent).where(Consent.patient_id == p.id, Consent.status == "active")
                                     .order_by(Consent.id))]
@@ -695,11 +761,12 @@ def build_patient_record(db: Session, actor: Actor, p: Patient, now: datetime | 
                          "duplicate_override_reason": p.duplicate_override_reason,
                          "updated_at": _iso(p.updated_at), "updated_by": p.updated_by},
         "deceased": p.deceased, "consents": consents, "cases": cases, "results": results,
+        "other_care_episodes": bool(hidden_ids), "other_care_episodes_note": OTHER_EPISODES_NOTE if hidden_ids else None,
         "changes": recent_changes(db, p),
         "can_write": can_write_patient(db, actor, p),
         "can_add_result": actor.is_human and actor.can("case:create"),
         "account": _account(db, actor, p),
-        "recalls": _recalls(db, p),
+        "recalls": _recalls(db, p, hidden_ids),
         **_coverage(db, p, actor),
     }
 
@@ -710,10 +777,15 @@ def _coverage(db: Session, p: Patient, actor: Actor | None = None) -> dict:
     return view(db, p, actor)
 
 
-def _recalls(db: Session, p: Patient) -> list[dict]:
+def _recalls(db: Session, p: Patient, hidden_case_ids: set[int] | None = None) -> list[dict]:
     from .recall import patient_recalls
 
-    return patient_recalls(db, p)
+    rows = patient_recalls(db, p)
+    for r in rows:  # a recall stays (it is the patient's next screening) but never points at a case the reader cannot open
+        for k in ("source_case_id", "completed_case_id"):
+            if hidden_case_ids and r.get(k) in hidden_case_ids:
+                r[k] = None
+    return rows
 
 
 def _account(db: Session, actor: Actor, p: Patient) -> dict:

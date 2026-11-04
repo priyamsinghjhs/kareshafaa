@@ -112,6 +112,44 @@ closure.
 * Security headers on every response (CSP, HSTS, Permissions-Policy, COOP/CORP), append-only **hash-chained audit
   log** of every read and write (`GET /api/audit/verify`), consent checks, organisation-scoped access.
 
+**Privacy, audit and reliability safeguards**
+* **Case privacy on patient-level views.** The patient record (`GET /api/patients/{id}`), the case screen's clinical
+  record and the per-case FHIR export list only the cases the reader may open (organisation involvement plus the
+  patient's sharing consent). Cases outside the reader's access are left out completely (no id, dates, programme,
+  step, tier or clinician), as are results, consultations, medicines and investigations recorded under them; a neutral
+  line says “Other care episodes exist for this patient. Contact the care team if you need them.”
+* **Audit write failures are never silent.** If writing the per-request audit event fails after a change was saved,
+  the user still gets their answer; the write is retried once, then the event is kept durably (table
+  `audit_fallback_events`, or the append-only file `DATA_DIR/audit-fallback.jsonl` if the database is unreachable).
+  **Admin → System** shows an alert with the number of events waiting (admin only), and they are appended to the
+  hash-chained trail with their **original timestamps**, marked `reconciled_late`, after every deadline check or at once
+  with **Add them to the audit trail now** (`POST /api/admin/system/audit-fallback/reconcile`, permission `user:admin`).
+  Reads are never served unlogged: a read whose chain write fails or waits more than 2 s
+  (`KARESHAFAA_REQUEST_AUDIT_LOCK_TIMEOUT_S`) is served once its event is kept in the fallback, and refused (503) only
+  if it cannot be kept anywhere. The SLA sweep checks open cases read-only first and holds the audit writer lock only
+  while it changes cases, so a long sweep no longer turns page loads into 503s.
+* **One timed-jobs worker across containers.** On PostgreSQL the deadline check, retention purge and audit
+  reconciliation run in exactly one process, elected by a session advisory lock (`pg_try_advisory_lock`, key 727001)
+  held on a dedicated connection, re-checked before every run and released at shutdown; another container takes over
+  within one interval if the holder stops. SQLite keeps the per-host file lock. Needs the **direct (unpooled)**
+  connection: a Neon `-pooler` host is mapped to the direct host automatically, other poolers need
+  `KARESHAFAA_WORKER_LOCK_DATABASE_URL` (see `docs/background_jobs.md`).
+* **Duplicate check at registration without a candidate cap.** Candidates are narrowed in SQL by strong identifiers
+  (same Emirates ID blocks; same passport/GCC/other document, phone or email) and by the date of birth (or birth year on
+  older records) together with a normalised/phonetic **name key** (additive indexed table `patient_name_keys`;
+  Arabic transliteration aware: Mohammed/Muhammad/Mohamed, Al-/El-/Al, Abdul/Abd al, hyphens, spaces, case, accents,
+  Arabic letter forms), then ranked by name similarity (also with given and family names swapped). The old check looked
+  at only the first 5,000 records of a birth year. The same name with a different date of birth is never a blocking
+  match: if it also shares a phone or email it is shown as a warning after saving. Keys are kept in step with name
+  changes and built for older records in small background batches after start-up (idempotent; no patient field is
+  changed); records without keys are still checked.
+* **Strict script policy (CSP).** `script-src 'self'` with no `'unsafe-inline'` (and `script-src-attr 'none'`): every
+  page script is a static file under `kareshafaa/static/js/`, server values reach the page in non-executable
+  `<script type="application/json">` blocks (`ks-config`, `page-strings`), and buttons in generated markup use
+  `data-click="function"` / `data-args` handled by one delegated listener in `common.js` instead of `onclick=`.
+  `tests/test_csp.py` fails on any new inline script or `on*=` handler. `style-src` still allows inline styles
+  (`style=""` attributes; see `docs/security.md`).
+
 ## Roles
 
 Permissions are defined in `kareshafaa/security.py` (`PERMISSIONS`) and page access in `kareshafaa/ui.py`. Example
@@ -198,10 +236,11 @@ guide: [`DEPLOY.md`](DEPLOY.md). Environment variables (set in the Render dashbo
 | `KARESHAFAA_DEMO_PASSWORD` | First password for staff accounts that have none yet (secret; never overwrites a changed password). |
 | `KARESHAFAA_MODE` | `production` on Render. |
 | `WEB_WORKERS`, `KARESHAFAA_SWEEP_INTERVAL_SECONDS` | Worker count and SLA-sweep interval. |
+| `KARESHAFAA_WORKER_LOCK_DATABASE_URL` | Optional, PostgreSQL only: direct (unpooled) URL for the timed-jobs lock session when `DATABASE_URL` goes through PgBouncer or another pooler (secret). Neon `-pooler` hosts are mapped automatically. |
 
-Neon note: prefer the **unpooled (direct) connection string** from Neon's *Connect* dialog for the app's long-lived
-connections and transaction-scoped advisory locks. On first start against an empty database, `python -m
-kareshafaa.bootstrap` creates the schema and copies in the initial records once; existing data is never reset.
+Neon note: use the **unpooled (direct) connection string** from Neon's *Connect* dialog: the timed-jobs election
+uses a session-level advisory lock, which a transaction pooler (PgBouncer) cannot keep for one client.
+On first start against an empty database, `python -m kareshafaa.bootstrap` creates the schema and copies in the initial records once; existing data is never reset.
 
 ## Documentation
 

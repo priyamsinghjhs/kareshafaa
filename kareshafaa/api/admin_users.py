@@ -313,4 +313,22 @@ def system_status(actor: Actor = Depends(require("user:admin")), db: Session = D
             "users_active": db.scalar(select(func.count(User.id)).where(User.active.is_(True))),
             "patients": db.scalar(select(func.count(Patient.id))), "cases": db.scalar(select(func.count(Case.id))),
             "write_limit_per_minute": s.write_limit_per_minute if s.mode == "production" else None,
-            "session_idle_minutes": s.session_idle_minutes}
+            "session_idle_minutes": s.session_idle_minutes, "audit_fallback": _fallback_status(db)}
+
+
+def _fallback_status(db: Session) -> dict:
+    from .. import audit_fallback
+    try:
+        return audit_fallback.status(db)
+    except Exception as e:  # noqa: BLE001 - the System page must still load
+        return {"unreconciled": None, "error": type(e).__name__}
+
+
+@system_router.post("/audit-fallback/reconcile")
+def reconcile_audit_fallback(actor: Actor = Depends(require("user:admin")), db: Session = Depends(get_db)) -> dict:
+    """Admin > System: append audit events kept in the fallback to the hash-chained audit trail now (the timed-jobs
+    worker also does this after every SLA sweep). Original timestamps are kept; each is marked reconciled-late."""
+    from .. import audit_fallback
+
+    out = audit_fallback.reconcile(db, actor)
+    return {"ok": True, **out, "status": audit_fallback.status(db)}

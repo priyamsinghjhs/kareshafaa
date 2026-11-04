@@ -30,7 +30,11 @@ inside 100 CU-hours a month.
 3. **Copy the connection string:** on the project dashboard click *Connect*, keep the default database `neondb`
    and role, and copy the URL. It looks like
    `postgresql://neondb_owner:...@ep-...-pooler.us-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require`.
-   (Either the pooled or direct URL works; the app accepts `postgres://` and `postgresql://`.)
+   Prefer the **direct (unpooled)** URL: turn *Connection pooling* off in the dialog, so the host has no `-pooler`
+   (`ep-....us-west-2.aws.neon.tech`). The app holds a session-level advisory lock so that only one process runs the
+   timed jobs (deadline check, retention purge, audit reconciliation); such locks need a real session and are not
+   reliable through a transaction pooler (PgBouncer). If you paste the pooled URL anyway, the app still works and
+   opens the lock's own connection on the matching direct host. The app accepts `postgres://` and `postgresql://`.
 4. **Render:** Dashboard -> service `kareshafaa` -> *Environment* -> add
    * `DATABASE_URL` = the Neon URL (secret),
    * `KARESHAFAA_DEMO_PASSWORD` = the first password for the staff accounts (12+ characters, not a common password),

@@ -199,7 +199,11 @@ def test_only_admins_can_add_staff_records(client, as_user, db, user):
 
 
 def test_add_user_page_has_the_staff_record_controls(client, as_user):
+    from pathlib import Path
+    import kareshafaa
     html = client.get("/admin/users", headers=as_user("admin")).text
+    assert "js/admin_users.js" in html  # page script is a static file (CSP script-src 'self')
+    html += (Path(kareshafaa.__file__).parent / "static" / "js" / "admin_users.js").read_text()
     for needle in ('id="f-staff"', "staffBlock(", "Create a new staff record", "Link an existing record", "checkStaff(",
                    'id="f-site-list"', "fieldErr("):
         assert needle in html, needle

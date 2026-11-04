@@ -709,6 +709,43 @@ class AuditEvent(Base):  # FHIR AuditEvent - append-only, hash-chained
     hash: Mapped[str] = mapped_column(String(64))
 
 
+class PatientNameKey(Base):
+    """Normalised / phonetic name keys for duplicate detection (services/name_keys.py): a search index derived from
+    the patient's given and family names, rebuilt whenever a name changes. Additive table; no patient field is
+    changed. A patient that has no keys yet is still checked (services/patients.py:duplicate_candidates)."""
+    __tablename__ = "patient_name_keys"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    key: Mapped[str] = mapped_column(String(40))
+
+
+class AuditFallbackEvent(Base):
+    """A request-level audit event that could not be written to the hash-chained trail at the time (database busy or
+    failing after a committed change). Held here (or, if the database itself was unreachable, in the append-only
+    JSONL file DATA_DIR/audit-fallback.jsonl) until the reconciliation job appends it to audit_events with its
+    ORIGINAL timestamp and a reconciled-late marker (kareshafaa/audit_fallback.py). Additive table."""
+    __tablename__ = "audit_fallback_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fallback_id: Mapped[str] = mapped_column(String(40), unique=True)  # uuid4, also the key of a JSONL line
+    ts: Mapped[datetime] = mapped_column(DateTime)  # when the original event happened
+    actor_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    actor_role: Mapped[str] = mapped_column(String(40))
+    actor_display: Mapped[str] = mapped_column(String(200))
+    action: Mapped[str] = mapped_column(String(2))
+    event: Mapped[str] = mapped_column(String(80))
+    entity_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    entity_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    case_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    outcome: Mapped[str] = mapped_column(String(10), default="success")
+    path: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    error: Mapped[str | None] = mapped_column(String(300), nullable=True)  # exception class + short message
+    stored_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    stored_in: Mapped[str] = mapped_column(String(10), default="table")  # table | file (imported from the JSONL file)
+    reconciled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    audit_event_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
 @event.listens_for(Session, "before_flush")
 def _audit_append_only(session: Session, _ctx, _instances) -> None:
     for obj in list(session.dirty) + list(session.deleted):
@@ -900,6 +937,10 @@ Index("ix_audit_event", AuditEvent.event)
 # round 2 (additive): foreign keys used by visibility checks, patient search, recalls and case detail
 Index("ix_patients_managing_org", Patient.managing_org_id)
 Index("ix_patients_gp", Patient.gp_id)
+Index("ix_patients_birth_date", Patient.birth_date)                 # duplicate check: same date of birth
+Index("ix_patients_birth_year", Patient.birth_year)                 # duplicate check: older records (year only)
+Index("ix_patients_email", Patient.email)                           # duplicate check: same email
+Index("ix_name_keys_key", PatientNameKey.key, PatientNameKey.patient_id)
 Index("ix_cases_managing_org", Case.managing_org_id)
 Index("ix_comms_patient", Communication.patient_id)
 Index("ix_consents_case", Consent.case_id)
@@ -932,3 +973,6 @@ def _no_silent_tier_downgrade(target, value, oldvalue, initiator):  # pragma: no
         raise TierDowngradeError(f"case {target.id}: tier {oldvalue} -> {value} is a downgrade and needs an "
                                  "authorised clinician decision (workflow.resolve_review)")
     return value
+
+
+from .services import name_keys as _name_keys  # noqa: E402,F401  (registers the name-key index ORM listener)

@@ -67,16 +67,4 @@
   </div>
 </div>
 {% endblock %}
-{% block scripts %}<script>
-const hf = document.getElementById("help-form");
-if (hf) {
-  hf.querySelectorAll('input[name="id_type"]').forEach(r => r.onchange = () => { document.getElementById("id_last4").inputMode = r.value === "passport" ? "text" : "numeric"; });
-  hf.addEventListener("submit", e => {
-    hf.querySelectorAll("[aria-invalid]").forEach(x => x.removeAttribute("aria-invalid"));
-    const miss = [...hf.querySelectorAll("input[required], select[required]")].filter(i => !i.value.trim());
-    if (miss.length) { e.preventDefault(); miss.forEach(i => i.setAttribute("aria-invalid", "true")); W.toast({{ t.missing|tojson }}, "err"); miss[0].focus(); return; }
-    const l4 = document.getElementById("id_last4");
-    if (l4 && !/^[0-9A-Za-z]{4}$/.test(l4.value.trim())) { e.preventDefault(); l4.setAttribute("aria-invalid", "true"); W.toast({{ t.bad_last4|tojson }}, "err"); l4.focus(); return; }
-    hf.querySelector("button[type=submit]").setAttribute("aria-busy", "true"); });
-}
-</script>{% endblock %}
+{% block scripts %}<script type="application/json" id="page-strings">{{ {"missing": t.missing, "bad_last4": t.bad_last4}|tojson }}</script><script src="{{ asset('js/auth_forms.js') }}"></script>{% endblock %}

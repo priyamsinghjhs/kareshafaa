@@ -153,7 +153,7 @@ def _chain_on_flush(session: Session, _ctx, _instances) -> None:
         is_pg = session.get_bind().dialect.name == "postgresql"
         from .config import get_settings
         _WRITER_LOCK.acquire(file_lock=not is_pg, path=None if is_pg else _writer_lock_path(session),
-                             timeout=get_settings().writer_lock_timeout_s)
+                             timeout=session.info.get("writer_lock_timeout_s", get_settings().writer_lock_timeout_s))
         session.info["writer_lock"] = "pg" if is_pg else "file"
         if is_pg:
             session.execute(text("SELECT pg_advisory_xact_lock(4242)"))

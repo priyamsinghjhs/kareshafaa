@@ -44,11 +44,4 @@
   </div>
 </div>
 {% endblock %}
-{% block scripts %}<script>
-document.querySelectorAll("[data-reveal]").forEach(b => b.onclick = () => { const i = document.getElementById(b.dataset.reveal); const show = i.type === "password"; i.type = show ? "text" : "password"; b.textContent = show ? {{ t.hide|tojson }} : {{ t.show|tojson }}; b.setAttribute("aria-pressed", String(show)); });
-const af = document.getElementById("act-form");
-if (af) af.addEventListener("submit", e => { const miss = [...af.querySelectorAll("input[required]")].find(i => !i.value.trim());
-  if (miss) { e.preventDefault(); W.toast({{ t.err.missing|tojson }}, "err"); miss.focus(); return; }
-  if (af.password.value !== af.confirm.value) { e.preventDefault(); W.toast({{ t.err.mismatch|tojson }}, "err"); af.confirm.focus(); return; }
-  af.querySelector("button[type=submit]").setAttribute("aria-busy", "true"); });
-</script>{% endblock %}
+{% block scripts %}<script type="application/json" id="page-strings">{{ {"show": t.show, "hide": t.hide, "missing": t.err.missing, "mismatch": t.err.mismatch}|tojson }}</script><script src="{{ asset('js/auth_forms.js') }}"></script>{% endblock %}

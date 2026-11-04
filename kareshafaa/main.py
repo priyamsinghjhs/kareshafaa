@@ -68,6 +68,17 @@ def _purge_once() -> dict:
         db.close()
 
 
+def _reconcile_audit_once() -> dict:
+    """Timed job: append audit events kept in the fallback (table / JSONL file) to the hash-chained trail."""
+    from . import audit_fallback
+
+    db = session_factory()()
+    try:
+        return audit_fallback.reconcile(db)
+    finally:
+        db.close()
+
+
 def _sweep_once() -> dict:
     global _LAST_SWEEP_AT
     from datetime import timedelta
@@ -93,51 +104,74 @@ def _sweep_once() -> dict:
     return {}
 
 
+_TIMED_JOBS_LOCK = None  # worker_lock.PgAdvisoryLock (PostgreSQL) or FileLock (SQLite), held while elected
+
+
 def _elect_sweeper() -> bool:
-    """With several uvicorn workers only one process runs the SLA job (non-blocking flock election)."""
-    global _SWEEP_LOCK_FD
+    """Only ONE process runs the timed jobs: across every container on PostgreSQL (session advisory lock on a
+    dedicated connection), across the uvicorn workers of this host on SQLite (flock). Non-blocking; True = elected.
+    Called again before every run: the holder re-checks (and if its session was lost, re-takes) the lock, and a
+    process that lost the election retries, so another container takes over within one interval."""
+    global _TIMED_JOBS_LOCK
+    from .worker_lock import timed_jobs_lock
+
     try:
-        import fcntl
-        import os
-        from sqlalchemy.engine import make_url
-
-        from .audit import lock_key
-        u = make_url(get_settings().database_url)
-        ident = os.path.realpath(u.database) if u.database and u.database != ":memory:" else str(u)
-        # one sweeper per DATABASE (round 21: a shared lock let a server on another database "own" the sweep)
-        fd = os.open(str(get_settings().data_dir / f".sla-sweeper-{lock_key(ident)}.lock"), os.O_CREAT | os.O_RDWR,
-                     0o600)
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        _SWEEP_LOCK_FD = fd  # held for the life of the process
-        return True
-    except BlockingIOError:
+        if _TIMED_JOBS_LOCK is None:
+            _TIMED_JOBS_LOCK = timed_jobs_lock()
+        return _TIMED_JOBS_LOCK.renew()
+    except Exception:  # noqa: BLE001 - never fatal: not elected this time, retried next interval
+        log.exception("timed-jobs election failed")
         return False
-    except ImportError:  # pragma: no cover
-        return True
 
 
-_SWEEP_LOCK_FD: int | None = None
+def _release_sweeper() -> None:
+    global _TIMED_JOBS_LOCK
+    if _TIMED_JOBS_LOCK is not None:
+        try:
+            _TIMED_JOBS_LOCK.release()
+        except Exception:  # noqa: BLE001
+            log.warning("could not release the timed-jobs lock", exc_info=True)
+        _TIMED_JOBS_LOCK = None
+
+
+async def _run_timed_jobs() -> None:
+    try:
+        t = time.time()
+        out = await asyncio.to_thread(_sweep_once)
+        log.info("background SLA sweep: %s in %.0f ms", out, (time.time() - t) * 1000)
+    except Exception:  # noqa: BLE001
+        log.exception("background SLA sweep failed")
+    try:
+        await asyncio.to_thread(_purge_once)
+    except Exception:  # noqa: BLE001
+        log.exception("retention purge failed")
+    try:
+        out = await asyncio.to_thread(_reconcile_audit_once)
+        if out.get("reconciled") or out.get("remaining"):
+            log.warning("audit fallback reconciliation: %s", out)
+    except Exception:  # noqa: BLE001
+        log.exception("audit fallback reconciliation failed (retried at the next interval)")
 
 
 async def _sweep_loop(interval: int) -> None:
-    """Background SLA job: evaluates every open step clock and raises the escalation ladder.
-    Runs in a worker thread so request handling is never blocked; failures are logged, never fatal."""
-    if not _elect_sweeper():
-        log.info("another worker owns the background SLA sweep")
-        return
-    log.info("background SLA sweep every %ss", interval)
-    while True:
-        await asyncio.sleep(interval)
-        try:
-            t = time.time()
-            out = await asyncio.to_thread(_sweep_once)
-            log.info("background SLA sweep: %s in %.0f ms", out, (time.time() - t) * 1000)
-        except Exception:  # noqa: BLE001
-            log.exception("background SLA sweep failed")
-        try:
-            await asyncio.to_thread(_purge_once)
-        except Exception:  # noqa: BLE001
-            log.exception("retention purge failed")
+    """Background timed jobs: SLA sweep (step clocks + escalation ladder), retention purge, audit-fallback
+    reconciliation. Run in worker threads so request handling is never blocked; failures are logged, never fatal.
+    The election is re-checked before every run (see _elect_sweeper); the lock is released when the loop stops."""
+    try:
+        elected = await asyncio.to_thread(_elect_sweeper)
+        log.info("background timed jobs every %ss: %s", interval,
+                 "this process runs them" if elected else "another process runs them (re-checked every interval)")
+        while True:
+            await asyncio.sleep(interval)
+            now_elected = await asyncio.to_thread(_elect_sweeper)  # holder: still held? others: free now?
+            if now_elected != elected:
+                (log.info if now_elected else log.warning)("this process %s the background timed jobs",
+                                                           "now runs" if now_elected else "no longer runs")
+                elected = now_elected
+            if elected:
+                await _run_timed_jobs()
+    finally:
+        _release_sweeper()
 
 
 async def _data_steps_task(stop: "threading.Event", delay: float = 20.0) -> None:
@@ -152,6 +186,19 @@ async def _data_steps_task(stop: "threading.Event", delay: float = 20.0) -> None
                      time.time() - t)
     except Exception:  # noqa: BLE001
         log.exception("one-time data steps failed (retried at the next start)")
+
+
+async def _name_keys_task(stop: "threading.Event", delay: float = 15.0) -> None:
+    """Build duplicate-check name keys for patients that have none yet (older databases, copied-in records). Small
+    batches in a worker thread; idempotent; never changes patient data (services/name_keys.py)."""
+    await asyncio.sleep(delay)
+    try:
+        from .services.name_keys import ensure_all
+        n = await asyncio.to_thread(ensure_all, session_factory(), 500, stop)
+        if n:
+            log.info("duplicate-check name keys built for %d patient record(s)", n)
+    except Exception:  # noqa: BLE001
+        log.exception("building duplicate-check name keys failed (retried at the next start)")
 
 
 async def _heartbeat_loop() -> None:
@@ -196,6 +243,34 @@ def _prepare_request_audit(request: Request, state_actor, path: str, code: int, 
     return items
 
 
+async def _audit_retry_or_fallback(request: Request, items, state_actor, path: str, code: int, start: float,
+                                   shed: int, first: BaseException) -> None:
+    """After a failed request-audit write for a request whose effect already happened: retry once; if that fails
+    too, store the event(s) in the durable fallback (audit_fallback.store: table, else JSONL file) for the
+    reconciliation job. Never raises: the user's response is always returned."""
+    from . import audit_fallback
+
+    err: BaseException = first
+    try:
+        if items is None:  # building the event failed (e.g. actor lookup): build it again, falling back to anonymous
+            try:
+                items = await asyncio.to_thread(_prepare_request_audit, request, state_actor, path, code, start, shed)
+            except Exception:  # noqa: BLE001
+                items = _prepare_request_audit(request, state_actor or ANON, path, code, start, shed)
+        await asyncio.sleep(0.05)
+        await asyncio.wrap_future(_BATCHER.submit(items))
+        log.warning("request audit write failed once (%r) and succeeded on retry", first)
+        return
+    except Exception as e:  # noqa: BLE001
+        err = e
+    if items is None:  # pragma: no cover - cannot even describe the request
+        log.critical("request audit failed and the event could not be built: %s %s -> %s (%r)",
+                     request.method, path, code, err)
+        return
+    where = await asyncio.to_thread(audit_fallback.store, items, err)
+    log.error("request audit failed twice for %s %s (%r); event kept in fallback: %s", request.method, path, err, where)
+
+
 class _AuditBatcher:
     """Round 21 group commit for the per-request log. Each request still gets its audit event written and
     committed BEFORE its response is sent (the middleware awaits it), but one writer thread per process commits
@@ -227,6 +302,8 @@ class _AuditBatcher:
     @staticmethod
     def _write(batch: list) -> None:
         db = session_factory()()
+        # bounded wait for the writer lock: a long transaction elsewhere (SLA sweep) sends the event to the fallback
+        db.info["writer_lock_timeout_s"] = get_settings().request_audit_lock_timeout_s
         try:
             # take the pooled connection BEFORE the cross-process writer lock (taken at flush): holding the lock
             # while waiting for a connection stalled every worker (round 21 ramp: uniform ~6 s at 80 users)
@@ -269,6 +346,7 @@ class _AuditBatcher:
 
 
 _BATCHER = _AuditBatcher()
+_BACKGROUND: set = set()  # strong references to fire-and-forget tasks (asyncio keeps only weak ones)
 
 
 class TimeBudgetMiddleware:
@@ -330,17 +408,22 @@ class TimeBudgetMiddleware:
                                                                                    "status": 503, "saved": False}))]
         try:
             await asyncio.wrap_future(_BATCHER.submit(items))
-        except Exception:  # noqa: BLE001 - the request log still records the 503
-            log.warning("could not audit a request timeout", exc_info=True)
+        except Exception as e:  # noqa: BLE001 - kept in the durable fallback for reconciliation
+            log.warning("could not audit a request timeout; keeping it in the audit fallback", exc_info=True)
+            from . import audit_fallback
+            await asyncio.to_thread(audit_fallback.store, items, e)
         resp = JSONResponse({"detail": "the request took too long and was stopped - nothing was saved; please retry"},
                             status_code=503, headers={"Retry-After": str(cfg.retry_after_s)})
         await resp(scope, receive, send)
 
 
-# Round 2 security headers. Every script, style, image and fetch is same-origin. Inline <script> blocks and
-# on* handlers still exist in templates, so script-src keeps 'unsafe-inline' (documented in docs/security.md);
-# everything else is locked down: no plugins, no framing, no foreign form posts or base-URL hijack.
-CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+# Round 2 security headers. Every script, style, image and fetch is same-origin. Scripts: 'self' only - there are
+# no inline <script> blocks or on* handlers (page data travels in <script type="application/json"> blocks, which
+# are never executed, and clicks go through data-click delegation in common.js; tests/test_csp.py enforces this).
+# style-src keeps 'unsafe-inline' because templates and the JS-built markup use many style="" attributes; style
+# injection cannot run script, and this is documented in docs/security.md. No plugins, no framing, no foreign form
+# posts or base-URL hijack.
+CSP = ("default-src 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; "
        "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; "
        "manifest-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
 SECURITY_HEADERS = {
@@ -370,14 +453,21 @@ def create_app() -> FastAPI:
         nightly = asyncio.create_task(public_demo.nightly_reset_loop()) if s.public_demo else None
         steps_stop = threading.Event()
         steps = asyncio.create_task(_data_steps_task(steps_stop)) if s.data_steps == "background" else None
+        keys = asyncio.create_task(_name_keys_task(steps_stop)) if s.data_steps != "off" else None
         yield
         steps_stop.set()
         if steps:
             steps.cancel()
+        if keys:
+            keys.cancel()
         if nightly:
             nightly.cancel()
         if task:
-            task.cancel()
+            task.cancel()  # its finally releases the timed-jobs lock (advisory lock / flock)
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                pass
         if hb:
             hb.cancel()
 
@@ -409,7 +499,11 @@ def create_app() -> FastAPI:
         response = await call_next(request)
         if tok and not bearer and tok.startswith(accounts.SESSION_PREFIX) and response.status_code < 400 \
                 and not path.startswith("/static") and path not in PWA_PUBLIC_PATHS:
-            await asyncio.to_thread(accounts.touch_session, session_factory, tok)
+            # best effort and OFF the response path: on SQLite this UPDATE can wait for the database write lock
+            # (e.g. during an SLA sweep), which used to delay the response by up to the busy timeout
+            t = asyncio.ensure_future(asyncio.to_thread(accounts.touch_session, session_factory, tok))
+            _BACKGROUND.add(t)
+            t.add_done_callback(_BACKGROUND.discard)
         if not path.startswith("/static"):
             response.headers.setdefault("Cache-Control", "no-store")  # pages and API data are never cached
         else:  # versioned files (?v=<hash>) are immutable; others are re-checked after 5 minutes
@@ -463,20 +557,39 @@ def create_app() -> FastAPI:
             return response
         state_actor = getattr(request.state, "actor", None)
         shed, inflight["shed"] = inflight["shed"], 0
+        items = None
         try:
             # sync DB work runs in a worker thread so the event loop is never blocked
             items = await asyncio.to_thread(_prepare_request_audit, request, state_actor, path,
                                             response.status_code, start, shed)
             await asyncio.wrap_future(_BATCHER.submit(items))  # committed before the response leaves
         except Exception as e:  # noqa: BLE001
-            inflight["shed"] += shed  # keep the shed count for the next audited request
             if request.method in ("GET", "HEAD") and response.status_code < 400:
-                # round 21: never hand out data whose access could not be logged - the read is refused (503)
+                # never hand out data whose access is not logged: a read is served only once its audit event is
+                # kept durably. A slow or failed chain write (e.g. the writer lock held by a long SLA sweep) sends
+                # the event straight to the fallback file (no database wait); 503 only if that fails too.
                 busy = isinstance(e, (ServiceBusy, SATimeoutError, OperationalError))
-                (log.warning if busy else log.exception)("request audit failed; read refused (503): %r", e)
-                return JSONResponse({"detail": "the service is busy - please retry shortly"}, status_code=503,
-                                    headers={"Retry-After": str(s.retry_after_s)})
-            log.exception("request audit failed")  # a committed write is still reported as done
+                where = "log"
+                if items is not None:
+                    from . import audit_fallback
+                    # SQLite: the database write lock may be the thing that is held, so the file first (no wait);
+                    # PostgreSQL: the table insert does not need the audit writer lock and survives a restart
+                    prefer = "file" if s.database_url.startswith("sqlite") else "table"
+                    where = await asyncio.to_thread(audit_fallback.store, items, e, prefer)
+                if where == "log":
+                    inflight["shed"] += shed  # keep the shed count for the next audited request
+                    (log.warning if busy else log.exception)("request audit failed; read refused (503): %r", e)
+                    return JSONResponse({"detail": "the service is busy - please retry shortly"}, status_code=503,
+                                        headers={"Retry-After": str(s.retry_after_s)})
+                (log.warning if busy else log.error)("request audit for a read deferred to the fallback (%s): %r",
+                                                     where, e)
+                response.headers["X-Content-Type-Options"] = "nosniff"
+                response.headers["X-Frame-Options"] = "DENY"
+                response.headers["Referrer-Policy"] = "no-referrer"
+                return response
+            # a state-changing request (or a refused one) has already happened: the user still gets their answer,
+            # but its audit event is never dropped - retry once, then keep it durably for reconciliation
+            await _audit_retry_or_fallback(request, items, state_actor, path, response.status_code, start, shed, e)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"

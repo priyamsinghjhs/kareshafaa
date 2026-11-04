@@ -78,8 +78,9 @@ def test_admission_control_sheds_fast_and_audits_the_count(app, client, as_user,
 
 
 def test_read_is_refused_when_its_access_cannot_be_logged(app, client, as_user, monkeypatch):
-    """Group-committed request log: if the audit write fails (saturated), a read is answered 503, never served
-    unlogged."""
+    """Group-committed request log: if the audit write fails (saturated) AND the event cannot be kept in the durable
+    audit fallback either, a read is answered 503, never served unlogged (tests/test_audit_fallback.py covers the
+    normal case, where the fallback keeps the event and the read is served)."""
     import concurrent.futures
 
     from kareshafaa import main
@@ -93,6 +94,8 @@ def test_read_is_refused_when_its_access_cannot_be_logged(app, client, as_user, 
         return f
 
     monkeypatch.setattr(main._BATCHER, "submit", failing)
+    from kareshafaa import audit_fallback
+    monkeypatch.setattr(audit_fallback, "store", lambda *_a, **_k: "log")
     r = client.get("/api/analytics/kpis", headers=h)
     assert r.status_code == 503 and r.headers.get("Retry-After")
 

@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # (Render sets RENDER=true and its free plan has no persistent disk).
     storage_persistent: bool | None = None
     database_url: str = f"sqlite:///{BASE_DIR / 'data' / 'kareshafaa.db'}"
+    # PostgreSQL only: DIRECT (unpooled) URL for the timed-jobs advisory lock session (kareshafaa/worker_lock.py).
+    # None = DATABASE_URL (a Neon "-pooler" host is mapped to its direct host automatically).
+    worker_lock_database_url: str | None = None
     data_dir: Path = BASE_DIR / "data"
     model_dir: Path = BASE_DIR / "data" / "models"
     # Secret for signing session tokens. Never hard-coded: read from env, else a random
@@ -60,6 +63,9 @@ class Settings(BaseSettings):
     db_pool_timeout_s: float = 3.0  # wait for a pooled connection, then 503 + Retry-After (was SQLAlchemy's 30 s)
     db_busy_timeout_s: float = 5.0  # SQLite busy_timeout / Postgres lock_timeout for one statement
     writer_lock_timeout_s: float = 5.0  # wait for the audit-chain writer lock, then 503 (nothing is saved)
+    # the per-request audit event waits at most this long for the writer lock (e.g. held by a long SLA sweep), then it
+    # goes to the durable audit fallback (kareshafaa/audit_fallback.py) instead of turning the request into a 503
+    request_audit_lock_timeout_s: float = 2.0
     max_inflight_requests: int = 16  # per worker; beyond this a request is shed at once with 503 + Retry-After
     retry_after_s: int = 2
     # per-request time budget (round 23, kareshafaa/request_timeout.py); 0 disables. Long admin jobs are exempt.
@@ -168,6 +174,8 @@ def derive(s: Settings) -> Settings:
     if os.environ.get("DATABASE_URL") and not os.environ.get("KARESHAFAA_DATABASE_URL"):
         s.database_url = os.environ["DATABASE_URL"]
     s.database_url = normalise_database_url(s.database_url)
+    if s.worker_lock_database_url:
+        s.worker_lock_database_url = normalise_database_url(s.worker_lock_database_url)
     s.mode = (s.mode or "standard").strip().lower()
     if "KARESHAFAA_MODE" not in os.environ and os.environ.get("RENDER"):
         s.mode = "production"  # Render (RENDER=true) runs the working system unless a mode is set explicitly
