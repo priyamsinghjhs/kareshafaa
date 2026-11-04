@@ -458,7 +458,7 @@ def ingest(db: Session, source: str, r: ParsedResult, actor: Actor, now: datetim
 def resolve_match(db: Session, msg_id: int, patient_id: int, actor: Actor, now: datetime | None = None) -> IngestMessage:
     """A human confirms which patient an unmatched result belongs to."""
     now = now or utcnow()
-    if not actor.is_human or not actor.can("case:create"):
+    if not actor.is_human or not actor.can("results:inbox"):
         from .errors import Forbidden
 
         raise Forbidden("only authorised staff can resolve a patient match")

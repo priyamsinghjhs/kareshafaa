@@ -114,6 +114,27 @@ Trust boundaries: browser ↔ app (internet), lab/EHR feed ↔ ingest API, app �
 | **D**enial of service | Request floods; slow DB | Admission control sheds load beyond `max_inflight_requests` with 503 + Retry-After; login rate limits; load tested (docs/loadtest_*.md) | Free hosting tier: cold starts and single instance |
 | **E**levation of privilege | A patient or GP calling coordinator/admin APIs | Server-side permission check on every route, page permissions, role-separation tests in the suite; admin-only account management | Mis-configured role grants by an admin; reviewed in the access review (pilot plan) |
 
+## Access-control tests and fixes (hardening round)
+
+* `tests/test_rbac_matrix.py` enumerates every route from the router (178 at the time of writing) and checks each
+  against `tests/rbac_routes.py` for the 8 roles and anonymous visitors: route-level permission, refusal (401 / 403 /
+  404) for every role outside the policy, and no permission refusal for roles inside it. Unclassified routes fail.
+* `tests/test_rbac_edges.py`: IDOR with out-of-scope ids on every id-taking route for the organisation-scoped roles
+  (GP, specialist), checked for refusal and for no state change; GP account without an organisation; patient reaching
+  another patient's record, case, FHIR export, appointment or request; rules engine and ML service on any case and every
+  high-impact action; case moved to another organisation mid-session; role change and deactivation with a live
+  session; admin clinical actions and clinical lead admin actions.
+* Leaks found and fixed:
+  1. `POST /api/results` accepted any patient id from an organisation-scoped GP and returned the new case summary.
+     Now the patient must be one the reader may see (otherwise "not found").
+  2. `POST /api/ingest/fhir-history` matched any patient by MRN for a GP or specialist. Same rule now.
+  3. The results inbox (`/ingest`, `GET /api/ingest/messages`, `/sample`, `/hl7v2`, `/fhir`, match resolution) was open
+     to GPs through `case:create`: programme-wide lab messages with names and identifiers, a random patient's MRN from
+     the sample endpoint, and matching an unmatched result to any patient. It now needs the new `results:inbox`
+     permission, held by care coordinators only.
+  4. The walkthrough scenario API (`/api/demo/scenarios`) accepted coordinators, GPs and clinical leads although the
+     page is admin-only. Both now need `user:admin` (and the endpoint stays off outside test servers).
+
 ## Follow-up (not done in round 2)
 
 * Move the remaining `style=""` attributes into classes and drop `'unsafe-inline'` from `style-src`.

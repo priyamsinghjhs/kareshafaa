@@ -107,7 +107,7 @@ def test_demo_clock_single_case_only(client, as_user, new_case):
 @pytest.mark.parametrize("key", ["fatima_rejected_referral", "maria_urgent_escalation", "ramesh_transfer",
                                  "unreachable_ladder", "ramadan_no_show"])
 def test_demo_scenarios(client, as_user, key):
-    r = client.post(f"/api/demo/scenarios/{key}", headers=as_user("fatima.al.mansoori"))
+    r = client.post(f"/api/demo/scenarios/{key}", headers=as_user("admin"))
     assert r.status_code == 200, r.text
     body = r.json()
     expected = {"fatima_rejected_referral": "referral_rejected", "maria_urgent_escalation": "triaged",
@@ -122,5 +122,6 @@ def test_demo_scenarios(client, as_user, key):
 
 
 def test_demo_scenarios_forbidden_for_patients_and_analysts(client, as_user):
-    for u in ("patient.en", "analyst"):
+    # admin tool (same as the /walkthrough page): clinical and other roles are refused at the API too
+    for u in ("patient.en", "analyst", "fatima.al.mansoori", "aisha.rahman", "omar.haddad", "translator"):
         assert client.post("/api/demo/scenarios/ramesh_transfer", headers=as_user(u)).status_code == 403

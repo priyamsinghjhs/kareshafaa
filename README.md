@@ -167,6 +167,16 @@ usernames come from the staff directory (`kareshafaa/synth/directory.py`, `kares
 | Patient | `patient.en` (also `patient.ar`, `.hi`, `.ur`, `.tl`) | Own results, journey, appointments, requests, messages and consent. |
 
 Coordinators and clinical leads see programme-wide; other clinical roles see cases their organisation is involved in.
+The results inbox (raw lab messages, unmatched results, patient matching) belongs to care coordination
+(`results:inbox`); GPs add a result only for a patient they may see, and import clinical history only into such a
+record. The guided walkthrough is an administrator tool, on the page and at the API.
+
+**Access tests.** `tests/test_rbac_matrix.py` reads every page and API route from the app's router and checks it
+against the intended policy in `tests/rbac_routes.py` for all 8 roles and for a visitor who is not signed in, so a new
+route fails until it is classified. `tests/test_rbac_edges.py` covers IDOR on every id-taking route (out-of-scope ids
+for organisation-scoped roles), a GP without an organisation, patients reaching other patients' data, automated
+actors, organisation and role changes mid-session, deactivated users with a live session, and admin / clinical lead
+crossing into each other's duties.
 
 ## Architecture
 

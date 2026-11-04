@@ -28,7 +28,7 @@ Automated actors may only ingest results, auto-triage non-urgent cases, send pat
 | `model.reject` | model:approve | 5 | `kareshafaa.ml.registry:reject` | Rejects a candidate model. |
 | `model.rollback` | model:rollback | 5 | `kareshafaa.ml.registry:rollback` | Restores the previous production model. |
 | `proposal.decide` | proposal:decide | 5 | `kareshafaa.services.improve:decide_proposal` | Changes SLAs, reminder timing, message variants or channel order for everyone. |
-| `ingest.match.resolve` | case:create | reason code / n.a. | `kareshafaa.services.ingest:resolve_match` | Attaches an unmatched result to a patient record. |
+| `ingest.match.resolve` | results:inbox (care coordinators) | reason code / n.a. | `kareshafaa.services.ingest:resolve_match` | Attaches an unmatched result to a patient record. |
 | `content.signoff` | content:approve or content:translation_review | 5 | `kareshafaa.comms.governance:approve` | Makes patient-facing wording (or a translation) live. |
 | `patient.deceased.record` | closure:authorise | 10 | `kareshafaa.services.workflow:record_death` | Stops all patient messaging and outreach; every open case goes to clinical review (wrong patient = care silently stopped). |
 | `patient.deceased.revoke` | case:reopen | 20 | `kareshafaa.services.workflow:revoke_death` | Corrects a death recorded in error; open cases re-reviewed, cases closed as deceased listed for re-opening. |

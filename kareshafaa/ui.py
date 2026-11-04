@@ -44,7 +44,7 @@ HOME: dict[str, str] = {"coordinator": "/queue", "gp": "/queue?view=review", "sp
 PAGE_PERMS: dict[str, tuple[str, ...] | None] = {
     "/queue": ("queue:read",), "/cases": ("case:read",), "/patient": ("self:read",),
     "/dashboard": ("analytics:read",), "/governance": ("model:read", "content:read"), "/audit": ("audit:read",),
-    "/walkthrough": ("user:admin",), "/ingest": ("case:create",), "/consults": ("consult:respond",),
+    "/walkthrough": ("user:admin",), "/ingest": ("results:inbox",), "/consults": ("consult:respond",),
     "/overview": ("proposal:decide",), "/advanced": ("config:read",), "/admin/users": ("user:admin",), "/admin/system": ("user:admin",), "/admin/about": ("config:read",),
     "/account/password": None,
     "/patients": ("patient:read",), "/patients/new": ("patient:register",), "/recalls": ("recall:manage", "recall:read"),

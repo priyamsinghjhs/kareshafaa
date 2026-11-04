@@ -54,7 +54,7 @@ HIGH_IMPACT: dict[str, HighImpact] = {
                                  "Restores the previous production model."),
     "proposal.decide": HighImpact(("proposal:decide",), 5, "kareshafaa.services.improve:decide_proposal",
                                   "Changes SLAs, reminder timing, message variants or channel order for everyone."),
-    "ingest.match.resolve": HighImpact(("case:create",), 0, "kareshafaa.services.ingest:resolve_match",
+    "ingest.match.resolve": HighImpact(("results:inbox",), 0, "kareshafaa.services.ingest:resolve_match",
                                        "Attaches an unmatched result to a patient record."),
     "patient.deceased.record": HighImpact(("closure:authorise",), 10, "kareshafaa.services.workflow:record_death",
                                           "Stops ALL patient messaging and outreach and sends every open case to clinical "

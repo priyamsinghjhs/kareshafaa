@@ -24,7 +24,9 @@ _REGISTRATION = {"patient:register", "patient:write", "patient:invite",
 PERMISSIONS: dict[str, frozenset[str]] = {
     "patient": frozenset({"self:read", "self:respond"}),
     "coordinator": frozenset(_CLINICAL | {"case:triage", "case:assign", "case:transfer", "referral:create",
-                                          "call:record", "sweep:run", "case:create"} | _REGISTRATION),
+                                          "call:record", "sweep:run", "case:create",
+                                          "results:inbox"} | _REGISTRATION),  # programme-level lab inbox (raw lab
+    # messages, unmatched results, patient matching): care coordination only. GPs add results for their own patients.
     "gp": frozenset(_CLINICAL | {"case:triage", "case:triage_urgent", "case:assign", "case:transfer",
                                  "referral:create", "careplan:write", "closure:authorise", "call:record",
                                  "confirm:order", "confirm:result", "case:create", "record:write",

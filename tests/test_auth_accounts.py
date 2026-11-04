@@ -333,7 +333,7 @@ PAGE_ACCESS = {  # page -> roles allowed
     "/audit": {"clinical_lead", "admin"},
     "/walkthrough": {"admin"},
     "/admin/system": {"admin"},
-    "/ingest": {"coordinator", "gp"},
+    "/ingest": {"coordinator"},  # programme-level lab inbox (results:inbox); GPs add results for their own patients
     "/consults": {"coordinator", "gp", "specialist", "clinical_lead"},
     "/overview": {"clinical_lead"},
     "/advanced": {"admin"},
@@ -363,7 +363,7 @@ API_ACCESS = {  # GET endpoint -> roles allowed
     "/api/analytics/kpis": {"clinical_lead", "analyst", "admin"},
     "/api/governance/models": {"clinical_lead", "analyst", "admin"},
     "/api/governance/content": {"clinical_lead", "analyst", "translator"},
-    "/api/ingest/messages": {"coordinator", "gp"},
+    "/api/ingest/messages": {"coordinator"},
     "/api/audit/verify": {"admin"},
     "/api/consults": {"coordinator", "gp", "specialist", "clinical_lead"},
 }

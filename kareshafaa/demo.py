@@ -98,8 +98,8 @@ def run_scenario(db: Session, key: str, actor: Actor) -> dict:
         raise Forbidden("the guided walkthrough is switched off on this server")
     if key not in SCENARIOS:
         raise NotFound("unknown scenario")
-    if not actor.is_human or actor.role not in ("coordinator", "clinical_lead", "admin", "gp"):
-        raise Forbidden("the guided walkthrough can be started by staff roles")
+    if not actor.is_human or not actor.can("user:admin"):  # an administrator tool, like the /walkthrough page
+        raise Forbidden("the guided walkthrough is started by a system administrator")
     rng = random.Random()
     now = utcnow()
     t = now - timedelta(hours=6)

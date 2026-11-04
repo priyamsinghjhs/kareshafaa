@@ -434,7 +434,9 @@ def import_fhir_history(db: Session, bundle: dict, actor: Actor, now: datetime |
         raise Invalid("the Bundle must contain exactly one Patient")
     ids = [i.get("value") for i in pats[0].get("identifier", []) if isinstance(i, dict) and i.get("value")]
     p = db.scalars(select(Patient).where(or_(Patient.mrn.in_(ids), Patient.national_id.in_(ids)))).all() if ids else []
-    if len(p) != 1:
+    from .patients import can_view_patient
+
+    if len(p) != 1 or not can_view_patient(db, actor, p[0]):  # another clinic's patient looks the same as unknown
         raise NotFound("patient not found (or identifier is ambiguous) - nothing imported")
     p = p[0]
     bd = str(pats[0].get("birthDate") or "")

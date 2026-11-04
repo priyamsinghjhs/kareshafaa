@@ -54,7 +54,7 @@ def _ingest_retrying(db: Session, source: str, parsed: ing.ParsedResult, actor: 
 
 
 @router.post("/hl7v2")
-async def hl7v2(request: Request, actor: Actor = Depends(require("case:create")), db: Session = Depends(get_db)) -> dict:
+async def hl7v2(request: Request, actor: Actor = Depends(require("results:inbox")), db: Session = Depends(get_db)) -> dict:
     raw = await request.body()
     if len(raw) > MAX_BYTES:
         raise Invalid("message too large")
@@ -69,7 +69,7 @@ async def hl7v2(request: Request, actor: Actor = Depends(require("case:create"))
 
 
 @router.post("/fhir")
-async def fhir_bundle(request: Request, actor: Actor = Depends(require("case:create")), db: Session = Depends(get_db)) -> dict:
+async def fhir_bundle(request: Request, actor: Actor = Depends(require("results:inbox")), db: Session = Depends(get_db)) -> dict:
     raw = await request.body()
     if len(raw) > MAX_BYTES:
         raise Invalid("bundle too large")
@@ -114,7 +114,7 @@ async def fhir_history(request: Request, actor: Actor = Depends(require("record:
 
 
 @router.get("/sample", response_class=PlainTextResponse)
-def sample(actor: Actor = Depends(require("case:create")), db: Session = Depends(get_db)) -> str:
+def sample(actor: Actor = Depends(require("results:inbox")), db: Session = Depends(get_db)) -> str:
     """A ready-to-ingest synthetic ORU^R01 (positive FIT) for a real synthetic patient without an open FIT case."""
     from ..models import Patient, utcnow
 
@@ -152,7 +152,7 @@ def _orderer(db: Session, p) -> str:
 
 
 @router.get("/messages")
-def messages(status: str | None = None, actor: Actor = Depends(require("case:create")), db: Session = Depends(get_db)) -> dict:
+def messages(status: str | None = None, actor: Actor = Depends(require("results:inbox")), db: Session = Depends(get_db)) -> dict:
     q = select(IngestMessage).order_by(IngestMessage.id.desc()).limit(200)
     if status:
         q = q.where(IngestMessage.status == status)
@@ -172,7 +172,7 @@ def _who(m: IngestMessage) -> dict:
 
 
 @router.post("/messages/{msg_id}/resolve")
-def resolve(msg_id: int, body: ResolveIn, actor: Actor = Depends(require("case:create")), db: Session = Depends(get_db)) -> dict:
+def resolve(msg_id: int, body: ResolveIn, actor: Actor = Depends(require("results:inbox")), db: Session = Depends(get_db)) -> dict:
     msg = ing.resolve_match(db, msg_id, body.patient_id, actor)
     db.commit()
     return _out(db, msg)

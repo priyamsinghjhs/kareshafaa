@@ -413,7 +413,9 @@ def ack_escalation(esc_id: int, body: sch.NoteIn, actor: Actor = Depends(require
 @router.post("/results")
 def ingest_result(body: sch.ResultIn, actor: Actor = Depends(require("case:create")), db: Session = Depends(get_db)) -> dict:
     p = db.get(Patient, body.patient_id)
-    if p is None:
+    from ..services.patients import can_view_patient
+
+    if p is None or not can_view_patient(db, actor, p):  # same answer for both: never confirm another clinic's patient
         raise NotFound("patient not found")
     from ..models import Organization
 
