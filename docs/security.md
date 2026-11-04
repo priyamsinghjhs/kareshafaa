@@ -40,7 +40,7 @@ switching to nonces is listed as follow-up work.
 | `bandit` Medium | 1: B608 f-string SQL in `bootstrap.py` sequence reset | Table names come from our own metadata; now quoted through the dialect's identifier preparer and the sequence name bound as a parameter | 0 |
 | `bandit` Low | 48: B105 (33, string constants named like "password"/"token", e.g. reason codes), B311 (10, `random` used only for synthetic data and jitter), B101 (3 asserts), B110 (2 try/except/pass in best-effort cleanup) | Reviewed; none is a real secret or a security use of randomness | 48 (accepted, reviewed) |
 
-CI runs both scans on every push (`.github/workflows/ci.yml`).
+CI runs both scans on every push (`ci/github-actions-ci.yml (copy to .github/workflows/ci.yml to enable GitHub Actions)`).
 
 ## STRIDE threat model
 
