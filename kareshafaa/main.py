@@ -337,6 +337,20 @@ class TimeBudgetMiddleware:
         await resp(scope, receive, send)
 
 
+# Round 2 security headers. Every script, style, image and fetch is same-origin. Inline <script> blocks and
+# on* handlers still exist in templates, so script-src keeps 'unsafe-inline' (documented in docs/security.md);
+# everything else is locked down: no plugins, no framing, no foreign form posts or base-URL hijack.
+CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+       "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; "
+       "manifest-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+SECURITY_HEADERS = {
+    "Content-Security-Policy": CSP,
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Resource-Policy": "same-origin",
+}
+
+
 def create_app() -> FastAPI:
     s = get_settings()
     if not logging.getLogger().handlers:
@@ -559,6 +573,20 @@ def create_app() -> FastAPI:
               about.router):
         app.include_router(r)
     # gzip text responses over 1 KB (pages, CSS, JS, JSON): the outermost layer, so it also covers refusals
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        """Round 2: CSP, Permissions-Policy, COOP/CORP and nosniff/DENY on EVERY response (static, health and
+        shed responses included); HSTS only when the request reached us over https (Render terminates TLS)."""
+        response = await call_next(request)
+        for k, v in SECURITY_HEADERS.items():
+            response.headers.setdefault(k, v)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        if request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
     app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 

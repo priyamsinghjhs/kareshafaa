@@ -103,7 +103,7 @@ def lock_key(url: str) -> str:
     """Lock-file key for ONE database. Round 21 root cause: the lock file was shared by every server and script
     using the same data_dir, so a load test (or a seed) on another database stalled the demo server's writes."""
     import hashlib
-    return hashlib.sha1(url.encode()).hexdigest()[:12]
+    return hashlib.sha1(url.encode(), usedforsecurity=False).hexdigest()[:12]
 
 
 def _file_lock(acquire: bool, path: str | None = None, deadline: float | None = None) -> None:

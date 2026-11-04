@@ -93,9 +93,11 @@ def copy_database(src_path: Path, target_eng, batch: int = 2000) -> dict:
             for table in Base.metadata.sorted_tables:
                 pk = list(table.primary_key.columns)
                 if len(pk) == 1 and pk[0].name == "id" and pk[0].autoincrement in (True, "auto"):
-                    tc.execute(text(f"SELECT setval(pg_get_serial_sequence('{table.name}', 'id'), "
-                                    f"COALESCE((SELECT MAX(id) FROM {table.name}), 1), "
-                                    f"(SELECT MAX(id) FROM {table.name}) IS NOT NULL)"))
+                    # table names come from our own SQLAlchemy metadata (never user input); quoted anyway
+                    q = tc.dialect.identifier_preparer.quote(table.name)
+                    tc.execute(text("SELECT setval(pg_get_serial_sequence(:t, 'id'), "  # nosec B608
+                                    f"COALESCE((SELECT MAX(id) FROM {q}), 1), "
+                                    f"(SELECT MAX(id) FROM {q}) IS NOT NULL)"), {"t": q})
     src.dispose()
     return counts
 
