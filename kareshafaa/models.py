@@ -709,6 +709,33 @@ class AuditEvent(Base):  # FHIR AuditEvent - append-only, hash-chained
     hash: Mapped[str] = mapped_column(String(64))
 
 
+class AuditFallbackEvent(Base):
+    """A request-level audit event that could not be written to the hash-chained trail at the time (database busy or
+    failing after a committed change). Held here (or, if the database itself was unreachable, in the append-only
+    JSONL file DATA_DIR/audit-fallback.jsonl) until the reconciliation job appends it to audit_events with its
+    ORIGINAL timestamp and a reconciled-late marker (kareshafaa/audit_fallback.py). Additive table."""
+    __tablename__ = "audit_fallback_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fallback_id: Mapped[str] = mapped_column(String(40), unique=True)  # uuid4, also the key of a JSONL line
+    ts: Mapped[datetime] = mapped_column(DateTime)  # when the original event happened
+    actor_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    actor_role: Mapped[str] = mapped_column(String(40))
+    actor_display: Mapped[str] = mapped_column(String(200))
+    action: Mapped[str] = mapped_column(String(2))
+    event: Mapped[str] = mapped_column(String(80))
+    entity_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    entity_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    case_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    outcome: Mapped[str] = mapped_column(String(10), default="success")
+    path: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    error: Mapped[str | None] = mapped_column(String(300), nullable=True)  # exception class + short message
+    stored_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    stored_in: Mapped[str] = mapped_column(String(10), default="table")  # table | file (imported from the JSONL file)
+    reconciled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    audit_event_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
 @event.listens_for(Session, "before_flush")
 def _audit_append_only(session: Session, _ctx, _instances) -> None:
     for obj in list(session.dirty) + list(session.deleted):

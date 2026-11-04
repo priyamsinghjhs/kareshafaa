@@ -14,7 +14,7 @@ Facts below are taken from the code; file references are given so a reviewer can
 | CSRF | per-session token checked on every state-changing request | `main.py` (`csrf_and_session_clock`) |
 | Authorisation | role permissions (`security.PERMISSIONS`) on every API route; page access (`ui.PAGE_PERMS`); organisation scoping of patients and cases | `security.py`, `ui.py`, `services/queue.py` |
 | Case privacy | patient-level views (patient record, case clinical record, FHIR export) omit every case the reader may not open, and rows recorded under such a case; only a neutral "other care episodes exist" flag remains (patient record) or a count (case record) | `services/access.py` (`case_visible`), `services/patients.py`, `services/clinical_record.py`, `fhir.py`, `tests/test_case_privacy.py` |
-| Audit | every request audited; hash-chained, append-only log with `verify_chain`; a read whose audit write fails is refused (503) | `audit.py`, `main.py` |
+| Audit | every request audited; hash-chained, append-only log with `verify_chain`; a read whose audit write fails is refused (503); a write whose audit fails after it committed is retried once, then kept in a durable fallback and reconciled into the chain later (see below) | `audit.py`, `audit_fallback.py`, `main.py` |
 | Browser headers (new) | CSP, Permissions-Policy, COOP, CORP, X-Frame-Options DENY, nosniff, Referrer-Policy no-referrer; HSTS (1 year) over https | `main.py` (`security_headers`), `tests/test_security_headers.py` |
 | Caching | `Cache-Control: no-store` on every non-static response, so patient data is never cached by browsers or proxies | `main.py` |
 | API surface | OpenAPI / Swagger / ReDoc disabled in the app | `main.py` (`docs_url=None`) |
@@ -31,6 +31,33 @@ Every resource is same-origin, so no third-party origin is allowed. **Known gap:
 inline `<script>` blocks (18 templates) and inline event handlers (36), so `script-src` keeps `'unsafe-inline'`.
 All dynamic HTML goes through `W.esc` and Jinja autoescaping. Moving the inline code into static files and
 switching to nonces is listed as follow-up work.
+
+### When the audit write fails
+
+The per-request audit event is written after the request's own transaction has committed, so for a state-changing
+request the change has already happened when the audit write runs. What happens if that write fails:
+
+1. The user still receives the normal response (the change is saved; telling them otherwise would invite a
+   duplicate action).
+2. The write is retried once.
+3. If the retry fails, the event is stored in the `audit_fallback_events` table (a plain insert that does not need
+   the audit writer lock). If the database itself cannot be reached, it is appended as one JSON line to
+   `DATA_DIR/audit-fallback.jsonl` (append-only, `fsync`ed, file mode 0600). If even that fails, the full event is
+   written to the error log at CRITICAL level and counted, so it can be recovered from the logs.
+4. Admin → System (admin role only) shows how many events are waiting, the oldest one's time, and any that reached
+   only the log.
+5. The reconciliation job runs after every deadline check, and an admin can run it from the System page. It
+   appends each waiting event to the hash-chained trail **with its original timestamp** and
+   `detail.reconciled_late = true` (plus `fallback_id`, when it was stored, where, the write error and when it was
+   reconciled), and records one `audit.fallback_reconciled` summary event.
+
+Honest limits: until reconciliation runs, the chain does not contain these events (the System page says so). A
+reconciled event sits in the chain at the position it was appended, so ordering by `id` differs from ordering by
+`ts` for these rows; the `reconciled_late` flag makes that explicit. The fallback table is not itself hash-chained
+(its rows are marked reconciled once appended), and on Render's free plan the JSONL file lives on the temporary disk:
+an event that only reached the file is lost if the instance restarts before the database is back. An event that
+reached only the error log needs manual reconciliation from the logs. Reads are not covered by the fallback: a read
+whose audit write fails is refused (503), so nothing is shown unlogged.
 
 ## Scan results (round 2, 4 Nov 2026)
 

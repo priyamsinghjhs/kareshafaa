@@ -68,6 +68,17 @@ def _purge_once() -> dict:
         db.close()
 
 
+def _reconcile_audit_once() -> dict:
+    """Timed job: append audit events kept in the fallback (table / JSONL file) to the hash-chained trail."""
+    from . import audit_fallback
+
+    db = session_factory()()
+    try:
+        return audit_fallback.reconcile(db)
+    finally:
+        db.close()
+
+
 def _sweep_once() -> dict:
     global _LAST_SWEEP_AT
     from datetime import timedelta
@@ -138,6 +149,12 @@ async def _sweep_loop(interval: int) -> None:
             await asyncio.to_thread(_purge_once)
         except Exception:  # noqa: BLE001
             log.exception("retention purge failed")
+        try:
+            out = await asyncio.to_thread(_reconcile_audit_once)
+            if out.get("reconciled") or out.get("remaining"):
+                log.warning("audit fallback reconciliation: %s", out)
+        except Exception:  # noqa: BLE001
+            log.exception("audit fallback reconciliation failed (retried at the next interval)")
 
 
 async def _data_steps_task(stop: "threading.Event", delay: float = 20.0) -> None:
@@ -194,6 +211,34 @@ def _prepare_request_audit(request: Request, state_actor, path: str, code: int, 
                        path=path[:300], detail={"status": code, "ms": int((time.time() - start) * 1000),
                                                 "query": str(request.url.query)[:200] or None}, ts=now)))
     return items
+
+
+async def _audit_retry_or_fallback(request: Request, items, state_actor, path: str, code: int, start: float,
+                                   shed: int, first: BaseException) -> None:
+    """After a failed request-audit write for a request whose effect already happened: retry once; if that fails
+    too, store the event(s) in the durable fallback (audit_fallback.store: table, else JSONL file) for the
+    reconciliation job. Never raises: the user's response is always returned."""
+    from . import audit_fallback
+
+    err: BaseException = first
+    try:
+        if items is None:  # building the event failed (e.g. actor lookup): build it again, falling back to anonymous
+            try:
+                items = await asyncio.to_thread(_prepare_request_audit, request, state_actor, path, code, start, shed)
+            except Exception:  # noqa: BLE001
+                items = _prepare_request_audit(request, state_actor or ANON, path, code, start, shed)
+        await asyncio.sleep(0.05)
+        await asyncio.wrap_future(_BATCHER.submit(items))
+        log.warning("request audit write failed once (%r) and succeeded on retry", first)
+        return
+    except Exception as e:  # noqa: BLE001
+        err = e
+    if items is None:  # pragma: no cover - cannot even describe the request
+        log.critical("request audit failed and the event could not be built: %s %s -> %s (%r)",
+                     request.method, path, code, err)
+        return
+    where = await asyncio.to_thread(audit_fallback.store, items, err)
+    log.error("request audit failed twice for %s %s (%r); event kept in fallback: %s", request.method, path, err, where)
 
 
 class _AuditBatcher:
@@ -330,8 +375,10 @@ class TimeBudgetMiddleware:
                                                                                    "status": 503, "saved": False}))]
         try:
             await asyncio.wrap_future(_BATCHER.submit(items))
-        except Exception:  # noqa: BLE001 - the request log still records the 503
-            log.warning("could not audit a request timeout", exc_info=True)
+        except Exception as e:  # noqa: BLE001 - kept in the durable fallback for reconciliation
+            log.warning("could not audit a request timeout; keeping it in the audit fallback", exc_info=True)
+            from . import audit_fallback
+            await asyncio.to_thread(audit_fallback.store, items, e)
         resp = JSONResponse({"detail": "the request took too long and was stopped - nothing was saved; please retry"},
                             status_code=503, headers={"Retry-After": str(cfg.retry_after_s)})
         await resp(scope, receive, send)
@@ -463,20 +510,23 @@ def create_app() -> FastAPI:
             return response
         state_actor = getattr(request.state, "actor", None)
         shed, inflight["shed"] = inflight["shed"], 0
+        items = None
         try:
             # sync DB work runs in a worker thread so the event loop is never blocked
             items = await asyncio.to_thread(_prepare_request_audit, request, state_actor, path,
                                             response.status_code, start, shed)
             await asyncio.wrap_future(_BATCHER.submit(items))  # committed before the response leaves
         except Exception as e:  # noqa: BLE001
-            inflight["shed"] += shed  # keep the shed count for the next audited request
             if request.method in ("GET", "HEAD") and response.status_code < 400:
+                inflight["shed"] += shed  # keep the shed count for the next audited request
                 # round 21: never hand out data whose access could not be logged - the read is refused (503)
                 busy = isinstance(e, (ServiceBusy, SATimeoutError, OperationalError))
                 (log.warning if busy else log.exception)("request audit failed; read refused (503): %r", e)
                 return JSONResponse({"detail": "the service is busy - please retry shortly"}, status_code=503,
                                     headers={"Retry-After": str(s.retry_after_s)})
-            log.exception("request audit failed")  # a committed write is still reported as done
+            # a state-changing request (or a refused one) has already happened: the user still gets their answer,
+            # but its audit event is never dropped - retry once, then keep it durably for reconciliation
+            await _audit_retry_or_fallback(request, items, state_actor, path, response.status_code, start, shed, e)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"

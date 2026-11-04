@@ -50,7 +50,7 @@ def is_sample(p: Patient | None) -> bool:
 def _case_tables():
     out = []
     for t in Base.metadata.sorted_tables:
-        if t.name in ("audit_events", "data_migrations") or "case_id" not in t.c:
+        if t.name in ("audit_events", "audit_fallback_events", "data_migrations") or "case_id" not in t.c:
             continue
         cols = [c.name for c in t.columns if isinstance(c.type, DateTime)]
         if cols:

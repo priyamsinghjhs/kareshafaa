@@ -118,6 +118,13 @@ closure.
   patient's sharing consent). Cases outside the reader's access are left out completely (no id, dates, programme,
   step, tier or clinician), as are results, consultations, medicines and investigations recorded under them; a neutral
   line says “Other care episodes exist for this patient. Contact the care team if you need them.”
+* **Audit write failures are never silent.** If writing the per-request audit event fails after a change was saved,
+  the user still gets their answer; the write is retried once, then the event is kept durably (table
+  `audit_fallback_events`, or the append-only file `DATA_DIR/audit-fallback.jsonl` if the database is unreachable).
+  **Admin → System** shows an alert with the number of events waiting (admin only), and they are appended to the
+  hash-chained trail with their **original timestamps**, marked `reconciled_late`, after every deadline check or at once
+  with **Add them to the audit trail now** (`POST /api/admin/system/audit-fallback/reconcile`, permission `user:admin`).
+  A read whose access cannot be logged is still refused (503).
 
 ## Roles
 
