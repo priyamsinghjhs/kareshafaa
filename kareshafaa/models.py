@@ -893,6 +893,18 @@ Index("ix_comms_case_cat_status", Communication.case_id, Communication.category,
 Index("ix_consents_patient_scope", Consent.patient_id, Consent.scope, Consent.status)
 Index("ix_audit_actor_role", AuditEvent.actor_role)
 Index("ix_audit_event", AuditEvent.event)
+# round 2 (additive): foreign keys used by visibility checks, patient search, recalls and case detail
+Index("ix_patients_managing_org", Patient.managing_org_id)
+Index("ix_patients_gp", Patient.gp_id)
+Index("ix_cases_managing_org", Case.managing_org_id)
+Index("ix_comms_patient", Communication.patient_id)
+Index("ix_consents_case", Consent.case_id)
+Index("ix_ingest_case", IngestMessage.case_id)
+Index("ix_ingest_status", IngestMessage.status)
+Index("ix_steps_owner", StepTask.owner_id)
+Index("ix_appointments_status_case", Appointment.status, Appointment.case_id)
+Index("ix_escalations_step", Escalation.step_task_id)
+Index("ix_service_requests_case_status", ServiceRequest.case_id, ServiceRequest.status)
 
 
 # --------------------------------------------------------------------------- safety interlock: no silent downgrade

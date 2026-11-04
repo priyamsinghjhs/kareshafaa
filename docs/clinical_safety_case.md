@@ -101,3 +101,18 @@ clinical leads, directors, analysts, patients (portal).
    medical translator and clinician sign-off; the older prototype content must also be signed off.
 7. Bulk database updates outside the application bypass the ORM tier interlock (H-03) - production should add
    a database trigger or row-level constraint.
+
+## 6. Round 2 change review (4 Nov 2026)
+
+No change in round 2 alters a clinical rule, tier, pathway target, SLA hour or state transition
+(`clinical_rules.py`, `statemachine.py`, `sla.py`, `alert_policy.py` untouched). Changes reviewed for safety:
+
+| Change | Possible hazard | Control / evidence |
+|---|---|---|
+| Batched visibility checks in patient search and recalls (N+1 removal) | A user sees a patient outside their organisation, or misses one they should see | Same rules as `can_view_patient`; role-separation and recall tests pass (3,606 tests) |
+| Cached static files, service worker "starting" page | Stale clinical data shown | Only static files and the offline/starting pages are cached; every API and page response is `no-store` |
+| Content-Security-Policy and other headers | A page stops working (a missed action) | All pages checked with the a11y and UI capture scripts (0 problems) |
+| "Why loops fail" barrier analysis on the impact report | Re-identification from small groups | Same small-cell suppression as every other figure; aggregates only; lead role only |
+| FHIR export validation | – (test only) | `tests/test_fhir_conformance.py` |
+
+Residual risks in section 5 are unchanged.
