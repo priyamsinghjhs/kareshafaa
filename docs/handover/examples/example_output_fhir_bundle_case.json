@@ -1,0 +1,946 @@
+{
+ "resourceType": "Bundle",
+ "type": "collection",
+ "timestamp": "2026-11-04T02:48:19Z",
+ "meta": {
+  "tag": [
+   {
+    "system": "https://kareshafaa.example/CodeSystem/data",
+    "code": "synthetic"
+   }
+  ]
+ },
+ "entry": [
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/Patient/2",
+   "resource": {
+    "resourceType": "Patient",
+    "id": "2",
+    "meta": {
+     "tag": [
+      {
+       "system": "https://kareshafaa.example/CodeSystem/data",
+       "code": "synthetic"
+      }
+     ]
+    },
+    "identifier": [
+     {
+      "system": "https://kareshafaa.example/mrn",
+      "value": "SYN-100001",
+      "type": {
+       "coding": [
+        {
+         "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+         "code": "MR",
+         "display": "Medical record number"
+        }
+       ]
+      }
+     },
+     {
+      "system": "https://kareshafaa.example/emirates-id",
+      "value": "784-1943-9000001-9",
+      "type": {
+       "coding": [
+        {
+         "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+         "code": "NI",
+         "display": "National unique individual identifier"
+        }
+       ],
+       "text": "Emirates ID"
+      },
+      "assigner": {
+       "display": "United Arab Emirates"
+      }
+     }
+    ],
+    "name": [
+     {
+      "family": "Okafor",
+      "given": [
+       "Ali"
+      ]
+     }
+    ],
+    "gender": "male",
+    "birthDate": "1943",
+    "deceasedBoolean": false,
+    "communication": [
+     {
+      "language": {
+       "coding": [
+        {
+         "system": "urn:ietf:bcp:47",
+         "code": "ur"
+        }
+       ]
+      },
+      "preferred": true
+     }
+    ],
+    "address": [
+     {
+      "district": "Al Ain",
+      "country": "AE"
+     }
+    ],
+    "managingOrganization": {
+     "reference": "Organization/6"
+    },
+    "generalPractitioner": [
+     {
+      "reference": "Practitioner/26"
+     }
+    ]
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/Observation/obs-313",
+   "resource": {
+    "resourceType": "Observation",
+    "id": "obs-313",
+    "status": "final",
+    "category": [
+     {
+      "coding": [
+       {
+        "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+        "code": "laboratory"
+       }
+      ]
+     }
+    ],
+    "code": {
+     "coding": [
+      {
+       "system": "http://loinc.org",
+       "code": "29771-3",
+       "display": "Faecal immunochemical test (FIT) haemoglobin"
+      }
+     ]
+    },
+    "subject": {
+     "reference": "Patient/2"
+    },
+    "issued": "2026-11-04T02:48:18Z",
+    "interpretation": [
+     {
+      "coding": [
+       {
+        "system": "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
+        "code": "R"
+       }
+      ]
+     }
+    ],
+    "valueQuantity": {
+     "value": 250.0,
+     "unit": "ug/g"
+    }
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/DiagnosticReport/372",
+   "resource": {
+    "resourceType": "DiagnosticReport",
+    "id": "372",
+    "status": "final",
+    "category": [
+     {
+      "coding": [
+       {
+        "system": "https://kareshafaa.example/CodeSystem/report-category",
+        "code": "screening"
+       }
+      ]
+     }
+    ],
+    "code": {
+     "coding": [
+      {
+       "system": "http://loinc.org",
+       "code": "29771-3",
+       "display": "Faecal immunochemical test (FIT) haemoglobin"
+      }
+     ]
+    },
+    "subject": {
+     "reference": "Patient/2"
+    },
+    "issued": "2026-11-04T02:48:18Z",
+    "performer": [
+     {
+      "reference": "Organization/2"
+     }
+    ],
+    "result": [
+     {
+      "reference": "Observation/obs-313"
+     }
+    ],
+    "conclusion": "needs_review"
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/Task/case-306",
+   "resource": {
+    "resourceType": "Task",
+    "id": "case-306",
+    "meta": {
+     "tag": [
+      {
+       "system": "https://kareshafaa.example/CodeSystem/state-machine",
+       "code": "1.1.0"
+      }
+     ]
+    },
+    "identifier": [
+     {
+      "system": "https://kareshafaa.example/fhir/loop-case",
+      "value": "306"
+     }
+    ],
+    "status": "in-progress",
+    "businessStatus": {
+     "coding": [
+      {
+       "system": "https://kareshafaa.example/CodeSystem/case-state",
+       "code": "issued"
+      }
+     ],
+     "text": "Result issued"
+    },
+    "intent": "order",
+    "priority": "asap",
+    "code": {
+     "coding": [
+      {
+       "system": "https://kareshafaa.example/CodeSystem/task-code",
+       "code": "loop-case"
+      }
+     ],
+     "text": "Bowel (colorectal) screening - FIT"
+    },
+    "focus": {
+     "reference": "DiagnosticReport/372"
+    },
+    "for": {
+     "reference": "Patient/2"
+    },
+    "authoredOn": "2026-11-04T02:48:18Z",
+    "lastModified": "2026-11-04T02:48:18Z",
+    "owner": {
+     "reference": "Practitioner/3"
+    },
+    "restriction": {
+     "period": {
+      "end": "2026-11-05T02:48:18Z"
+     }
+    }
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/Task/step-2285",
+   "resource": {
+    "resourceType": "Task",
+    "id": "step-2285",
+    "partOf": [
+     {
+      "reference": "Task/case-306"
+     }
+    ],
+    "status": "in-progress",
+    "intent": "order",
+    "businessStatus": {
+     "coding": [
+      {
+       "system": "https://kareshafaa.example/CodeSystem/case-state",
+       "code": "issued"
+      }
+     ]
+    },
+    "code": {
+     "text": "Result issued"
+    },
+    "for": {
+     "reference": "Patient/2"
+    },
+    "owner": {
+     "reference": "Practitioner/3"
+    },
+    "executionPeriod": {
+     "start": "2026-11-04T02:48:18Z"
+    },
+    "restriction": {
+     "period": {
+      "end": "2026-11-05T02:48:18Z"
+     }
+    },
+    "extension": [
+     {
+      "url": "https://kareshafaa.example/fhir/StructureDefinition/sla-breached",
+      "valueBoolean": true
+     }
+    ]
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/Communication/667",
+   "resource": {
+    "resourceType": "Communication",
+    "id": "667",
+    "status": "completed",
+    "category": [
+     {
+      "text": "escalation"
+     }
+    ],
+    "medium": [
+     {
+      "text": "internal"
+     }
+    ],
+    "subject": {
+     "reference": "Patient/2"
+    },
+    "sent": "2026-11-05T02:48:19Z",
+    "recipient": [
+     {
+      "reference": "Practitioner/3"
+     }
+    ],
+    "payload": [
+     {
+      "contentString": "[SIMULATED internal alert] L1 reminder to owner: issued at 100% of SLA - case #306"
+     }
+    ],
+    "language": null,
+    "meta": {
+     "tag": [
+      {
+       "system": "https://kareshafaa.example/CodeSystem/data",
+       "code": "simulated-channel"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/Communication/668",
+   "resource": {
+    "resourceType": "Communication",
+    "id": "668",
+    "status": "completed",
+    "category": [
+     {
+      "text": "escalation"
+     }
+    ],
+    "medium": [
+     {
+      "text": "internal"
+     }
+    ],
+    "subject": {
+     "reference": "Patient/2"
+    },
+    "sent": "2026-11-05T02:48:19Z",
+    "recipient": [
+     {
+      "reference": "Practitioner/1"
+     }
+    ],
+    "payload": [
+     {
+      "contentString": "[SIMULATED internal alert] L2 programme coordinator: issued at 100% of SLA - case #306"
+     }
+    ],
+    "language": null,
+    "meta": {
+     "tag": [
+      {
+       "system": "https://kareshafaa.example/CodeSystem/data",
+       "code": "simulated-channel"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/Communication/669",
+   "resource": {
+    "resourceType": "Communication",
+    "id": "669",
+    "status": "completed",
+    "category": [
+     {
+      "text": "escalation"
+     }
+    ],
+    "medium": [
+     {
+      "text": "internal"
+     }
+    ],
+    "subject": {
+     "reference": "Patient/2"
+    },
+    "sent": "2026-12-14T02:48:19Z",
+    "recipient": [
+     {
+      "reference": "Practitioner/1"
+     }
+    ],
+    "payload": [
+     {
+      "contentString": "[SIMULATED internal alert] L2 programme coordinator: pathway target missed (consolidated case alert) - case #306"
+     }
+    ],
+    "language": null,
+    "meta": {
+     "tag": [
+      {
+       "system": "https://kareshafaa.example/CodeSystem/data",
+       "code": "simulated-channel"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/Consent/2",
+   "resource": {
+    "resourceType": "Consent",
+    "id": "2",
+    "status": "active",
+    "scope": {
+     "coding": [
+      {
+       "system": "http://terminology.hl7.org/CodeSystem/consentscope",
+       "code": "treatment"
+      }
+     ]
+    },
+    "category": [
+     {
+      "coding": [
+       {
+        "system": "https://kareshafaa.example/CodeSystem/consent-scope",
+        "code": "care_coordination"
+       }
+      ]
+     }
+    ],
+    "patient": {
+     "reference": "Patient/2"
+    },
+    "dateTime": "2025-09-30T02:48:08Z",
+    "provision": {
+     "type": "permit"
+    }
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/Organization/1",
+   "resource": {
+    "resourceType": "Organization",
+    "id": "1",
+    "name": "Emirate Screening Programme",
+    "type": [
+     {
+      "text": "screening_programme"
+     }
+    ],
+    "address": [
+     {
+      "district": "Abu Dhabi",
+      "country": "AE"
+     }
+    ]
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/Organization/2",
+   "resource": {
+    "resourceType": "Organization",
+    "id": "2",
+    "name": "Central Screening Laboratory",
+    "type": [
+     {
+      "text": "lab"
+     }
+    ],
+    "address": [
+     {
+      "district": "Abu Dhabi",
+      "country": "AE"
+     }
+    ]
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/Organization/6",
+   "resource": {
+    "resourceType": "Organization",
+    "id": "6",
+    "name": "Al Ain Central Family Health Centre",
+    "type": [
+     {
+      "text": "primary_care"
+     }
+    ],
+    "address": [
+     {
+      "district": "Al Ain",
+      "country": "AE"
+     }
+    ]
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/Practitioner/1",
+   "resource": {
+    "resourceType": "Practitioner",
+    "id": "1",
+    "name": [
+     {
+      "text": "Dr. Layla Al Hashimi (Programme Medical Director)"
+     }
+    ],
+    "active": true
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/PractitionerRole/role-1",
+   "resource": {
+    "resourceType": "PractitionerRole",
+    "id": "role-1",
+    "practitioner": {
+     "reference": "Practitioner/1"
+    },
+    "organization": {
+     "reference": "Organization/1"
+    },
+    "code": [
+     {
+      "text": "clinical_lead"
+     }
+    ]
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/Practitioner/3",
+   "resource": {
+    "resourceType": "Practitioner",
+    "id": "3",
+    "name": [
+     {
+      "text": "Dr. Fatima Al Mansoori (Clinical Lead, Bowel (colorectal) screening)"
+     }
+    ],
+    "active": true
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/PractitionerRole/role-3",
+   "resource": {
+    "resourceType": "PractitionerRole",
+    "id": "role-3",
+    "practitioner": {
+     "reference": "Practitioner/3"
+    },
+    "organization": {
+     "reference": "Organization/1"
+    },
+    "code": [
+     {
+      "text": "clinical_lead"
+     }
+    ]
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/Practitioner/26",
+   "resource": {
+    "resourceType": "Practitioner",
+    "id": "26",
+    "name": [
+     {
+      "text": "Dr. Meera Pillai (GP)"
+     }
+    ],
+    "active": true
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/PractitionerRole/role-26",
+   "resource": {
+    "resourceType": "PractitionerRole",
+    "id": "role-26",
+    "practitioner": {
+     "reference": "Practitioner/26"
+    },
+    "organization": {
+     "reference": "Organization/6"
+    },
+    "code": [
+     {
+      "text": "gp"
+     }
+    ]
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/AuditEvent/audit-5590",
+   "resource": {
+    "resourceType": "AuditEvent",
+    "id": "audit-5590",
+    "type": {
+     "system": "http://dicom.nema.org/resources/ontology/DCM",
+     "code": "110110",
+     "display": "Patient Record"
+    },
+    "subtype": [
+     {
+      "system": "https://kareshafaa.example/CodeSystem/audit-event",
+      "code": "case.created"
+     }
+    ],
+    "action": "C",
+    "recorded": "2026-11-04T02:48:18Z",
+    "outcome": "0",
+    "agent": [
+     {
+      "who": {
+       "display": "Aisha Rahman (Care Coordinator)"
+      },
+      "type": {
+       "text": "coordinator"
+      },
+      "requestor": true
+     }
+    ],
+    "source": {
+     "observer": {
+      "display": "KareShafaa"
+     }
+    },
+    "entity": [
+     {
+      "what": {
+       "reference": "Task/case-306"
+      }
+     }
+    ],
+    "extension": [
+     {
+      "url": "https://kareshafaa.example/fhir/StructureDefinition/hash",
+      "valueString": "ddc28af8189f1d1b362f858ff24c326423dc0e3218d007a6e24085f4f50aec7a"
+     }
+    ]
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/AuditEvent/audit-5591",
+   "resource": {
+    "resourceType": "AuditEvent",
+    "id": "audit-5591",
+    "type": {
+     "system": "http://dicom.nema.org/resources/ontology/DCM",
+     "code": "110110",
+     "display": "Patient Record"
+    },
+    "subtype": [
+     {
+      "system": "https://kareshafaa.example/CodeSystem/audit-event",
+      "code": "ingest.hl7v2"
+     }
+    ],
+    "action": "C",
+    "recorded": "2026-11-04T02:48:18Z",
+    "outcome": "0",
+    "agent": [
+     {
+      "who": {
+       "display": "Aisha Rahman (Care Coordinator)"
+      },
+      "type": {
+       "text": "coordinator"
+      },
+      "requestor": true
+     }
+    ],
+    "source": {
+     "observer": {
+      "display": "KareShafaa"
+     }
+    },
+    "entity": [
+     {
+      "what": {
+       "reference": "Task/case-306"
+      }
+     }
+    ],
+    "extension": [
+     {
+      "url": "https://kareshafaa.example/fhir/StructureDefinition/hash",
+      "valueString": "38d5c595afce54d55b1766541090ff6beb0ef8848e1a2e2f5fb4f61718daab1a"
+     }
+    ]
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/AuditEvent/audit-5598",
+   "resource": {
+    "resourceType": "AuditEvent",
+    "id": "audit-5598",
+    "type": {
+     "system": "http://dicom.nema.org/resources/ontology/DCM",
+     "code": "110110",
+     "display": "Patient Record"
+    },
+    "subtype": [
+     {
+      "system": "https://kareshafaa.example/CodeSystem/audit-event",
+      "code": "http.get"
+     }
+    ],
+    "action": "R",
+    "recorded": "2026-11-04T02:48:19Z",
+    "outcome": "0",
+    "agent": [
+     {
+      "who": {
+       "display": "Dr. Fatima Al Mansoori (Clinical Lead, Bowel (colorectal) screening)"
+      },
+      "type": {
+       "text": "clinical_lead"
+      },
+      "requestor": true
+     }
+    ],
+    "source": {
+     "observer": {
+      "display": "KareShafaa"
+     }
+    },
+    "entity": [
+     {
+      "what": {
+       "reference": "Task/case-306"
+      }
+     }
+    ],
+    "extension": [
+     {
+      "url": "https://kareshafaa.example/fhir/StructureDefinition/hash",
+      "valueString": "9b99f1efa6dedf75dca2043dcf7a240a99ef088c5df1c1a44f192dcc1e2c353f"
+     }
+    ]
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/AuditEvent/audit-5599",
+   "resource": {
+    "resourceType": "AuditEvent",
+    "id": "audit-5599",
+    "type": {
+     "system": "http://dicom.nema.org/resources/ontology/DCM",
+     "code": "110110",
+     "display": "Patient Record"
+    },
+    "subtype": [
+     {
+      "system": "https://kareshafaa.example/CodeSystem/audit-event",
+      "code": "lesson.recorded"
+     }
+    ],
+    "action": "C",
+    "recorded": "2026-11-05T02:48:19Z",
+    "outcome": "0",
+    "agent": [
+     {
+      "who": {
+       "display": "KareShafaa rules engine"
+      },
+      "type": {
+       "text": "system"
+      },
+      "requestor": false
+     }
+    ],
+    "source": {
+     "observer": {
+      "display": "KareShafaa"
+     }
+    },
+    "entity": [
+     {
+      "what": {
+       "reference": "Task/case-306"
+      }
+     }
+    ],
+    "extension": [
+     {
+      "url": "https://kareshafaa.example/fhir/StructureDefinition/hash",
+      "valueString": "62bc165fe5fb4cdee10e7a33a51f013512d58f8c317d2da4cd168fbdf8c7c427"
+     }
+    ]
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/AuditEvent/audit-5600",
+   "resource": {
+    "resourceType": "AuditEvent",
+    "id": "audit-5600",
+    "type": {
+     "system": "http://dicom.nema.org/resources/ontology/DCM",
+     "code": "110110",
+     "display": "Patient Record"
+    },
+    "subtype": [
+     {
+      "system": "https://kareshafaa.example/CodeSystem/audit-event",
+      "code": "escalation.level1"
+     }
+    ],
+    "action": "C",
+    "recorded": "2026-11-05T02:48:19Z",
+    "outcome": "0",
+    "agent": [
+     {
+      "who": {
+       "display": "KareShafaa rules engine"
+      },
+      "type": {
+       "text": "system"
+      },
+      "requestor": false
+     }
+    ],
+    "source": {
+     "observer": {
+      "display": "KareShafaa"
+     }
+    },
+    "entity": [
+     {
+      "what": {
+       "reference": "Task/case-306"
+      }
+     }
+    ],
+    "extension": [
+     {
+      "url": "https://kareshafaa.example/fhir/StructureDefinition/hash",
+      "valueString": "923a1044a96b409a1c2a3d0dfe4f80123de8bf76e16cbf96bb51939ef071b2db"
+     }
+    ]
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/AuditEvent/audit-5601",
+   "resource": {
+    "resourceType": "AuditEvent",
+    "id": "audit-5601",
+    "type": {
+     "system": "http://dicom.nema.org/resources/ontology/DCM",
+     "code": "110110",
+     "display": "Patient Record"
+    },
+    "subtype": [
+     {
+      "system": "https://kareshafaa.example/CodeSystem/audit-event",
+      "code": "escalation.level2"
+     }
+    ],
+    "action": "C",
+    "recorded": "2026-11-05T02:48:19Z",
+    "outcome": "0",
+    "agent": [
+     {
+      "who": {
+       "display": "KareShafaa rules engine"
+      },
+      "type": {
+       "text": "system"
+      },
+      "requestor": false
+     }
+    ],
+    "source": {
+     "observer": {
+      "display": "KareShafaa"
+     }
+    },
+    "entity": [
+     {
+      "what": {
+       "reference": "Task/case-306"
+      }
+     }
+    ],
+    "extension": [
+     {
+      "url": "https://kareshafaa.example/fhir/StructureDefinition/hash",
+      "valueString": "9019c524efa987dc33756a75a8446b759ef8e819cfd439e79d197148e369a56e"
+     }
+    ]
+   }
+  },
+  {
+   "fullUrl": "https://kareshafaa.example/fhir/AuditEvent/audit-5603",
+   "resource": {
+    "resourceType": "AuditEvent",
+    "id": "audit-5603",
+    "type": {
+     "system": "http://dicom.nema.org/resources/ontology/DCM",
+     "code": "110110",
+     "display": "Patient Record"
+    },
+    "subtype": [
+     {
+      "system": "https://kareshafaa.example/CodeSystem/audit-event",
+      "code": "escalation.level2"
+     }
+    ],
+    "action": "C",
+    "recorded": "2026-12-14T02:48:19Z",
+    "outcome": "0",
+    "agent": [
+     {
+      "who": {
+       "display": "KareShafaa rules engine"
+      },
+      "type": {
+       "text": "system"
+      },
+      "requestor": false
+     }
+    ],
+    "source": {
+     "observer": {
+      "display": "KareShafaa"
+     }
+    },
+    "entity": [
+     {
+      "what": {
+       "reference": "Task/case-306"
+      }
+     }
+    ],
+    "extension": [
+     {
+      "url": "https://kareshafaa.example/fhir/StructureDefinition/hash",
+      "valueString": "7624d941a781d58a5fb38cc3318caccff1de59bc5bef1bb0a7d35d6793c880e3"
+     }
+    ]
+   }
+  }
+ ]
+}

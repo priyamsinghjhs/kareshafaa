@@ -1,0 +1,221 @@
+{
+ "run": {
+  "script": "scripts/handover_example.sh",
+  "seed": 2026,
+  "synthetic_patients": 300,
+  "database": "handover_example.db",
+  "python": "3.13.5",
+  "git_commit": "2a6e098",
+  "started": "2026-11-04T02:48:18Z",
+  "data": "synthetic only - not real patients",
+  "seconds": 12.3
+ },
+ "seed_summary": {
+  "proposals": 15,
+  "cases": 305,
+  "open": 38,
+  "seconds": 9.5
+ },
+ "inputs": [
+  {
+   "format": "HL7 v2 ORU^R01",
+   "file": "docs/handover/examples/input_oru_r01_fit_positive.hl7",
+   "message_id": "LAB-20261020-000123",
+   "ingest_status": "processed",
+   "actionable": true,
+   "hl7_ack": "MSH|^~\\&|KARESHAFAA|PROGRAMME|LAB|LAB|20261104024819+0000||ACK^R01|ACKLAB-20261020-000123|P|2.5.1\nMSA|AA|LAB-20261020-000123|accepted",
+   "alert": {
+    "id": 306,
+    "programme_name": "Bowel (colorectal) screening - FIT",
+    "tier": "high",
+    "state_label": "Result issued",
+    "rule_id": "CRC-FIT-POS",
+    "pathway": "colonoscopy",
+    "target": "Colonoscopy within 31 days of referral (DoH)",
+    "target_due_at": "2026-12-05T02:48:18.998507",
+    "review_required": true,
+    "review_reasons": [
+     "age_above_programme"
+    ]
+   },
+   "sla_timer": {
+    "current": {
+     "status": "green",
+     "fraction": 0.0,
+     "due_at": "2026-11-05T02:48:18.998507",
+     "escalation_level": 0
+    },
+    "steps": [
+     {
+      "state": "issued",
+      "label": "Result issued",
+      "due_at": "2026-11-05T02:48:18.998507",
+      "sla_hours": 24.0,
+      "sla_status": "green"
+     }
+    ]
+   },
+   "alert_ladder": [
+    {
+     "sweep_at": "+1 days",
+     "summary": {
+      "checked": 1,
+      "reminders": 1,
+      "supervisor": 1,
+      "breaches": 1
+     },
+     "escalations": [
+      {
+       "level": 1,
+       "kind": "step"
+      },
+      {
+       "level": 2,
+       "kind": "step"
+      }
+     ]
+    },
+    {
+     "sweep_at": "+40 days",
+     "summary": {
+      "checked": 1,
+      "supervisor": 1,
+      "target_breach_alerts": 1
+     },
+     "escalations": [
+      {
+       "level": 1,
+       "kind": "step"
+      },
+      {
+       "level": 2,
+       "kind": "step"
+      },
+      {
+       "level": 2,
+       "kind": "pathway"
+      }
+     ]
+    }
+   ],
+   "fhir_export": "case_306_fhir_bundle.json"
+  },
+  {
+   "format": "FHIR R4 Bundle",
+   "file": "docs/handover/examples/input_fhir_bundle_hba1c.json",
+   "message_id": "FHIR-LAB-20261020-000777",
+   "ingest_status": "processed",
+   "actionable": true,
+   "alert": {
+    "id": 307,
+    "programme_name": "Diabetes screening - HbA1c / fasting glucose",
+    "tier": "high",
+    "state_label": "Result issued",
+    "rule_id": "DM-A1C-DIAB",
+    "pathway": "confirm_then_gp",
+    "target": "Confirmatory test within 4 weeks (CONFIRM)",
+    "target_due_at": "2026-12-02T02:48:19.033506",
+    "review_required": true,
+    "review_reasons": [
+     "result_after_closure"
+    ]
+   },
+   "sla_timer": {
+    "current": {
+     "status": "green",
+     "fraction": 0.0,
+     "due_at": "2026-11-05T02:48:19.033506",
+     "escalation_level": 0
+    },
+    "steps": [
+     {
+      "state": "issued",
+      "label": "Result issued",
+      "due_at": "2026-11-05T02:48:19.033506",
+      "sla_hours": 24.0,
+      "sla_status": "green"
+     }
+    ]
+   },
+   "alert_ladder": [
+    {
+     "sweep_at": "+1 days",
+     "summary": {
+      "checked": 1,
+      "reminders": 1,
+      "supervisor": 1,
+      "breaches": 1
+     },
+     "escalations": [
+      {
+       "level": 1,
+       "kind": "step"
+      },
+      {
+       "level": 2,
+       "kind": "step"
+      }
+     ]
+    },
+    {
+     "sweep_at": "+40 days",
+     "summary": {
+      "checked": 1,
+      "supervisor": 1,
+      "target_breach_alerts": 1
+     },
+     "escalations": [
+      {
+       "level": 1,
+       "kind": "step"
+      },
+      {
+       "level": 2,
+       "kind": "step"
+      },
+      {
+       "level": 2,
+       "kind": "pathway"
+      }
+     ]
+    }
+   ],
+   "fhir_export": "case_307_fhir_bundle.json"
+  }
+ ],
+ "validation": {
+  "fhir": {
+   "valid": true,
+   "resources_validated": 50,
+   "resource_types": [
+    "AuditEvent",
+    "Communication",
+    "Consent",
+    "DiagnosticReport",
+    "Observation",
+    "Organization",
+    "Patient",
+    "Practitioner",
+    "PractitionerRole",
+    "Task"
+   ],
+   "validator": "fhir.resources R4B models"
+  },
+  "audit_chain": {
+   "valid": true,
+   "checked": 5617,
+   "head": "35ed6fed439dfc6d8e23475c2b091296d3ce191ef2959a6ddfa98a191f96908e"
+  }
+ },
+ "evaluation": {
+  "rules_vs_reference": {
+   "n": 20000,
+   "seed": 20262020,
+   "agree": 20000,
+   "safety_critical": 0,
+   "non_critical": 0,
+   "safety_upper95": 0.000149775396222962,
+   "exit_code": 0
+  }
+ }
+}

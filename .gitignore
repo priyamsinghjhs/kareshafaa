@@ -6,3 +6,4 @@ data/
 mutants/
 demo_credentials.txt
 *.credentials.txt
+handover_run/
