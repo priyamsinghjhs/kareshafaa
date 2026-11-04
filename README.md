@@ -192,6 +192,11 @@ sent on a channel the patient refused, no automated contact follows a care-coord
 is texted to a patient who refused SMS; and the audit hash chain verifies and detects a forged row. The global scans
 in `tests/safety/invariants.py` run over every row in the database, not just the test's own records.
 
+**Fail-closed writes.** Every clinical write is one transaction: a failure part-way rolls everything back, a refusal
+changes nothing, and both leave an audit trail (an unexpected error is audited as a failed request). See
+[docs/fail_closed_review.md](docs/fail_closed_review.md); `tests/test_fail_closed.py` injects faults mid-operation,
+at commit, in the message gateway and in the work-queue refresh.
+
 ## Architecture
 
 * **Backend:** Python 3.11+ (CI on 3.13), FastAPI, SQLAlchemy; SQLite locally, PostgreSQL (Neon) in production via
