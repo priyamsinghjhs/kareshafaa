@@ -180,7 +180,7 @@ def row(db: Session, r: Recall, p: Patient, today: date) -> dict:
 
 def list_recalls(db: Session, actor: Actor, *, view: str = "due", programme: str | None = None,
                  q: str | None = None, limit: int = 200, now: datetime | None = None) -> dict:
-    from .patients import can_view_patient
+    from .patients import visible_patient_ids
 
     if not (actor.can("recall:manage") or actor.can("recall:read")):
         raise Forbidden("role cannot see recalls")
@@ -206,8 +206,11 @@ def list_recalls(db: Session, actor: Actor, *, view: str = "due", programme: str
         qy = qy.where(or_(Patient.mrn.ilike(like), Patient.given_name.ilike(like), Patient.family_name.ilike(like)))
     order = Recall.completed_at.desc() if view == "completed" else Recall.due_on.asc()
     items, total = [], 0
-    for r, p in db.execute(qy.order_by(order, Recall.id).limit(2000)):
-        if not can_view_patient(db, actor, p):
+    pairs = db.execute(qy.order_by(order, Recall.id).limit(2000)).all()
+    _orgs = list(db.scalars(select(Organization)))  # noqa: F841  held so row() finds them in the identity map
+    seen = visible_patient_ids(db, actor, list({p.id: p for _, p in pairs}.values()))
+    for r, p in pairs:
+        if p.id not in seen:
             continue
         total += 1
         if len(items) < limit:

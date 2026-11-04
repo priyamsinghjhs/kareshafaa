@@ -210,6 +210,26 @@ def can_view_patient(db: Session, actor: Actor, p: Patient) -> bool:
     return any(can_view_case(db, actor, c) for c in db.scalars(select(Case).where(Case.patient_id == p.id)))
 
 
+def visible_patient_ids(db: Session, actor: Actor, patients: list[Patient]) -> set[int]:
+    """Batch form of can_view_patient (same rules) for lists: a fixed number of queries instead of one per row."""
+    if actor.role == "patient":
+        return {p.id for p in patients if p.id == actor.patient_id}
+    if not actor.can("patient:read"):
+        return set()
+    if actor.role in PROGRAMME_WIDE_ROLES:
+        return {p.id for p in patients}
+    ok = {p.id for p in patients if (actor.org_id is not None and actor.org_id == p.managing_org_id)
+          or (actor.practitioner_id is not None and p.gp_id == actor.practitioner_id)}
+    rest = [p.id for p in patients if p.id not in ok]
+    if rest and actor.can("case:read") and actor.org_id is not None:
+        from .queue import _org_scope
+
+        by_case = dict(db.execute(select(Case.id, Case.patient_id).where(Case.patient_id.in_(rest))).all())
+        orgs = _org_scope(db, list(by_case))
+        ok |= {pid for cid, pid in by_case.items() if actor.org_id in orgs.get(cid, ())}
+    return ok
+
+
 def get_patient(db: Session, actor: Actor, patient_id: int) -> Patient:
     p = db.get(Patient, patient_id)
     if p is None:
@@ -586,20 +606,21 @@ def search_patients(db: Session, actor: Actor, q: str, limit: int = 30) -> list[
     doc = re.sub(r"[\s-]", "", q).upper()
     if 5 <= len(doc) <= 20 and doc.isalnum():  # passport / GCC ID / other document number: exact match
         conds.append(Patient.id_number == doc)
-    rows = db.scalars(select(Patient).where(or_(*conds)).order_by(Patient.family_name, Patient.given_name).limit(400))
-    out = []
-    for p in rows:
-        if can_view_patient(db, actor, p):
-            out.append(patient_row(db, p))
-        if len(out) >= limit:
-            break
-    return out
+    rows = list(db.scalars(select(Patient).where(or_(*conds)).order_by(Patient.family_name, Patient.given_name).limit(400)))
+    seen = visible_patient_ids(db, actor, rows)
+    shown = [p for p in rows if p.id in seen][:limit]
+    _orgs = list(db.scalars(select(Organization).where(Organization.id.in_({p.managing_org_id for p in shown}))))  # noqa: F841
+    ids = [p.id for p in shown]
+    open_by = dict(db.execute(select(Case.patient_id, func.count()).where(Case.patient_id.in_(ids), Case.state != "closed")
+                              .group_by(Case.patient_id)).all()) if ids else {}
+    return [patient_row(db, p, open_cases=open_by.get(p.id, 0)) for p in shown]
 
 
-def patient_row(db: Session, p: Patient) -> dict:
+def patient_row(db: Session, p: Patient, open_cases: int | None = None) -> dict:
     org = db.get(Organization, p.managing_org_id)
-    open_cases = db.scalar(select(func.count()).select_from(Case).where(Case.patient_id == p.id,
-                                                                         Case.state != "closed")) or 0
+    if open_cases is None:
+        open_cases = db.scalar(select(func.count()).select_from(Case).where(Case.patient_id == p.id,
+                                                                             Case.state != "closed")) or 0
     return {"id": p.id, "mrn": p.mrn, "name": f"{p.given_name} {p.family_name}", "gender": p.gender,
             "birth_date": p.birth_date.isoformat() if p.birth_date else None, "birth_year": p.birth_year,
             "emirates_id": _mask_eid(p.national_id), "document": doc_brief(p), "phone": p.phone,

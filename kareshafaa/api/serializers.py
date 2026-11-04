@@ -87,6 +87,9 @@ def _recall_info(db: Session, c: Case, now: datetime) -> dict:
 def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None) -> dict[str, Any]:
     now = now or utcnow()
     sla = SlaLookup.load(db)
+    # staff directory rows are looked up many times below (owners, authors, escalation targets): load them once and
+    # hold them, so each later db.get() is an identity-map hit instead of a query
+    _staff = (list(db.scalars(select(Practitioner))), list(db.scalars(select(User).where(User.role != "patient"))))  # noqa: F841
     p = c.patient
     rep = db.get(DiagnosticReport, c.report_id)
     steps = []
