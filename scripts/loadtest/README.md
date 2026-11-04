@@ -26,5 +26,8 @@ open cases is reached, with about one closed-only patient per patient with an op
 Sign-in uses the normal password login (login-page CSRF token + `POST /api/auth/login`) with the random local
 passwords the app writes to `credentials.txt` in the data dir at start-up (mode 0600; never printed).
 
+Equivalence check (SQL work queue vs the former Python path, every queue user and view at five times; also on a
+local throw-away PostgreSQL through `--url-env`): `queue_equivalence.py --data-dir DIR`.
+
 For "after" numbers, re-run the same command on the changed code; the seeded databases are reused, so before and
 after see identical data. Compare `$ROOT/summary.md`.

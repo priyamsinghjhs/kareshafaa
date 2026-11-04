@@ -29,13 +29,32 @@ def set_config(db: Session, key: str, value: Any, source: str) -> ConfigEntry:
     return row
 
 
-def channel_order(db: Session, language: str) -> list[str]:
-    return list(get_config(db, f"channel_order:{language}", None) or get_config(db, "channel_order:default",
-                                                                                 DEFAULT_CHANNEL_ORDER))
+_MISSING = object()
 
 
-def template_variant(db: Session, category: str, language: str) -> str:
-    return str(get_config(db, f"template_variant:{category}:{language}", "standard"))
+def config_snapshot(db: Session) -> dict[str, Any]:
+    """Every active key -> value of its highest active version (what get_config returns), in one query."""
+    out: dict[str, Any] = {}
+    for key, value in db.execute(select(ConfigEntry.key, ConfigEntry.value).where(ConfigEntry.active.is_(True))
+                                 .order_by(ConfigEntry.key, ConfigEntry.version)):
+        out[key] = value
+    return out
+
+
+def _get(db: Session, key: str, default: Any, snapshot: dict[str, Any] | None) -> Any:
+    if snapshot is None:
+        return get_config(db, key, default)
+    v = snapshot.get(key, _MISSING)
+    return default if v is _MISSING else v
+
+
+def channel_order(db: Session, language: str, snapshot: dict[str, Any] | None = None) -> list[str]:
+    return list(_get(db, f"channel_order:{language}", None, snapshot) or _get(db, "channel_order:default",
+                                                                             DEFAULT_CHANNEL_ORDER, snapshot))
+
+
+def template_variant(db: Session, category: str, language: str, snapshot: dict[str, Any] | None = None) -> str:
+    return str(_get(db, f"template_variant:{category}:{language}", "standard", snapshot))
 
 
 def all_active(db: Session) -> list[ConfigEntry]:
