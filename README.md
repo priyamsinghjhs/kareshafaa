@@ -134,6 +134,15 @@ closure.
   within one interval if the holder stops. SQLite keeps the per-host file lock. Needs the **direct (unpooled)**
   connection: a Neon `-pooler` host is mapped to the direct host automatically, other poolers need
   `KARESHAFAA_WORKER_LOCK_DATABASE_URL` (see `docs/background_jobs.md`).
+* **Duplicate check at registration without a candidate cap.** Candidates are narrowed in SQL by strong identifiers
+  (same Emirates ID blocks; same passport/GCC/other document, phone or email) and by the date of birth (or birth year on
+  older records) together with a normalised/phonetic **name key** (additive indexed table `patient_name_keys`;
+  Arabic transliteration aware: Mohammed/Muhammad/Mohamed, Al-/El-/Al, Abdul/Abd al, hyphens, spaces, case, accents,
+  Arabic letter forms), then ranked by name similarity (also with given and family names swapped). The old check looked
+  at only the first 5,000 records of a birth year. The same name with a different date of birth is never a blocking
+  match: if it also shares a phone or email it is shown as a warning after saving. Keys are kept in step with name
+  changes and built for older records in small background batches after start-up (idempotent; no patient field is
+  changed); records without keys are still checked.
 
 ## Roles
 

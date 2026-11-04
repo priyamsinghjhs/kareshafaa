@@ -709,6 +709,16 @@ class AuditEvent(Base):  # FHIR AuditEvent - append-only, hash-chained
     hash: Mapped[str] = mapped_column(String(64))
 
 
+class PatientNameKey(Base):
+    """Normalised / phonetic name keys for duplicate detection (services/name_keys.py): a search index derived from
+    the patient's given and family names, rebuilt whenever a name changes. Additive table; no patient field is
+    changed. A patient that has no keys yet is still checked (services/patients.py:duplicate_candidates)."""
+    __tablename__ = "patient_name_keys"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    key: Mapped[str] = mapped_column(String(40))
+
+
 class AuditFallbackEvent(Base):
     """A request-level audit event that could not be written to the hash-chained trail at the time (database busy or
     failing after a committed change). Held here (or, if the database itself was unreachable, in the append-only
@@ -927,6 +937,10 @@ Index("ix_audit_event", AuditEvent.event)
 # round 2 (additive): foreign keys used by visibility checks, patient search, recalls and case detail
 Index("ix_patients_managing_org", Patient.managing_org_id)
 Index("ix_patients_gp", Patient.gp_id)
+Index("ix_patients_birth_date", Patient.birth_date)                 # duplicate check: same date of birth
+Index("ix_patients_birth_year", Patient.birth_year)                 # duplicate check: older records (year only)
+Index("ix_patients_email", Patient.email)                           # duplicate check: same email
+Index("ix_name_keys_key", PatientNameKey.key, PatientNameKey.patient_id)
 Index("ix_cases_managing_org", Case.managing_org_id)
 Index("ix_comms_patient", Communication.patient_id)
 Index("ix_consents_case", Consent.case_id)
@@ -959,3 +973,6 @@ def _no_silent_tier_downgrade(target, value, oldvalue, initiator):  # pragma: no
         raise TierDowngradeError(f"case {target.id}: tier {oldvalue} -> {value} is a downgrade and needs an "
                                  "authorised clinician decision (workflow.resolve_review)")
     return value
+
+
+from .services import name_keys as _name_keys  # noqa: E402,F401  (registers the name-key index ORM listener)

@@ -188,6 +188,19 @@ async def _data_steps_task(stop: "threading.Event", delay: float = 20.0) -> None
         log.exception("one-time data steps failed (retried at the next start)")
 
 
+async def _name_keys_task(stop: "threading.Event", delay: float = 15.0) -> None:
+    """Build duplicate-check name keys for patients that have none yet (older databases, copied-in records). Small
+    batches in a worker thread; idempotent; never changes patient data (services/name_keys.py)."""
+    await asyncio.sleep(delay)
+    try:
+        from .services.name_keys import ensure_all
+        n = await asyncio.to_thread(ensure_all, session_factory(), 500, stop)
+        if n:
+            log.info("duplicate-check name keys built for %d patient record(s)", n)
+    except Exception:  # noqa: BLE001
+        log.exception("building duplicate-check name keys failed (retried at the next start)")
+
+
 async def _heartbeat_loop() -> None:
     """Round 22 watchdog heartbeat (see kareshafaa/serve.py). Written from the event loop AFTER a no-op has passed through
     the request thread pool, so a blocked loop or an exhausted/wedged thread pool both stop the heartbeat."""
@@ -437,10 +450,13 @@ def create_app() -> FastAPI:
         nightly = asyncio.create_task(public_demo.nightly_reset_loop()) if s.public_demo else None
         steps_stop = threading.Event()
         steps = asyncio.create_task(_data_steps_task(steps_stop)) if s.data_steps == "background" else None
+        keys = asyncio.create_task(_name_keys_task(steps_stop)) if s.data_steps != "off" else None
         yield
         steps_stop.set()
         if steps:
             steps.cancel()
+        if keys:
+            keys.cancel()
         if nightly:
             nightly.cancel()
         if task:
