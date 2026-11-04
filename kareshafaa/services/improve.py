@@ -17,7 +17,7 @@ from .. import audit
 from ..models import Communication, Lesson, Organization, Patient, QuestionnaireResponse, RuleProposal, SlaRule, StepTask, Case, utcnow
 from ..security import Actor
 from ..sla import SlaLookup
-from .configstore import channel_order, set_config, template_variant
+from .configstore import channel_order, config_snapshot, set_config, template_variant
 from .errors import DomainError, Forbidden, Invalid, NotFound
 
 MIN_N = 20
@@ -53,14 +53,20 @@ def _fingerprint(kind: str, target: dict) -> str:
     return kind + ":" + json.dumps(target, sort_keys=True)
 
 
-def _propose(db: Session, out: list, kind: str, target: dict, current, proposed, rationale: str, evidence: dict) -> None:
+def _propose(db: Session, out: list, kind: str, target: dict, current, proposed, rationale: str, evidence: dict,
+             pending: set[str] | None = None) -> None:
+    """Add a proposal unless an identical one is already pending. `pending` = fingerprints of pending proposals,
+    loaded once per run by generate_proposals (was: one lookup per candidate); updated as proposals are added."""
     fp = _fingerprint(kind, target)
-    if db.scalar(select(RuleProposal).where(RuleProposal.fingerprint == fp, RuleProposal.status == "pending")):
+    if pending is None:
+        pending = set(db.scalars(select(RuleProposal.fingerprint).where(RuleProposal.fingerprint == fp,
+                                                                       RuleProposal.status == "pending")))
+    if fp in pending:
         return
     p = RuleProposal(kind=kind, target=target, current_value={"value": current}, proposed_value={"value": proposed},
                      rationale=rationale, evidence=evidence, fingerprint=fp, created_at=utcnow())
     db.add(p)
-    db.flush()
+    pending.add(fp)
     out.append(p)
 
 
@@ -69,6 +75,9 @@ def generate_proposals(db: Session, actor: Actor) -> list[RuleProposal]:
         raise Forbidden("role lacks proposal:generate")
     out: list[RuleProposal] = []
     sla = SlaLookup.load(db)
+    # loaded once per run (round: batch lookups): pending fingerprints and the active configuration
+    pending = set(db.scalars(select(RuleProposal.fingerprint).where(RuleProposal.status == "pending")))
+    cfg = config_snapshot(db)
     # 1) SLA performance per (state, tier) from completed steps
     data: dict[tuple[str, str], list[tuple[float, bool]]] = defaultdict(list)
     for st, tier, start, end, breached in db.execute(
@@ -89,12 +98,12 @@ def generate_proposals(db: Session, actor: Actor) -> list[RuleProposal]:
         if breach >= 0.30 and rf > 0.3:
             _propose(db, out, "reminder_fraction", {"state": st, "tier": tier}, rf, round(max(0.25, rf - 0.15), 2),
                      f"{breach:.0%} of '{st}' steps ({tier}) breached their SLA. Send the L1 reminder earlier so owners "
-                     "act before breach. (Relaxing the SLA is not proposed automatically.)", ev)
+                     "act before breach. (Relaxing the SLA is not proposed automatically.)", ev, pending=pending)
         if breach <= 0.05 and len(vals) >= 30 and p90 <= 0.5 * hours:
             new = float(round(max(p90 * 1.25, hours * 0.5)))
             _propose(db, out, "sla_hours", {"state": st, "tier": tier}, hours, new,
                      f"'{st}' ({tier}) is consistently completed well within its SLA (p90 {p90:.0f}h vs {hours:.0f}h). "
-                     "A tighter target would surface slow cases sooner.", ev)
+                     "A tighter target would surface slow cases sooner.", ev, pending=pending)
     # 2) teach-back failure by language -> simplified template variant
     tb: dict[str, list[bool]] = defaultdict(list)
     for lang, passed in db.execute(select(QuestionnaireResponse.language, QuestionnaireResponse.passed)
@@ -104,12 +113,12 @@ def generate_proposals(db: Session, actor: Actor) -> list[RuleProposal]:
         if len(vals) < 15:
             continue
         fail = 1 - float(np.mean(vals))
-        cur = template_variant(db, "result_notification", lang)
+        cur = template_variant(db, "result_notification", lang, cfg)
         if fail >= 0.25 and cur != "simplified":
             _propose(db, out, "template_variant", {"category": "result_notification", "language": lang}, cur, "simplified",
                      f"{fail:.0%} of patients reading '{lang}' messages failed the teach-back check. Switch to the shorter "
                      "'simplified' wording (requires translator and clinical review before go-live).",
-                     {"n": len(vals), "fail_rate": round(fail, 3)})
+                     {"n": len(vals), "fail_rate": round(fail, 3)}, pending=pending)
     # 3) channel effectiveness by language -> reorder ladder
     ch: dict[tuple[str, str], list[bool]] = defaultdict(list)
     for lang, chan, status in db.execute(select(Patient.language, Communication.channel, Communication.status)
@@ -119,7 +128,7 @@ def generate_proposals(db: Session, actor: Actor) -> list[RuleProposal]:
         ch[(lang, chan)].append(status == "completed")
     for lang in sorted({k[0] for k in ch}):
         rates = {c: (float(np.mean(v)), len(v)) for (lg, c), v in ch.items() if lg == lang and len(v) >= MIN_N}
-        order = channel_order(db, lang)
+        order = channel_order(db, lang, cfg)
         first = order[0]
         if first in rates and "whatsapp" in rates and first != "whatsapp":
             if rates[first][0] < 0.5 and rates["whatsapp"][0] >= rates[first][0] + 0.2:
@@ -127,16 +136,18 @@ def generate_proposals(db: Session, actor: Actor) -> list[RuleProposal]:
                 _propose(db, out, "channel_order", {"language": lang}, order, new,
                          f"For '{lang}' speakers the first channel '{first}' delivered only {rates[first][0]:.0%}; WhatsApp "
                          f"delivered {rates['whatsapp'][0]:.0%}. Try WhatsApp first (consent still checked per channel).",
-                         {k: {"delivery_rate": round(v[0], 3), "n": v[1]} for k, v in rates.items()})
+                         {k: {"delivery_rate": round(v[0], 3), "n": v[1]} for k, v in rates.items()}, pending=pending)
     # 4) referral rejections for incomplete information -> mandatory checklist
     rej = Counter(db.scalars(select(Lesson.target_org_id).where(Lesson.kind == "rejected_referral",
                                                                 Lesson.reason_code == "incomplete_info")))
+    orgs = {o.id: o for o in db.scalars(select(Organization).where(
+        Organization.id.in_([k for k, n in rej.items() if k and n >= 5])))} if rej else {}
     for org_id, n in rej.items():
         if org_id and n >= 5:
-            org = db.get(Organization, org_id)
+            org = orgs.get(org_id)
             _propose(db, out, "referral_checklist", {"org_id": org_id}, None, {"min_summary_chars": 40},
                      f"{n} referrals to {org.name if org else org_id} were rejected for incomplete information. Require a "
-                     "structured clinical summary (>= 40 characters) before a referral can be sent.", {"n": n})
+                     "structured clinical summary (>= 40 characters) before a referral can be sent.", {"n": n}, pending=pending)
     # 5) no-show barriers by region -> advisory (human action, nothing auto-applied)
     ns = Counter(db.execute(select(Lesson.region, Lesson.reason_code).where(Lesson.kind == "no_show")).all())
     by_region: dict[str, int] = defaultdict(int)
@@ -146,7 +157,7 @@ def generate_proposals(db: Session, actor: Actor) -> list[RuleProposal]:
         if by_region[region] >= 15 and n / by_region[region] >= 0.25 and reason not in ("unknown", "forgot"):
             _propose(db, out, "advisory", {"region": region, "barrier": reason}, None,
                      f"Offer targeted support in {region}: {BARRIER_ACTIONS.get(reason, 'review barrier with patients')}.",
-                     f"{n}/{by_region[region]} no-shows in {region} cite '{reason}'.", {"n": n, "region_total": by_region[region]})
+                     f"{n}/{by_region[region]} no-shows in {region} cite '{reason}'.", {"n": n, "region_total": by_region[region]}, pending=pending)
     # 6) teach-back failures among patients whose language has no template -> advisory
     from ..comms.content import SUPPORTED_LANGUAGES
 
@@ -155,7 +166,8 @@ def generate_proposals(db: Session, actor: Actor) -> list[RuleProposal]:
         if lang and lang not in SUPPORTED_LANGUAGES and n >= 10:
             _propose(db, out, "advisory", {"language": lang, "topic": "language_coverage"}, None,
                      f"Add professionally translated '{lang}' templates, or route '{lang}' speakers to an interpreter-led call first.",
-                     f"{n} teach-back failures among '{lang}' speakers, who currently receive English messages.", {"n": n})
+                     f"{n} teach-back failures among '{lang}' speakers, who currently receive English messages.", {"n": n}, pending=pending)
+    db.flush()  # one flush for the whole run (ids for the audit events)
     for p in out:
         audit.record(db, actor, "C", "proposal.created", entity_type="RuleProposal", entity_id=p.id,
                      detail={"kind": p.kind, "target": p.target})

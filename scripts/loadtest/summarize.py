@@ -10,13 +10,12 @@ def load(p: Path) -> dict:
     return json.loads(p.read_text()) if p.exists() else {}
 
 
-def main() -> int:
-    root = Path(sys.argv[1])
-    scales = sys.argv[2:]
+def table(root: Path, scales: list[str]) -> tuple[list[str], list[tuple[str, list[str]]]]:
+    """(header values, [(row label, value per scale)])."""
     data = {s: {"seed": load(root / s / "seed_summary.json"), "ip": load(root / s / "inprocess.json"),
                 "c2": load(root / s / "http_ttl2.json"), "c0": load(root / s / "http_ttl0.json")} for s in scales}
-    out = ["| Scale (open cases) | " + " | ".join(f"{data[s]['ip'].get('open_cases', s)}" for s in scales) + " |",
-           "|---|" + "---|" * len(scales)]
+    header = [str(data[s]["ip"].get("open_cases", s)) for s in scales]
+    rows: list[tuple[str, list[str]]] = []
 
     def row(label, f):
         vals = []
@@ -25,7 +24,7 @@ def main() -> int:
                 vals.append(f(data[s]))
             except (KeyError, TypeError, IndexError):
                 vals.append("–")
-        out.append(f"| {label} | " + " | ".join(vals) + " |")
+        rows.append((label, vals))
 
     row("rows: patients / cases / steps / comms", lambda x: "{} / {} / {} / {}".format(
         *(x["seed"]["rows"][k] for k in ("patients", "cases", "step_tasks", "communications"))))
@@ -56,6 +55,14 @@ def main() -> int:
         x["ip"]["generate_proposals"]["sql"], x["ip"]["generate_proposals"]["proposals"]))
     row("generate_proposals(): peak MB (tracemalloc / RSS delta)", lambda x: "{} / {}".format(
         x["ip"]["generate_proposals"]["tracemalloc_peak_mb"], x["ip"]["generate_proposals"]["rss_peak_delta_mb"]))
+    return header, rows
+
+
+def main() -> int:
+    scales = sys.argv[2:]
+    header, rows = table(Path(sys.argv[1]), scales)
+    out = ["| Scale (open cases) | " + " | ".join(header) + " |", "|---|" + "---|" * len(scales)]
+    out += [f"| {label} | " + " | ".join(vals) + " |" for label, vals in rows]
     print("\n".join(out))
     return 0
 

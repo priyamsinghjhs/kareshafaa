@@ -126,6 +126,10 @@ def reanchor_sample_case_dates(db: Session, now: datetime | None = None,
                              "shift_days": round((new_due - step.due_at).total_seconds() / 86400, 1),
                              "rows_updated": rows + 1})
         moved.append(case.id)
+    if moved:  # step times were moved with Core UPDATEs (no ORM flush): refresh the work-queue SLA thresholds
+        from ..queue_store import refresh
+
+        refresh(db.connection(), moved)
     db.expire_all()
     return {"moved": len(moved), "skipped": len(skipped), "case_ids": moved[:50]}
 

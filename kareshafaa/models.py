@@ -266,11 +266,20 @@ class Case(Base):  # FHIR Task (code=loop-case); focus = DiagnosticReport
     risk_model_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     risk_rationale: Mapped[list | None] = mapped_column(JSON, nullable=True)  # top factors behind the outreach priority
     synthetic: Mapped[bool] = mapped_column(Boolean, default=True)
+    # work-queue SLA thresholds of the in-progress step (derived; kept current by kareshafaa/queue_store.py):
+    # RAG is amber from sla_amber_at and red from sla_red_at, compared with the current time in SQL; NULL = no clock
+    sla_amber_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    sla_red_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     row_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # optimistic concurrency
     __mapper_args__ = {"version_id_col": row_version}
     __table_args__ = (
         # DB-level guarantee: never two open cases for one patient and programme, even for concurrent results
         Index("uq_one_open_case", "patient_id", "programme", unique=True,
+              sqlite_where=text("state != 'closed'"), postgresql_where=text("state != 'closed'")),
+        # work queue: open cases only, by SLA threshold (overdue filter / RAG order) and by tier
+        Index("ix_cases_open_sla", "sla_red_at", "sla_amber_at",
+              sqlite_where=text("state != 'closed'"), postgresql_where=text("state != 'closed'")),
+        Index("ix_cases_open_tier", "tier", "review_required",
               sqlite_where=text("state != 'closed'"), postgresql_where=text("state != 'closed'")),
     )
     patient: Mapped[Patient] = relationship()
