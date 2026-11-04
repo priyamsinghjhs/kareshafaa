@@ -8,8 +8,8 @@ cd "$(dirname "$0")/.."
 OUT=${1:-handover_run}
 if [ ! -x .venv/bin/python ]; then
   python3 -m venv .venv
-  .venv/bin/pip install -q -r requirements.txt fhir.resources
+  .venv/bin/pip install -q -r requirements.txt "httpx>=0.27" fhir.resources
 fi
-.venv/bin/python -c "import fhir.resources" 2>/dev/null || .venv/bin/pip install -q fhir.resources
+.venv/bin/python -c "import fhir.resources, httpx" 2>/dev/null || .venv/bin/pip install -q "httpx>=0.27" fhir.resources
 .venv/bin/python scripts/handover_example.py "$OUT"
 echo "Run record: $OUT/run_record.md and $OUT/run_record.json"
