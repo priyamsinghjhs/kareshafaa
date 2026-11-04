@@ -34,7 +34,7 @@
     <button id="install-app" class="secondary sm install-btn" type="button" hidden><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg><span>Install app</span></button>
     {% if user %}
     <details class="usermenu" id="usermenu">
-      <summary aria-label="Account menu for {{ user.display_name }}"><span class="avatar" aria-hidden="true">{{ (user.display_name.replace('Dr. ', '').split(' ')[0][:1] ~ (user.display_name.replace('Dr. ', '').split(' (')[0].split(' ')[-1][:1])) | upper }}</span>
+      <summary><span class="sr-only">Account menu: </span><span class="avatar" aria-hidden="true">{{ (user.display_name.replace('Dr. ', '').split(' ')[0][:1] ~ (user.display_name.replace('Dr. ', '').split(' (')[0].split(' ')[-1][:1])) | upper }}</span>
         <span class="who"><b>{{ user.display_name.split(' (')[0] }}</b><span>{{ role_label }}</span></span></summary>
       <div class="menu" role="menu">
         <div class="menu-head"><b>{{ user.display_name.split(' (')[0] }}</b><div class="small muted">{{ role_label }}{% if user.site %} · {{ user.site }}{% endif %}</div><div class="xs muted">Signed in as {{ user.username }}</div></div>
