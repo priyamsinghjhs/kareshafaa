@@ -2,399 +2,167 @@
 
 # KareShafaa – Closing the Screening-to-Care Loop
 
-> **Name.** *KareShafaa*: Kare (care) + Shafaa (healing). Renamed from "Wasl" on 2026-10-22 ("wasl" is also the brand of a Dubai real-estate developer). "KareShafaa" still needs UAE and India trademark clearance. The brand name is never translated in patient messages.
+**Live:** https://kareshafaa.onrender.com (Render free plan; the first request after idle can take ~30–60 s while it wakes up)
 
-> **KareShafaa v0.1 · Prototype software, not a certified medical device. Clinical decisions remain with the treating
-> clinician.** It ships with fictional sample records (no real person's data). The messaging gateway is not connected
-> yet, so patient messages are recorded but not delivered to phones. The "baseline vs with KareShafaa" comparison on the
-> Outcomes page comes from a **simulation** with stated assumptions and is not real-world evidence.
+KareShafaa turns every actionable screening result into a **tracked case** with exactly one accountable owner, an
+SLA clock and an escalation path, and keeps it visible until the loop is closed with evidence. Built for the
+Hack2skill **Future Health Challenge 05 – Closing the Screening-to-Care Loop**, covering four programmes: bowel (FIT),
+cervical (HPV), breast (mammogram, BI-RADS) and diabetes (HbA1c).
 
-KareShafaa turns every actionable screening result into a **tracked case** that carries it to care, across four programmes:
-bowel (FIT), cervical (HPV), breast (mammogram) and diabetes (HbA1c). Built for Future Health Digital Innovation
-Challenge 05 and aligned with `../Challenge05_Solution_Design.md`.
+**The problem.** Abnormal screening results often never become care: the patient is not told or does not understand,
+the referral is rejected or lost, the appointment is missed, and nobody owns the gap. KareShafaa closes that loop:
+result in → owned, timed case → patient contacted and understood → referral, booking and attendance → documented
+closure.
 
-* **Exactly one accountable owner** for every open case at all times, enforced in the DB and the service layer.
-* **Deterministic state machine** with SLA clocks per state and tier (T0–T3), a UAE working-day calendar and an
-  **L1–L4 escalation ladder**. Covers no-shows, rejected referrals, unreachable patients, transfers and declines.
-* **Closure guard**: a case closes only with evidence (care plan, procedure or negative confirmation) or an
-  authorised human decision with a reason. Enforced in code and tested.
-* **Patient communication** in English, Arabic (RTL), Hindi and Urdu, with result-specific wording, a teach-back
-  check and a channel fallback ladder (app → SMS → WhatsApp → navigator phone call; order is governed config per language). Tagalog and Malayalam
-  speakers get English plus an interpreter-supported call, and a notice in their own language says so.
-* **Clinically grounded rules engine** (`kareshafaa/clinical_rules.py`, documented with sources in `docs/clinical_rules.md`):
-  FIT, HPV/cytology (ASCCP), BI-RADS (ACR) and HbA1c/FPG (ADA, % and mmol/mol). It is deterministic with no ML. Anything
-  unknown, malformed, out of range, conflicting, amended, duplicated, out of age range, pregnant, deceased, under specialist
-  care or arriving after closure goes to a **clinical review queue** at a safe minimum tier with a reason. It is never
-  dropped or downgraded. The ML can only reorder cases within a tier. An ORM interlock blocks any tier downgrade.
-  Safety case: `docs/clinical_safety_case.md`. Synthetic data calibration: `docs/synthetic_data.md`.
-* **Interoperability**: HL7 v2 ORU^R01 and FHIR R4 Bundle ingest (idempotent, ACK AA/AE, human match review) and FHIR R4
-  export per case.
-* **Governed ML** (scikit-learn) used **only** for outreach priority and queue order. A model registry with AUC,
-  calibration and fairness gates. Promotion needs a better candidate **and** clinical-lead approval. Drift monitoring,
-  rollback and model cards. Gender, nationality, age band and language are fairness-monitored, never model inputs
-  (the interpreter need is). A lessons-learned engine proposes rule changes that a human must approve.
-* **Real sign-in** (round 28): username + password (argon2id), server-side sessions in HttpOnly/SameSite cookies
-  (Secure on HTTPS), CSRF tokens, 30-min idle timeout, login rate limit + lockout, generic
-  errors, audited login/failure/logout, forced change of temporary passwords, admin user management (create, role,
-  site/team, reset, deactivate; never hard-deleted). See "Signing in" below.
-* **Security**: RBAC with 7 roles, consent checks, an **append-only, hash-chained audit log** of every read and write,
-  and suppression of analyst cells below 5.
+> Not a certified medical device. Clinical decisions stay with the treating clinician. All records are fictional
+> synthetic data, and the messaging gateway is not connected (messages are recorded, not delivered to phones).
 
-## Quickstart
+## Features
 
-Requires Python 3.11+ (tested on 3.13) and `make`. Everything is free and open source.
+**Case loop**
+* Exactly one accountable owner per open case (enforced in the DB and service layer).
+* Deterministic state machine with **SLA tiers T0–T3** (T0 critical, T1 urgent, T2 soon, T3 routine; T0/T1 clocks
+  run 24/7, T2/T3 count UAE working days) and an L1–L4 escalation ladder. Handles no-shows, rejected referrals,
+  unreachable patients, transfers (two-key), declines and deaths.
+* **Closure guard:** a case closes only with evidence (care plan, procedure, negative confirmation) or an authorised
+  human decision with a reason.
+* Clinical rules engine (`kareshafaa/clinical_rules.py`, sources in `docs/clinical_rules.md`): FIT, HPV/cytology,
+  BI-RADS, HbA1c/FPG. Anything unknown, conflicting or out of range goes to a clinical review queue at a safe tier.
+* Patient records and registration, recall lists, GP care summaries, specialist e-consults, medications and encounters.
 
-```bash
-make setup          # venv + dependencies (~1 min)
-make seed           # 2,000 synthetic patients, 6 months of history, train + register models (~55 s)
-make run            # http://localhost:8000  (python -m kareshafaa.serve: 4 SO_REUSEPORT worker processes; WORKERS=1 for one)
-make test           # 3,320 pytest tests (~60 s; the 20k cohort test is skipped until `make seed-large`)
-```
+**Patient journey** (`/patient`)
+* Step tracker showing where the patient is in the loop.
+* Confirm an appointment or ask to change it; messages with replies; teach-back check; contact consent.
+* **Appointment requests:** patients can ask for a screening, a follow-up or their next screening from a due recall.
+  Nothing is booked automatically — requests land in the **coordinator queue**, where they are confirmed or declined
+  with an answer-by deadline.
+* Patient messages in English, Arabic, Hindi and Urdu (signed-off wording only; otherwise English plus an
+  interpreter-supported call).
 
-Clinical-safety targets (Iteration 6):
+**Sign-in and accounts**
+* Username + password (argon2id), server-side sessions (HttpOnly, SameSite, Secure on HTTPS), CSRF tokens, idle
+  timeout, rate limit and lockout, generic errors.
+* **Sign-in help:** `/forgot-username`, `/forgot-password` and `/reset-password`; requests appear in the admin
+  **sign-in help panel** on Admin → Users. Admins can set a **temporary password**, which must be changed at the
+  next sign-in (`/account/password`).
+* Admin user management: create, role, site/team, reset, deactivate/reactivate (never hard-deleted).
 
-```bash
-make seed-large      # 20,000 realistic synthetic people -> data/kareshafaa_large.db (~3 min, no model training)
-make validate        # 60 data invariants on the main DB (exit 1 on any violation)
-make validate-large  # same on the 20k cohort
-make test-clinical   # golden cases, fail-safe, Hypothesis properties, exhaustive state machine
-make test-cohort     # full-cohort run on the 20k DB (needs seed-large)
-make fault-injection # 54 deliberate faults; writes docs/fault_injection_results.md
-make differential    # 2M randomised results: rules engine vs independent reference (docs/differential_results.md)
-```
+**Impact and responsible AI**
+* Outcomes dashboard and **loop impact report**, including **“Why loops fail”** (patient-reported vs service-side
+  barriers, small cells suppressed, CSV export).
+* Governed ML (scikit-learn) used only to order outreach within a tier — never for triage, tier or closure.
+  Registry with AUC, calibration and fairness gates; promotion needs clinical-lead approval; drift and rollback.
+* Transparency pages: **why this priority** (per case), **rule and model cards**, **override register**,
+  **data protection** and **data retention** (Governance).
+* Lessons-learned engine proposes rule changes that a human must approve.
 
-Open http://localhost:8000 and sign in. Each role lands on its own main task (coordinator: today's queue,
-family doctor (GP): patients needing review, clinical lead: overview with approvals and safety metrics, admin: users).
+**Platform**
+* HL7 v2 ORU^R01 and FHIR R4 Bundle ingest (idempotent, ACKs, match review); FHIR R4 export per case;
+  capability statement at `/fhir/metadata`.
+* `/healthz` (liveness and stats) and `/readyz` (readiness); admin **About** page (`/admin/about`) with system
+  details and the API reference.
+* UI in **English and Arabic (RTL)**; responsive layout for phone, tablet and desktop; installable PWA.
+* Security headers on every response (CSP, HSTS, Permissions-Policy, COOP/CORP), append-only **hash-chained audit
+  log** of every read and write (`GET /api/audit/verify`), consent checks, organisation-scoped access.
 
-### Operating modes
+## Roles
 
-| `KARESHAFAA_MODE` | Use | Behaviour |
+Permissions are defined in `kareshafaa/security.py` (`PERMISSIONS`) and page access in `kareshafaa/ui.py`. Example
+usernames come from the staff directory (`kareshafaa/synth/directory.py`, `kareshafaa/seed.py`).
+
+| Role | Example username | What they do |
 |---|---|---|
-| `production` | Render (default whenever `RENDER=true`), any real installation | Full working system: user management, every clinical workflow and data entry, governance behind the normal role checks and clinical-lead approval gates, password sign-in only, abuse limit of 300 writes/min per user (`KARESHAFAA_WRITE_LIMIT_PER_MINUTE`), data never reset. Needs `KARESHAFAA_SECRET_KEY`. |
-| `standard` | local development and tests | As production, plus the test-only token API (`KARESHAFAA_DEMO_LOGINS=true`) and the guided walkthrough. |
-| `public_demo` | internal only (legacy read-mostly showcase) | Admin writes off, database restored from a bundled copy. Not used on Render. |
+| Admin | `admin` | Users and sign-in help, System status, Outcomes (read), Advanced tools (deadline-check runner, model training, proposal engine, simulation, configuration), audit-chain verification, About. **No clinical actions.** |
+| Clinical lead | `fatima.al.mansoori` | Overview, work queue and every clinical action incl. reopening cases; approvals for models, rules and content; outcomes; audit trail (read). **No admin tools** (users, system, training, configuration). |
+| Care coordinator | `aisha.rahman` | Today's queue incl. patient appointment requests, outreach and calls, triage/assign/transfer, referrals, patient registration and invites, recall list, results inbox (HL7/FHIR). |
+| GP (family doctor) | `omar.haddad` | Needs-review queue, confirmatory tests, referrals, care plans, authorised closure, care summaries, patients and recalls, ask a specialist. |
+| Specialist | `vikram.mehta` | Accept or reject referrals with a reason, booking and attendance, care plans, closure, consult replies. |
+| Programme analyst | `analyst` | Aggregate outcomes only (small cells suppressed), read-only models and rules. |
+| Medical translator | `translator` | Content sign-off: attests that a translation matches the signed-off English. |
+| Patient | `patient.en` (also `patient.ar`, `.hi`, `.ur`, `.tl`) | Own results, journey, appointments, requests, messages and consent. |
 
-### Data storage
-
-* `DATABASE_URL` (or `KARESHAFAA_DATABASE_URL`) points at PostgreSQL, e.g. `postgresql://USER:PASSWORD@HOST/DB?sslmode=require`
-  (`postgres://` and `postgresql://` are accepted; the psycopg 3 driver is used). Without it, SQLite in `data/` is used.
-* `python -m kareshafaa.bootstrap` (run by the Docker CMD before the server starts) creates missing tables/columns and,
-  **only if the database is empty**, copies in the initial records once: organisations, programmes, sites, staff
-  directory and accounts, and the sample patient records prepared at image build time (row-for-row, so the audit
-  hash chain stays valid). Existing data is never reset or overwritten.
-* Model files are also kept in the database (`model_artifacts`, keyed by SHA-256) and restored automatically when a
-  new container does not have them.
-* On a host with a temporary disk (Render free plan) and no `DATABASE_URL`, the app still runs on SQLite, logs a
-  clear warning, and shows a notice in **Admin > System**: data is lost on restart/redeploy.
-
-### Signing in
-
-Every person signs in with a username and password; there is no account list on the sign-in page.
-
-* **Staff accounts** (existing staff directory, one per role and more) get a **first password at start-up** from
-  `KARESHAFAA_DEMO_PASSWORD` (internal variable name; or per role `KARESHAFAA_DEMO_PASSWORD_<ROLE>`). In production
-  this only applies to accounts that have **no password yet**; a password a user or admin has changed is never
-  overwritten. A blank/weak value is refused and a `STAFF ACCOUNTS WITHOUT A PASSWORD` warning is logged. Passwords
-  are never in the repo and never shown on the site. Locally (standard mode, no env value) random passwords are
-  written to `../demo_credentials.txt` (0600, outside the repo, gitignored).
-* **Password policy**: at least 12 characters, not on the common-password list, not your username. Temporary
-  passwords set by an admin must be changed at the next sign-in. Users change their own password from the user menu.
-* **Sessions**: random token, only its SHA-256 is stored; HttpOnly + SameSite=Lax cookie (Secure on HTTPS and in
-  production); idle timeout 30 min (`KARESHAFAA_SESSION_IDLE_MINUTES`), absolute 8 h; sign-out revokes it.
-* **CSRF**: every cookie-authenticated write needs the per-session token (`X-CSRF-Token` header or `csrf_token`
-  form field); the sign-in form uses a double-submit token. Bearer-token API clients are not affected.
-* **Lockout**: 5 failures in 15 min pause sign-in for that account for 15 min; 20 failures per IP in 15 min pause that IP.
-* **Audit**: `auth.login`, `auth.login_failed` (username, reason, IP), `auth.logout`, `user.create`,
-  `user.role_change`, `user.password_reset`, `user.password_change`, `user.deactivate`, `user.activate`.
-* **Admin → Users** (`/admin/users`): create users (clinical roles are linked to a directory clinician), assign
-  role and site/team, reset passwords (forces a change), deactivate/reactivate. **Admin → System** (`/admin/system`):
-  mode, database, whether storage is permanent.
-
-| Account | Role | Try |
-|---|---|---|
-| `aisha.rahman` | Care coordinator | Work queue, outreach, calls, results inbox (HL7) |
-| `omar.haddad` | Family doctor (GP) | Confirmatory tests, referrals, ask a specialist (e-consult); try to close a case without evidence |
-| `vikram.mehta` | Specialist | Accept or reject referrals with a reason; booking, attendance, care plan |
-| `fatima.al.mansoori`, `layla.al.hashimi` | Clinical lead / medical director (L4) | Escalations, model and rule approvals, KPIs |
-| `analyst` | Analyst | Aggregates only, small cells suppressed |
-| `admin` | System administrator | Users, System, audit log and chain verification, advanced tools |
-| `patient.ar`, `.en`, `.hi`, `.ur`, `.tl` | Patients (sample records) | Fatima Al Kaabi (FIT, Al Ain), Emma Clarke (BI-RADS 0), Ramesh Kumar (HbA1c), Ayesha Khan (HPV), Maria Santos (BI-RADS 4, Tagalog) |
-
-### Patient records: who can do what (enforced on the server)
-
-| Capability | Coordinator | GP | Specialist | Clinical lead | Admin | Analyst / translator | Patient |
-|---|---|---|---|---|---|---|---|
-| Find a patient, open the patient record (`/patients`) | all patients | own health centre, own patients, patients of cases they can see | patients of their referrals / cases | all (read only) | – | – | own record (`/patient`) |
-| Register a patient (`/patients/new`), incl. from an unmatched lab result | yes | yes | – | – | – | – | – |
-| Edit personal / contact / health-centre details | yes | patients they can see | – | – | – | – | own contact details only |
-| Insurance, next of kin / guardian, proxy consent (record and registration) | yes | patients they can see | sees the eligibility / next-of-kin line on the case | read only | – | – | – |
-| Create the patient app account / send or cancel an activation code | yes | patients they can see | – | – | – (Admin → Users only resets passwords / deactivates) | – | activates with the code |
-| Care summaries (`/summaries`): read and acknowledge the summary written at care start / closure | – | own patients and own practice | – | read on the case timeline | – | – | – |
-| Due for recall (`/recalls`): see, send a simulated invitation, cancel with a reason | yes (all) | own centre / own patients | – | read only, programme-wide | – | – | receives the invitation |
-
-* **Admin manages accounts, never clinical data**: no patient search, record or registration (403 on the API, no menu).
-* **Clinical lead** reads every record (oversight) but has no registration or admin tools.
-* **Registration rules** (same in the browser and on the server, `kareshafaa/services/patients.py`): full date of birth
-  (birth year and age band are derived from it for older reports), optional identity document: Emirates ID `784-YYYY-NNNNNNN-C` with its check digit (numeric keypad, dashes added while
-  typing), or a passport / GCC national ID / other document (5–20 letters and digits, text keyboard; a passport's issuing
-  country defaults to the nationality, a GCC ID must be from a GCC country),
-  UAE mobile/landline or international `+` number, email, address, emirate (region required inside Abu Dhabi
-  emirate), nationality, sex, language, registered health centre and GP (the GP must work at that centre).
-* **Duplicate check before every new record**: the same Emirates ID is refused (the attempt is audited) and the
-  existing record is linked; a similar name with the same date of birth, or the same passport / GCC / other document (type + country + number),
-  needs a written reason ("Create anyway"),
-  stored on the record and in the audit trail.
-* **Result details**: every result keeps who ordered it, where the person was screened and when the specimen
-  was taken (HL7 ORC-12/OBR-16, ORC-21/PV1-3, OBR-7; FHIR ServiceRequest requester / location, Specimen collection;
-  or typed in on `POST /api/results`, where a time without an offset is UAE local time and a future date is refused).
-  They are shown on the case screen (patient card and clinical record) and the patient record; older results show
-  "Not recorded". A specimen older than 180 days goes to clinician review, as for lab messages.
-* **Unmatched lab results** (`/ingest`): name, date of birth, sex and phone from the message (HL7 PID-5/7/8/13, FHIR
-  Patient) pre-fill the registration form; saving files the result to the new record as a tracked case. Matching
-  itself still uses identifiers only.
-* Sample records keep `SYN-` MRNs and cannot be created by hand; new records get `KS-` numbers or the hospital MRN.
-* **Patient app accounts** come from the patient record (**Patient app account → Create account and send code**): the
-  account is created without a password and a one-time 8-character code is shown once to staff and sent by
-  *simulated* SMS (or given in person). The patient opens `/activate` (link or typed code; English, Arabic, Hindi,
-  Urdu, right-to-left where needed), confirms their date of birth and chooses a password (same policy as staff).
-  Codes are stored only as HMAC hashes (last 4 characters kept as a hint), work once, expire after 72 hours, are
-  replaced by a new code, can be cancelled with a reason, and are blocked after 5 wrong dates of birth; failed
-  attempts count towards the sign-in IP rate limit. A new code for an active account resets a forgotten password.
-  Audit: `patient.account_invited`, `patient.account_invite_revoked`, `patient.account_activated`,
-  `patient.account_activation_failed`. Set `KARESHAFAA_PUBLIC_BASE_URL` so links use the public address.
-* **Recall (next screen)**: a negative screening result, a closed case or a surveillance care plan sets the person's
-  next screening due date (case: *Next screening due*; care plan: *Review / re-test due*, default from the rule, the
-  clinician can change it). Intervals live in `kareshafaa/clinical_rules.py` (`RECALL_INTERVAL_MONTHS`,
-  `SURVEILLANCE_MONTHS`, `RECALL_AFTER_CLOSURE_MONTHS`; all **CONFIRM**). One open recall per person and programme
-  (a newer one replaces the older). `/recalls` lists who is due within 60 days / overdue / invited; invitations are
-  *simulated* messages in the person's language (consent and channel respected; no channel → phone them). The next
-  screening result completes the recall and starts the new episode (a new case if actionable, otherwise a fresh
-  routine recall). KPI *Recall uptake* = recalls screened within 180 days of the due date ÷ recalls due ≥ 180 days
-  ago (dashboard and `/recalls`). Sample (`SYN-`) records get their recalls from existing history by a one-time,
-  audited background step. Audit: `recall.scheduled`, `recall.not_scheduled`, `recall.invited`, `recall.cancelled`,
-  `recall.completed`.
-* **Care summary to the GP**: when care starts (treatment / surveillance plan) and when a case closes, a summary
-  (result, pathway, care plan, how it closed, next screening due) is written automatically to the patient's
-  registered GP (or the GP who owns the case). It appears on the case timeline and in the GP's **Care summaries**
-  inbox, where the GP acknowledges it with an optional note (target 7 days, `GP_SUMMARY_ACK_DAYS`, CONFIRM; shown as
-  overdue after that). If the GP recorded the step themselves it is filed as read. Internal correspondence, not a
-  patient message. Audit: `gp_summary.created`, `gp_summary.acknowledged`, `gp_summary.no_recipient`.
-* **Appointment lifecycle**: a booked appointment can be **moved** (case stays booked; old row kept as cancelled
-  with the reason) or **cancelled** (case returns to clinic-accepted for rebooking). When the patient asked for the
-  change, the barrier (transport, work, fear, …) is required and recorded as a lesson. A simulated reminder goes out
-  automatically when the appointment is within 48 hours (`APPOINTMENT_REMINDER_HOURS`, CONFIRM; not within 2 hours),
-  inside the 08:00–21:00 UAE patient message window, or staff can send one from the case. Message categories
-  `appointment_reminder` / `appointment_changed` / `appointment_cancelled` in en/ar/hi/ur.
-* **Patient self-service** (patient app `/patient`, en/ar/hi/ur, right-to-left for ar/ur): **My contact details**
-  lets the patient change their own mobile, WhatsApp, email, preferred way of contact and address (same rules as
-  the staff form; the account can reach only its own record; audited as `patient.self_contact_updated` and shown on
-  the staff record as "by the patient"). **My appointments** and **My results** list their history in plain
-  words (no values, no clinician notes); a result that needs follow-up is shown as "your care team is looking at
-  this result" until the team has told the patient.
-* **Insurance and next of kin**: insurer (Thiqa, Daman, ADNIC, … or self-pay), plan, member / card number (required
-  for an insurer) and cover end date; next of kin name, relationship, phone, legal-guardian flag and **proxy consent**
-  (may the team discuss screening and follow-up with this person? stored as consent scope `proxy_contact`, needs
-  the next of kin's name and phone, and how the patient gave the answer). Insurance never blocks care: a missing,
-  self-pay, expired or soon-ending policy (within 30 days, `INSURANCE_EXPIRY_WARN_DAYS`, CONFIRM) shows a warning on
-  the patient record and the case screen, with the next of kin and their proxy consent. Audit:
-  `patient.insurance_updated`, `patient.contacts_updated`, `consent.recorded`.
-* Every change is audited (`patient.registered`, `patient.duplicate_override`, `patient.register_blocked`,
-  `patient.demographics_updated`, `patient.contact_updated`, `patient.care_updated`, `patient.insurance_updated`,
-  `patient.contacts_updated`) and listed on the record.
-
-**Guided walkthrough** (`/walkthrough`, under Advanced; admin only; standard mode only - off in
-production because it adds sample patients). Each one creates a new sample patient record and runs through the real
-service layer, guards and audit:
-1. Fatima: result arrives as HL7 ORU → Arabic teach-back → GP referral → hospital rejects (capacity) → re-route.
-2. Maria: T1, no smartphone, digital ladder fails → navigator task → the clock fast-forwards → L1→L2→L3→L4; closure is blocked.
-3. Ramesh: confirmed HbA1c → two-key transfer to another GP.
-4. Unreachable-patient ladder. 5. Ramadan no-show with the `ramadan_hours` barrier.
-
-**HL7 sample:** `samples/oru_r01_fit_positive.hl7`. The results inbox (`/ingest`) also has a *Load sample* button
-that builds an ORU for an existing sample patient, because the deterministic matcher correctly refuses a birth-year
-mismatch.
-
-Configuration: environment variables (prefix `KARESHAFAA_`) override `.env`; see `.env.example`.
-
-Docker: `docker build -t kareshafaa . && docker run -p 8000:8000 -e KARESHAFAA_MODE=production -e KARESHAFAA_SECRET_KEY=... -e KARESHAFAA_DEMO_PASSWORD=... kareshafaa`
-(add `-e DATABASE_URL=...` for PostgreSQL). Non-root user, listens on `$PORT` (default 8000), initial records prepared at build time.
-Hosting on Render with free permanent PostgreSQL (Neon): see `DEPLOY.md`.
-Installable PWA: `/manifest.webmanifest` and `/sw.js`. The service worker caches only static assets and the offline page, never API responses or pages.
+Coordinators and clinical leads see programme-wide; other clinical roles see cases their organisation is involved in.
 
 ## Architecture
 
-Diagrams (mermaid) and component notes: `docs/architecture.md`; in the product: Admin → About.
+* **Backend:** Python 3.11+ (CI on 3.13), FastAPI, SQLAlchemy; SQLite locally, PostgreSQL (Neon) in production via
+  psycopg 3. Server: `python -m kareshafaa.serve` (multi-process, watchdog, per-request time budget).
+* **Frontend:** server-rendered Jinja templates + vanilla JS, service worker, no build step.
+* **Interop:** HL7 v2, FHIR R4 (R4B model validation in tests).
+* **ML:** scikit-learn, lazy-loaded; model files also stored in the DB (`model_artifacts`).
+* Details: `docs/architecture.md`, `docs/background_jobs.md`, `docs/performance.md`.
 
 ```
-Browser (Jinja + vanilla JS + one tokenised CSS file, mobile-first; RTL aware)          HL7 v2 / FHIR R4 senders
-        │  session cookie (+CSRF) or bearer token                         │
-FastAPI ─┬─ api/        auth, admin users/system, cases, actions, queue/ops, me (patient), governance, ingest, walkthrough
-         ├─ services/   workflow (state machine + guards), escalation (SLA sweep), queue, ingest,
-         │              analytics (+cache, suppression), improve (lessons → proposals), access (RBAC scope)
-         ├─ comms/      templates en/ar/hi/ur, teach-back, channel ladder (SIMULATED only)
-         ├─ ml/         features, registry (gates, approval, drift, rollback, model cards)
-         ├─ synth/      cohort (UAE mix), provider directory, history replay, baseline-vs-KareShafaa simulator
-         ├─ audit.py    append-only hash chain (DB triggers + ORM guard + writer lock)
-         └─ fhir.py     FHIR R4 export (Patient, DiagnosticReport, Task, ServiceRequest, Appointment, CarePlan…)
-SQLAlchemy 2 → SQLite (WAL, default) or PostgreSQL (KARESHAFAA_DATABASE_URL; add `psycopg[binary]`)
-Background: one elected worker runs the SLA/escalation sweep every KARESHAFAA_SWEEP_INTERVAL_SECONDS (default 300)
+kareshafaa/            app: main.py, ui.py, security.py (RBAC), accounts.py, sla.py, statemachine.py,
+                       clinical_rules.py, fhir.py, api/ (routes), services/, ml/, comms/, synth/ (synthetic data),
+                       templates/, static/
+kareshafaa_reference/  independent reference rules engine (differential testing)
+tests/                 pytest suite
+scripts/               handover example, load tests, Locust, UI/a11y/perf checks, validators, fault injection
+samples/               HL7 and FHIR example messages
+docs/                  clinical rules, safety case, security, performance, pilot plan, business model, handover/
+ci/                    github-actions-ci.yml
+deploy/, Dockerfile, docker-compose.yml, render.yaml, DEPLOY.md, Makefile
 ```
 
-**Data model (FHIR-shaped):** Patient, Organization, Practitioner, DiagnosticReport, Case (≈ EpisodeOfCare), StepTask
-(≈ Task with SLA), ServiceRequest, Appointment, CarePlan, Communication, QuestionnaireResponse (teach-back), Consent,
-ConsultRequest, Escalation, AuditEvent, ModelVersion, Lesson / Proposal, IngestMessage.
+## Run locally
 
-**Tiers and SLAs** (`kareshafaa/sla.py`, overridable by JSON config). T0 Critical (HbA1c ≥ 15 %), T1 Urgent (BI-RADS 4/5,
-FIT ≥ 400), T2 Soon (e.g. FIT+, HPV16/18, BI-RADS 0, HbA1c ≥ 10 %) and T3 Routine. T0/T1 clocks run 24/7 and need clinician-confirmed triage. T2/T3
-clocks count UAE working days (Mon–Fri, public holidays, Ramadan windows; Islamic dates approximate).
-**Ladder:** L1 owner nudge plus patient reminder at 50 % of the SLA, L2 programme coordinator at breach, L3 clinical
-lead at 1.5× (T0 goes straight to L3), L4 medical director at 2× (T0/T1 only). Inactive owners are auto-pooled.
+```bash
+make setup     # .venv + dependencies
+make seed      # synthetic patients, history, trained models (SQLite in data/)
+make run       # http://localhost:8000
+make test      # pytest
+```
 
-**Pathways** (`kareshafaa/programmes.py`):
-* FIT+ goes straight to colonoscopy.
-* HPV16/18 goes to direct colposcopy; other high-risk HPV gets reflex cytology first.
-* BI-RADS 0 gets diagnostic recall; BI-RADS 4/5 goes to direct biopsy.
-* HbA1c gets a repeat HbA1c or FPG, then a GP visit and care plan.
+Locally (standard mode, no password env var set) random first passwords for staff accounts are written to a
+gitignored file outside the repo; set `KARESHAFAA_DEMO_PASSWORD` to choose one instead. Other targets: `make help`
+(`seed-large`, `validate`, `test-clinical`, `differential`, `fault-injection`, `ui-smoke`, …).
 
-## Performance (10,005 cases, 1,509 open; 160k audit events; 10 concurrent clients)
+**Handover example** (fresh synthetic DB, HL7 + FHIR inputs, alerts/SLA/FHIR/audit, fixed-seed evaluation; never
+touches `data/kareshafaa.db`):
 
-| Endpoint | p50 / p95 before (iteration 3) | iteration 4 (4 workers) | iteration 6 (rules engine, review gate; warm) | iteration 7 (kareshafaa.serve, row-version locks) |
-|---|---|---|---|---|
-| Work queue, page of 50 (coordinator) | 4,297 / 4,527 ms | **29 / 448 ms** | 28 / 258 ms | 62 / 154 ms |
-| Work queue, GP (org-scoped) | 14,553 / 15,109 ms | **32 / 599 ms** | 32 / 304 ms | 77 / 163 ms |
-| Case detail | 153 / 200 ms | **51 / 88 ms** | 39 / 78 ms | 25 / 58 ms |
-| Case FHIR export | 110 / 181 ms | **43 / 79 ms** | 35 / 126 ms | 27 / 52 ms |
-| KPIs (cached) | 32,770 / 33,795 ms | **3.5 / 29 ms** | 7.7 / 14 ms | 9.8 / 18 ms |
-| HL7 ingest (write) | – | **77 / 182 ms** | 73 / 195 ms | 79 / 163 ms |
+```bash
+bash scripts/handover_example.sh [OUT_DIR]    # default ./handover_run
+```
 
-Iteration 6 run: a fresh 10k DB (10,155 cases, 1,250 open, 160k audit events). Detail, FHIR and KPI figures come from the first, cold pass; the cold-pass queue p50 was 145 ms. Audit chain verified intact after the load test. Reproduce with `scripts/loadtest.py` (see ITERATIONS.md, iteration 4).
-Background sweep over 1,705 open clocks: 35–76 ms.
-Iteration 7 run: fresh 10k DB (1,215 open cases, 155k audit events), 10 concurrent clients, 0 errors, audit chain intact. In an earlier Iteration 7 run the queue p95 had regressed to 1.3 s (sqlite per-row GIL convoy); the fixes are in ITERATIONS.md (round 8).
+**Docker + PostgreSQL:** put `KARESHAFAA_SECRET_KEY`, `KARESHAFAA_DEMO_PASSWORD` and `POSTGRES_PASSWORD` in a `.env`
+file (never committed), then `docker compose up --build` → http://localhost:8000.
 
-### Capacity and resilience (rounds 20–22, 21 Oct 2026; `docs/loadtest_ramp.md`)
+**Load test (Locust):** `locust -f scripts/locustfile.py --host http://127.0.0.1:8000 --headless -u 20 -r 5 -t 60s`
+(see `docs/loadtest_locust.md`).
 
-**Load ramp.** Fresh 10k database, `kareshafaa.serve --workers 4`, zero-think-time virtual users, mixed reads with 8 %
-HL7 writes. Columns: requests per second answered OK, p95 latency of those, share answered 503.
+**CI:** the workflow (tests + coverage, pip-audit, bandit, axe accessibility) is kept at `ci/github-actions-ci.yml`;
+copy it to `.github/workflows/` to enable it on GitHub.
 
-| Concurrent users | Round 20 | Round 21 (current) |
-|---|---|---|
-| 40 | 120/s, p95 945 ms, 0 errors | **170/s, p95 539 ms, 0 errors** |
-| 80 | collapse: 4/s, 30 s pool timeouts | **142/s OK, p95 1.6 s, 12 % 503** (fast "busy, retry") |
-| 160 | – | 75/s OK, 17 % 503 (p95 of 503s about 5 s); no hang, audit chain intact |
+## Deployment
 
-* **Capacity:** p95 stays under 1 s up to about 40 back-to-back users. That is roughly 1,700 staff at 10 s think
-  time; this is an estimate, not measured. The load generator ran on the same box.
-* **Graceful degradation:**
-  * bounded waits on database connections, locks and the audit writer;
-  * 503 + Retry-After when busy;
-  * admission control (16 in-flight requests per worker);
-  * group-committed request audit: a read is refused rather than served unlogged;
-  * 2 s work-queue cache, dropped on any local write.
-* **Locks are per database.** Before round 21, a load test on another database could stall the main server.
-* **Watchdog** (round 22): each worker heartbeats from its event loop through the request thread pool. The parent
-  takes a thread dump of, then kills and replaces, any worker silent for more than 60 s (`KARESHAFAA_HEARTBEAT_TIMEOUT_S`).
-* **PostgreSQL 17 smoke test:** passed (validator, ramp, audit chain).
-* **Per-request time budget** (round 23): an `/api/` request still running after 30 s (`KARESHAFAA_REQUEST_TIMEOUT_S`;
-  long admin jobs are exempt) is handled as follows:
-  * the client gets 503 + Retry-After at once;
-  * the request's transaction is rolled back, releasing the audit writer lock;
-  * any later SQL statement or COMMIT from that request is refused;
-  * the stuck thread's stack is logged, the request is counted on `/healthz` and an `http.request_timeout` audit
-    event is written.
+Render web service (`render.yaml`, Docker) auto-deploys from `master`; data lives in Neon Postgres. Step-by-step
+guide: [`DEPLOY.md`](DEPLOY.md). Environment variables (set in the Render dashboard; values are never committed):
 
-  A request that has already started committing is never cut off, so the 503 "nothing was saved" is always true.
-  Re-checked after this change: 40 users, p95 532 ms, 0 errors.
-
-**Current verification:**
-
-| Check | Result |
+| Variable | Purpose |
 |---|---|
-| Tests | 3,320 passed (round 28) |
-| Validator | 60 invariants, 0 violations on main / 10k / 20k / edge-case cohorts |
-| Differential, random inputs | 10M, 0 disagreements |
-| Differential, edge-cohort inputs | 1M, 0 disagreements |
-| Alerts, 20k cohort | precision 1.0 / recall 1.0 |
-| Alerts, 20k edge-case cohort | precision 1.0 / recall 1.0 (51,963 alerts, 26,297 breaches) |
-| Edge-case coverage | 403 supported disease × severity × scenario cells, 0 empty (`docs/edge_case_coverage.md`) |
+| `DATABASE_URL` | Neon PostgreSQL connection string (secret). Without it the app falls back to SQLite on a temporary disk and warns in Admin → System. |
+| `KARESHAFAA_SECRET_KEY` | Session/token signing key (secret, required in production). |
+| `KARESHAFAA_DEMO_PASSWORD` | First password for staff accounts that have none yet (secret; never overwrites a changed password). |
+| `KARESHAFAA_MODE` | `production` on Render. |
+| `WEB_WORKERS`, `KARESHAFAA_SWEEP_INTERVAL_SECONDS` | Worker count and SLA-sweep interval. |
 
-## Simulated KPIs (SIMULATED – 20,000 synthetic people × 5 replications, same rules engine)
+Neon note: prefer the **unpooled (direct) connection string** from Neon's *Connect* dialog for the app's long-lived
+connections and transaction-scoped advisory locks. On first start against an empty database, `python -m
+kareshafaa.bootstrap` creates the schema and copies in the initial records once; existing data is never reset.
 
-| KPI | Baseline (no KareShafaa) | With KareShafaa |
-|---|---|---|
-| Median days result → patient notified | 8.0 | 1.3 |
-| Median days result → care | 48.3 | 24.6 |
-| Patient understood result (teach-back) | 44.1 % | 95.0 % |
-| Care reached or resolved | 34.8 % | 82.3 % |
-| Documented closure | 20.4 % | 85.1 % |
-| FIT-positive reaching colonoscopy | 29.3 % (Abu Dhabi 2015–16 reference: 30.5 %) | 88.0 % |
-| Median days FIT+ → colonoscopy | 72.9 (reference 72) | 28.5 |
-| Review-queue results actioned | 80.2 % | 100 % |
+## Documentation
 
-These numbers come from model assumptions (`docs/synthetic_data.md`, `docs/simulation_20k_results.json`). They are not evidence of real-world effect.
+* Handover package: [`docs/handover/`](docs/handover/README.md) — problem brief, runnable project, task I/O
+  agreement, test results, pilot plan, handover session (PDF/DOCX included)
+* [`docs/security.md`](docs/security.md) · [`docs/performance.md`](docs/performance.md) ·
+  [`docs/pilot_plan.md`](docs/pilot_plan.md) · [`docs/business_model.md`](docs/business_model.md)
+* [`docs/clinical_rules.md`](docs/clinical_rules.md) · [`docs/clinical_safety_case.md`](docs/clinical_safety_case.md) ·
+  [`docs/human_signoff.md`](docs/human_signoff.md) · [`docs/patient_messages.md`](docs/patient_messages.md)
+* [`docs/architecture.md`](docs/architecture.md) · [`docs/synthetic_data.md`](docs/synthetic_data.md) ·
+  [`docs/alert_precision.md`](docs/alert_precision.md) · [`docs/ml_calibration.md`](docs/ml_calibration.md)
+* [`docs/deployment_uae.md`](docs/deployment_uae.md) · [`docs/BRAND.md`](docs/BRAND.md) · [`ITERATIONS.md`](ITERATIONS.md) (build log)
 
-## Governance – alignment, not certification
+## Keeping this README current
 
-KareShafaa is designed to **align with** the frameworks below. It is **not certified** against any of them, and a real
-deployment would need formal assessment.
-
-| Framework | How the prototype aligns |
-|---|---|
-| **WHO** guidance on ethics & governance of AI for health; WHO screening principles | Human oversight; AI never makes clinical decisions; equity monitoring by language, region and nationality; transparency through model cards |
-| **NIST AI RMF 1.0** (Govern / Map / Measure / Manage) | Intended and prohibited uses on the model card (Map); AUC, calibration and fairness gates with CIs plus drift (Measure); human-approved promotion, rollback and audit (Manage); roles and approvals (Govern) |
-| **ISO/IEC 42001** (AI management system) | Lifecycle records: registry, gate results, approvals with notes, change proposals with human decision, audit trail |
-| **UAE data protection**: Federal Decree-Law 45/2021 (PDPL), Federal Law 2/2019 (ICT in health fields, data localisation), Abu Dhabi DoH healthcare-data and AI policies | Consent checks before outreach; least-privilege RBAC with org scoping; full read/write audit; aggregate-only analytics with suppression; synthetic data only; designed for in-country hosting (no external calls) |
-
-**Safety invariants enforced in code and tests:**
-* The ML score is never read by the state machine, triage or closure.
-* SLA status and tier always sort ahead of the score.
-* A model cannot be promoted without passing the gates and getting a clinical lead's approval; rollback needs a previous version.
-* Rule and template changes from the lessons loop only apply after human approval.
-* A patient message is in one language: result wording without a signed-off translation goes out wholly in the signed-off English plus an interpreter-supported navigator call (never an unreviewed translation).
-* A case cannot close without evidence or an authorised decision with a reason.
-* The audit log is append-only (DB triggers) and tamper-evident (hash chain; `GET /api/audit/verify`).
-
-## Assumptions
-
-* Population mix, channel availability, no-show and unreachable rates, Ramadan and holiday effects are **illustrative
-  assumptions**, not official statistics. They are documented in `kareshafaa/synth/cohort.py` and `history.py`.
-* Thresholds, pathways and targets follow the published guidelines cited in `docs/clinical_rules.md`. Items marked
-  **clinical lead to confirm** default to the safer option. **Programme clinical leads must sign off every rule.**
-* All patient-facing text is prototype wording. It needs clinical review and professional translation and patient testing.
-* Organisations and practitioners are fictional. HL7/FHIR profiles are simplified (no national profile, no MPI).
-
-## Known limitations
-
-* Trained and evaluated on fictional sample data only. The ML model (AUC ≈ 0.68 on the 2k main DB, 0.66 on the 10k, 0.72 on the 20k cohort) and the simulator say nothing about real-world performance.
-* Fairness gates use bootstrap CIs on a ~445-case holdout, so small groups (e.g. hi, ur, tl, n < 50 positives) are
-  *not eligible* for gating and are only monitored. A real deployment needs larger validation sets.
-* Channels are simulated. There is no SMS, WhatsApp or email integration, and no real telephony.
-* Authentication is real but local: password + server-side sessions. Production still needs OIDC/SSO (UAE PASS for patients), MFA and secret management; the common-password list is a short built-in one (a pilot should use a breached-password service).
-* The queue still orders all open cases in Python (SLA status depends on the working-day calendar). It is fine at 10k
-  cases with ~1.5k open, but beyond that it should use a materialised due/RAG column with SQL ORDER BY/LIMIT.
-* SQLite is for single-server use. Multi-host deployment needs PostgreSQL (pool settings in `kareshafaa/config.py`, driver in
-  `requirements-postgres.txt`, smoke-tested in round 21); the audit writer lock uses `pg_advisory_xact_lock` there.
-* The Islamic holiday and Ramadan dates are approximate. Tagalog and Malayalam content is not translated yet.
-* Docker build is written but could not be tested on the build box (no Docker daemon available).
-
-## Iteration 7 evidence (docs/)
-
-* `alert_precision.md`: consolidated alert policy. On the 20k cohort, precision is 100 % and recall is 100 % with 0 missed
-  true breaches; the legacy policy scored 77.8 % / 89.8 %.
-* `ml_calibration.md`: discrimination, ECE, slope, CITL and reliability bins with Wilson CIs, plus the fairness gates.
-* `patient_messages.md`: reading-level and tone checks, and the translator plus clinician sign-off for ar/hi/ur.
-* `human_signoff.md`: 21 high-impact actions that need a named human, the permission and a rationale.
-* `differential_results.md`: 10M results checked against the independent reference implementation.
-* `fault_injection_results.md`: the deliberately injected faults and which tests caught them.
-* `clinical_safety_case.md`: hazards H-01 to H-30.
-
-## Repository map
-
-`kareshafaa/` app · `tests/` pytest (3,450+) · `kareshafaa_reference/` independent reference rules · `docs/` clinical rules, safety case, synthetic data, fault injection · `scripts/validate_data.py` · `scripts/fault_injection.py` · `samples/` HL7 and FHIR examples · `scripts/loadtest.py` · `scripts/profile_hotpaths.py` ·
-`scripts/ui_smoke.py` / `scripts/ui_responsive_check.py` (optional Playwright: overflow + 44 px tap targets per role and device) · `ITERATIONS.md` build log with self-assessments · `Makefile` · `Dockerfile` · `.env.example`
-
-## Logo and brand
-Logo files live in `kareshafaa/static/brand/` (badge `icon.svg`, small-size badge `icon-small.svg` for 16-48 px,
-`logo-horizontal*.svg`, `logo-stacked*.svg`, mono white / mono navy and on-dark variants, `og-1200x630.png`); app icons
-in `kareshafaa/static/icons/`, `favicon.ico` / `favicon.svg`. Rebuild everything with `python scripts/make_pwa_icons.py`
-(source geometry in `scripts/brand/`). Navy `#0A2B5E`, mint `#4FD1A1`, white. The wordmark is Figtree ExtraBold
-(SIL Open Font License 1.1) converted to outlines. Latin script only. Full rules: [`docs/BRAND.md`](docs/BRAND.md).
+**Update this README in the same commit as any change to features, roles/permissions, routes or setup.**
