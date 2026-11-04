@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     db_pool_timeout_s: float = 3.0  # wait for a pooled connection, then 503 + Retry-After (was SQLAlchemy's 30 s)
     db_busy_timeout_s: float = 5.0  # SQLite busy_timeout / Postgres lock_timeout for one statement
     writer_lock_timeout_s: float = 5.0  # wait for the audit-chain writer lock, then 503 (nothing is saved)
+    # the per-request audit event waits at most this long for the writer lock (e.g. held by a long SLA sweep), then it
+    # goes to the durable audit fallback (kareshafaa/audit_fallback.py) instead of turning the request into a 503
+    request_audit_lock_timeout_s: float = 2.0
     max_inflight_requests: int = 16  # per worker; beyond this a request is shed at once with 503 + Retry-After
     retry_after_s: int = 2
     # per-request time budget (round 23, kareshafaa/request_timeout.py); 0 disables. Long admin jobs are exempt.

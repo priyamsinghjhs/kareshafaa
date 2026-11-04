@@ -150,13 +150,87 @@ def test_last_resort_is_the_error_log(monkeypatch, caplog, clean_fallback):
     audit_fallback.LOST_TO_LOG["count"] = n
 
 
-def test_read_still_refused_when_audit_fails(client, as_user, monkeypatch, db, clean_fallback):
+def test_read_served_when_its_audit_event_is_kept_in_the_fallback(client, as_user, monkeypatch, db,
+                                                                   clean_fallback):
     calls: list = []
     monkeypatch.setattr(main._BATCHER, "submit", _failing_submit(5, calls, "/api/analytics/kpis"))
     r = client.get("/api/analytics/kpis", headers=as_user("analyst"))
-    assert r.status_code == 503 and len(calls) == 1  # no data handed out unlogged; nothing to reconcile
+    assert r.status_code == 200 and len(calls) == 1  # no retry on the read path: straight to the fallback
     monkeypatch.undo()
-    assert audit_fallback.status(db)["unreconciled"] == 0
+    st = audit_fallback.status(db)
+    assert st["in_file"] == 1  # SQLite: the fsync'd file first, so no database lock is waited for
+    out = audit_fallback.reconcile(db)
+    assert out["reconciled"] == 1 and out["remaining"] == 0
+    db.expire_all()
+    ev = db.scalar(select(AuditEvent).where(AuditEvent.path == "/api/analytics/kpis").order_by(AuditEvent.id.desc()))
+    assert ev.detail["reconciled_late"] and ev.actor_role == "analyst" and ev.action == "R"
+
+
+def test_read_refused_only_when_the_fallback_fails_too(client, as_user, monkeypatch, clean_fallback):
+    calls: list = []
+    monkeypatch.setattr(main._BATCHER, "submit", _failing_submit(5, calls, "/api/analytics/kpis"))
+    monkeypatch.setattr(audit_fallback, "store", lambda *_a, **_k: "log")
+    r = client.get("/api/analytics/kpis", headers=as_user("analyst"))
+    assert r.status_code == 503 and r.headers.get("Retry-After")
+
+
+def test_writer_lock_held_by_a_long_job_does_not_turn_a_read_into_503(client, as_user, monkeypatch, db,
+                                                                      clean_fallback):
+    """A long transaction (e.g. an SLA sweep over 20k open cases) holding the audit writer lock: the read's audit
+    event waits at most request_audit_lock_timeout_s, then goes to the fallback; the read is served (200)."""
+    import threading
+    import time
+
+    from kareshafaa.config import get_settings
+
+    h = as_user("analyst")
+    monkeypatch.setattr(get_settings(), "request_audit_lock_timeout_s", 0.3)
+    held, done = threading.Event(), threading.Event()
+
+    def long_job():
+        audit._WRITER_LOCK.acquire(file_lock=False)
+        held.set()
+        done.wait(10)
+        audit._WRITER_LOCK.release(file_lock=False)
+
+    t = threading.Thread(target=long_job)
+    t.start()
+    held.wait(5)
+    try:
+        t0 = time.monotonic()
+        r = client.get("/api/analytics/kpis", headers=h)
+        took = time.monotonic() - t0
+    finally:
+        done.set()
+        t.join()
+    assert r.status_code == 200, r.text
+    assert took < 3.0  # bounded by the request-audit lock wait, not the long job (or the 5 s writer timeout)
+    assert audit_fallback.status(db)["unreconciled"] >= 1
+    assert audit_fallback.reconcile(db)["remaining"] == 0
+
+
+def test_sweep_scans_open_cases_without_holding_the_writer_lock(db, monkeypatch, new_case):
+    """Pass 1 of the SLA sweep only reads: the first decision for every case is made while no write lock is held
+    (before, the lock was taken at the first escalation and held while every later case was evaluated)."""
+    from datetime import timedelta
+
+    from kareshafaa.models import utcnow
+    from kareshafaa.services import escalation
+
+    ids = [new_case()["id"], new_case()["id"]]  # both overdue at a far-future "now": both get escalations
+
+    seen: dict[int, bool] = {}
+    real = escalation._decision
+
+    def spy(case, step, now, sla):
+        seen.setdefault(case.id, bool(db.info.get("writer_lock")))
+        return real(case, step, now, sla)
+
+    monkeypatch.setattr(escalation, "_decision", spy)
+    out = escalation.run_sweep(db, now=utcnow() + timedelta(days=400), case_ids=ids)
+    assert out["reminders"] + out["supervisor"] + out["clinical_lead"] + out["director"] >= 2  # real writes happened
+    assert set(seen) == set(ids) and not any(seen.values())
+    db.rollback()
 
 
 def test_system_page_shows_alert_markup(client, as_user):

@@ -124,7 +124,10 @@ closure.
   **Admin → System** shows an alert with the number of events waiting (admin only), and they are appended to the
   hash-chained trail with their **original timestamps**, marked `reconciled_late`, after every deadline check or at once
   with **Add them to the audit trail now** (`POST /api/admin/system/audit-fallback/reconcile`, permission `user:admin`).
-  A read whose access cannot be logged is still refused (503).
+  Reads are never served unlogged: a read whose chain write fails or waits more than 2 s
+  (`KARESHAFAA_REQUEST_AUDIT_LOCK_TIMEOUT_S`) is served once its event is kept in the fallback, and refused (503) only
+  if it cannot be kept anywhere. The SLA sweep checks open cases read-only first and holds the audit writer lock only
+  while it changes cases, so a long sweep no longer turns page loads into 503s.
 * **One timed-jobs worker across containers.** On PostgreSQL the deadline check, retention purge and audit
   reconciliation run in exactly one process, elected by a session advisory lock (`pg_try_advisory_lock`, key 727001)
   held on a dedicated connection, re-checked before every run and released at shutdown; another container takes over

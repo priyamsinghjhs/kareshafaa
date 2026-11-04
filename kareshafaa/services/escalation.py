@@ -80,6 +80,11 @@ def run_sweep(db: Session, now: datetime | None = None, actor: Actor = SYSTEM, c
         sq = sq.where(StepTask.case_id.in_(case_ids))
     steps = {s.case_id: s for s in db.scalars(sq)}
     pracs = {p.id: p for p in db.scalars(select(Practitioner))}
+    # pass 1 (read-only): find the cases with something new. Nothing is written here, so the audit writer lock (and
+    # SQLite's write lock) is not held while every open case is evaluated - it is taken at the first write in pass 2
+    # and held only while the changed cases are processed (a 20k-open-case sweep used to hold it for the whole scan,
+    # so request audit writes timed out behind it).
+    todo = []
     for case in cases:
         out["checked"] += 1
         step = steps.get(case.id)
@@ -90,6 +95,8 @@ def run_sweep(db: Session, now: datetime | None = None, actor: Actor = SYSTEM, c
             d = _decision(case, step, now, sla)
             if not d.new_levels and (not d.breached or step.breached):
                 continue  # fast path: nothing new for this case
+        todo.append((case, step, owner))
+    for case, step, owner in todo:
         if owner is None or not owner.active:
             pool = programme_pool(db, case.programme)
             db.add(OwnershipEvent(case_id=case.id, from_owner_id=case.owner_id, to_owner_id=pool.id, kind="auto_pool",

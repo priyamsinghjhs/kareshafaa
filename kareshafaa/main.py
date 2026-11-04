@@ -289,6 +289,8 @@ class _AuditBatcher:
     @staticmethod
     def _write(batch: list) -> None:
         db = session_factory()()
+        # bounded wait for the writer lock: a long transaction elsewhere (SLA sweep) sends the event to the fallback
+        db.info["writer_lock_timeout_s"] = get_settings().request_audit_lock_timeout_s
         try:
             # take the pooled connection BEFORE the cross-process writer lock (taken at flush): holding the lock
             # while waiting for a connection stalled every worker (round 21 ramp: uniform ~6 s at 80 users)
@@ -331,6 +333,7 @@ class _AuditBatcher:
 
 
 _BATCHER = _AuditBatcher()
+_BACKGROUND: set = set()  # strong references to fire-and-forget tasks (asyncio keeps only weak ones)
 
 
 class TimeBudgetMiddleware:
@@ -477,7 +480,11 @@ def create_app() -> FastAPI:
         response = await call_next(request)
         if tok and not bearer and tok.startswith(accounts.SESSION_PREFIX) and response.status_code < 400 \
                 and not path.startswith("/static") and path not in PWA_PUBLIC_PATHS:
-            await asyncio.to_thread(accounts.touch_session, session_factory, tok)
+            # best effort and OFF the response path: on SQLite this UPDATE can wait for the database write lock
+            # (e.g. during an SLA sweep), which used to delay the response by up to the busy timeout
+            t = asyncio.ensure_future(asyncio.to_thread(accounts.touch_session, session_factory, tok))
+            _BACKGROUND.add(t)
+            t.add_done_callback(_BACKGROUND.discard)
         if not path.startswith("/static"):
             response.headers.setdefault("Cache-Control", "no-store")  # pages and API data are never cached
         else:  # versioned files (?v=<hash>) are immutable; others are re-checked after 5 minutes
@@ -539,12 +546,28 @@ def create_app() -> FastAPI:
             await asyncio.wrap_future(_BATCHER.submit(items))  # committed before the response leaves
         except Exception as e:  # noqa: BLE001
             if request.method in ("GET", "HEAD") and response.status_code < 400:
-                inflight["shed"] += shed  # keep the shed count for the next audited request
-                # round 21: never hand out data whose access could not be logged - the read is refused (503)
+                # never hand out data whose access is not logged: a read is served only once its audit event is
+                # kept durably. A slow or failed chain write (e.g. the writer lock held by a long SLA sweep) sends
+                # the event straight to the fallback file (no database wait); 503 only if that fails too.
                 busy = isinstance(e, (ServiceBusy, SATimeoutError, OperationalError))
-                (log.warning if busy else log.exception)("request audit failed; read refused (503): %r", e)
-                return JSONResponse({"detail": "the service is busy - please retry shortly"}, status_code=503,
-                                    headers={"Retry-After": str(s.retry_after_s)})
+                where = "log"
+                if items is not None:
+                    from . import audit_fallback
+                    # SQLite: the database write lock may be the thing that is held, so the file first (no wait);
+                    # PostgreSQL: the table insert does not need the audit writer lock and survives a restart
+                    prefer = "file" if s.database_url.startswith("sqlite") else "table"
+                    where = await asyncio.to_thread(audit_fallback.store, items, e, prefer)
+                if where == "log":
+                    inflight["shed"] += shed  # keep the shed count for the next audited request
+                    (log.warning if busy else log.exception)("request audit failed; read refused (503): %r", e)
+                    return JSONResponse({"detail": "the service is busy - please retry shortly"}, status_code=503,
+                                        headers={"Retry-After": str(s.retry_after_s)})
+                (log.warning if busy else log.error)("request audit for a read deferred to the fallback (%s): %r",
+                                                     where, e)
+                response.headers["X-Content-Type-Options"] = "nosniff"
+                response.headers["X-Frame-Options"] = "DENY"
+                response.headers["Referrer-Policy"] = "no-referrer"
+                return response
             # a state-changing request (or a refused one) has already happened: the user still gets their answer,
             # but its audit event is never dropped - retry once, then keep it durably for reconciliation
             await _audit_retry_or_fallback(request, items, state_actor, path, response.status_code, start, shed, e)

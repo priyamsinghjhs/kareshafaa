@@ -14,7 +14,7 @@ Facts below are taken from the code; file references are given so a reviewer can
 | CSRF | per-session token checked on every state-changing request | `main.py` (`csrf_and_session_clock`) |
 | Authorisation | role permissions (`security.PERMISSIONS`) on every API route; page access (`ui.PAGE_PERMS`); organisation scoping of patients and cases | `security.py`, `ui.py`, `services/queue.py` |
 | Case privacy | patient-level views (patient record, case clinical record, FHIR export) omit every case the reader may not open, and rows recorded under such a case; only a neutral "other care episodes exist" flag remains (patient record) or a count (case record) | `services/access.py` (`case_visible`), `services/patients.py`, `services/clinical_record.py`, `fhir.py`, `tests/test_case_privacy.py` |
-| Audit | every request audited; hash-chained, append-only log with `verify_chain`; a read whose audit write fails is refused (503); a write whose audit fails after it committed is retried once, then kept in a durable fallback and reconciled into the chain later (see below) | `audit.py`, `audit_fallback.py`, `main.py` |
+| Audit | every request audited; hash-chained, append-only log with `verify_chain`; a request whose chain write fails or waits too long (`request_audit_lock_timeout_s`, 2 s) is answered only once its event is kept in the durable fallback (writes are retried once first), and reconciled into the chain later; a read is refused (503) only if the event cannot be kept anywhere (see below) | `audit.py`, `audit_fallback.py`, `main.py` |
 | Browser headers (new) | CSP, Permissions-Policy, COOP, CORP, X-Frame-Options DENY, nosniff, Referrer-Policy no-referrer; HSTS (1 year) over https | `main.py` (`security_headers`), `tests/test_security_headers.py` |
 | Caching | `Cache-Control: no-store` on every non-static response, so patient data is never cached by browsers or proxies | `main.py` |
 | API surface | OpenAPI / Swagger / ReDoc disabled in the app | `main.py` (`docs_url=None`) |
@@ -39,7 +39,9 @@ request the change has already happened when the audit write runs. What happens 
 
 1. The user still receives the normal response (the change is saved; telling them otherwise would invite a
    duplicate action).
-2. The write is retried once.
+2. The write is retried once. The chain write waits at most `request_audit_lock_timeout_s` (2 s) for the audit
+   writer lock, so a long transaction elsewhere (for example an SLA sweep) cannot hold requests for the full
+   5 s writer timeout.
 3. If the retry fails, the event is stored in the `audit_fallback_events` table (a plain insert that does not need
    the audit writer lock). If the database itself cannot be reached, it is appended as one JSON line to
    `DATA_DIR/audit-fallback.jsonl` (append-only, `fsync`ed, file mode 0600). If even that fails, the full event is
@@ -56,8 +58,16 @@ reconciled event sits in the chain at the position it was appended, so ordering 
 `ts` for these rows; the `reconciled_late` flag makes that explicit. The fallback table is not itself hash-chained
 (its rows are marked reconciled once appended), and on Render's free plan the JSONL file lives on the temporary disk:
 an event that only reached the file is lost if the instance restarts before the database is back. An event that
-reached only the error log needs manual reconciliation from the logs. Reads are not covered by the fallback: a read
-whose audit write fails is refused (503), so nothing is shown unlogged.
+reached only the error log needs manual reconciliation from the logs.
+
+Reads: data is never handed out unlogged. A read whose chain write fails or times out is not retried (that would
+double its wait); its event goes straight to the fallback - on SQLite to the JSONL file first, because the
+database write lock may be what is held, on PostgreSQL to the table - and the read is served once the event is
+kept. Only if neither the file nor the table accepts it is the read refused (503 + Retry-After). Before this
+change a read was refused whenever the chain write failed, and a long SLA sweep could turn ordinary page loads into
+503s (found by the load test: the sweep held the audit writer lock while it evaluated every open case). The sweep
+now evaluates all open cases read-only first and takes the lock only for the cases that change, and the session
+idle-clock update no longer runs on the response path.
 
 ## Scan results (round 2, 4 Nov 2026)
 

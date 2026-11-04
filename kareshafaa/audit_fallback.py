@@ -49,8 +49,10 @@ def _row(actor, action: str, event: str, kw: dict, error: str, now: datetime) ->
             "detail": kw.get("detail"), "error": error[:300], "stored_at": now}
 
 
-def store(items: list, error: BaseException | str) -> str:
-    """Keep events whose audit write failed. Returns where they went: 'table', 'file' or 'log'. Never raises."""
+def store(items: list, error: BaseException | str, prefer: str = "table") -> str:
+    """Keep events whose audit write failed. Returns where they went: 'table', 'file' or 'log'. Never raises.
+    prefer="file" (reads waiting for their response): the fsync'd file first, so no database lock is waited for;
+    the table is then only the second choice."""
     from .models import AuditFallbackEvent, utcnow
 
     now = utcnow()
@@ -58,6 +60,8 @@ def store(items: list, error: BaseException | str) -> str:
     rows = [_row(a, act, ev, dict(kw), err, now) for a, act, ev, kw in items]
     if not rows:
         return "table"
+    if prefer == "file" and _append_file(rows, err, None):
+        return "file"
     try:
         from .db import get_engine
         with get_engine().begin() as conn:
@@ -67,6 +71,15 @@ def store(items: list, error: BaseException | str) -> str:
         return "table"
     except Exception as e:  # noqa: BLE001 - database down: fall through to the file
         db_err = e
+    if prefer != "file" and _append_file(rows, err, db_err):
+        return "file"
+    LOST_TO_LOG["count"] += len(rows)
+    log.critical("AUDIT EVENT NOT STORED (table and file both failed) - full event follows for manual "
+                 "reconciliation: %s", json.dumps(rows, default=_json_default))
+    return "log"
+
+
+def _append_file(rows: list[dict], err: str, db_err: BaseException | None) -> bool:
     try:
         with _FILE_LOCK:
             p = _path()
@@ -78,14 +91,13 @@ def store(items: list, error: BaseException | str) -> str:
                 os.fsync(fd)
             finally:
                 os.close(fd)
-        log.error("request audit write failed (%s) and the fallback table was unavailable (%s); %d event(s) "
-                  "appended to %s for reconciliation", err[:120], type(db_err).__name__, len(rows), FILE_NAME)
-        return "file"
+        log.error("request audit write failed (%s)%s; %d event(s) appended to %s for reconciliation", err[:120],
+                  f" and the fallback table was unavailable ({type(db_err).__name__})" if db_err else "", len(rows),
+                  FILE_NAME)
+        return True
     except Exception:  # noqa: BLE001
-        LOST_TO_LOG["count"] += len(rows)
-        log.critical("AUDIT EVENT NOT STORED (table and file both failed) - full event follows for manual "
-                     "reconciliation: %s", json.dumps(rows, default=_json_default))
-        return "log"
+        log.warning("audit fallback file not writable", exc_info=True)
+        return False
 
 
 def _json_default(v: Any):
