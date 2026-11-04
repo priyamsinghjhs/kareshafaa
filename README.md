@@ -180,6 +180,18 @@ for organisation-scoped roles), a GP without an organisation, patients reaching 
 actors, organisation and role changes mid-session, deactivated users with a live session, and admin / clinical lead
 crossing into each other's duties.
 
+**Safety suite ("must never happen").** `tests/safety/` is a small, fast suite marked `safety`; run it on its own with
+`TZ=UTC pytest -m safety` (about 30 s; it is also part of the full run). It checks that: no duplicate patient identity
+is created silently (concurrent registrations of the same person included - registration holds the audit writer lock
+so the duplicate check and insert are serialised); scoped users never list or open cases/patients outside their care
+(work queue, case list, search, recalls, single reads, GP without an organisation, withdrawn sharing consent); random
+valid and invalid action sequences by random roles never leave any case in a contradictory state (closure data, step
+clocks, one open case per patient and programme, stored work-queue SLA thresholds current); every successful change
+has a request audit event (or a durable fallback event) and a domain audit event when the case changed; no message is
+sent on a channel the patient refused, no automated contact follows a care-coordination withdrawal, and no sign-in code
+is texted to a patient who refused SMS; and the audit hash chain verifies and detects a forged row. The global scans
+in `tests/safety/invariants.py` run over every row in the database, not just the test's own records.
+
 ## Architecture
 
 * **Backend:** Python 3.11+ (CI on 3.13), FastAPI, SQLAlchemy; SQLite locally, PostgreSQL (Neon) in production via

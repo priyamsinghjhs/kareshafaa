@@ -139,6 +139,12 @@ def create_invite(db: Session, actor: Actor, p: Patient, *, channel: str, base_u
         raise Invalid("channel must be sms or in_person")
     if channel == "sms" and not (p.phone and p.phone_valid):
         raise Invalid("no valid mobile number on the record - add one under Contact details, or give the code in person")
+    if channel == "sms":
+        from .access import consent_status
+
+        if consent_status(db, p.id, "comm_sms") == "deny":
+            # the patient refused SMS: no text message of any kind, sign-in codes included
+            raise Invalid("the patient has not agreed to SMS messages - give the code in person")
     if p.birth_date is None:
         raise Invalid("add the full date of birth under Personal details first - the patient confirms it when activating")
     u = db.scalar(select(User).where(User.patient_id == p.id, User.role == "patient").order_by(User.id).limit(1))

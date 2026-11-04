@@ -558,6 +558,9 @@ def register_patient(db: Session, actor: Actor, data: dict[str, Any], *, create_
         raise Forbidden("your role cannot register patients (coordinators and GPs register patients)")
     f = validate_fields(db, data, now=now)
     v = f.values
+    # check-then-insert under the writer lock (held until commit): two simultaneous registrations of one person can
+    # no longer both pass the duplicate check (found by tests/safety: 4 parallel requests created 4 records)
+    audit.hold_writer_lock(db)
     mrn = (data.get("mrn") or "").strip().upper()
     if mrn:
         if not MRN_RE.match(mrn):

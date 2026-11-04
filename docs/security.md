@@ -139,6 +139,12 @@ Trust boundaries: browser ↔ app (internet), lab/EHR feed ↔ ingest API, app �
      (`GET /api/cases`) and patient search, and could open the patient record through the referral. Lists and the
      patient record now use the same rule as opening a case (`case_visible`; in SQL `sharing_denied_select()` in
      `services/access.py`, applied in `services/queue.py`).
+* Safety suite (`tests/safety/`, `pytest -m safety`) gaps found and fixed:
+  6. Two registrations of the same person at the same moment (same Emirates ID, or same name and date of birth) both
+     passed the duplicate check and created two records. `register_patient` now takes the audit writer lock before
+     the check, so the check and insert are serialised (one 200, the others 409).
+  7. A patient account code was texted to a patient who had refused SMS (`comm_sms` deny). Creating an SMS invite
+     is now refused for them ("give the code in person").
 
 ## Follow-up (not done in round 2)
 

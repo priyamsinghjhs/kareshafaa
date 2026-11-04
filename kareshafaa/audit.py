@@ -145,10 +145,10 @@ def _writer_lock_path(session: Session) -> str:
     return str(get_settings().data_dir / f".audit-writer-{lock_key(ident)}.lock")
 
 
-@event.listens_for(Session, "before_flush")
-def _chain_on_flush(session: Session, _ctx, _instances) -> None:
-    if not (session.new or session.dirty or session.deleted):
-        return
+def hold_writer_lock(session: Session) -> None:
+    """Take the global writer lock now (normally taken at the first flush) and keep it until this transaction ends.
+    For check-then-insert paths (patient registration): the check and the insert then run with no other writer in
+    between, in this process, in other processes (SQLite file lock) and on other containers (PostgreSQL)."""
     if not session.info.get("writer_lock"):
         is_pg = session.get_bind().dialect.name == "postgresql"
         from .config import get_settings
@@ -157,6 +157,13 @@ def _chain_on_flush(session: Session, _ctx, _instances) -> None:
         session.info["writer_lock"] = "pg" if is_pg else "file"
         if is_pg:
             session.execute(text("SELECT pg_advisory_xact_lock(4242)"))
+
+
+@event.listens_for(Session, "before_flush")
+def _chain_on_flush(session: Session, _ctx, _instances) -> None:
+    if not (session.new or session.dirty or session.deleted):
+        return
+    hold_writer_lock(session)
     pending = [e for e in session.info.get("audit_pending", []) if e in session.new]
     if not pending:
         return
