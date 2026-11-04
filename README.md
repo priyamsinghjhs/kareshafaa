@@ -226,6 +226,18 @@ file (never committed), then `docker compose up --build` → http://localhost:80
 **Load test (Locust):** `locust -f scripts/locustfile.py --host http://127.0.0.1:8000 --headless -u 20 -r 5 -t 60s`
 (see `docs/loadtest_locust.md`).
 
+**Scale load test (baseline / after):** `bash scripts/loadtest/run.sh` seeds throw-away SQLite databases with
+500, 5,000 and 20,000 open synthetic cases in `/tmp/lt` and measures the work queue (1, 10 and 25 users), case page,
+dashboard, patient search, recalls and proposal generation (latency, SQL statements, memory); see
+[`scripts/loadtest/README.md`](scripts/loadtest/README.md) and results in [`docs/loadtest_scale.md`](docs/loadtest_scale.md).
+
+**Work-queue performance (stored SLA thresholds):** each open case stores the absolute times its current step turns
+amber (`sla_amber_at`) and red (`sla_red_at`); the work queue compares them with the current time and filters, counts,
+orders and pages in SQL (SQLite and PostgreSQL), so only the requested page is read. The columns are derived data: a
+database flush hook keeps them current on every case, step and SLA-rule change, and start-up recomputes them
+idempotently (additive migration). Proposal generation reads pending proposals and configuration once per run.
+`scripts/loadtest/queue_equivalence.py` checks the SQL queue against the former Python ordering on any database.
+
 **CI:** the workflow (tests + coverage, pip-audit, bandit, axe accessibility) is kept at `ci/github-actions-ci.yml`;
 copy it to `.github/workflows/` to enable it on GitHub.
 
@@ -252,6 +264,7 @@ On first start against an empty database, `python -m kareshafaa.bootstrap` creat
 * Handover package: [`docs/handover/`](docs/handover/README.md) — problem brief, runnable project, task I/O
   agreement, test results, pilot plan, handover session (PDF/DOCX included)
 * [`docs/security.md`](docs/security.md) · [`docs/performance.md`](docs/performance.md) ·
+  [`docs/loadtest_scale.md`](docs/loadtest_scale.md) ·
   [`docs/pilot_plan.md`](docs/pilot_plan.md) · [`docs/business_model.md`](docs/business_model.md)
 * [`docs/clinical_rules.md`](docs/clinical_rules.md) · [`docs/clinical_safety_case.md`](docs/clinical_safety_case.md) ·
   [`docs/human_signoff.md`](docs/human_signoff.md) · [`docs/patient_messages.md`](docs/patient_messages.md)

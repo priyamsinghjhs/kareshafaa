@@ -48,6 +48,7 @@ def get_engine() -> Engine:
                 cur.close()
 
         _SessionLocal = sessionmaker(bind=_engine, expire_on_commit=False, autoflush=True)
+        from . import queue_store  # noqa: F401  registers the flush hook that keeps work-queue SLA thresholds current
     return _engine
 
 
@@ -150,6 +151,9 @@ def _init_db(drop: bool) -> None:
     with eng.begin() as conn:
         for st in stmts:
             conn.execute(text(st))
+    from . import queue_store  # derived work-queue SLA thresholds: idempotent recompute (additive migration)
+
+    queue_store.backfill(eng)
 
 
 def _add_missing_columns(eng: Engine) -> None:
