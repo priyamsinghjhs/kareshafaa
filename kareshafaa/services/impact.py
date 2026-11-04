@@ -174,12 +174,11 @@ def barrier_analysis(db: Session, case_ids: set[int] | None) -> dict[str, Any]:
         base = PATIENT_SIDE_KINDS.get(kind, kind)
         return f"{base}: {BARRIER_LABEL.get(reason, reason.replace('_', ' '))}" if reason else base
 
-    sys_rows = []
-    for kind, d in system_side.items():
-        for r in rows(d, lambda k: k.replace("_", " ").capitalize()):
-            sys_rows.append({"kind": kind, "kind_label": SYSTEM_SIDE_KINDS[kind], **r})
-    sys_rows.sort(key=lambda r: -(r["events"] if isinstance(r["events"], int) else 0))
     tot_p, tot_s = sum(patient_side.values()), sum(sum(d.values()) for d in system_side.values())
+    flat = sorted(((kind, reason, n) for kind, d in system_side.items() for reason, n in d.items()), key=lambda x: -x[2])
+    sys_rows = [{"kind": kind, "kind_label": SYSTEM_SIDE_KINDS[kind], "code": reason,
+                 "label": reason.replace("_", " ").capitalize(), "events": suppress_count(n),
+                 "share": suppress_rate(n, tot_s)} for kind, reason, n in flat]  # share of ALL service-side events
     return {
         "patient_reported": rows(reported, lambda k: BARRIER_LABEL.get(k, k.replace("_", " "))),
         "patient_reported_from_app": suppress_count(app_answers),
@@ -188,8 +187,8 @@ def barrier_analysis(db: Session, case_ids: set[int] | None) -> dict[str, Any]:
         "split": {"patient_side_events": suppress_count(tot_p), "system_side_events": suppress_count(tot_s),
                   "system_share": suppress_rate(tot_s, tot_p + tot_s)},
         "note": ("Events, not patients: one case can fail more than once. 'Patient reported' is what the patient said "
-                 "got in the way (in the patient app, or to staff after a missed appointment). 'System side' are steps "
-                 "the service itself left overdue or a referral it rejected."),
+                 "got in the way (in the patient app, or to staff after a missed appointment). 'Service side' are steps "
+                 "the service itself left overdue or a referral it rejected; shares are within each column."),
     }
 
 
