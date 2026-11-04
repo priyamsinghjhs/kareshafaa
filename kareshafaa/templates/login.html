@@ -16,7 +16,7 @@
   </section>
   {% endif %}
   <div class="auth-card">
-    <img class="logo-full auth-logo" src="/static/brand/logo-horizontal.svg" alt="KareShafaa" width="199" height="56">
+    <img class="logo-full auth-logo" src="{{ asset('brand/logo-horizontal.svg') }}" alt="KareShafaa" width="199" height="56">
     <div class="lang-switch" role="group" aria-label="{{ t.lang_label }}">
       {% for k, v in langs.items() %}<a role="button" class="{{ '' if k == lang else 'secondary outline' }} sm" href="/login?lang={{ k }}{% if next %}&next={{ next|urlencode }}{% endif %}" lang="{{ k }}" aria-current="{{ 'true' if k == lang else 'false' }}">{{ v }}</a>{% endfor %}
     </div>

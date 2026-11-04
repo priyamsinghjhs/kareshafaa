@@ -3,7 +3,7 @@
 <div class="patient-wrap" id="p-root"><div class="loading" role="status">Loading…</div></div>
 {% endblock %}
 {% block scripts %}
-<script src="/static/js/patient_profile.js"></script>
+<script src="{{ asset('js/patient_profile.js') }}"></script>
 <script>
 let lang = new URLSearchParams(location.search).get("lang");
 let draftQ = "", draftDn = "", draftTb = null;

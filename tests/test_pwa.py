@@ -34,7 +34,7 @@ def test_base_template_links_manifest_and_meta(client):
     html = client.get("/").text
     assert '<link rel="manifest" href="/manifest.webmanifest">' in html
     assert '<meta name="theme-color"' in html and 'name="apple-mobile-web-app-capable" content="yes"' in html
-    assert 'rel="apple-touch-icon" href="/static/icons/apple-touch-icon-180.png"' in html
+    assert re.search(r'rel="apple-touch-icon" href="/static/icons/apple-touch-icon-180\.png\?v=[0-9a-f]{10}"', html)
     assert client.get("/static/icons/apple-touch-icon-180.png").status_code == 200
     assert 'id="install-app"' in html and "/static/js/pwa.js" in html
     js = client.get("/static/js/pwa.js").text
@@ -104,7 +104,7 @@ def test_new_logo_everywhere(client):
         b = client.get(f"/static/icons/icon-{size}.png").content
         assert (int.from_bytes(b[16:20], "big"), int.from_bytes(b[20:24], "big")) == (size, size)
     login = client.get("/login").text
-    assert 'src="/static/brand/icon-small.svg"' in login and 'src="/static/brand/logo-horizontal.svg"' in login
+    assert re.search(r'src="/static/brand/icon-small\.svg\?v=\w+"', login) and re.search(r'src="/static/brand/logo-horizontal\.svg\?v=\w+"', login)
     assert 'rel="icon" href="/favicon.ico"' in login and "og-1200x630.png" in login
     assert "i-logo" not in login
     assert 'src="/static/brand/logo-horizontal.svg"' in client.get("/offline").text

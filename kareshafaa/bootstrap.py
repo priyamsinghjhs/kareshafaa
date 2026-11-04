@@ -166,6 +166,10 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s %(message)s")
     try:
         print(f"kareshafaa.bootstrap: {run()}", file=sys.stderr, flush=True)
+        if get_settings().public_demo:  # internal showcase mode only: restore its bundled copy (was a separate step)
+            from .public_demo import reset_from_seed
+
+            print(f"kareshafaa.bootstrap: showcase copy restored: {reset_from_seed(get_settings())}", file=sys.stderr, flush=True)
     except Exception:  # noqa: BLE001 - report clearly; the container must not start on a half-prepared database
         log.exception("bootstrap failed")
         return 1

@@ -10,7 +10,19 @@ from sqlalchemy.orm import Session
 from ..comms import governance as content_gov
 from ..config import get_settings
 from ..db import get_db
-from ..ml import registry
+
+
+class _LazyRegistry:
+    """The model registry pulls in scikit-learn (about 0.6 s of imports). Load it on first use, not at start-up, so the
+    port opens sooner after a cold start; behaviour is unchanged."""
+
+    def __getattr__(self, name: str):
+        from ..ml import registry as _r
+
+        return getattr(_r, name)
+
+
+registry = _LazyRegistry()
 from ..models import ModelVersion, RuleProposal, SlaRule
 from ..security import Actor
 from ..services.configstore import all_active

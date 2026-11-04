@@ -11,4 +11,4 @@
 <div id="rbulk" class="row" hidden><button id="inv-sel" class="sm">Send invitation to selected</button><span class="small muted" id="selcount"></span></div>
 <div id="rlist" aria-live="polite"><div class="loading" role="status">Loading…</div></div>
 {% endblock %}
-{% block scripts %}<script src="/static/js/recalls.js"></script>{% endblock %}
+{% block scripts %}<script src="{{ asset('js/recalls.js') }}"></script>{% endblock %}

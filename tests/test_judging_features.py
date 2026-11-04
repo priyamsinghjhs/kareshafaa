@@ -245,7 +245,7 @@ def test_first_run_guide_covers_every_staff_role(client, as_user):
             continue
         assert role in guides, role
         assert home.split("?")[0] == guides[role], role
-    assert 'src="/static/js/tour.js"' in client.get("/queue", headers=as_user(COORD)).text
+    assert 'src="/static/js/tour.js?v=' in client.get("/queue", headers=as_user(COORD)).text
 
 
 def test_why_explains_review_flag_and_kept_tier(client, as_user, new_case, db):

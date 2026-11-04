@@ -18,6 +18,7 @@ from sqlalchemy.orm.exc import StaleDataError
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
@@ -25,6 +26,7 @@ from sqlalchemy import text
 from . import __version__, accounts, audit, public_demo, pwa, ui
 from .api import about, admin_users, auth, cases, demo_api, governance, ingest, me, ops, patient_requests, patients, recalls, gp_summaries, signin_help
 from .api.deps import COOKIE, resolve_actor, resolve_user
+from .assets import asset, cache_control
 from .config import get_settings, storage_is_persistent
 from .db import init_db, session_factory, session_scope
 from .pwa import PUBLIC_PATHS as PWA_PUBLIC_PATHS
@@ -47,6 +49,7 @@ def storage_warning() -> None:
                     " - THIS DISK IS TEMPORARY: all data is lost on restart/redeploy")
 HERE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(HERE / "templates"))
+templates.env.globals["asset"] = asset
 CASE_RE = re.compile(r"^/(?:api/)?cases/(\d+)")
 ANON = Actor(user_id=None, role="anonymous", display="anonymous", is_human=True)
 METHOD_ACTION = {"GET": "R", "HEAD": "R", "POST": "E", "PUT": "U", "PATCH": "U", "DELETE": "D"}
@@ -395,6 +398,8 @@ def create_app() -> FastAPI:
             await asyncio.to_thread(accounts.touch_session, session_factory, tok)
         if not path.startswith("/static"):
             response.headers.setdefault("Cache-Control", "no-store")  # pages and API data are never cached
+        else:  # versioned files (?v=<hash>) are immutable; others are re-checked after 5 minutes
+            response.headers["Cache-Control"] = cache_control(request.url.query)
         return response
 
     if s.mode == "production":
@@ -553,6 +558,8 @@ def create_app() -> FastAPI:
               pwa.router, patients.router, recalls.router, gp_summaries.router, patient_requests.router, signin_help.router,
               about.router):
         app.include_router(r)
+    # gzip text responses over 1 KB (pages, CSS, JS, JSON): the outermost layer, so it also covers refusals
+    app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
     @app.get("/favicon.ico", include_in_schema=False)

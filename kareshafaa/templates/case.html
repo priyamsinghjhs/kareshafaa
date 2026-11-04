@@ -2,4 +2,4 @@
 {% block content %}
 <div id="case-root" data-case="{{ case_id }}"><div class="loading" role="status">Loading case…</div></div>
 {% endblock %}
-{% block scripts %}<script src="/static/js/case.js"></script>{% endblock %}
+{% block scripts %}<script src="{{ asset('js/case.js') }}"></script>{% endblock %}

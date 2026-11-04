@@ -30,5 +30,6 @@ RUN if [ "$SEED_AT_BUILD" = "1" ]; then \
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s CMD python -c "import os,urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"PORT\",\"8000\")}/readyz', timeout=4)"
 # Start: prepare the database (create tables; fill an EMPTY database once; never reset existing data), then serve.
-# KARESHAFAA_MODE=public_demo (internal showcase mode only) restores the bundled copy instead.
-CMD ["sh", "-c", "python -m kareshafaa.bootstrap && python -m kareshafaa.public_demo && exec uvicorn kareshafaa.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers ${WEB_WORKERS:-4} --proxy-headers --forwarded-allow-ips='*'"]
+# KARESHAFAA_MODE=public_demo (internal showcase mode only) restores the bundled copy instead (inside bootstrap, so
+# a cold start runs two Python processes, not three).
+CMD ["sh", "-c", "python -m kareshafaa.bootstrap && exec uvicorn kareshafaa.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers ${WEB_WORKERS:-4} --proxy-headers --forwarded-allow-ips='*'"]

@@ -12,24 +12,24 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="KareShafaa">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon-180.png">
+  <link rel="apple-touch-icon" href="{{ asset('icons/apple-touch-icon-180.png') }}">
   <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
-  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
   <meta property="og:title" content="KareShafaa">
   <meta property="og:description" content="Closing the screening-to-care loop">
-  <meta property="og:image" content="/static/brand/og-1200x630.png">
+  <meta property="og:image" content="{{ asset('brand/og-1200x630.png') }}">
   <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="stylesheet" href="/static/kareshafaa.css">
+  <link rel="stylesheet" href="{{ asset('kareshafaa.css') }}">
   {% if csrf %}<meta name="csrf-token" content="{{ csrf }}">{% endif %}
 </head>
 <body class="{% if not nav %}no-nav{% endif %}{% if nav|length <= 1 %} no-bottomnav{% endif %}{% block bodyclass %}{% endblock %}">
   {% include "_icons.html" %}
   <a class="skip-link" href="#main">Skip to main content</a>
-  <img class="print-brand" src="/static/brand/logo-horizontal.svg" alt="KareShafaa" width="170" height="48">
+  <img class="print-brand" src="{{ asset('brand/logo-horizontal.svg') }}" alt="KareShafaa" width="170" height="48">
   <header class="topbar">
     {% if nav %}<button class="icon-btn nav-toggle" id="nav-toggle" type="button" aria-label="Show or hide menu labels" aria-expanded="false" aria-controls="sidebar"><svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg></button>{% endif %}
-    <a href="{{ home_href }}" class="brand" aria-label="KareShafaa home"><img class="brand-mark" src="/static/brand/icon-small.svg" alt="" width="32" height="32"><span class="brand-word">KareShafaa</span></a>
+    <a href="{{ home_href }}" class="brand" aria-label="KareShafaa home"><img class="brand-mark" src="{{ asset('brand/icon-small.svg') }}" alt="" width="32" height="32"><span class="brand-word">KareShafaa</span></a>
     <span class="spacer"></span>
     <button id="install-app" class="secondary sm install-btn" type="button" hidden><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg><span>Install app</span></button>
     {% if user %}
@@ -67,9 +67,9 @@
   {% endif %}
   <div id="toast" role="status" aria-live="polite"></div>
   <script>window.KS = {{ {"tiers": tiers, "roles": role_labels, "read_only": read_only_site, "walkthrough": walkthrough} | tojson }};</script>
-  <script src="/static/js/common.js"></script>
-  <script src="/static/js/pwa.js"></script>
-  <script src="/static/js/tour.js"></script>
+  <script src="{{ asset('js/common.js') }}"></script>
+  <script defer src="{{ asset('js/pwa.js') }}"></script>
+  <script defer src="{{ asset('js/tour.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

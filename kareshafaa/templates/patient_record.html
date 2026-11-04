@@ -3,6 +3,6 @@
 <div id="pr-root" data-patient="{{ patient_id }}"><div class="loading" role="status">Loading the patient record…</div></div>
 {% endblock %}
 {% block scripts %}
-<script src="/static/js/patients.js"></script>
-<script src="/static/js/patient_record.js"></script>
+<script src="{{ asset('js/patients.js') }}"></script>
+<script src="{{ asset('js/patient_record.js') }}"></script>
 {% endblock %}

@@ -117,6 +117,8 @@ const W = {
   requireLogin() { if (!W.me) { location.href = "/login?next=" + encodeURIComponent(location.pathname + location.search); return false; } return true; },
 };
 document.addEventListener("DOMContentLoaded", () => {
+  // after a cold start the "starting" page reopens this page with ?ks_wait=1: tidy the address bar
+  if (new URLSearchParams(location.search).has("ks_wait")) { const u = new URL(location.href); u.searchParams.delete("ks_wait"); history.replaceState(null, "", u); }
   W.ready = document.querySelector('meta[name="csrf-token"]') ? W.init() : Promise.resolve(null);
   // tablet: expandable icon rail
   const tg = document.getElementById("nav-toggle");
