@@ -134,6 +134,11 @@ Trust boundaries: browser ↔ app (internet), lab/EHR feed ↔ ingest API, app �
      permission, held by care coordinators only.
   4. The walkthrough scenario API (`/api/demo/scenarios`) accepted coordinators, GPs and clinical leads although the
      page is admin-only. Both now need `user:admin` (and the endpoint stays off outside test servers).
+  5. After a patient withdrew consent to share with other organisations, a receiving hospital could no longer open
+     the case but still saw it (name, MRN, step) in its work queue (`GET /api/queue`), the case list
+     (`GET /api/cases`) and patient search, and could open the patient record through the referral. Lists and the
+     patient record now use the same rule as opening a case (`case_visible`; in SQL `sharing_denied_select()` in
+     `services/access.py`, applied in `services/queue.py`).
 
 ## Follow-up (not done in round 2)
 

@@ -216,7 +216,8 @@ def can_view_patient(db: Session, actor: Actor, p: Patient) -> bool:
         return True
     if actor.practitioner_id is not None and p.gp_id == actor.practitioner_id:
         return True
-    return any(can_view_case(db, actor, c) for c in db.scalars(select(Case).where(Case.patient_id == p.id)))
+    # involvement through a case counts only while the patient allows sharing (case_visible, not can_view_case)
+    return any(case_visible(db, actor, c) for c in db.scalars(select(Case).where(Case.patient_id == p.id)))
 
 
 def visible_patient_ids(db: Session, actor: Actor, patients: list[Patient]) -> set[int]:
@@ -235,7 +236,11 @@ def visible_patient_ids(db: Session, actor: Actor, patients: list[Patient]) -> s
 
         by_case = dict(db.execute(select(Case.id, Case.patient_id).where(Case.patient_id.in_(rest))).all())
         orgs = _org_scope(db, list(by_case))
-        ok |= {pid for cid, pid in by_case.items() if actor.org_id in orgs.get(cid, ())}
+        from ..models import Consent
+        from .access import sharing_denied_select
+
+        denied = set(db.scalars(sharing_denied_select().where(Consent.patient_id.in_(rest))))
+        ok |= {pid for cid, pid in by_case.items() if actor.org_id in orgs.get(cid, ()) and pid not in denied}
     return ok
 
 

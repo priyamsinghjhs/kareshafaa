@@ -56,7 +56,10 @@ def work_queue_python(db: Session, actor: Actor, view: str = "all", now: datetim
     ids = [r[0] for r in rows_db]
     scoped = None
     if scoped_role:
-        scoped = {cid for cid in ids if actor.org_id in orgs.get(cid, ())}
+        # ground truth: the queue lists exactly the cases the reader may open (organisation involvement AND the
+        # patient's sharing consent, kareshafaa/services/access.py)
+        from kareshafaa.services.access import case_visible
+        scoped = {cid for cid in ids if actor.org_id in orgs.get(cid, ()) and case_visible(db, actor, db.get(Case, cid))}
     counts = {v: 0 for v in VIEWS}
     rows = []
     for (cid, prog, tier, state, owner_id, due, esc, risk, risk_v, pending, review, given, family, mrn, lang,

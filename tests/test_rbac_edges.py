@@ -371,3 +371,35 @@ def test_clinical_lead_is_refused_admin_actions(client, as_user, path, body):
     assert r.status_code == 403, (path, r.status_code, r.text[:200])
     for url in ("/api/admin/users", "/api/admin/system", "/api/audit/verify", "/api/admin/about", "/api/demo/scenarios"):
         assert client.get(url, headers=as_user(LEAD)).status_code == 403, url
+
+
+# ------------------------------------------------------------------------------------------- sharing consent in lists
+def test_withdrawn_sharing_consent_hides_the_case_from_other_organisations_lists(client, as_user, new_case, db):
+    """Leak fixed: after the patient withdrew consent to share with other organisations, the receiving hospital
+    could no longer open the case, but still saw it (name, MRN, step) in its work queue and case list, and could open
+    the patient's record through the referral."""
+    from kareshafaa.models import Case, Consent, utcnow
+    from test_journey_api import notify_and_ack
+    spec = _actor(db, SPEC)
+    c0 = new_case()
+    cid = c0["id"]
+    notify_and_ack(client, as_user, cid)
+    gp = as_user(GP)
+    client.post(f"/api/cases/{cid}/transition", headers=gp, json={"to_state": "consultation"})
+    r = client.post(f"/api/cases/{cid}/referral", headers=gp, json={"performer_org_id": spec.org_id, "summary": "x" * 60})
+    assert r.status_code == 200, r.text
+    sp = as_user(SPEC)
+    pid = db.get(Case, cid).patient_id
+    assert client.get(f"/api/cases/{cid}", headers=sp).status_code == 200
+    assert client.get(f"/api/patients/{pid}", headers=sp).status_code == 200
+    db.add(Consent(patient_id=pid, scope="share_external", decision="deny", recorded_at=utcnow()))
+    db.commit()
+    assert client.get(f"/api/cases/{cid}", headers=sp).status_code == 403
+    assert client.get(f"/api/patients/{pid}", headers=sp).status_code in (403, 404)
+    q = client.get("/api/queue?limit=500&view=all", headers=sp).json()["items"]
+    assert cid not in [x["id"] for x in q]
+    assert cid not in [x["id"] for x in client.get("/api/cases?limit=500", headers=sp).json()["items"]]
+    found = client.get(f"/api/patients?q={db.get(Case, cid).patient.mrn}", headers=sp).json().get("items", [])
+    assert pid not in [x.get("id") for x in found]
+    # the patient's own organisation still sees everything
+    assert client.get(f"/api/cases/{cid}", headers=gp).status_code == 200

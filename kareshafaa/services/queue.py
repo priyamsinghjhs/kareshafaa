@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, aliased
 from ..models import (Appointment, AppointmentRequest, CallTask, Case, ConsultRequest, Escalation, Patient, Practitioner, ServiceRequest,
                       StepTask, utcnow)
 from ..security import PROGRAMME_WIDE_ROLES, Actor
+from .access import sharing_denied_select
 from ..sla import SlaLookup, rag_status
 from ..statemachine import LABELS, S
 
@@ -172,6 +173,8 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
                 Case.id.in_(select(ConsultRequest.case_id).join(Practitioner,
                                                                 Practitioner.id == ConsultRequest.target_practitioner_id)
                             .where(Practitioner.org_id == org))))
+            # other organisations only while the patient allows sharing (same rule as opening the case)
+            where.append(or_(Patient.managing_org_id == org, Patient.id.not_in(sharing_denied_select())))
 
     def base(*cols):
         return (select(*cols).select_from(Case).join(Patient, Patient.id == Case.patient_id)

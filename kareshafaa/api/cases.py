@@ -14,7 +14,7 @@ from ..fhir import export_case
 from ..models import Case, ConsultRequest, Escalation, Patient
 from ..security import Actor
 from ..services import workflow as wf
-from ..services.access import assert_can_view, can_view_case
+from ..services.access import assert_can_view, can_view_case, case_visible
 from ..services.errors import Forbidden, Invalid, NotFound
 from ..services.escalation import acknowledge_escalation
 from ..statemachine import AUTHORISED_CLOSURE_REASONS, LABELS, S
@@ -52,7 +52,7 @@ def list_cases(state: str | None = None, programme: str | None = None, q: str | 
         stmt = stmt.where(or_(Patient.mrn.ilike(like), Patient.family_name.ilike(like), Patient.given_name.ilike(like)))
     out = []
     for c in db.scalars(stmt.limit(2000)).unique():
-        if can_view_case(db, actor, c):
+        if case_visible(db, actor, c):  # organisation involvement AND the patient's sharing consent
             out.append(case_summary(db, c))
         if len(out) >= limit:
             break

@@ -169,7 +169,9 @@ usernames come from the staff directory (`kareshafaa/synth/directory.py`, `kares
 Coordinators and clinical leads see programme-wide; other clinical roles see cases their organisation is involved in.
 The results inbox (raw lab messages, unmatched results, patient matching) belongs to care coordination
 (`results:inbox`); GPs add a result only for a patient they may see, and import clinical history only into such a
-record. The guided walkthrough is an administrator tool, on the page and at the API.
+record. The guided walkthrough is an administrator tool, on the page and at the API. Work queue, case list, patient
+search and the patient record follow the same rule as opening a case: another organisation sees a patient only while
+the patient allows sharing.
 
 **Access tests.** `tests/test_rbac_matrix.py` reads every page and API route from the app's router and checks it
 against the intended policy in `tests/rbac_routes.py` for all 8 roles and for a visitor who is not signed in, so a new

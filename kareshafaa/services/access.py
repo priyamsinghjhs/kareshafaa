@@ -18,6 +18,15 @@ def consent_status(db: Session, patient_id: int, scope: str, case_id: int | None
     return row.decision if row else None
 
 
+def sharing_denied_select():
+    """SELECT of patient ids whose latest active share_external decision is 'deny' (same rule as consent_status):
+    other organisations may not see these patients through a referral, appointment or consult."""
+    from sqlalchemy import func
+    latest = (select(func.max(Consent.id)).where(Consent.scope == "share_external", Consent.status == "active")
+              .group_by(Consent.patient_id))
+    return select(Consent.patient_id).where(Consent.id.in_(latest), Consent.decision == "deny")
+
+
 def has_consent(db: Session, patient_id: int, scope: str, default: bool = True) -> bool:
     d = consent_status(db, patient_id, scope)
     return default if d is None else d == "permit"
