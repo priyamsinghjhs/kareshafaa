@@ -408,9 +408,11 @@ dialog.dlg .dlg-buttons { display: flex; flex-wrap: wrap-reverse; justify-conten
 .auth-card button[type="submit"] { width: 100%; margin-top: var(--s-2); }
 .pw-field { position: relative; display: block; margin-top: var(--s-1); }
 .pw-field input { margin: 0; }
-.pw-field input { padding-inline-end: 84px; }
-.pw-field .reveal { position: absolute; inset-inline-end: 0; bottom: 0; min-height: var(--tap); padding: 0 var(--s-3); font-size: var(--fs-sm); background: transparent; color: var(--c-primary); border-color: transparent; }
-.pw-field .reveal:hover { background: var(--c-primary-soft); color: var(--c-primary-hover); }
+.pw-field input { padding-right: 84px; }
+[dir="rtl"] .pw-field input { padding-right: var(--s-3); padding-left: 84px; }
+.pw-field .reveal { position: absolute; inset-block: 1px; inset-inline-end: 1px; height: auto; min-height: 0; margin: 0; padding: 0 var(--s-3); font-size: var(--fs-sm); font-weight: 600; background: transparent; color: var(--c-primary); border: 0; border-radius: 0; box-shadow: none; text-decoration: none; }
+.pw-field .reveal:hover, .pw-field .reveal:active, .pw-field .reveal:focus, .pw-field .reveal[aria-pressed="true"] { background: transparent; color: var(--c-primary-hover); border: 0; box-shadow: none; transform: none; }
+.pw-field .reveal:focus-visible { outline: 2px solid var(--c-primary); outline-offset: -4px; border-radius: var(--r-sm, 4px); }
 .pitch h2 { font-size: var(--fs-2xl); } .pitch ul { padding-inline-start: 1.1rem; } .pitch li { margin-bottom: var(--s-2); }
 .notice-inline { border-radius: var(--r-sm); padding: var(--s-3); margin-bottom: var(--s-3); font-size: var(--fs-sm); }
 .notice-inline.err { background: var(--c-danger-bg); color: var(--c-danger); } .notice-inline.ok { background: var(--c-success-bg); color: var(--c-success); }
