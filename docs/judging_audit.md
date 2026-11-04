@@ -12,6 +12,21 @@ been reviewed by the judges or by any health authority.
 | 5 | Scalability and deployment readiness | 3 | 4 | Dockerfile and `docker-compose.yml` (app + PostgreSQL); `/healthz` and `/readyz`; JSON logs; background job design (`docs/background_jobs.md`); Locust results (100 users, 4 workers, p95 69 ms, `docs/loadtest_locust.md`); emirate profiles; UAE cloud and on-premises guide (`docs/deployment_uae.md`) | Free hosting is outside the UAE (synthetic data only); no multi-server run tested; emirates other than Abu Dhabi listed but not configured |
 | 6 | Commercial viability and path to pilot | 1.5 | 3.5 | 90-day pilot plan for one Abu Dhabi primary care cluster with KPIs, gate and stakeholders (`docs/pilot_plan.md`); pricing options, cost to run and ROI method with sourced stage costs (`docs/business_model.md`); one-page summary (`docs/judge_summary.md`) | No partner, letter of intent or price validation; prices and pilot targets are assumptions; no UAE cost-by-stage data found |
 
+## Round 2 (4 Nov 2026): optimisation on all fronts
+
+Same scale as below (5 needs outside evidence, which no round of prototype work can supply). "R1" is the score
+after round 1; "R2" counts only what is built, tested and committed in round 2.
+
+| # | Criterion | R1 | R2 | Round 2 evidence | Still missing for a 5 |
+|---|---|---|---|---|---|
+| 1 | Health impact | 4.5 | 4.5 | "Why loops fail" on Loop impact: patient-reported barriers, patient-side vs service-side failure events, suppressed, CSV (`services/impact.py`); safety-case change review (`docs/clinical_safety_case.md` §6); handover test results state which gains are simulated assumptions | Real-world outcome data; clinical sign-off of CONFIRM values |
+| 2 | Technical depth | 4.5 | 4.5 | FHIR R4B model validation of every exported resource + required status value sets; HL7 conformance tests; CI workflow (tests + coverage 88 %, pip-audit, bandit, axe); 11 additive indexes; N+1 removed (recalls 206 → 7 SQL statements on Postgres) | Validation against a UAE/Malaffi implementation guide; live laboratory feed |
+| 3 | Working solution and product quality | 4.5 | 4.5 | WCAG 2.1 AA axe-core check on 28 page views in en/ar/hi/ur, 26 → 0 problems, keyboard focus check, in CI; translation completeness test (22 tables); mobile cold load 100–234 KB → 34–61 KB, LCP on the case page 1.9 s → 1.1 s (slow 4G, 4× CPU); start-up 3.4 s → 2.4 s; cached "starting" page for slow wake-ups | Usability testing with real coordinators and patients; real messaging gateway |
+| 4 | Responsible AI, safety and governance | 4.5 | 4.5 | CSP, HSTS, Permissions-Policy, COOP/CORP on every response; bandit high/medium fixed; pip-audit clean; STRIDE threat model (`docs/security.md`) | External penetration test and ADHICS assessment; CSP still needs `'unsafe-inline'` for scripts |
+| 5 | Scalability and deployment readiness | 4 | 4.5 | Query profiling on PostgreSQL 16; gzip and immutable caching; lazy ML import; CI; one-command reproducible example verified from a clean clone (`scripts/handover_example.sh`) | Multi-server run; UAE-region hosting |
+| 6 | Commercial viability and path to pilot | 3.5 | 3.5 | Handover package (`docs/handover/`, PDF) with participants, review lead role, review dates relative to start, 60-minute handover agenda and sign-off table | Partner, letter of intent, validated pricing |
+
+
 ## Before: what was missing
 
 1. **Impact:** outcomes showed simulated before/after and live KPIs, but no programme-level loop report with time to

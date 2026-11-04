@@ -23,12 +23,14 @@ lead (loop impact, approvals, audit), administrators (users, system, About) and 
   UAE Federal Law No. 2 of 2019, PDPL, ADHICS and DoH HIE standards.
 
 **Built and tested.** FastAPI + PostgreSQL, HL7 v2 and FHIR R4 in, FHIR R4 out, CapabilityStatement at
-`/fhir/metadata`, readiness probe, JSON logs, Docker and docker-compose. 3,500+ automated tests; browser checks on
-five screen sizes; Locust load test: 100 concurrent users, p95 69 ms on one 8-CPU machine.
+`/fhir/metadata`, readiness probe, JSON logs, Docker and docker-compose. 3,600+ automated tests (88 % line coverage) run in CI with dependency and code
+security scans; FHIR output validated against R4B models; WCAG 2.1 AA automated check with 0 problems in four
+languages; browser checks on five screen sizes; mobile pages 34–61 KB on first load; Locust load test: 100 concurrent users, p95 69 ms on one 8-CPU machine.
 
 **Measuring impact.** Outcomes → Loop impact shows loop closure, days to first specialist visit by tier against
 target, lost to follow-up, recall uptake and equity gaps by language, nationality group and region, exportable as
-CSV or PDF. Today these figures come from synthetic records and are labelled so.
+CSV or PDF, plus "why loops fail": what patients said got in the way and where the service itself stalled.
+Today these figures come from synthetic records and are labelled so.
 
 **Path to pilot.** 90 days in one Abu Dhabi primary care cluster, bowel screening first, with a go/no-go gate at day
 45 and success criteria on safety, loop closure, time to colonoscopy and equity (`docs/pilot_plan.md`). Pricing per
@@ -44,4 +46,8 @@ delivery is simulated; rule thresholds marked CONFIRM await clinical sign-off; n
 | Why a case has its priority | any case → "Why this priority" |
 | Rule card, overrides, data protection | Approvals → How decisions are made / Human overrides / Data protection |
 | Architecture, integrations, Malaffi readiness | Admin → About |
+| Why loops fail (barriers) | Outcomes → Loop impact, bottom section |
+| Security, performance | `docs/security.md`, `docs/performance.md` |
+| Handover package | `docs/handover/README.md`, `docs/handover/KareShafaa_Handover_Package.pdf` |
+| Run it yourself (one command) | `bash scripts/handover_example.sh` |
 | Self-assessment | `docs/judging_audit.md` |
