@@ -82,13 +82,15 @@ def _address(p) -> dict:
 
 def coverage_resources(p) -> list[dict]:
     """FHIR Coverage (beneficiary = Patient, payor = payer Organization) for the recorded insurance; self-pay is a
-    Coverage paid by the patient. Nothing when no insurance is on file. Pre-authorisation is an extension."""
-    from .services.coverage import PAYERS, eligibility
+    Coverage paid by the patient. Follows 'Has insurance?': Yes -> Coverage with the payer, No -> self-pay Coverage
+    (no policy details), never answered -> nothing. Pre-authorisation is an extension."""
+    from .services.coverage import PAYERS, eligibility, has_insurance
 
-    if not p.insurance_payer:
+    hi = has_insurance(p)
+    if hi is None or (hi is True and (not p.insurance_payer or p.insurance_payer == "self_pay")):
         return []
     tag = {"tag": [{"system": SYS + "/data", "code": "synthetic"}]} if p.synthetic else {}
-    if p.insurance_payer == "self_pay":
+    if hi is False:
         return [{"resourceType": "Coverage", "id": f"cov-{p.id}", **({"meta": tag} if tag else {}), "status": "active",
                  "type": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/coverage-selfpay", "code": "pay",
                                       "display": "PAY"}], "text": "Self-pay"},

@@ -48,6 +48,23 @@ closure.
   fields of `SYN-` synthetic patients only with plausible UAE values (UAE mobiles, `example.com` emails, Abu Dhabi /
   Al Ain / Al Dhafra addresses; Thiqa for Emirati patients, otherwise Daman Enhanced/Basic, ADNIC or GIG/AXA). Plans and
   member numbers are marked synthetic; nothing a person entered is overwritten and non-sample records are never touched.
+* **“Has insurance?” Yes / No** (additive nullable column `has_insurance`) on the staff patient form (registration and
+  the record's Insurance section). **Yes** shows every policy field (insurer, plan, member number, cover end date,
+  pre-authorisation); **No (self-pay)** removes them from the screen, switched instantly without a reload (radio
+  buttons in a fieldset, `aria-controls`, the fields use the `hidden` attribute; keyboard and RTL friendly). The server
+  applies the same rule whatever is sent: No stores self-pay and **strips** every policy field; Yes **requires** an
+  insurer and a member number; not answered clears everything. The summary tile, the record and the patient app's
+  “My insurance” card show the full policy for Yes, a compact **“No insurance · Self-pay”** for No and **“Insurance not
+  recorded”** when never answered (en/ar/hi/ur). FHIR: Yes → `Coverage` + payer `Organization`; No → a self-pay
+  `Coverage` with no policy details; not recorded → no `Coverage`. Older records are read from the insurer
+  (insurer → Yes, self-pay → No).
+* **Email is editable** by the roles that edit phone and address (coordinator, GP) in the record's Contact details
+  (email format checked in the browser and on the server, stored lower-case, change audited as
+  `patient.contact_updated` with the field name only), and by patients in “My contact details”. It shows on the case
+  summary (with an **Edit** / **Add email** link for those roles) and in FHIR `Patient.telecom`.
+* Data step `backfill_sample_email_insurance_answer_v1` (`SYN-` synthetic patients only, empty fields only, audited):
+  the first step gave only smartphone users an email, so some sample patients showed “None recorded”; this fills every
+  empty sample email with an `example.com` address and records the Yes/No answer (insurer → Yes, self-pay → No).
 
 **Case loop**
 * Exactly one accountable owner per open case (enforced in the DB and service layer).

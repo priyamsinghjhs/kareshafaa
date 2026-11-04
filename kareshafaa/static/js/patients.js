@@ -6,8 +6,8 @@ const PF = {
   sel(name, label, pairs, value, { required = false, blank = "Choose…", hint = "", mark = false } = {}) {
     return `<label>${W.esc(label)}${required || mark ? ' <span class="req" aria-hidden="true">*</span>' : ""}<select name="${name}" ${required ? "required" : ""}>${blank !== null ? `<option value="">${W.esc(blank)}</option>` : ""}${pairs.map(([k, v]) => `<option value="${W.esc(k)}" ${String(value ?? "") === String(k) ? "selected" : ""}>${W.esc(v)}</option>`).join("")}</select>${hint ? `<span class="hint small muted">${hint}</span>` : ""}</label>`;
   },
-  inp(name, label, value, { type = "text", required = false, hint = "", attrs = "" } = {}) {
-    return `<label>${W.esc(label)}${required ? ' <span class="req" aria-hidden="true">*</span>' : ""}<input name="${name}" type="${type}" value="${W.esc(value ?? "")}" ${required ? "required" : ""} ${attrs}>${hint ? `<span class="hint small muted">${hint}</span>` : ""}</label>`;
+  inp(name, label, value, { type = "text", required = false, hint = "", attrs = "", mark = false } = {}) {
+    return `<label>${W.esc(label)}${required || mark ? ' <span class="req" aria-hidden="true">*</span>' : ""}<input name="${name}" type="${type}" value="${W.esc(value ?? "")}" ${required ? "required" : ""} ${attrs}>${hint ? `<span class="hint small muted">${hint}</span>` : ""}</label>`;
   },
   chk(name, label, on) { return `<label class="check"><input type="checkbox" name="${name}" ${on ? "checked" : ""}> ${W.esc(label)}</label>`; },
   today() { const t = new Date(); return new Date(t - t.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); },
@@ -26,9 +26,18 @@ const PF = {
       <div data-region ${v.emirate && v.emirate !== "Abu Dhabi" ? "hidden" : ""}>${PF.sel("region", "Region (Abu Dhabi emirate)", O.abu_dhabi_regions.map(r => [r, r]), v.region, { mark: true, hint: "Required inside Abu Dhabi emirate. Used to plan services and to check fairness across regions." })}</div>`; },
   care(v = {}) { const O = PF.opts;
     return `<div class="form-pair">${PF.sel("managing_org_id", "Registered health centre", O.health_centres.map(o => [o.id, o.name]), v.managing_org_id, { required: true })}${PF.sel("gp_id", "Family doctor (GP)", O.gps.filter(g => !v.managing_org_id || g.org_id === +v.managing_org_id).map(g => [g.id, g.name]), v.gp_id, { blank: "Not yet assigned" })}</div>`; },
-  insurance(v = {}) { const O = PF.opts;
-    return `${PF.sel("insurance_payer", "Insurer", Object.entries(O.payers), v.insurance_payer, { blank: "Not recorded", hint: "Thiqa for UAE nationals; choose self-pay if the patient has no cover." })}
-      <div data-policy ${v.insurance_payer === "self_pay" ? "hidden" : ""}><div class="form-pair">${PF.inp("insurance_plan", "Plan / network", v.insurance_plan, { attrs: 'maxlength="80"' })}${PF.inp("insurance_member_id", "Member / card number", v.insurance_member_id, { hint: "Needed when an insurer is chosen.", attrs: 'maxlength="40" autocomplete="off"' })}</div>
+  // "Has insurance?" decides what is shown: Yes -> every policy field; No (self-pay) -> no other insurance field at all.
+  // The answer is read from the payer for records saved before the question existed. The server applies the same rule.
+  hasIns(v = {}) { return v.has_insurance ?? (v.insurance_payer ? v.insurance_payer !== "self_pay" : null); },
+  insurance(v = {}) { const O = PF.opts, hi = PF.hasIns(v);
+    const payers = Object.entries(O.payers).filter(([k]) => k !== "self_pay");
+    const radio = (val, label, on) => `<label class="check"><input type="radio" name="has_insurance" value="${val}" aria-controls="ins-fields" ${on ? "checked" : ""}> ${label}</label>`;
+    return `<fieldset class="ins-q" data-ins-q><legend>Has insurance?</legend>
+      <div class="checks ins-yn">${radio("yes", "Yes", hi === true)}${radio("no", "No (self-pay)", hi === false)}</div>
+      <p class="hint small muted" data-ins-no ${hi === false ? "" : "hidden"}>Self-pay: no insurance details are kept. Discuss costs before a referral or appointment.</p>
+      <p class="hint small muted" data-ins-unset ${hi === null ? "" : "hidden"}>Not recorded yet. Ask the patient, then choose Yes or No.</p></fieldset>
+      <div id="ins-fields" data-ins-fields ${hi === true ? "" : "hidden"}>${PF.sel("insurance_payer", "Insurer", payers, v.insurance_payer === "self_pay" ? "" : v.insurance_payer, { mark: true, hint: "Thiqa for UAE nationals." })}
+      <div class="form-pair">${PF.inp("insurance_plan", "Plan / network", v.insurance_plan, { attrs: 'maxlength="80"' })}${PF.inp("insurance_member_id", "Member / card number", v.insurance_member_id, { mark: true, hint: "Required when the patient has insurance.", attrs: 'maxlength="40" autocomplete="off" dir="ltr"' })}</div>
       <div class="form-pair">${PF.inp("insurance_valid_to", "Cover ends on", v.insurance_valid_to, { type: "date", attrs: 'min="2000-01-01"' })}${PF.sel("insurance_preauth_required", "Pre-authorisation needed before a referral?", [["yes", "Yes"], ["no", "No"]], v.insurance_preauth_required === true ? "yes" : v.insurance_preauth_required === false ? "no" : "", { blank: "Not recorded" })}</div></div>`; },
   contacts(v = {}) { const O = PF.opts;
     return `<div class="form-pair">${PF.inp("nok_name", "Next of kin name", v.nok_name, { attrs: 'maxlength="200" autocomplete="off"' })}${PF.sel("nok_relationship", "Relationship", Object.entries(O.relationships), v.nok_relationship, { blank: "Not recorded" })}</div>
@@ -80,8 +89,11 @@ const PF = {
     const em = form.querySelector('[name="emirate"]'), reg = form.querySelector("[data-region]");
     if (em && reg) em.addEventListener("change", () => { reg.hidden = em.value !== "Abu Dhabi" && em.value !== ""; });
     PF.wireIdDoc(form);
-    const py = form.querySelector('[name="insurance_payer"]'), pol = form.querySelector("[data-policy]");
-    if (py && pol) py.addEventListener("change", () => { pol.hidden = py.value === "self_pay"; });
+    const box = form.querySelector("[data-ins-fields]");
+    if (box) form.querySelectorAll('[name="has_insurance"]').forEach(r => r.addEventListener("change", () => {
+      const x = form.querySelector('[name="has_insurance"]:checked')?.value;
+      box.hidden = x !== "yes"; form.querySelector("[data-ins-no]").hidden = x !== "no"; form.querySelector("[data-ins-unset]").hidden = !!x;
+      if (x !== "yes") box.querySelectorAll("[aria-invalid]").forEach(el => { el.removeAttribute("aria-invalid"); PF.fieldError(el, ""); }); }));
     const hc = form.querySelector('[name="managing_org_id"]'), gp = form.querySelector('[name="gp_id"]');
     if (hc && gp) hc.addEventListener("change", () => { const cur = gp.value;
       gp.innerHTML = `<option value="">Not yet assigned</option>` + O.gps.filter(g => g.org_id === +hc.value).map(g => `<option value="${g.id}" ${String(g.id) === cur ? "selected" : ""}>${W.esc(g.name)}</option>`).join(""); });
@@ -121,8 +133,12 @@ const PF = {
     if (g("email") && g("email").value.trim()) mark("email", /^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/.test(g("email").value.trim()), "Email address is not valid.");
     const ch = g("preferred_channel"); if (ch && ["sms", "whatsapp", "phone"].includes(ch.value) && g("phone") && !g("phone").value.trim()) bad.push("A phone number is needed for the preferred channel chosen.");
     if (g("nok_phone")) mark("nok_phone", PF.phoneOk(g("nok_phone").value), "Next of kin phone: use 05X XXX XXXX or an international number starting with +.");
-    const py = g("insurance_payer"); if (py && py.value && py.value !== "self_pay" && g("insurance_member_id") && !g("insurance_member_id").value.trim()) mark("insurance_member_id", false, "Member / card number is required for an insurer.");
-    if (g("insurance_member_id") && g("insurance_member_id").value.trim() && !(py && py.value === "self_pay")) mark("insurance_member_id", /^[A-Za-z0-9][A-Za-z0-9 .\/-]{2,39}$/.test(g("insurance_member_id").value.trim()), "Member / card number: 3-40 letters, digits, spaces, dots, slashes or dashes.");
+    if (form.querySelector('[name="has_insurance"][value="yes"]:checked')) {  // only checked when the patient has insurance
+      const py = g("insurance_payer"), mid = g("insurance_member_id");
+      if (py) mark("insurance_payer", !!py.value, "Insurer: choose the patient's insurer.");
+      if (mid && !mid.value.trim()) mark("insurance_member_id", false, "Member / card number is required when the patient has insurance.");
+      else if (mid) mark("insurance_member_id", /^[A-Za-z0-9][A-Za-z0-9 .\/-]{2,39}$/.test(mid.value.trim()), "Member / card number: 3-40 letters, digits, spaces, dots, slashes or dashes.");
+    }
     const pc = g("proxy_consent"); if (pc && pc.value === "permit" && (!g("nok_name").value.trim() || !g("nok_phone").value.trim())) bad.push("Proxy consent needs the next of kin's name and phone number.");
     if (pc && pc.value && (g("proxy_note").value.trim().length < 10) && pc.dataset.was !== pc.value) mark("proxy_note", false, "Say how the patient gave the proxy consent answer (at least 10 characters).");
     if (g("nok_is_guardian") && g("nok_is_guardian").checked && !g("nok_name").value.trim()) bad.push("A guardian needs a name.");
@@ -132,14 +148,17 @@ const PF = {
     keys.forEach(k => { const el = form.querySelector(`[name="${k}"]`); if (!el) return;
       if (el.type === "checkbox") out[k] = el.checked;
       else if (["managing_org_id", "gp_id"].includes(k)) out[k] = fd.get(k) ? +fd.get(k) : null;
+      else if (k === "has_insurance") { const x = fd.get(k); out[k] = x === "yes" ? true : x === "no" ? false : null; }
       else if (k === "insurance_preauth_required") out[k] = fd.get(k) === "yes" ? true : fd.get(k) === "no" ? false : null;
       else { const v = String(fd.get(k) ?? "").trim(); out[k] = v === "" ? null : v; } });
     if (keys.includes("emirate") && out.emirate && out.emirate !== "Abu Dhabi") out.region = null;
+    // No / not answered: only the answer is sent (the hidden policy fields are never saved; the server strips them too)
+    if (keys.includes("has_insurance") && out.has_insurance !== true) keys.forEach(k => { if (k !== "has_insurance") delete out[k]; });
     return out; },
   KEYS: { demographics: ["given_name", "family_name", "birth_date", "gender", "id_type", "id_number", "id_country", "nationality", "language"],
     contact: ["phone", "email", "address_line", "city", "emirate", "region", "preferred_channel", "whatsapp", "has_smartphone"],
     care: ["managing_org_id", "gp_id"],
-    insurance: ["insurance_payer", "insurance_plan", "insurance_member_id", "insurance_valid_to", "insurance_preauth_required"],
+    insurance: ["has_insurance", "insurance_payer", "insurance_plan", "insurance_member_id", "insurance_valid_to", "insurance_preauth_required"],
     contacts: ["nok_name", "nok_relationship", "nok_phone", "nok_is_guardian", "proxy_consent", "proxy_note"] },
   dupList(cands) { return `<ul class="dup-list">${cands.map(c => `<li><a href="/patients/${c.id}" target="_blank" rel="noopener"><b>${W.esc(c.name)}</b></a> · ${W.esc(c.mrn)} · born ${W.esc(c.birth_date || c.birth_year || "–")}${c.document ? " · " + W.esc(c.document.label) + " " + W.esc(c.document.number) : (c.emirates_id ? " · EID " + W.esc(c.emirates_id) : "")} <span class="chip sla-amber">${W.esc(c.why)}</span></li>`).join("")}</ul>`; },
   label(map, k) { return (map && map[k]) || k || "–"; },

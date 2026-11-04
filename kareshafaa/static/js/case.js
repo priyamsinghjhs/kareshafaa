@@ -86,7 +86,7 @@ function contactTiles(K) {
   const ltr = x => `<span dir="ltr">${W.esc(x)}</span>`;
   const CC = { permit: '<span class="chip sla-green">✓ Agrees to be contacted</span>', deny: '<span class="chip sla-red">✕ Does not want contact about care</span>' };
   return `<div class="ct-tile"><dt>Phone</dt><dd>${K.phone ? `<a href="tel:${W.esc(K.phone)}">${ltr(K.phone)}</a>${K.whatsapp ? ' <span class="chip">WhatsApp</span>' : ""}${K.phone_valid ? "" : ' <span class="chip sla-amber">May not work</span>'}` : NR()}</dd></div>
-     <div class="ct-tile"><dt>Email</dt><dd>${K.email ? `<a href="mailto:${W.esc(K.email)}">${ltr(K.email)}</a>` : NR()}</dd></div>
+     <div class="ct-tile"><dt>Email</dt><dd>${K.email ? `<a href="mailto:${W.esc(K.email)}">${ltr(K.email)}</a>` : NR()}${K.can_edit ? ` <a class="small" data-edit-contact href="/patients/${K.patient_id}#edit-contact">${K.email ? "Edit" : "Add email"}</a>` : ""}</dd></div>
      <div class="ct-tile"><dt>Contact consent</dt><dd>${CC[K.consent] || '<span class="muted">Not recorded (contact allowed)</span>'}${(K.channels_refused || []).length ? `<span class="sub small">No ${W.esc(K.channels_refused.join(", "))}</span>` : ""}</dd></div>
      <div class="wide ct-tile"><dt>Address</dt><dd>${K.address ? W.esc(K.address) : NR()}${K.preferred_channel ? `<span class="sub small muted">Prefers ${W.esc(K.preferred_channel)}</span>` : ""}</dd></div>`;
 }
@@ -94,7 +94,8 @@ function contactTiles(K) {
 function insuranceTile(I) {
   if (!I) return "";
   const ST = { active: ["sla-green", "✓ Active"], expiring: ["sla-amber", "● Active, ends soon"], expired: ["sla-red", "▲ Expired"], unknown: ["sla-none", "? Unknown"], self_pay: ["sla-amber", "Self-pay"] };
-  if (!I.on_file) return `<div class="wide ins-tile" data-insurance="none"><dt>Insurance</dt><dd><span class="muted">No insurance on file</span> <span class="small">– check payer details before booking a referral or appointment.</span></dd></div>`;
+  if (I.state === "no") return `<div class="wide ins-tile" data-insurance="no"><dt>Insurance</dt><dd><b>No insurance</b> <span class="chip sla-amber">Self-pay</span> <span class="small">– discuss costs before a referral or appointment.</span></dd></div>`;
+  if (!I.on_file) return `<div class="wide ins-tile" data-insurance="not_recorded"><dt>Insurance</dt><dd><span class="muted">Insurance not recorded</span> <span class="small">– ask the patient before booking a referral or appointment.</span></dd></div>`;
   const st = ST[I.status] || ST.unknown;
   return `<div class="wide ins-tile" data-insurance="${W.esc(I.status)}"><dt>Insurance${I.synthetic ? ' <span class="chip">Synthetic</span>' : ""}</dt><dd>
      <div class="ins-grid"><span><b>${W.esc(I.payer || "–")}</b>${I.plan ? `<span class="sub small">${W.esc(I.plan)}</span>` : ""}</span>

@@ -11,6 +11,8 @@
 3. backfill_sample_recalls - recall rows for closed SYN- cases.
 4. backfill_sample_contact_insurance - synthetic UAE phone, email (example.com), address and insurance (Thiqa, Daman,
    ADNIC, GIG/AXA; plans and member numbers marked synthetic) for EMPTY fields of SYN- sample patients only.
+5. backfill_sample_email_insurance_answer - an example.com email for every SYN- sample patient still without one
+   (step 4 only gave smartphone users an email) and the 'Has insurance?' answer (insurer -> Yes, self-pay -> No).
 
 All are recorded in data_migrations and run once per database (bootstrap, under the bootstrap lock).
 Selection is strictly: Patient.mrn starts with "SYN-" AND Patient.synthetic. Re-running is a no-op.
@@ -462,9 +464,7 @@ def _sample_contact_insurance(p: Patient, now: datetime) -> dict:
     if not p.phone and p.phone_valid:
         vals["phone"] = mobile
     if not p.email and p.has_smartphone and wants_email:
-        g = "".join(ch for ch in (p.given_name or "").lower() if ch.isalpha()) or "patient"
-        f = "".join(ch for ch in (p.family_name or "").lower() if ch.isalpha())[:12]
-        vals["email"] = f"{g}.{f}{p.id}@example.com"  # reserved example domain: never a real mailbox
+        vals["email"] = _sample_email(p)
     if not p.address_line:
         vals["address_line"] = street
     if not p.city:
@@ -503,6 +503,38 @@ def backfill_sample_contact_insurance(db: Session, now: datetime | None = None) 
     return {"patients": n_pat, "fields": fields}
 
 
+# ------------------------------------------------------------------------------------------ 5. email + insurance answer
+def _sample_email(p: Patient) -> str:
+    g = "".join(ch for ch in (p.given_name or "").lower() if ch.isalpha()) or "patient"
+    f = "".join(ch for ch in (p.family_name or "").lower() if ch.isalpha())[:12]
+    return f"{g}.{f}{p.id}@example.com"  # reserved example domain: never a real mailbox
+
+
+def backfill_sample_email_insurance_answer(db: Session, now: datetime | None = None) -> dict:
+    """SYN- sample patients only (mrn LIKE 'SYN-%' AND synthetic). Step 4 gave an email only to smartphone users (75%),
+    so many sample patients showed 'None recorded': fill every EMPTY email with a synthetic example.com address. Also
+    record the 'Has insurance?' answer where it is still empty: an insurer on file -> Yes, self-pay -> No (nothing on
+    file stays 'not recorded'). Never overwrites a value someone entered; never touches non-sample records."""
+    now = now or utcnow()
+    pats = db.scalars(select(Patient).where(Patient.mrn.like(SAMPLE_PREFIX + "%"), Patient.synthetic.is_(True))
+                      .order_by(Patient.id)).all()
+    emails = yes = no = 0
+    for p in pats:
+        if not is_sample(p):
+            continue
+        if not p.email:
+            p.email = _sample_email(p)
+            emails += 1
+        if p.has_insurance is None and p.insurance_payer:
+            p.has_insurance = p.insurance_payer != "self_pay"
+            yes, no = yes + bool(p.has_insurance), no + (not p.has_insurance)
+    db.flush()
+    audit.record(db, SYSTEM, "U", "sample_data.email_insurance_answer_backfilled", entity_type="Patient",
+                 entity_id="SYN-*", ts=now, detail={"emails": emails, "has_insurance_yes": yes, "has_insurance_no": no,
+                                                    "selection": "mrn LIKE 'SYN-%' AND synthetic", "overwrites": 0})
+    return {"emails": emails, "has_insurance_yes": yes, "has_insurance_no": no}
+
+
 # ------------------------------------------------------------------------------------------ runner
 def backfill_sample_recalls(db: Session, now: datetime | None = None) -> dict:
     from .recall import backfill_sample_recalls as _b
@@ -515,6 +547,7 @@ MIGRATIONS = [
     ("backfill_sample_clinical_history_v1", backfill_sample_clinical_history),
     ("backfill_sample_recalls_v1", backfill_sample_recalls),  # SYN- only; audited per recall + once overall
     ("backfill_sample_contact_insurance_v1", backfill_sample_contact_insurance),  # SYN- only; empty fields only
+    ("backfill_sample_email_insurance_answer_v1", backfill_sample_email_insurance_answer),  # SYN- only; empty only
 ]
 
 

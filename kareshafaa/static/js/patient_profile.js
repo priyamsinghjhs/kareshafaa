@@ -254,7 +254,8 @@
   // my insurance, as recorded by the care team (read-only; the care team updates it)
   function insuranceCard(T, lang) {
     const I = P.insurance, X = T.ins; if (!I || !X) return "";
-    if (!I.on_file) return `<div class="card" id="self-insurance" data-insurance="none"><h4>${W.esc(X.title)}</h4><p>${W.esc(X.none)}</p></div>`;
+    if (I.state === "no") return `<div class="card" id="self-insurance" data-insurance="no"><h4>${W.esc(X.title)}</h4><p><b>${W.esc(X.no_ins)}</b> <span class="chip sla-amber">${W.esc(X.st.self_pay)}</span></p><p class="small muted">${W.esc(X.no_ins_note)}</p></div>`;
+    if (!I.on_file) return `<div class="card" id="self-insurance" data-insurance="not_recorded"><h4>${W.esc(X.title)}</h4><p>${W.esc(X.not_recorded)}</p><p class="small muted">${W.esc(X.none)}</p></div>`;
     const chip = { active: "sla-green", expiring: "sla-amber", expired: "sla-red", unknown: "sla-none", self_pay: "sla-amber" }[I.status] || "sla-none";
     return `<div class="card" id="self-insurance" data-insurance="${W.esc(I.status)}"><h4>${W.esc(X.title)}</h4><dl class="facts self-facts">
       <div><dt>${W.esc(X.payer)}</dt><dd>${W.esc(I.payer || "–")}</dd></div>

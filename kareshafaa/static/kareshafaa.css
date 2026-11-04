@@ -478,6 +478,13 @@ label.check input { width: 20px; height: 20px; margin: 0; flex: none; }
 .self-facts { margin-top: var(--s-2); }
 .rtl .hint, .rtl .facts dd { text-align: start; }
 .id-doc { border: 0; padding: 0; margin: 0; min-width: 0; }
+/* "Has insurance?" Yes / No: big tap targets; the policy fields below only exist on screen for Yes */
+.ins-q { border: 0; padding: 0; margin: 0 0 var(--s-3); min-width: 0; }
+.ins-q legend { padding: 0; margin-bottom: var(--s-2); font-weight: 650; }
+.ins-yn { margin-bottom: var(--s-2); }
+.ins-yn label.check { min-height: 44px; padding: 0 var(--s-3); border: 1px solid var(--c-border); border-radius: var(--r-sm); align-items: center; display: inline-flex; gap: var(--s-2); }
+.ins-yn label.check:has(input:checked) { border-color: var(--c-primary); background: var(--c-primary-soft); font-weight: 650; }
+[data-ins-fields][hidden] { display: none !important; }
 .id-doc legend { padding: 0; margin-bottom: var(--s-1); font-weight: 650; color: var(--c-muted); }
 [data-id-number] input[autocapitalize="characters"] { text-transform: uppercase; }
 /* focus / scrollIntoView never leaves a field (or the hint under it) behind the sticky top bar or the fixed bottom nav */

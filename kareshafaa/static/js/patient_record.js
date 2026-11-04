@@ -103,9 +103,14 @@ function render() {
       ["Registered", R.registration.at ? `${dday(R.registration.at)}<span class="sub small muted">by ${W.esc(R.registration.by || "–")}${R.registration.source === "result_import" ? " · from a lab result" : ""}</span>` : '<span class="muted">Before registration was recorded</span>'],
       ...(R.registration.duplicate_override_reason ? [["Registered despite a similar record", W.esc(R.registration.duplicate_override_reason), true]] : [])]), PF.care(draft("care")));
   const E = I.eligibility || { status: "missing", warn: true, message: "" };
-  const insurance = editable("insurance", "Insurance", `${E.warn ? `<div class="card notice cov-warn" role="status" data-eligibility="${W.esc(E.status)}"><span class="shape" aria-hidden="true">!</span> ${W.esc(E.message)}</div>` : `<p class="small"><span class="chip sla-green" data-eligibility="ok">✓ ${W.esc(E.message)}</span></p>`}` + facts([["Insurer", I.payer_label ? W.esc(I.payer_label) : '<span class="muted">No insurance on file</span>'], ["Plan / network", v(I.insurance_plan)], ["Member / card number", I.insurance_member_id ? `<span dir="ltr">${W.esc(I.insurance_member_id)}</span>${I.member_masked ? '<span class="sub small muted">Last 4 shown for your role</span>' : ""}` : NR], ["Cover ends on", I.insurance_valid_to ? dday(I.insurance_valid_to) : NR],
-      ["Coverage status", W.esc(({ active: "Active", expiring: "Active, ends soon", expired: "Expired", unknown: "Unknown", self_pay: "Self-pay", none: "No insurance on file" })[I.coverage_status] || "Unknown")],
-      ["Pre-authorisation needed", I.insurance_preauth_required === true ? "Yes" : I.insurance_preauth_required === false ? "No" : NR]]), PF.insurance(draft("insurance")));
+  // Yes -> the full policy; No (self-pay) or not answered -> one compact line, no empty insurance fields
+  const HI = PF.hasIns(I), warnBox = E.warn ? `<div class="card notice cov-warn" role="status" data-eligibility="${W.esc(E.status)}"><span class="shape" aria-hidden="true">!</span> ${W.esc(E.message)}</div>` : `<p class="small"><span class="chip sla-green" data-eligibility="ok">✓ ${W.esc(E.message)}</span></p>`;
+  const insView = HI === true ? warnBox + facts([["Has insurance", "Yes"], ["Insurer", v(I.payer_label)], ["Plan / network", v(I.insurance_plan)], ["Member / card number", I.insurance_member_id ? `<span dir="ltr">${W.esc(I.insurance_member_id)}</span>${I.member_masked ? '<span class="sub small muted">Last 4 shown for your role</span>' : ""}` : NR], ["Cover ends on", I.insurance_valid_to ? dday(I.insurance_valid_to) : NR],
+      ["Coverage status", W.esc(({ active: "Active", expiring: "Active, ends soon", expired: "Expired", unknown: "Unknown" })[I.coverage_status] || "Unknown")],
+      ["Pre-authorisation needed", I.insurance_preauth_required === true ? "Yes" : I.insurance_preauth_required === false ? "No" : NR]])
+    : HI === false ? `<p data-insurance-state="no"><b>No insurance</b> <span class="chip sla-amber">Self-pay</span><span class="sub small muted">Discuss costs before a referral or appointment.</span></p>`
+    : `<p data-insurance-state="not_recorded"><span class="muted">Insurance not recorded</span><span class="sub small">Ask the patient whether they have insurance before booking a referral or appointment.</span></p>`;
+  const insurance = editable("insurance", "Insurance", insView, PF.insurance(draft("insurance")));
   const PCX = { permit: '<span class="chip sla-green">✓ Patient agrees</span>', deny: '<span class="chip sla-red">✕ Patient does not agree</span>' };
   const kin = editable("contacts", "Next of kin and guardian", facts([["Name", v(N.nok_name)], ["Relationship", v(N.relationship_label)], ["Phone", v(N.nok_phone)], ["Legal guardian", N.nok_name ? (N.nok_is_guardian ? "Yes" : "No") : NR],
       ["May discuss care with them (proxy consent)", PCX[N.proxy_consent] || '<span class="muted">Not asked yet</span>', true], ...(N.proxy_note ? [["Consent note", W.esc(N.proxy_note), true]] : [])]), PF.contacts(draft("contacts")));
@@ -138,7 +143,13 @@ function wire() {
   wireAccount();
 }
 
-async function load() { R = await W.api(`/api/patients/${PID}`); render();
+async function load() { R = await W.api(`/api/patients/${PID}`);
+  // #edit-contact / #edit-insurance (links from the case summary) open that section's form straight away
+  const m = !load.done && location.hash.match(/^#edit-(contact|insurance)$/);
+  if (m && R.can_write) { OPEN.add(m[1]); render(); const f = pr().querySelector(`[data-form="${m[1]}"]`);
+    if (f) { f.closest("section").scrollIntoView({ block: "start" }); (f.querySelector(m[1] === "contact" ? '[name="email"]' : "input, select")).focus(); }
+    load.done = true; return; }
+  render();
   if (!load.done && /^#[a-z][\w-]*$/.test(location.hash)) { const el = document.querySelector(location.hash); if (el) el.scrollIntoView({ block: "start" }); }
   load.done = true; }
 document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return;

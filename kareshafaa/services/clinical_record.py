@@ -92,16 +92,17 @@ def _contact_details(db: Session, p: Patient, actor: Actor) -> dict[str, Any]:
     if not actor.can("patient:read"):
         return {"hidden": True}
     from .access import consent_status
-    from .patients import ABU_DHABI_REGIONS
+    from .patients import ABU_DHABI_REGIONS, can_write_patient
 
     emirate = p.emirate or ("Abu Dhabi" if p.region in ABU_DHABI_REGIONS else None)
     addr = ", ".join(x for x in (p.address_line, p.city, emirate if emirate != p.city else None) if x) or None
     refused = [_CHANNEL_NAMES[k[5:]] for k in ("comm_app", "comm_sms", "comm_whatsapp", "comm_phone")
                if consent_status(db, p.id, k) == "deny"]
-    return {"phone": p.phone, "phone_valid": bool(p.phone_valid), "email": p.email, "address": addr,
+    return {"patient_id": p.id, "phone": p.phone, "phone_valid": bool(p.phone_valid), "email": p.email, "address": addr,
             "whatsapp": bool(p.whatsapp and p.phone),
             "preferred_channel": _CHANNEL_NAMES.get(p.preferred_channel or "", None),
-            "consent": consent_status(db, p.id, "care_coordination"), "channels_refused": refused}
+            "consent": consent_status(db, p.id, "care_coordination"), "channels_refused": refused,
+            "can_edit": can_write_patient(db, actor, p)}  # same roles that edit phone / address on the record
 
 
 def _insurance(p: Patient, actor: Actor, now: datetime) -> dict[str, Any] | None:

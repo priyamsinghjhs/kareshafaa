@@ -293,6 +293,7 @@ class PatientCreateIn(_In):
     create_anyway_reason: str | None = _S(500)
     from_message_id: int | None = None
     # optional at registration (services/coverage.py)
+    has_insurance: bool | None = None
     insurance_payer: str | None = _S(30)
     insurance_plan: str | None = _S(80)
     insurance_member_id: str | None = _S(40)
@@ -337,6 +338,7 @@ class PatientCareIn(_In):
 
 
 class PatientInsuranceIn(_In):
+    has_insurance: bool | None = None
     insurance_payer: str | None = _S(30)
     insurance_plan: str | None = _S(80)
     insurance_member_id: str | None = _S(40)
