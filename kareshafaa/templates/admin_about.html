@@ -25,27 +25,5 @@
 <div id="about"><div class="loading" role="status">Loading…</div></div>
 {% endblock %}
 {% block scripts %}
-<script>
-document.addEventListener("DOMContentLoaded", async () => {
-  await W.ready; if (!W.requireLogin()) return;
-  const el = document.getElementById("about");
-  try {
-    const a = await W.api("/api/admin/about");
-    document.getElementById("components").innerHTML = `<details><summary class="small">What each part does</summary><div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><thead><tr><th>Part</th><th>What it does</th><th>Code</th></tr></thead><tbody>${a.components.map(c => `<tr><td class="small"><b>${W.esc(c.name)}</b></td><td class="small">${W.esc(c.does)}</td><td class="small"><code>${W.esc(c.code)}</code></td></tr>`).join("")}</tbody></table></div></details>`;
-    const st = s => `<span class="chip ${/^(receiving|available|ready)/.test(s) ? "sla-green" : /not connected|to do|simulated/.test(s) ? "sla-none" : "sla-amber"}">${W.esc(s)}</span>`;
-    el.innerHTML = `<section class="card" aria-labelledby="int-h" id="integrations"><h2 id="int-h">Integrations</h2>
-      <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><thead><tr><th>Inbound</th><th>Endpoint</th><th>Received</th><th>Last 7 days</th><th>Waiting for match review</th><th>Rejected</th><th>Last message</th><th>State</th></tr></thead><tbody>
-      ${a.integrations.inbound.map(i => `<tr data-source="${i.source}"><td class="small"><b>${W.esc(i.label)}</b></td><td class="small"><code>${W.esc(i.endpoint)}</code></td><td>${i.total}</td><td>${i.last_7_days}</td><td>${i.waiting_for_match_review}</td><td>${i.rejected}</td><td class="small">${W.dt(i.last_received_at)}</td><td>${st(i.state)}</td></tr>`).join("")}</tbody></table></div>
-      <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><thead><tr><th>Outbound and other</th><th>Endpoint</th><th>State</th></tr></thead><tbody>${a.integrations.outbound.map(o => `<tr><td class="small">${W.esc(o.label)}</td><td class="small"><code>${W.esc(o.endpoint)}</code></td><td>${st(o.state)}</td></tr>`).join("")}</tbody></table></div></section>
-     <section class="card" aria-labelledby="mal-h" id="malaffi"><h2 id="mal-h">Malaffi (Abu Dhabi health information exchange) readiness</h2><p class="small muted">${W.esc(a.notes.malaffi)}</p>
-      <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><thead><tr><th>Requirement</th><th>What is needed</th><th>Status</th><th>Where we are</th></tr></thead><tbody>${a.malaffi.map(m => `<tr><td class="small"><b>${W.esc(m.item)}</b></td><td class="small">${W.esc(m.need)}</td><td>${st(m.status)}</td><td class="small">${W.esc(m.evidence)}</td></tr>`).join("")}</tbody></table></div></section>
-     <div class="grid-2"><section class="card" aria-labelledby="em-h"><h2 id="em-h">Deployment profiles by emirate</h2><div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><thead><tr><th>Emirates</th><th>Regulator</th><th>Exchange</th><th>Configured</th></tr></thead><tbody>${a.emirates.map(e => `<tr><td class="small">${W.esc(e.emirates)}</td><td class="small">${W.esc(e.regulator)}</td><td class="small">${W.esc(e.hie)}</td><td>${e.configured ? "Yes" : "Not yet"}</td></tr>`).join("")}</tbody></table></div>
-       <p class="small muted">Programmes, deadlines, languages and channel order are configuration, so another emirate needs its own rule sign-off and exchange connection, not new code.</p></section>
-      <section class="card" aria-labelledby="jobs-h"><h2 id="jobs-h">Background jobs</h2><ul class="small">${a.jobs.map(j => `<li><b>${W.esc(j.name)}</b> – ${W.esc(j.runs)}. ${W.esc(j.how)}.</li>`).join("")}</ul>
-       <p class="small"><a href="/healthz">Liveness (/healthz)</a> · <a href="/readyz">Readiness (/readyz)</a> · <a href="/governance?tab=privacy">Data protection and retention</a> · <a href="/audit">Audit trail and chain check</a></p></section></div>
-     <section class="card" aria-labelledby="api-h" id="api-ref"><h2 id="api-h">API reference</h2><p class="small muted">Every endpoint checks the caller's role; writes need the CSRF token or a bearer token. Version ${W.esc(a.version)}.</p>
-      ${a.api.map(g => `<details data-tag="${W.esc(g.tag)}"><summary><b>${W.esc(g.tag)}</b> <span class="small muted">${g.endpoints.length}</span></summary><div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><tbody>${g.endpoints.map(e => `<tr><td><code>${e.method}</code></td><td class="small"><code>${W.esc(e.path)}</code></td><td class="small">${W.esc(e.doc || e.summary)}</td></tr>`).join("")}</tbody></table></div></details>`).join("")}</section>`;
-  } catch (e) { el.innerHTML = W.empty("Could not load", W.esc(e.message)); }
-});
-</script>
+<script src="{{ asset('js/admin_about.js') }}"></script>
 {% endblock %}

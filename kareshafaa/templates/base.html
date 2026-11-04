@@ -79,7 +79,7 @@
   </nav>
   {% endif %}
   <div id="toast" role="status" aria-live="polite"></div>
-  <script>window.KS = {{ {"tiers": tiers, "roles": role_labels, "read_only": read_only_site, "walkthrough": walkthrough} | tojson }};</script>
+  <script type="application/json" id="ks-config">{{ {"tiers": tiers, "roles": role_labels, "read_only": read_only_site, "walkthrough": walkthrough} | tojson }}</script>
   <script src="{{ asset('js/common.js') }}"></script>
   <script defer src="{{ asset('js/pwa.js') }}"></script>
   <script defer src="{{ asset('js/tour.js') }}"></script>

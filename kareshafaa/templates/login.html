@@ -47,5 +47,4 @@
   </div>
 </div>
 {% endblock %}
-{% block scripts %}<script>document.querySelectorAll("[data-reveal]").forEach(b => b.onclick = () => { const i = document.getElementById(b.dataset.reveal); const show = i.type === "password"; i.type = show ? "text" : "password"; b.textContent = show ? {{ t.hide|tojson }} : {{ t.show|tojson }}; b.setAttribute("aria-pressed", String(show)); });
-document.getElementById("login-form").addEventListener("submit", e => { const f = e.target; if (!f.username.value.trim() || !f.password.value) { e.preventDefault(); W.toast({{ t.err_missing|tojson }}, "err"); (f.username.value.trim() ? f.password : f.username).focus(); return; } f.querySelector("button[type=submit]").setAttribute("aria-busy", "true"); });</script>{% endblock %}
+{% block scripts %}<script type="application/json" id="page-strings">{{ {"show": t.show, "hide": t.hide, "missing": t.err_missing}|tojson }}</script><script src="{{ asset('js/auth_forms.js') }}"></script>{% endblock %}

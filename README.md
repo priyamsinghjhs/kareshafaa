@@ -143,6 +143,12 @@ closure.
   match: if it also shares a phone or email it is shown as a warning after saving. Keys are kept in step with name
   changes and built for older records in small background batches after start-up (idempotent; no patient field is
   changed); records without keys are still checked.
+* **Strict script policy (CSP).** `script-src 'self'` with no `'unsafe-inline'` (and `script-src-attr 'none'`): every
+  page script is a static file under `kareshafaa/static/js/`, server values reach the page in non-executable
+  `<script type="application/json">` blocks (`ks-config`, `page-strings`), and buttons in generated markup use
+  `data-click="function"` / `data-args` handled by one delegated listener in `common.js` instead of `onclick=`.
+  `tests/test_csp.py` fails on any new inline script or `on*=` handler. `style-src` still allows inline styles
+  (`style=""` attributes; see `docs/security.md`).
 
 ## Roles
 
@@ -228,8 +234,8 @@ guide: [`DEPLOY.md`](DEPLOY.md). Environment variables (set in the Render dashbo
 | `KARESHAFAA_WORKER_LOCK_DATABASE_URL` | Optional, PostgreSQL only: direct (unpooled) URL for the timed-jobs lock session when `DATABASE_URL` goes through PgBouncer or another pooler (secret). Neon `-pooler` hosts are mapped automatically. |
 
 Neon note: use the **unpooled (direct) connection string** from Neon's *Connect* dialog: the timed-jobs election
-uses a session-level advisory lock, which a transaction pooler (PgBouncer) cannot keep for one client. On first start against an empty database, `python -m
-kareshafaa.bootstrap` creates the schema and copies in the initial records once; existing data is never reset.
+uses a session-level advisory lock, which a transaction pooler (PgBouncer) cannot keep for one client.
+On first start against an empty database, `python -m kareshafaa.bootstrap` creates the schema and copies in the initial records once; existing data is never reset.
 
 ## Documentation
 

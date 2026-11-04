@@ -111,7 +111,7 @@ No change in round 2 alters a clinical rule, tier, pathway target, SLA hour or s
 |---|---|---|
 | Batched visibility checks in patient search and recalls (N+1 removal) | A user sees a patient outside their organisation, or misses one they should see | Same rules as `can_view_patient`; role-separation and recall tests pass (3,606 tests) |
 | Cached static files, service worker "starting" page | Stale clinical data shown | Only static files and the offline/starting pages are cached; every API and page response is `no-store` |
-| Content-Security-Policy and other headers | A page stops working (a missed action) | All pages checked with the a11y and UI capture scripts (0 problems) |
+| Content-Security-Policy and other headers | A page stops working (a missed action) | All pages checked with the a11y and UI capture scripts (0 problems); strict script policy (`script-src 'self'`): every role's pages and the patient app (en/ar) exercised in Chrome with 0 CSP violations, and `tests/test_csp.py` blocks new inline scripts or handlers |
 | "Why loops fail" barrier analysis on the impact report | Re-identification from small groups | Same small-cell suppression as every other figure; aggregates only; roles with the analytics permission only |
 | FHIR export validation | – (test only) | `tests/test_fhir_conformance.py` |
 

@@ -15,22 +15,42 @@ Facts below are taken from the code; file references are given so a reviewer can
 | Authorisation | role permissions (`security.PERMISSIONS`) on every API route; page access (`ui.PAGE_PERMS`); organisation scoping of patients and cases | `security.py`, `ui.py`, `services/queue.py` |
 | Case privacy | patient-level views (patient record, case clinical record, FHIR export) omit every case the reader may not open, and rows recorded under such a case; only a neutral "other care episodes exist" flag remains (patient record) or a count (case record) | `services/access.py` (`case_visible`), `services/patients.py`, `services/clinical_record.py`, `fhir.py`, `tests/test_case_privacy.py` |
 | Audit | every request audited; hash-chained, append-only log with `verify_chain`; a request whose chain write fails or waits too long (`request_audit_lock_timeout_s`, 2 s) is answered only once its event is kept in the durable fallback (writes are retried once first), and reconciled into the chain later; a read is refused (503) only if the event cannot be kept anywhere (see below) | `audit.py`, `audit_fallback.py`, `main.py` |
-| Browser headers (new) | CSP, Permissions-Policy, COOP, CORP, X-Frame-Options DENY, nosniff, Referrer-Policy no-referrer; HSTS (1 year) over https | `main.py` (`security_headers`), `tests/test_security_headers.py` |
+| Browser headers (new) | CSP, Permissions-Policy, COOP, CORP, X-Frame-Options DENY, nosniff, Referrer-Policy no-referrer; HSTS (1 year) over https; scripts `'self'` only (no inline scripts or handlers) | `main.py` (`security_headers`), `tests/test_security_headers.py`, `tests/test_csp.py` |
 | Caching | `Cache-Control: no-store` on every non-static response, so patient data is never cached by browsers or proxies | `main.py` |
 | API surface | OpenAPI / Swagger / ReDoc disabled in the app | `main.py` (`docs_url=None`) |
 
 ### Content-Security-Policy
 
 ```
-default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';
+default-src 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self' 'unsafe-inline';
 img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self';
 manifest-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
 ```
 
-Every resource is same-origin, so no third-party origin is allowed. **Known gap:** templates still contain
-inline `<script>` blocks (18 templates) and inline event handlers (36), so `script-src` keeps `'unsafe-inline'`.
-All dynamic HTML goes through `W.esc` and Jinja autoescaping. Moving the inline code into static files and
-switching to nonces is listed as follow-up work.
+Every resource is same-origin, so no third-party origin is allowed. **Scripts run only from same-origin files:**
+there are no inline `<script>` blocks and no inline event handlers (`onclick=`, `onsubmit=` …) in any template or
+in markup built by the page scripts.
+
+* Page scripts live in `kareshafaa/static/js/` (one file per page, e.g. `queue.js`, `patient_app.js`,
+  `auth_forms.js` for sign-in, activation and sign-in help; `offline.js` and `starting.js` for the two stand-alone
+  pages, which the service worker precaches with the app shell).
+* Values the server passes to a page (role labels, tiers, translated sign-in strings) are written with Jinja
+  `tojson` into `<script type="application/json">` blocks (`ks-config` in `base.html`, `page-strings` on the sign-in
+  pages). The browser never executes these; `tojson` escapes `<`, `>` and `&`, so they cannot close the block.
+* Buttons in generated markup carry `data-click="functionName"` and an optional `data-args` JSON array (`"$el"`
+  stands for the clicked element); one delegated listener in `common.js` calls the named page function. Forms that
+  are filtered live carry `data-nosubmit`.
+* `tests/test_csp.py` checks the policy string, scans every template and static script for inline scripts and
+  `on*=` attributes, and renders the main pages of every role (and the sign-in pages in English and Arabic) to
+  confirm the served HTML has none. A Playwright pass over 82 pages (sign-in with the Show/Hide toggle, activation,
+  sign-in help, every role's navigation pages, case and patient pages, the patient app in English and Arabic on
+  desktop and phone sizes, the insurance Yes/No toggle, the patient email edit, form validation) recorded no CSP
+  violation, console error or page error; an injected `onclick` was blocked (`script-src-attr`) as expected.
+
+**Remaining exception:** `style-src` keeps `'unsafe-inline'`. Templates and the JS-built markup use `style=""`
+attributes for one-off layout (about 60 places plus generated tables); moving them all to classes is a larger UI
+change with regression risk and little security gain, because injected CSS cannot run script under this policy.
+All dynamic HTML still goes through `W.esc` and Jinja autoescaping, which stays the first defence against XSS.
 
 ### When the audit write fails
 
@@ -90,13 +110,13 @@ Trust boundaries: browser ↔ app (internet), lab/EHR feed ↔ ingest API, app �
 | **S**poofing | Password guessing; stolen session cookie; a forged lab message | argon2id, lockout, HttpOnly/Secure cookies, idle expiry; ingest requires an authenticated role with the ingest permission | No MFA yet (pilot item); SMS/phone channels can be impersonated outside the app |
 | **T**ampering | Editing a case or the audit log; CSRF from another site; altered HL7 in transit | CSRF tokens + SameSite; RBAC on writes; hash-chained audit (`verify_chain`) detects edits; additive-only migrations | Integrity of the feed before it reaches us depends on the sending lab's transport (TLS by the host) |
 | **R**epudiation | "I never closed that case" | Every request and every clinical action is audited with actor, time and outcome; human overrides recorded with a reason in the override register | DB admins with direct access could rewrite the whole chain; mitigation is an external chain-head copy (pilot item) |
-| **I**nformation disclosure | One clinic seeing another's patients; data in browser caches; clickjacking; referrer leaks of link tokens | Organisation scoping (`visible_patient_ids`, `can_view_patient`), case-level filtering of patient views (`case_visible`), `no-store`, CSP `frame-ancestors 'none'`, X-Frame-Options DENY, Referrer-Policy no-referrer, retention purge | `'unsafe-inline'` scripts mean an XSS bug would not be contained by CSP; escaping is the primary defence |
+| **I**nformation disclosure | One clinic seeing another's patients; data in browser caches; clickjacking; referrer leaks of link tokens | Organisation scoping (`visible_patient_ids`, `can_view_patient`), case-level filtering of patient views (`case_visible`), `no-store`, CSP `frame-ancestors 'none'`, X-Frame-Options DENY, Referrer-Policy no-referrer, retention purge | Inline styles are still allowed (`style-src 'unsafe-inline'`), so injected markup could restyle a page but not run script; escaping is the primary defence |
 | **D**enial of service | Request floods; slow DB | Admission control sheds load beyond `max_inflight_requests` with 503 + Retry-After; login rate limits; load tested (docs/loadtest_*.md) | Free hosting tier: cold starts and single instance |
 | **E**levation of privilege | A patient or GP calling coordinator/admin APIs | Server-side permission check on every route, page permissions, role-separation tests in the suite; admin-only account management | Mis-configured role grants by an admin; reviewed in the access review (pilot plan) |
 
 ## Follow-up (not done in round 2)
 
-* Remove inline scripts/handlers and adopt CSP nonces (drop `'unsafe-inline'`).
+* Move the remaining `style=""` attributes into classes and drop `'unsafe-inline'` from `style-src`.
 * MFA for staff accounts.
 * Publish the audit chain head daily to separate storage.
 * External penetration test before a live pilot (CONFIRM: owner and budget).

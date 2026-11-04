@@ -3,7 +3,7 @@
 <div class="page-head"><div><h1>Due for recall</h1>
 <p class="lede">People due for their next routine screen or surveillance review. A recall is created when a result is negative, when a case closes, or from a surveillance care plan, and it is completed automatically when the next screening result arrives. Invitations are simulated messages in the person's language.</p></div></div>
 <div class="stats" id="rsum"></div>
-<form class="filters" id="rf" onsubmit="return false" aria-label="Filter recalls">
+<form class="filters" id="rf" data-nosubmit aria-label="Filter recalls">
   <label for="rv">Show<select id="rv"><option value="due">Due now or within 60 days</option><option value="overdue">Overdue</option><option value="invited">Invited, not screened yet</option><option value="upcoming">Later</option><option value="completed">Completed (screened)</option></select></label>
   <label for="rp">Programme<select id="rp"><option value="">All programmes</option><option value="colorectal_fit">Bowel (FIT)</option><option value="cervical">Cervical (HPV)</option><option value="breast">Breast (mammogram)</option><option value="diabetes_hba1c">Diabetes (HbA1c)</option></select></label>
   <label for="rq">Find a person<input id="rq" type="search" placeholder="Name or MRN" maxlength="80" autocomplete="off"></label>

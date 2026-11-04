@@ -201,7 +201,10 @@ def test_lock_text_translated_for_every_patient_language():
 def test_patient_page_has_lock_ui():
     from pathlib import Path
     import kareshafaa
-    html = (Path(kareshafaa.__file__).parent / "templates" / "patient.html").read_text()
+    root = Path(kareshafaa.__file__).parent
+    html = (root / "templates" / "patient.html").read_text()
+    assert "js/patient_app.js" in html  # page script is a static file (CSP script-src 'self')
+    html += (root / "static" / "js" / "patient_app.js").read_text()
     assert "/api/me/teach-back/reopen" in html and "answers_locked" in html and "q-saved" in html
 
 

@@ -91,6 +91,6 @@ slope 1.007, 10/10 reliability bins within the 95 % CI, no fairness gate failed.
   (`docs/clinical_rules.md`, `kareshafaa/sla.py`).
 * FHIR validated against base R4B models, not a UAE/Malaffi implementation guide; required value sets checked only
   for status fields.
-* `script-src 'unsafe-inline'` remains in the CSP (inline scripts in templates).
+* `style-src 'unsafe-inline'` remains in the CSP (inline `style=""` attributes). Scripts are `'self'` only since the hardening round (no inline scripts or handlers; `tests/test_csp.py`).
 * Patient messages are simulated (no SMS/WhatsApp gateway); no MFA or SSO.
 * Free hosting is outside the UAE and sleeps when idle (cold start); only synthetic data is ever hosted there.

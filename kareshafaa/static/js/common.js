@@ -1,5 +1,7 @@
 // Shared helpers for all pages (no external dependencies).
-const KS = window.KS || { tiers: {}, roles: {} };
+// page configuration from the JSON data block in base.html (not an inline script: CSP script-src 'self')
+const KS = (() => { const el = document.getElementById("ks-config"); try { return el ? JSON.parse(el.textContent) : { tiers: {}, roles: {} }; } catch (e) { return { tiers: {}, roles: {} }; } })();
+window.KS = KS;
 const W = {
   me: null,
   esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); },
@@ -167,3 +169,19 @@ document.addEventListener("DOMContentLoaded", () => {
   const main = document.getElementById("main");
   if (main) { W.labelTables(main); new MutationObserver(() => W.labelTables(main)).observe(main, { childList: true, subtree: true }); }
 });
+
+// Inline event handlers (onclick= etc.) are blocked by the Content-Security-Policy (script-src 'self', no
+// 'unsafe-inline'). Generated markup uses data-click="functionName" with optional data-args (a JSON array; "$el"
+// stands for the clicked element) instead, and forms that are filtered live carry data-nosubmit.
+window.reloadPage = () => location.reload();
+document.addEventListener("click", e => {
+  const el = e.target.closest && e.target.closest("[data-click]");
+  if (!el || el.disabled) return;
+  const fn = window[el.dataset.click];
+  if (typeof fn !== "function") return;
+  if (el.tagName === "A") e.preventDefault();
+  let args = [];
+  try { args = el.dataset.args ? JSON.parse(el.dataset.args) : []; } catch (err) { return; }
+  fn(...args.map(a => a === "$el" ? el : a));
+});
+document.addEventListener("submit", e => { if (e.target.matches && e.target.matches("form[data-nosubmit]")) e.preventDefault(); });

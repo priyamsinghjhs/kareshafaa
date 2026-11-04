@@ -417,10 +417,13 @@ class TimeBudgetMiddleware:
         await resp(scope, receive, send)
 
 
-# Round 2 security headers. Every script, style, image and fetch is same-origin. Inline <script> blocks and
-# on* handlers still exist in templates, so script-src keeps 'unsafe-inline' (documented in docs/security.md);
-# everything else is locked down: no plugins, no framing, no foreign form posts or base-URL hijack.
-CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+# Round 2 security headers. Every script, style, image and fetch is same-origin. Scripts: 'self' only - there are
+# no inline <script> blocks or on* handlers (page data travels in <script type="application/json"> blocks, which
+# are never executed, and clicks go through data-click delegation in common.js; tests/test_csp.py enforces this).
+# style-src keeps 'unsafe-inline' because templates and the JS-built markup use many style="" attributes; style
+# injection cannot run script, and this is documented in docs/security.md. No plugins, no framing, no foreign form
+# posts or base-URL hijack.
+CSP = ("default-src 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; "
        "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; "
        "manifest-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
 SECURITY_HEADERS = {
