@@ -79,7 +79,7 @@ def case_actions(case_id: int, actor: Actor = Depends(require("case:read")), db:
 @router.get("/cases/{case_id}/fhir")
 def fhir_export(case_id: int, actor: Actor = Depends(require("fhir:export")), db: Session = Depends(get_db)) -> dict:
     c = _load(db, actor, case_id)
-    bundle = export_case(db, c)
+    bundle = export_case(db, c, actor=actor)
     audit.record(db, actor, "E", "fhir.export", entity_type="Bundle", entity_id=c.id, case_id=c.id,
                  detail={"entries": len(bundle["entry"])})
     db.commit()

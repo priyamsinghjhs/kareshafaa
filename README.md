@@ -112,6 +112,13 @@ closure.
 * Security headers on every response (CSP, HSTS, Permissions-Policy, COOP/CORP), append-only **hash-chained audit
   log** of every read and write (`GET /api/audit/verify`), consent checks, organisation-scoped access.
 
+**Privacy, audit and reliability safeguards**
+* **Case privacy on patient-level views.** The patient record (`GET /api/patients/{id}`), the case screen's clinical
+  record and the per-case FHIR export list only the cases the reader may open (organisation involvement plus the
+  patient's sharing consent). Cases outside the reader's access are left out completely (no id, dates, programme,
+  step, tier or clinician), as are results, consultations, medicines and investigations recorded under them; a neutral
+  line says “Other care episodes exist for this patient. Contact the care team if you need them.”
+
 ## Roles
 
 Permissions are defined in `kareshafaa/security.py` (`PERMISSIONS`) and page access in `kareshafaa/ui.py`. Example

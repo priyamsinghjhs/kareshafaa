@@ -122,9 +122,21 @@ def coverage_resources(p) -> list[dict]:
     return [cov, payer]
 
 
-def export_case(db: Session, case: Case, include_audit: bool = True) -> dict:
+def export_case(db: Session, case: Case, include_audit: bool = True, actor=None) -> dict:
+    """FHIR bundle for one case. With `actor`, patient-level clinical resources recorded under ANOTHER case of the same
+    patient are included only when that reader may open that case (case privacy: no notes, medicines or results from
+    a care episode outside the reader's access)."""
     p = case.patient
     res: list[dict] = []
+    hidden: set[int] = set()
+    if actor is not None:
+        from .services.access import case_visible
+        hidden = {c.id for c in db.scalars(select(Case).where(Case.patient_id == p.id, Case.id != case.id))
+                  if not case_visible(db, actor, c)}
+
+    def _shown(row) -> bool:
+        return getattr(row, "case_id", None) is None or row.case_id not in hidden
+
     res.append({"resourceType": "Patient", "id": str(p.id), "meta": {"tag": [{"system": SYS + "/data", "code": "synthetic"}]},
                 "identifier": _patient_identifiers(p),
                 "name": [{"family": p.family_name, "given": [p.given_name]}], "gender": p.gender,
@@ -273,6 +285,8 @@ def export_case(db: Session, case: Case, include_audit: bool = True) -> dict:
     # patient-level clinical record (doctor view): consultations, medicines, allergies, conditions, investigations
     from .models import AllergyIntolerance, Condition, Encounter, Investigation, MedicationRequest
     for e in db.scalars(select(Encounter).where(Encounter.patient_id == p.id).order_by(Encounter.start)):
+        if not _shown(e):
+            continue
         if e.practitioner_id:
             prac_ids.add(e.practitioner_id)
         res.append({"resourceType": "Encounter", "id": f"enc-{e.id}", "status": e.status or "finished",
@@ -285,6 +299,8 @@ def export_case(db: Session, case: Case, include_audit: bool = True) -> dict:
                     **({"extension": [{"url": BASE + "/StructureDefinition/clinical-note", "valueString": e.notes}]}
                        if e.notes else {})})
     for m in db.scalars(select(MedicationRequest).where(MedicationRequest.patient_id == p.id)):
+        if not _shown(m):
+            continue
         if m.prescriber_id:
             prac_ids.add(m.prescriber_id)
         res.append({"resourceType": "MedicationRequest", "id": f"med-{m.id}",
@@ -311,6 +327,8 @@ def export_case(db: Session, case: Case, include_audit: bool = True) -> dict:
                     "code": {"text": c.display, **({"coding": [{"system": "http://hl7.org/fhir/sid/icd-10", "code": c.code}]}
                                                     if c.code else {})}, "onsetDateTime": _ts(c.onset)})
     for i in db.scalars(select(Investigation).where(Investigation.patient_id == p.id)):
+        if not _shown(i):
+            continue
         res.append({"resourceType": "Observation", "id": f"inv-{i.id}", "status": "final",
                     "code": {"text": i.name, **({"coding": [{"system": "http://loinc.org", "code": i.code}]} if i.code else {})},
                     "subject": _ref("Patient", p.id), "effectiveDateTime": _ts(i.effective_at),

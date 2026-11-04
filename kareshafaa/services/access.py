@@ -56,3 +56,17 @@ def assert_can_view(db: Session, actor: Actor, case: Case) -> None:
             and actor.org_id != case.patient.managing_org_id \
             and consent_status(db, case.patient_id, "share_external") == "deny":
         raise Forbidden("patient has not consented to sharing with other organisations")
+
+
+def case_visible(db: Session, actor: Actor, case: Case) -> bool:
+    """True when the reader may open this case (organisation relationship AND the patient's sharing consent).
+    Used wherever a patient's cases are LISTED: a case the reader may not open is left out completely (no id,
+    dates, programme, step, tier or clinician), so a list never discloses more than the case screen would."""
+    try:
+        assert_can_view(db, actor, case)
+        return True
+    except Forbidden:
+        return False
+
+
+OTHER_EPISODES_NOTE = "Other care episodes exist for this patient. Contact the care team if you need them."

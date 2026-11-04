@@ -189,6 +189,8 @@ def build_record(db: Session, case: Case, actor: Actor, now: datetime | None = N
                       "screening_site": r.screening_site, "collected_at": iso(r.specimen_collected_at),
                       "triggering": r.id == case.report_id, "case_id": r.case_id, "programme": r.programme})
     for i in db.scalars(select(Investigation).where(Investigation.patient_id == p.id)):
+        if i.case_id is not None and i.case_id not in seen_ids:
+            continue  # recorded under a case this reader may not open
         tests.append({"date": iso(i.effective_at), "name": i.name, "category": "investigation",
                       "result": f"{i.value or ''}{(' ' + i.unit) if i.unit else ''}".strip() or NONE,
                       "reference_range": i.reference_range, "abnormal": i.flag != "N",
@@ -232,7 +234,8 @@ def build_record(db: Session, case: Case, actor: Actor, now: datetime | None = N
     encs.sort(key=lambda e: e["date"] or "", reverse=True)
 
     # ---- medicines
-    meds = db.scalars(select(MedicationRequest).where(MedicationRequest.patient_id == p.id)).all()
+    meds = [m for m in db.scalars(select(MedicationRequest).where(MedicationRequest.patient_id == p.id))
+            if m.case_id is None or m.case_id in seen_ids]  # never medicines prescribed under a hidden case
     meds_out = [{"id": m.id, "name": m.name, "dose": m.dose, "frequency": m.frequency, "route": m.route,
                  "start": iso(m.start_date), "end": iso(m.end_date), "status": m.status,
                  "prescriber": _pname(db, m.prescriber_id) or m.prescriber_display or NONE,

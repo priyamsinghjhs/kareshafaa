@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 from .. import audit
 from ..models import AuditEvent, Case, Communication, Organization, Patient, Practitioner, utcnow
 from ..security import PROGRAMME_WIDE_ROLES, Actor
-from .access import can_view_case
+from .access import OTHER_EPISODES_NOTE, can_view_case, case_visible
 from .errors import DomainError, Forbidden, Invalid, NotFound
 
 EMIRATES = ("Abu Dhabi", "Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah")
@@ -656,20 +656,25 @@ def build_patient_record(db: Session, actor: Actor, p: Patient, now: datetime | 
     now = now or utcnow()
     org = db.get(Organization, p.managing_org_id)
     gp = db.get(Practitioner, p.gp_id) if p.gp_id else None
-    cases = []
+    # case privacy: only cases the reader may open are listed; the rest are omitted entirely (no id, dates, programme,
+    # step, tier or clinician) and only a neutral flag says other care episodes exist
+    cases, hidden_ids = [], set()
     for c in db.scalars(select(Case).where(Case.patient_id == p.id).order_by(Case.id.desc())):
-        vis = can_view_case(db, actor, c)
+        if not case_visible(db, actor, c):
+            hidden_ids.add(c.id)
+            continue
         cases.append({"id": c.id, "programme": c.programme, "programme_name": PROGRAMMES[c.programme].name,
                       "state": c.state, "state_label": LABELS.get(c.state, c.state), "tier": c.tier,
                       "created_at": _iso(c.created_at), "closed_at": _iso(c.closed_at),
-                      "closure_reason": c.closure_reason, "can_open": vis})
+                      "closure_reason": c.closure_reason, "can_open": True})
     results = [{"id": r.id, "programme": r.programme, "display": r.display, "category": r.category,
                 "conclusion": r.conclusion, "issued_at": _iso(r.issued_at), "case_id": r.case_id,
                 "ordered_by": r.ordering_clinician, "site": r.screening_site, "collected_at": _iso(r.specimen_collected_at),
                 "values": "; ".join(f"{o.value if o.value is not None else (o.value_text or '')}"
                                     f"{(' ' + o.unit) if o.unit else ''}".strip() for o in r.observations)}
                for r in db.scalars(select(DiagnosticReport).where(DiagnosticReport.patient_id == p.id)
-                                   .order_by(DiagnosticReport.issued_at.desc()).limit(50))]
+                                   .order_by(DiagnosticReport.issued_at.desc()).limit(50))
+               if r.case_id is None or r.case_id not in hidden_ids]
     consents = [{"scope": k.scope, "decision": k.decision, "status": k.status, "at": _iso(k.recorded_at), "note": k.note}
                 for k in db.scalars(select(Consent).where(Consent.patient_id == p.id, Consent.status == "active")
                                     .order_by(Consent.id))]
@@ -695,11 +700,12 @@ def build_patient_record(db: Session, actor: Actor, p: Patient, now: datetime | 
                          "duplicate_override_reason": p.duplicate_override_reason,
                          "updated_at": _iso(p.updated_at), "updated_by": p.updated_by},
         "deceased": p.deceased, "consents": consents, "cases": cases, "results": results,
+        "other_care_episodes": bool(hidden_ids), "other_care_episodes_note": OTHER_EPISODES_NOTE if hidden_ids else None,
         "changes": recent_changes(db, p),
         "can_write": can_write_patient(db, actor, p),
         "can_add_result": actor.is_human and actor.can("case:create"),
         "account": _account(db, actor, p),
-        "recalls": _recalls(db, p),
+        "recalls": _recalls(db, p, hidden_ids),
         **_coverage(db, p, actor),
     }
 
@@ -710,10 +716,15 @@ def _coverage(db: Session, p: Patient, actor: Actor | None = None) -> dict:
     return view(db, p, actor)
 
 
-def _recalls(db: Session, p: Patient) -> list[dict]:
+def _recalls(db: Session, p: Patient, hidden_case_ids: set[int] | None = None) -> list[dict]:
     from .recall import patient_recalls
 
-    return patient_recalls(db, p)
+    rows = patient_recalls(db, p)
+    for r in rows:  # a recall stays (it is the patient's next screening) but never points at a case the reader cannot open
+        for k in ("source_case_id", "completed_case_id"):
+            if hidden_case_ids and r.get(k) in hidden_case_ids:
+                r[k] = None
+    return rows
 
 
 def _account(db: Session, actor: Actor, p: Patient) -> dict:
