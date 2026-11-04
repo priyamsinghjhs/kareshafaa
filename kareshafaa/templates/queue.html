@@ -1,10 +1,24 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-head">
-  <div><h1 id="q-title">Work queue</h1>
-    <p class="lede" id="q-lede">Most urgent first.</p></div>
-  <div class="page-actions"><a role="button" id="open-top" href="#" hidden>Open the most urgent case</a></div>
+  <div>{% set nm = user.display_name.split(' (')[0] %}<h1 id="q-title">Hello, {{ nm if nm.startswith('Dr.') else nm.split(' ')[0] }}</h1>
+    <p class="lede" id="q-lede">What needs you now, most urgent first. Each item shows the time left and the one thing to do next.</p></div>
 </div>
+<section class="now" id="now" aria-labelledby="now-h">
+  <div class="now-head"><h2 id="now-h">Needs you now</h2><span id="now-count" class="small muted" aria-live="polite"></span></div>
+  <div id="now-list"><div class="loading" role="status">Loading…</div></div>
+</section>
+<section class="card preq" id="preq" hidden aria-labelledby="preq-h">
+  <div class="preq-head"><h2 id="preq-h">Patient appointment requests</h2><span id="preq-count" class="small muted"></span></div>
+  <details class="help-more"><summary>How requests work</summary><p class="small muted">Sent from the patient app. Nothing is booked until you confirm. Answer-by times: T0 2 h, T1 8 h, T2 24 h, T3 and screening 48 h. If you decline, the patient is told the reason in their language.</p></details>
+  <div id="preq-list" aria-live="polite"></div>
+</section>
+<section class="card preq" id="preset" hidden aria-labelledby="preset-h">
+  <div class="preq-head"><h2 id="preset-h">Patient password reset requests</h2><span id="preset-count" class="small muted"></span></div>
+  <details class="help-more"><summary>Before you send a code</summary><p class="small muted">From "Forgot password?" on the sign-in page, after the patient's date of birth, ID ending and mobile matched. Check who the patient is (in person with photo ID, or a call to the registered mobile), then send a one-time reset code from the patient record.</p></details>
+  <div id="preset-list" aria-live="polite"></div>
+</section>
+<div class="section-title all-cases"><h2 id="all-h">All open cases</h2></div>
 <div class="stats" id="stats" aria-label="Queue summary"></div>
 <div class="filters" role="search">
   <label for="view">Show
@@ -16,24 +30,14 @@
     <input id="search" type="search" inputmode="search" autocomplete="off" placeholder="Name, MRN or case number"></label>
 </div>
 <details class="queue-legend">
-  <summary>What do the urgency levels mean?</summary>
+  <summary>What do the urgency levels and the order mean?</summary>
   <ul class="legend-list small">
     {% for k in ["critical", "urgent", "high", "routine"] %}<li><span class="chip tier-{{ k }}">{{ tiers[k].code }} · {{ tiers[k].name }}</span> first action within {{ tiers[k].first_action }}{% if k in ["critical", "urgent"] %}, day or night{% endif %}</li>{% endfor %}
     <li><span class="chip sla-red"><span class="shape" aria-hidden="true">▲</span>Overdue</span> the current step is past its deadline</li>
     <li><span class="chip sla-amber"><span class="shape" aria-hidden="true">●</span>Due soon</span> more than half the time allowed has passed</li>
   </ul>
-  <p class="footnote">Later steps have their own deadlines (set by the clinical lead). "Outreach priority" is a model estimate of the chance the patient misses the next step; it only orders patients within the same urgency and never changes a case.</p>
+  <p class="footnote">Order: overdue and due-soon steps first, then urgency (T0 to T3), then results flagged for review, then outreach priority, then deadline. Later steps have their own deadlines (set by the clinical lead). "Outreach priority" is a model estimate of the chance the patient misses the next step; it only orders patients within the same urgency and never changes a case.</p>
 </details>
-<section class="card preq" id="preq" hidden aria-labelledby="preq-h">
-  <div class="preq-head"><h2 id="preq-h">Patient appointment requests</h2><span id="preq-count" class="small muted"></span></div>
-  <p class="small muted">Sent from the patient app. Nothing is booked until you confirm. Answer-by times: T0 2 h, T1 8 h, T2 24 h, T3 and screening 48 h. If you decline, the patient is told the reason in their language.</p>
-  <div id="preq-list" aria-live="polite"></div>
-</section>
-<section class="card preq" id="preset" hidden aria-labelledby="preset-h">
-  <div class="preq-head"><h2 id="preset-h">Patient password reset requests</h2><span id="preset-count" class="small muted"></span></div>
-  <p class="small muted">From "Forgot password?" on the sign-in page, after the patient's date of birth, ID ending and mobile matched. Check who the patient is (in person with photo ID, or a call to the registered mobile), then send a one-time reset code from the patient record.</p>
-  <div id="preset-list" aria-live="polite"></div>
-</section>
 <dialog id="preq-dlg" class="dlg" aria-labelledby="preq-dlg-h"><form id="preq-form" method="dialog" novalidate>
   <h2 id="preq-dlg-h"></h2><div id="preq-dlg-body"></div><p class="form-error" role="alert" hidden></p>
   <div class="dlg-buttons"><button type="button" class="secondary" id="preq-cancel">Cancel</button><button type="submit" id="preq-ok"></button></div></form></dialog>
@@ -43,7 +47,7 @@
 <script>
 const VIEWS = [["all", "All open cases"], ["overdue", "Overdue"], ["review", "Needs clinical review"], ["mine", "Assigned to me"], ["unassigned", "No named owner"],
   ["escalated", "Escalated"], ["rejected", "Referral rejected"], ["calls", "Phone calls to make"], ["transfers", "Transfers waiting"], ["consults", "Open consultations"]];
-const TITLES = { all: "Today's work queue", review: "Patients needing review", mine: "Assigned to me", overdue: "Overdue steps" };
+const TITLES = { all: "All open cases", review: "Patients needing review", mine: "Assigned to me", overdue: "Overdue steps" };
 let view = new URLSearchParams(location.search).get("view") || "all", data = null, offset = 0, timer = null;
 const PAGE = 25;
 const EMPTY = { all: ["No open cases", "Every result has reached care or a documented closure."], mine: ["Nothing assigned to you", "No cases have you as the named owner right now."],
@@ -65,8 +69,7 @@ async function load() {
   const qs = new URLSearchParams({ view }); if (prog) qs.set("programme", prog); if (q) qs.set("q", q);
   history.replaceState(null, "", "?" + qs.toString());
   data = await W.api(`/api/queue?view=${view}&limit=${PAGE}&offset=${offset}${prog ? "&programme=" + prog : ""}${q ? "&q=" + encodeURIComponent(q) : ""}`);
-  document.getElementById("q-title").textContent = TITLES[view] || (VIEWS.find(v => v[0] === view) || [, "Work queue"])[1];
-  document.getElementById("q-lede").textContent = "Most urgent first: overdue and due-soon steps, then urgency (T0 to T3), then results flagged for review, then outreach priority, then deadline.";
+  document.getElementById("all-h").textContent = TITLES[view] || (VIEWS.find(v => v[0] === view) || [, "Work queue"])[1];
   stats(); render();
 }
 function flags(r) {
@@ -76,26 +79,31 @@ function flags(r) {
     r.patient_change_request ? '<span class="chip flag" title="The patient asked to change the appointment (it has not moved)">Patient asks to change appointment</span>' : "",
     r.transfer_pending ? '<span class="chip flag">Transfer</span>' : ""].join(" ");
 }
+// "Needs you now": the 5 most urgent open cases in this person's scope, whatever list is chosen below
+async function loadNow() {
+  const d = await W.api("/api/queue?view=all&limit=5"), el = document.getElementById("now-list"), c = d.counts || {};
+  document.getElementById("now-count").textContent = d.total ? `${c.overdue || 0} overdue · ${d.total} open` : "";
+  el.innerHTML = d.items.length ? W.nowList(d.items) : W.empty("You are all caught up", "Nothing needs you right now. New results and requests appear here.");
+}
 function render() {
-  const rows = data.items, top = document.getElementById("open-top");
-  if (!rows.length) { top.hidden = true; const e = EMPTY[view] || ["Nothing here", ""];
+  const rows = data.items;
+  if (!rows.length) { const e = EMPTY[view] || ["Nothing here", ""];
     document.getElementById("qtable").innerHTML = document.getElementById("search").value ? W.empty("No match", "No open case matches your search.") : W.empty(e[0], e[1]); return; }
-  top.hidden = false; top.href = `/cases/${rows[0].id}`;
   const from = data.offset + 1, to = data.offset + rows.length;
   const risk = r => r.risk_score == null ? '<span class="muted small">–</span>' : `<span class="risk" title="${W.esc("Why: " + (r.risk_rationale || "close to the typical case") + " - orders within the same urgency only")}"><span class="risk-bar" aria-hidden="true"><i style="width:${Math.round(r.risk_score * 100)}%"></i></span>${Math.round(r.risk_score * 100)}%</span>`;
   const owner = r => `${r.owner_is_pool ? '<span class="chip pool">Team pool</span> ' : ""}${W.esc(r.owner.split(" (")[0])}`;
   document.getElementById("qtable").innerHTML = `<div class="table-scroll q-table"><table class="striped"><caption class="sr-only">Open cases, most urgent first</caption><thead><tr><th>Urgency</th><th class="w-patient">Patient</th><th>Screening</th><th>Next step</th><th>Deadline</th><th>Owner</th><th title="Model estimate of the chance of missing the next step - orders outreach within the same urgency only">Outreach priority</th></tr></thead><tbody>` +
     rows.map(r => `<tr class="clickable" data-href="/cases/${r.id}">
       <td>${W.tier(r.tier)}</td>
-      <td><a href="/cases/${r.id}"><b>${W.esc(r.patient)}</b></a><span class="sub">#${r.id} · ${W.esc(r.mrn)} · speaks ${W.esc(r.language)}</span></td>
+      <td><a href="/cases/${r.id}"><b>${W.esc(r.patient)}</b></a><span class="sub">#${r.id} · ${W.esc(r.mrn)} · speaks ${W.esc(W.langName(r.language))}</span></td>
       <td>${W.prog(r.programme)}</td><td>${W.esc(r.state_label)}<div class="chips">${flags(r)}</div></td>
-      <td>${W.sla(r.sla_status, r.sla_fraction)}<span class="sub">${W.ago(r.due_at)}</span></td>
+      <td>${W.sla(r.sla_status, r.sla_fraction)}<span class="sub">${W.leftHtml(r.due_at, r.sla_status)}</span></td>
       <td class="small">${owner(r)}</td><td>${risk(r)}</td></tr>`).join("") +
     `</tbody></table></div><ul class="q-cards" aria-label="Open cases, most urgent first">${rows.map(r => `<li><a class="q-card" href="/cases/${r.id}">
       <span class="chips">${W.tier(r.tier)} ${W.sla(r.sla_status, r.sla_fraction)} ${flags(r)}</span>
       <span class="q-name">${W.esc(r.patient)}</span>
       <span class="q-line">${W.progText(r.programme)} · next: <b>${W.esc(r.state_label)}</b></span>
-      <span class="q-line muted">Due ${W.ago(r.due_at)} · ${owner(r)}${r.risk_score == null ? "" : ` · priority ${Math.round(r.risk_score * 100)}%`}</span></a></li>`).join("")}</ul>` +
+      <span class="q-line">${W.leftHtml(r.due_at, r.sla_status)} · ${owner(r)}${r.risk_score == null ? "" : ` · priority ${Math.round(r.risk_score * 100)}%`}</span></a></li>`).join("")}</ul>` +
     `<nav class="pager" aria-label="Queue pages"><span class="small muted">Showing ${from}–${to} of ${data.total}</span><span class="btns">
      <button class="secondary" ${data.offset ? "" : "disabled"} onclick="page(-1)">Previous</button>
      <button class="secondary" ${to < data.total ? "" : "disabled"} onclick="page(1)">Next</button></span></nav>`;
@@ -115,13 +123,13 @@ async function loadRequests() {
   box.hidden = false;
   document.getElementById("preq-count").textContent = RQ.open ? `${RQ.open} waiting${RQ.overdue ? ` · ${RQ.overdue} past answer-by time` : ""}` : "none waiting";
   const L = document.getElementById("preq-list");
-  if (!RQ.items.length) { L.innerHTML = '<p class="small muted" data-preq-empty>No requests are waiting.</p>'; return; }
+  if (!RQ.items.length) { L.innerHTML = '<p class="small muted" data-preq-empty>No requests are waiting.</p>'; box.hidden = true; return; }  // nothing to do: keep the page short
   const asked = r => r.chosen_start ? `Chose <b>${W.esc(W.dt(r.chosen_start))}</b>` : r.kind === "follow_up"
     ? `Asked for another time${r.barrier_code ? ` (${W.esc(RQ_BARRIER[r.barrier_code] || r.barrier_code)})` : ""}${r.preferred_text ? `: “${W.esc(r.preferred_text)}”` : ""}`
     : `Prefers ${W.esc(r.days.map(d => RQ_DAY[d]).join(", ") || "any day")}, ${W.esc(r.times.map(t => RQ_TIME[t]).join(", ") || "any time")}${r.site ? ` at ${W.esc(r.site)}` : ""}`;
   L.innerHTML = `<ul class="preq-list">${RQ.items.map(r => `<li class="preq-item" data-request="${r.id}" data-kind="${r.kind}">
     <div class="chips">${r.kind === "follow_up" ? W.tier(r.tier) : `<span class="chip">${W.esc(r.tier_label)}</span>`} ${W.sla(r.rag, r.elapsed)} <span class="small muted">reply due ${W.ago(r.due_at)}</span></div>
-    <div><b>${W.esc(r.patient.name)}</b> <span class="sub">${W.esc(r.patient.mrn)} · speaks ${W.esc(r.patient.language)}${r.case_id ? ` · <a href="/cases/${r.case_id}">case #${r.case_id}</a>` : ""}</span></div>
+    <div><b>${W.esc(r.patient.name)}</b> <span class="sub">${W.esc(r.patient.mrn)} · speaks ${W.esc(W.langName(r.patient.language))}${r.case_id ? ` · <a href="/cases/${r.case_id}">case #${r.case_id}</a>` : ""}</span></div>
     <div class="small">${W.esc(RQ_KIND[r.kind])} · ${W.progText(r.programme)}</div><div class="small">${asked(r)}</div>
     ${r.note ? `<div class="small muted">Patient note: ${W.esc(r.note)}</div>` : ""}
     <div class="tb-actions"><button type="button" class="sm" data-rq-confirm="${r.id}">Confirm…</button><button type="button" class="secondary outline sm" data-rq-decline="${r.id}">Decline…</button></div></li>`).join("")}</ul>`;
@@ -131,7 +139,7 @@ async function loadRequests() {
 async function loadResets() {
   if (!W.me || W.me.role !== "coordinator") return;
   const R = await W.api("/api/signin-help?audience=patient&status=open"), box = document.getElementById("preset");
-  box.hidden = false;
+  box.hidden = !R.items.length;  // shown only when a patient is waiting
   document.getElementById("preset-count").textContent = R.open ? `${R.open} waiting${R.overdue ? ` · ${R.overdue} past reply-due time` : ""}` : "none waiting";
   const L = document.getElementById("preset-list");
   L.innerHTML = R.items.length ? `<ul class="preq-list">${R.items.map(r => `<li class="preq-item" data-reset-request="${r.id}">
@@ -184,7 +192,7 @@ function openRq(id, mode) {
   };
   dlg.showModal(); const first = f.querySelector("input, select, textarea"); (first || document.getElementById("preq-ok")).focus();
 }
-window.page = d => { offset = Math.max(0, offset + d * PAGE); load().then(() => document.getElementById("q-title").scrollIntoView()); };
+window.page = d => { offset = Math.max(0, offset + d * PAGE); load().then(() => document.getElementById("all-h").scrollIntoView()); };
 document.addEventListener("DOMContentLoaded", async () => {
   await W.ready; if (!W.requireLogin()) return;
   const qs0 = new URLSearchParams(location.search);
@@ -195,6 +203,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("view").onchange = e => setView(e.target.value);
   loadResets().catch(e => { document.getElementById("preset").hidden = false; document.getElementById("preset-list").innerHTML = W.empty("Could not load password reset requests", W.esc(e.message)); });
   loadRequests().catch(e => { const L = document.getElementById("preq-list"); document.getElementById("preq").hidden = false; L.innerHTML = W.empty("Could not load patient requests", W.esc(e.message)); });
+  loadNow().catch(e => { document.getElementById("now-list").innerHTML = W.empty("Could not load your list", W.esc(e.message), '<button onclick="location.reload()">Try again</button>'); });
   try { await load(); } catch (e) { document.getElementById("qtable").innerHTML = W.empty("Could not load the queue", W.esc(e.message), '<button onclick="location.reload()">Try again</button>'); }
 });
 </script>

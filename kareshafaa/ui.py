@@ -13,22 +13,27 @@ FOOTER = ("KareShafaa v0.1 · Prototype software, not a certified medical device
           "Clinical decisions remain with the treating clinician.")
 
 # icon keys refer to inline SVG symbols in templates/_icons.html
+# NAV = the few screens each role uses every day (sidebar + phone bottom bar); MORE = secondary screens, kept one
+# tap away under "More" so nothing judges or auditors rely on is removed, but daily work is not crowded.
 NAV: dict[str, list[tuple[str, str, str]]] = {  # role -> [(href, label, icon)]
     "coordinator": [("/queue", "Today's queue", "list"), ("/patients", "Patients", "users"), ("/recalls", "Due for recall", "calendar"),
                     ("/ingest", "Results inbox", "inbox")],
-    "gp": [("/queue?view=review", "Needs review", "check"), ("/queue", "All my cases", "list"),
-           ("/summaries", "Care summaries", "inbox"), ("/patients", "Patients", "users"),
-           ("/consults", "Ask a specialist", "chat")],  # nav stays at 5: recalls open from the Patients page
-    "specialist": [("/queue?view=review", "Needs review", "check"), ("/queue", "My cases", "list"),
+    "gp": [("/queue?view=review", "Needs me", "check"), ("/patients", "Patients", "users"),
+           ("/summaries", "Care summaries", "inbox"), ("/consults", "Ask a specialist", "chat")],
+    "specialist": [("/queue?view=review", "Needs me", "check"), ("/queue", "My cases", "list"),
                    ("/patients", "Patients", "users"), ("/consults", "Consult requests", "chat")],
     "clinical_lead": [("/overview", "Overview", "home"), ("/queue", "Work queue", "list"),
-                      ("/governance", "Approvals", "shield"), ("/dashboard", "Outcomes", "chart"),
-                      ("/audit", "Audit trail", "key")],
+                      ("/governance", "Approvals", "shield"), ("/dashboard", "Outcomes", "chart")],
     "analyst": [("/dashboard", "Outcomes", "chart"), ("/governance", "Models & rules", "shield")],
-    "admin": [("/admin/users", "Users", "users"), ("/admin/system", "System", "home"), ("/dashboard", "Outcomes", "chart"),
-              ("/advanced", "Advanced", "tools"), ("/admin/about", "About", "file")],
+    "admin": [("/admin/users", "Users", "users"), ("/admin/system", "System", "home"), ("/admin/about", "About", "file")],
     "translator": [("/governance?tab=content", "Content sign-off", "shield")],
     "patient": [("/patient", "My results", "heart")],
+}
+MORE: dict[str, list[tuple[str, str, str]]] = {
+    "gp": [("/queue", "All my cases", "list"), ("/recalls", "Due for recall", "calendar")],
+    "clinical_lead": [("/audit", "Audit trail", "key"), ("/recalls", "Recall list", "calendar"),
+                      ("/governance?tab=decisions", "How decisions are made", "shield")],
+    "admin": [("/dashboard", "Outcomes", "chart"), ("/advanced", "Advanced", "tools")],
 }
 
 HOME: dict[str, str] = {"coordinator": "/queue", "gp": "/queue?view=review", "specialist": "/queue?view=review",
@@ -52,7 +57,9 @@ def home_for(role: str) -> str:
 
 
 def nav_for(role: str) -> list[dict]:
-    return [{"href": h, "label": l, "icon": i} for h, l, i in NAV.get(role, [])]
+    """Every navigation entry for a role: daily items first, then the "More" items (more=True)."""
+    return [{"href": h, "label": l, "icon": i, "more": False} for h, l, i in NAV.get(role, [])] + \
+        [{"href": h, "label": l, "icon": i, "more": True} for h, l, i in MORE.get(role, []) if can_open(role, h.split("?")[0])]
 
 
 def can_open(role: str, page: str) -> bool:

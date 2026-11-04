@@ -1,20 +1,21 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-head"><div><h1>Users</h1>
-<p class="lede">Create accounts, set each person's role and site, reset passwords and deactivate leavers. Accounts are never deleted, so the audit trail stays complete. Patient app accounts are created by care coordinators and GPs from the patient record (one-time activation code), not here.</p></div>
+<p class="lede">Staff accounts: add people, set their role and site, reset passwords, deactivate leavers.</p>
+<details class="help-more"><summary>More about accounts</summary><p class="small muted">Accounts are never deleted, so the audit trail stays complete. Patient app accounts are created by care coordinators and GPs from the patient record (one-time activation code), not here.</p></details></div>
 <div class="page-actions"><button id="add" {% if read_only_site %}disabled aria-describedby="ro-note"{% endif %}>Add a user</button></div></div>
 {% if read_only_site %}<div class="card notice" id="ro-note" role="note">The user list is read-only on this server. Creating users, changing roles, resetting passwords and deactivating are switched off.</div>{% endif %}
 <div id="storage-note"></div>
+<section class="card" id="help-reqs" hidden aria-labelledby="help-reqs-h">
+  <div class="preq-head"><h2 id="help-reqs-h" style="font-size:var(--fs-lg);margin:0">Sign-in help requests</h2><span id="help-count" class="small muted"></span></div>
+  <details class="help-more"><summary>Before you help</summary><p class="small muted">Sent by staff from "Forgot username?" / "Forgot password?" on the sign-in page. Call them back on a number or address you already trust (not only the one typed here) before giving any sign-in details. To reset a password: "Find in the list", then "Reset password" on their row (a temporary password is shown once; they must choose a new one at sign-in, and all their sessions end).</p></details>
+  <div id="help-list" aria-live="polite"></div>
+</section>
 <div class="filters" role="search">
   <label for="uq">Find a user<input id="uq" type="search" autocomplete="off" placeholder="Name or username"></label>
   <label for="ur">Role<select id="ur"><option value="">All roles</option>{% for k, v in role_labels.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
   <label for="us">Status<select id="us"><option value="">Active and inactive</option><option value="active" selected>Active</option><option value="inactive">Deactivated</option></select></label>
 </div>
-<section class="card" id="help-reqs" hidden aria-labelledby="help-reqs-h">
-  <div class="preq-head"><h2 id="help-reqs-h" style="font-size:var(--fs-lg);margin:0">Sign-in help requests</h2><span id="help-count" class="small muted"></span></div>
-  <p class="small muted">Sent by staff from "Forgot username?" / "Forgot password?" on the sign-in page. Call them back on a number or address you already trust (not only the one typed here) before giving any sign-in details. To reset a password: "Find in the list", then "Reset password" on their row (a temporary password is shown once; they must choose a new one at sign-in, and all their sessions end).</p>
-  <div id="help-list" aria-live="polite"></div>
-</section>
 <div id="created" aria-live="polite"></div>
 <div id="users"><div class="loading" role="status">Loading users…</div></div>
 <style>

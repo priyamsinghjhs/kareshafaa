@@ -38,8 +38,8 @@ def part_c2(g):
           "Check **Results inbox** for messages waiting for a patient match.",
           "Acknowledge your **Escalated** cases with what you did.",
           "Before leaving, check **Transfers waiting** and amber items due overnight."],
-         [("Notify a patient", ["Open the case in *Triaged*.", "Press **Send result notification (channel ladder)**.", "Read the outcome: the delivered channel, or a phone-call task if no digital channel succeeded.", "If a call task was created, call the patient (with an interpreter if flagged) and record the outcome."]),
-          ("Record a navigator teach-back during a call", ["Open the case in *Patient notified*.", "Choose **Record navigator teach-back**; ask the three questions in the patient's language.", "Record the answers and the patient's confidence (1–5). A pass moves the case to *Acknowledged*."]),
+         [("Notify a patient", ["Open the case in *Triaged*.", "Press **Tell the patient their result**.", "Read the outcome: the delivered channel, or a phone-call task if no digital channel succeeded.", "If a call task was created, call the patient (with an interpreter if flagged) and record the outcome."]),
+          ("Record a navigator teach-back during a call", ["Open the case in *Patient notified*.", "Choose **Check the patient understood (teach-back)**; ask the three questions in the patient's language.", "Record the answers and the patient's confidence (1–5). A pass moves the case to *Acknowledged*."]),
           ("Resolve a patient match", ["Open **Results inbox** → *Waiting for a patient match*.", "Compare identifier, name and birth year with the patient record.", "Choose the correct patient. The result then creates or updates the case as normal."])],
          [(FIG / "coord_queue_pair.png", "Care coordinator: Today's queue on a laptop (left) and a phone (right).", 15.5)])
 

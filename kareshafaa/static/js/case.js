@@ -29,7 +29,7 @@ function header() {
    <div class="case-head"><h1>${W.esc(C.patient.name)}</h1>
    <p class="muted small" style="margin:0">Case #${C.id} · ${W.esc(C.patient.mrn)} · ${W.prog(C.programme)} screening</p>
    <div class="case-meta">${W.tier(C.tier)} ${W.sla(C.sla.status, C.sla.fraction)} ${C.sla.escalation_level ? `<span class="chip sla-red">Escalated (level ${C.sla.escalation_level})</span>` : ""}</div></div>
-   ${coverage()}${record()}
+   ${nextBar()}${coverage()}${record()}
    <h2 class="sec-title" id="step-h">Current step on the care pathway</h2>
    <dl class="facts" aria-labelledby="step-h">
      <div><dt>Current step</dt><dd>${W.esc(C.state_label)}</dd></div>
@@ -43,6 +43,16 @@ function header() {
    ${C.transfer_pending ? `<div class="card notice">Transfer waiting for <b>${W.esc(C.transfer_pending.to_owner)}</b> to accept. The current owner stays accountable until then. <span class="small muted">${W.esc(C.transfer_pending.note || "")}</span></div>` : ""}
    ${C.closure ? `<div class="card ok"><b>Closed</b> (${W.esc(C.closure.type.replace(/_/g, " "))}: <b>${W.esc(C.closure.reason)}</b>) on ${W.dt(C.closure.closed_at)}. ${W.esc(C.closure.note || "")} ${C.closure.evidence_id ? `· evidence #${C.closure.evidence_id}` : ""}
      <br><span class="small">${C.recall && C.recall.next_screening_due ? `Next screening due <b>${W.esc(C.recall.next_screening_due)}</b>${C.recall.recall ? ` (recall ${W.esc(C.recall.recall.status)})` : ""}.` : "No automatic recall for this closure (follow-up set by the treating team, or the person left the programme)."}</span></div>` : ""}`;
+}
+
+// the step that is due, the time left and the one next action, at the top of the case (same form and checks as the
+// "Next step" card; the button only opens it)
+function nextBar() {
+  const primary = (C.actions || []).find(a => a.primary);
+  if (C.closure && !primary) return "";
+  return `<section class="card next-bar ${W.esc(C.sla.status)}" aria-labelledby="nb-h"><div><h2 id="nb-h" class="nb-title">Now: ${W.esc(C.state_label)}</h2>
+    <p class="small" style="margin:0">${C.sla.due_at ? W.leftHtml(C.sla.due_at, C.sla.status) + " · due " + W.esc(W.dt(C.sla.due_at)) : "No deadline on this step"} · owner ${W.esc(String(C.owner || "").split(" (")[0])}</p></div>
+    ${primary ? `<button class="nb-go" data-k="${primary.key}" data-ev="${primary.evidence_type || ""}" data-scroll>${W.esc(primary.label)}</button>` : `<span class="small muted">Nothing for your role to do right now.</span>`}</section>`;
 }
 
 function coverage() {
@@ -205,7 +215,9 @@ function render() {
     document.getElementById("tabbody").innerHTML = tabs[b.dataset.t]();
   });
   document.getElementById("tabbody").innerHTML = steps();
-  root().querySelectorAll("[data-k]").forEach(b => b.onclick = () => openForm(b.dataset.k, b.dataset.ev));
+  root().querySelectorAll("[data-k]").forEach(b => b.onclick = async () => { await openForm(b.dataset.k, b.dataset.ev);
+    if (b.hasAttribute("data-scroll")) { const f = document.getElementById("aform"), sec = f && f.closest("section"); if (sec) sec.scrollIntoView({ block: "start", behavior: "smooth" });
+      const i = f && f.querySelector("input, select, textarea, button"); if (i) i.focus({ preventScroll: true }); } });
   wireRecord();
   root().querySelectorAll("[data-resolve]").forEach(b => b.onclick = () => W.ask("Patient's change request handled", "What was done (e.g. phoned, the patient keeps the time)", { ok: "Mark as handled", min: 5,
     save: async note => { await W.api(`/api/cases/${CASE_ID}/appointment/requests/${b.dataset.resolve}/resolve`, { method: "POST", body: { reason: note } }); W.toast("Request marked as handled", "ok"); await load(); } }));

@@ -348,7 +348,7 @@ details > summary { cursor: pointer; min-height: var(--tap); display: flex; alig
 details > summary::-webkit-details-marker { display: none; }
 details > summary::before { content: "\25B8"; color: var(--c-primary); transition: transform .15s; }
 details[open] > summary::before { transform: rotate(90deg); }
-.usermenu > summary::before { content: none; }
+.usermenu > summary::before, .nav-more > summary::before, .bn-more > summary::before { content: none; }
 .msg { background: var(--c-surface-2); border-radius: var(--r-md); padding: var(--s-3); margin-bottom: var(--s-2); overflow-wrap: anywhere; }
 
 /* ---------------------------------------------------------------- patient page */
@@ -589,3 +589,63 @@ tr.row-flag td { background: var(--c-danger-bg); }
 @media print { .first-run, #show-guide { display: none !important; } }
 .link-button { background: none; border: 0; padding: 0; min-height: 44px; display: inline-flex; align-items: center; color: var(--c-primary); text-decoration: underline; cursor: pointer; font: inherit; }
 .first-run-head button { white-space: nowrap; flex-shrink: 0; }
+
+/* ---------------------------------------------------------------- "More" navigation (secondary screens) */
+.nav-more { margin: 0 var(--s-3); border-top: 1px solid var(--c-border); padding-top: var(--s-2); }
+.nav-more > summary { list-style: none; display: flex; align-items: center; gap: var(--s-3); min-height: var(--tap); padding: 0 var(--s-3); border-radius: var(--r-md); color: var(--c-muted); font-weight: 600; cursor: pointer; }
+.nav-more > summary::-webkit-details-marker { display: none; }
+.nav-more > summary:hover { background: var(--c-surface-2); }
+.nav-more .nav-list { padding: var(--s-1) 0 0; }
+@media (min-width: 600px) and (max-width: 1024px) {
+  body:not(.nav-open) .nav-more { margin: 0 var(--s-2); }
+  body:not(.nav-open) .nav-more > summary { justify-content: center; padding: 0; }
+  body:not(.nav-open) .nav-more .label { display: none; }
+}
+.bn-more { flex: 1 1 0; min-width: 0; position: static; }
+.bn-more > summary { list-style: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: var(--bottomnav-h); padding: 6px 2px; font-size: 0.72rem; line-height: 1.15; color: var(--c-muted); cursor: pointer; }
+.bn-more > summary::-webkit-details-marker { display: none; }
+.bn-more > summary .icon { width: 22px; height: 22px; }
+.bn-more > summary[aria-current="page"], .bn-more[open] > summary { color: var(--c-primary); font-weight: 700; }
+.bn-sheet { position: absolute; inset-inline: var(--s-3); bottom: calc(100% + var(--s-2)); background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-lg); box-shadow: 0 8px 28px rgba(16, 38, 46, .18); padding: var(--s-2); display: grid; gap: 2px; }
+.bottom-nav .bn-sheet a { flex-direction: row; justify-content: flex-start; gap: var(--s-3); min-height: var(--tap); padding: 0 var(--s-3); font-size: var(--fs-base); color: var(--c-text); border-radius: var(--r-md); }
+.bottom-nav .bn-sheet a[aria-current="page"] { background: var(--c-primary-soft); color: var(--c-primary); }
+@media (max-width: 599px) and (orientation: landscape), (max-height: 480px) and (max-width: 1024px) { .bn-more > summary { flex-direction: row; gap: 6px; font-size: .78rem; } }
+
+/* ---------------------------------------------------------------- "Needs you now": short, urgency-ordered to-do list */
+.now { margin-bottom: var(--s-5); }
+.now-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); flex-wrap: wrap; margin-bottom: var(--s-2); }
+.now-head h2 { margin: 0; font-size: var(--fs-xl); }
+.now-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.now-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s-2) var(--s-4); background: var(--c-surface); border: 1px solid var(--c-border); border-inline-start: 5px solid var(--c-border-strong); border-radius: var(--r-lg); padding: var(--s-3) var(--s-4); box-shadow: var(--shadow-sm); }
+.now-item.red { border-inline-start-color: var(--c-danger); }
+.now-item.amber { border-inline-start-color: #c27a00; }
+.now-item.green { border-inline-start-color: var(--c-success); }
+.now-item .now-who { font-weight: 700; font-size: var(--fs-lg); line-height: 1.25; }
+.now-item .now-what { font-size: var(--fs-sm); color: var(--c-text); margin-top: 2px; }
+.now-item .now-meta { font-size: var(--fs-xs); color: var(--c-muted); margin-top: 2px; }
+.now-item .chips { margin-bottom: 4px; }
+.now-item .now-go { white-space: nowrap; }
+.time-left { font-weight: 700; }
+.time-left.red { color: var(--c-danger); } .time-left.amber { color: var(--c-warning); } .time-left.green { color: var(--c-success); }
+@media (max-width: 599px) {
+  .now-item { grid-template-columns: minmax(0, 1fr); }
+  .now-item .now-go { width: 100%; justify-content: center; }
+}
+.help-more > summary { cursor: pointer; color: var(--c-primary); font-weight: 600; font-size: var(--fs-sm); min-height: var(--tap); display: flex; align-items: center; }
+.section-title.all-cases { margin-top: var(--s-5); }
+/* first-run guide, now a closed "How this page works" disclosure */
+details.first-run { padding: 0; }
+details.first-run > summary { cursor: pointer; padding: var(--s-3) var(--s-4); font-weight: 650; min-height: var(--tap); display: flex; align-items: center; }
+details.first-run[open] > summary { padding-bottom: 0; }
+details.first-run .first-run-steps { padding: 0 var(--s-4) var(--s-4) calc(var(--s-4) + 1.25rem); }
+/* patient app: the next step comes first, the full step list is one tap away */
+.loop .next-box.next-first { margin: var(--s-2) 0 var(--s-3); font-size: var(--fs-lg); }
+.loop .next-first .tb-actions a[role=button], .loop .next-first .tb-actions button { font-size: var(--fs-base); min-height: 48px; }
+.tk-steps > summary { cursor: pointer; font-weight: 650; color: var(--c-primary); min-height: var(--tap); display: flex; align-items: center; }
+.p-help { display: flex; gap: var(--s-2); flex-wrap: wrap; margin: var(--s-3) 0 0; }
+/* case page: the step that is due and the one next action, at the top */
+.next-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); flex-wrap: wrap; border-inline-start: 5px solid var(--c-border-strong); }
+.next-bar.red { border-inline-start-color: var(--c-danger); } .next-bar.amber { border-inline-start-color: #c27a00; } .next-bar.green { border-inline-start-color: var(--c-success); }
+.next-bar .nb-title { font-size: var(--fs-lg); margin: 0 0 2px; }
+@media (max-width: 599px) { .next-bar .nb-go { width: 100%; } }
+.p-help > span { flex-basis: 100%; }

@@ -47,9 +47,18 @@
   <div class="layout">
     {% if nav %}
     <nav class="sidebar" id="sidebar" aria-label="Main">
+      {% set main_nav = nav | rejectattr("more") | list %}{% set more_nav = nav | selectattr("more") | list %}
       <ul class="nav-list">
-        {% for n in nav %}<li><a href="{{ n.href }}" {% if n.href == current_nav %}aria-current="page"{% endif %} title="{{ n.label }}"><svg class="icon" aria-hidden="true"><use href="#i-{{ n.icon }}"/></svg><span class="label">{{ n.label }}</span></a></li>{% endfor %}
+        {% for n in main_nav %}<li><a href="{{ n.href }}" {% if n.href == current_nav %}aria-current="page"{% endif %} title="{{ n.label }}"><svg class="icon" aria-hidden="true"><use href="#i-{{ n.icon }}"/></svg><span class="label">{{ n.label }}</span></a></li>{% endfor %}
       </ul>
+      {% if more_nav %}
+      <details class="nav-more" {% if current_nav in more_nav | map(attribute="href") | list %}open{% endif %}>
+        <summary title="More"><svg class="icon" aria-hidden="true"><use href="#i-more"/></svg><span class="label">More</span></summary>
+        <ul class="nav-list">
+          {% for n in more_nav %}<li><a href="{{ n.href }}" {% if n.href == current_nav %}aria-current="page"{% endif %} title="{{ n.label }}"><svg class="icon" aria-hidden="true"><use href="#i-{{ n.icon }}"/></svg><span class="label">{{ n.label }}</span></a></li>{% endfor %}
+        </ul>
+      </details>
+      {% endif %}
       <div class="sidebar-foot">People make every clinical decision; the ML score only orders outreach.</div>
     </nav>
     {% endif %}
@@ -61,8 +70,12 @@
     </main>
   </div>
   {% if nav and nav|length > 1 %}
+  {% set main_nav = nav | rejectattr("more") | list %}{% set more_nav = nav | selectattr("more") | list %}
   <nav class="bottom-nav" aria-label="Main (mobile)">
-    {% for n in nav %}<a href="{{ n.href }}" {% if n.href == current_nav %}aria-current="page"{% endif %}><svg class="icon" aria-hidden="true"><use href="#i-{{ n.icon }}"/></svg><span>{{ n.label }}</span></a>{% endfor %}
+    {% for n in main_nav %}<a href="{{ n.href }}" {% if n.href == current_nav %}aria-current="page"{% endif %}><svg class="icon" aria-hidden="true"><use href="#i-{{ n.icon }}"/></svg><span>{{ n.label }}</span></a>{% endfor %}
+    {% if more_nav %}<details class="bn-more"><summary {% if current_nav in more_nav | map(attribute="href") | list %}aria-current="page"{% endif %}><svg class="icon" aria-hidden="true"><use href="#i-more"/></svg><span>More</span></summary>
+      <div class="bn-sheet">{% for n in more_nav %}<a href="{{ n.href }}" {% if n.href == current_nav %}aria-current="page"{% endif %}><svg class="icon" aria-hidden="true"><use href="#i-{{ n.icon }}"/></svg><span>{{ n.label }}</span></a>{% endfor %}</div>
+    </details>{% endif %}
   </nav>
   {% endif %}
   <div id="toast" role="status" aria-live="polite"></div>

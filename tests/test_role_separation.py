@@ -94,3 +94,24 @@ def test_admin_deadline_check_sends_due_reminders_as_the_rules_engine(client, as
     db.expire_all()
     ev = db.scalar(select(AuditEvent).where(AuditEvent.event == "sla.sweep_requested").order_by(AuditEvent.id.desc()))
     assert ev is not None and ev.actor_role == "admin"
+
+
+def test_more_menu_keeps_the_split_and_daily_nav_short(client, as_user):
+    """Declutter: each role keeps <= 5 daily items; "More" items obey the same role split and page access."""
+    from kareshafaa.ui import MORE, NAV, can_open, nav_for
+    for role in NAV:
+        assert len(NAV[role]) <= 5, role
+        for n in nav_for(role):
+            assert can_open(role, n["href"].split("?")[0]), (role, n["href"])
+    lead = {n["href"].split("?")[0] for n in nav_for("clinical_lead")}
+    assert not lead & {"/admin/users", "/admin/system", "/advanced", "/walkthrough", "/ingest"}
+    assert "/audit" in lead  # audit trail stays one tap away (More)
+    admin = {n["href"].split("?")[0] for n in nav_for("admin")}
+    assert not admin & {"/queue", "/governance", "/overview", "/consults", "/patients", "/cases", "/recalls"}
+    assert {h for h, _, _ in MORE["admin"]} == {"/dashboard", "/advanced"}
+    html = client.get("/overview", headers=as_user("fatima.al.mansoori")).text
+    assert 'class="nav-more"' in html and 'href="/audit"' in html and "Needs you now" in html
+    q = client.get("/queue", headers=as_user("aisha.rahman")).text
+    assert "Needs you now" in q and 'class="nav-more"' not in q
+    for page in (html, q):
+        assert "demo" not in page.lower().replace("demo_", "")

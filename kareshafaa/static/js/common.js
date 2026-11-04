@@ -81,6 +81,38 @@ const W = {
   // status always = shape + text + colour (never colour alone)
   sla(st, frac) { const L = { red: ["▲", "Overdue"], amber: ["●", "Due soon"], green: ["✓", "On track"], none: ["–", "No deadline"] }[st] || ["", st];
     return `<span class="chip sla-${st}" title="${frac != null ? Math.round(frac * 100) + "% of the time allowed has passed" : ""}"><span class="shape" aria-hidden="true">${L[0]}</span>${L[1]}</span>`; },
+  // plain time left on a deadline: "Overdue by 3 days", "5 h left", "2 days left" (colour + words, never colour alone)
+  left(s) { if (!s) return { text: "No deadline", cls: "none" }; const d = new Date(/Z|[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z"), ms = d - Date.now(), a = Math.abs(ms) / 36e5;
+    const span = a < 1 ? Math.max(1, Math.round(a * 60)) + " min" : a < 48 ? Math.round(a) + " h" : Math.round(a / 24) + " days";
+    return ms < 0 ? { text: "Overdue by " + span, cls: "red" } : { text: span + " left", cls: a < 24 ? "amber" : "green" }; },
+  leftHtml(s, st) { const L = W.left(s); const cls = st === "red" || L.cls === "red" ? "red" : st === "amber" ? "amber" : L.cls;
+    return `<span class="time-left ${cls}">${W.esc(L.text)}</span>`; },
+  langName(c) { const n = { en: "English", ar: "Arabic", hi: "Hindi", ur: "Urdu", ml: "Malayalam", tl: "Tagalog", bn: "Bengali", ta: "Tamil", te: "Telugu",
+    fa: "Persian", fr: "French", ru: "Russian", zh: "Chinese", ps: "Pashto", ne: "Nepali", si: "Sinhala", so: "Somali", am: "Amharic", id: "Indonesian", es: "Spanish" }[c];
+    return n || String(c || "–"); },
+  // the one thing to do next on a case, in plain words (the button opens the case, where the existing checks apply)
+  nextAction(r) {
+    if (r.escalation_level && W.me && W.me.role === "clinical_lead") return "Review escalation";
+    if (r.review_required) return "Review result";
+    if (r.transfer_pending) return "Accept hand-over";
+    if (r.patient_change_request) return "Change appointment";
+    if (r.call_task) return "Call patient";
+    if (r.open_consult) return "Answer question";
+    return ({ issued: "Triage result", triaged: "Tell the patient their result", patient_notified: "Check understanding", acknowledged: "Arrange next step",
+      confirmatory_test: "Record test result", consultation: "Record consultation", referral_sent: "Chase referral", referral_accepted: "Book appointment",
+      referral_rejected: "Re-route referral", appointment_booked: "Record attendance", appointment_attended: "Record outcome",
+      treatment_or_surveillance_started: "Close the loop", unreachable: "Reach the patient", no_show: "Rebook patient",
+      declined_pending_review: "Review decision" })[r.state] || "Open case";
+  },
+  // "Needs you now": up to n cases, most urgent first, one clear button each
+  nowList(rows, n = 5) {
+    return `<ol class="now-list">${rows.slice(0, n).map(r => `<li class="now-item ${W.esc(r.sla_status)}" data-case="${r.id}">
+      <div><div class="chips">${W.tier(r.tier)} ${W.leftHtml(r.due_at, r.sla_status)}${r.escalation_level ? ` <span class="chip sla-red">Escalated</span>` : ""}${r.review_required ? ` <span class="chip sla-red">Needs review</span>` : ""}</div>
+        <div class="now-who">${W.esc(r.patient)}</div>
+        <div class="now-what">${W.esc(W.progText(r.programme))} · now: ${W.esc(r.state_label)}</div>
+        <div class="now-meta">Speaks ${W.esc(W.langName(r.language))} · ${r.owner_is_pool ? "Team pool" : W.esc(String(r.owner || "").split(" (")[0])} · #${r.id}</div></div>
+      <a role="button" class="now-go" href="/cases/${r.id}">${W.esc(W.nextAction(r))}</a></li>`).join("")}</ol>`;
+  },
   tier(t) { const T = KS.tiers[t]; if (!T) return `<span class="chip">${W.esc(t)}</span>`;
     return `<span class="chip tier-${t}" title="${W.esc(T.text)}"><span class="sr-only">Urgency: </span>${T.code} · ${T.name}</span>`; },
   tierText(t) { const T = KS.tiers[t]; return T ? T.text : t; },
@@ -128,6 +160,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const um = document.getElementById("usermenu");
   if (um) { document.addEventListener("click", e => { if (um.open && !um.contains(e.target)) um.open = false; });
     document.addEventListener("keydown", e => { if (e.key === "Escape" && um.open) { um.open = false; um.querySelector("summary").focus(); } }); }
+  // phone "More" sheet: close on outside tap / Esc
+  document.querySelectorAll(".bn-more, .nav-more").forEach(m => { if (!m.classList.contains("bn-more")) return;
+    document.addEventListener("click", e => { if (m.open && !m.contains(e.target)) m.open = false; });
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && m.open) { m.open = false; m.querySelector("summary").focus(); } }); });
   const main = document.getElementById("main");
   if (main) { W.labelTables(main); new MutationObserver(() => W.labelTables(main)).observe(main, { childList: true, subtree: true }); }
 });

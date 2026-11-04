@@ -23,7 +23,7 @@ def available_actions(db: Session, actor: Actor, c: Case) -> list[dict]:
 
     open_call = db.scalar(select(CallTask).where(CallTask.case_id == c.id, CallTask.status == "requested"))
     if c.review_required and st != S.CLOSED:
-        add("review", "Resolve clinical review (reason shown above)", "case:triage_urgent", True)
+        add("review", "Resolve clinical review", "case:triage_urgent", True)
     if st == S.ISSUED and c.review_required:
         pass  # nothing proceeds until a clinician has reviewed the result
     elif st == S.ISSUED:
@@ -31,14 +31,14 @@ def available_actions(db: Session, actor: Actor, c: Case) -> list[dict]:
         add("triage", "Confirm triage" + (" (clinician)" if clin else ""),
             "case:triage_urgent" if clin else "case:triage", True)
     if st in (S.TRIAGED, S.UNREACHABLE):
-        add("notify", "Send result notification (channel ladder)", "comm:send", True)
+        add("notify", "Tell the patient their result", "comm:send", True)
     if st in (S.TRIAGED, S.PATIENT_NOTIFIED, S.UNREACHABLE, S.NO_SHOW) or open_call:
         add("call", "Record phone call outcome", "call:record", st == S.TRIAGED and bool(open_call))
     if st == S.PATIENT_NOTIFIED:
-        add("teachback", "Record navigator teach-back", "call:record", True)
+        add("teachback", "Check the patient understood (teach-back)", "call:record", True)
         add("reminder", "Send reminder", "comm:send")
     if st in (S.TRIAGED, S.PATIENT_NOTIFIED, S.NO_SHOW):
-        add("unreachable", "Mark unreachable (after call ladder)", "call:record")
+        add("unreachable", "Mark unreachable (all calls tried)", "call:record")
     if st == S.ACKNOWLEDGED:
         if c.needs_confirmation:
             add("order_confirmatory", "Order confirmatory test", "confirm:order", True)
@@ -85,7 +85,7 @@ def available_actions(db: Session, actor: Actor, c: Case) -> list[dict]:
         add("close_authorised", "Authorised closure (reason required)", "closure:authorise")
         add("assign", "Reassign owner", "case:assign")
         if not c.transfer_pending_owner_id:
-            add("transfer", "Transfer to another provider (two-key)", "case:transfer")
+            add("transfer", "Transfer to another provider", "case:transfer")
         add("consult", "Request clinician consultation", "consult:create")
         add("lesson", "Record delay / incident reason", "lesson:write")
         add("consent", "Record consent", "consent:write")

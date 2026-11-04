@@ -121,7 +121,7 @@ LOOP_TEXT: dict[str, dict] = {
         "recall_overdue": "It is due now - please book it, or ask your care team.",
         "recall_none": "We will tell you when your next screening is due.", "recall_title": "My next screening",
         "go_answer": "Answer the questions", "go_appt": "See my appointment", "go_details": "Check my contact details",
-        "go_ask": "Send a question", "jump": "On this page",
+        "go_ask": "Send a question", "jump": "On this page", "help_title": "Need help? We are here for you.", "help_change": "Change my appointment", "all_steps": "See all steps",
         "confirm_btn": "I will come", "change_btn": "Ask to change", "you_confirmed": "You confirmed you will come",
         "change_sent": "You asked to change this. Your care team will contact you.",
         "change_handled": "Your care team has dealt with your request.",
@@ -186,7 +186,7 @@ LOOP_TEXT: dict[str, dict] = {
         "recall_overdue": "حان موعده الآن - يرجى حجزه أو سؤال فريق الرعاية.",
         "recall_none": "سنخبرك عندما يحين موعد فحصك القادم.", "recall_title": "فحصي القادم",
         "go_answer": "أجب عن الأسئلة", "go_appt": "عرض موعدي", "go_details": "التحقق من بيانات التواصل",
-        "go_ask": "إرسال سؤال", "jump": "في هذه الصفحة",
+        "go_ask": "إرسال سؤال", "jump": "في هذه الصفحة", "help_title": "تحتاج إلى مساعدة؟ نحن هنا من أجلك.", "help_change": "تغيير موعدي", "all_steps": "عرض كل الخطوات",
         "confirm_btn": "سأحضر", "change_btn": "طلب تغيير", "you_confirmed": "أكدت أنك ستحضر",
         "change_sent": "طلبت تغيير هذا الموعد. سيتواصل معك فريق الرعاية.",
         "change_handled": "تعامل فريق الرعاية مع طلبك.",
@@ -251,7 +251,7 @@ LOOP_TEXT: dict[str, dict] = {
         "recall_overdue": "इसका समय आ गया है - कृपया इसे बुक करें, या अपनी देखभाल टीम से पूछें।",
         "recall_none": "अगली स्क्रीनिंग का समय आने पर हम आपको बताएंगे।", "recall_title": "मेरी अगली स्क्रीनिंग",
         "go_answer": "सवालों के जवाब दें", "go_appt": "मेरी अपॉइंटमेंट देखें", "go_details": "मेरी संपर्क जानकारी जांचें",
-        "go_ask": "सवाल भेजें", "jump": "इस पेज पर",
+        "go_ask": "सवाल भेजें", "jump": "इस पेज पर", "help_title": "मदद चाहिए? हम आपके साथ हैं।", "help_change": "मेरी अपॉइंटमेंट बदलें", "all_steps": "सभी कदम देखें",
         "confirm_btn": "मैं आऊँगा/आऊँगी", "change_btn": "बदलने के लिए कहें", "you_confirmed": "आपने पुष्टि की कि आप आएंगे",
         "change_sent": "आपने इसे बदलने के लिए कहा है। आपकी देखभाल टीम आपसे संपर्क करेगी।",
         "change_handled": "आपकी देखभाल टीम ने आपके अनुरोध पर काम कर लिया है।",
@@ -316,7 +316,7 @@ LOOP_TEXT: dict[str, dict] = {
         "recall_overdue": "اس کا وقت آ گیا ہے - براہ کرم اسے بک کریں، یا اپنی نگہداشت ٹیم سے پوچھیں۔",
         "recall_none": "اگلی اسکریننگ کا وقت آنے پر ہم آپ کو بتائیں گے۔", "recall_title": "میری اگلی اسکریننگ",
         "go_answer": "سوالوں کے جواب دیں", "go_appt": "میری اپوائنٹمنٹ دیکھیں", "go_details": "میری رابطے کی تفصیلات چیک کریں",
-        "go_ask": "سوال بھیجیں", "jump": "اس صفحے پر",
+        "go_ask": "سوال بھیجیں", "jump": "اس صفحے پر", "help_title": "مدد چاہیے؟ ہم آپ کے ساتھ ہیں۔", "help_change": "میری اپوائنٹمنٹ تبدیل کریں", "all_steps": "تمام مراحل دیکھیں",
         "confirm_btn": "میں آؤں گا/گی", "change_btn": "تبدیلی کی درخواست", "you_confirmed": "آپ نے تصدیق کی کہ آپ آئیں گے",
         "change_sent": "آپ نے اسے تبدیل کرنے کو کہا ہے۔ آپ کی نگہداشت ٹیم آپ سے رابطہ کرے گی۔",
         "change_handled": "آپ کی نگہداشت ٹیم نے آپ کی درخواست پر کام کر لیا ہے۔",
@@ -364,3 +364,4 @@ for _l in SELF_TEXT:
     SELF_TEXT[_l]["req"] = _REQ[_l]
     SELF_TEXT[_l]["msg_kind"]["appointment_request"] = {"en": "Your appointment request", "ar": "طلب موعدك",
                                                          "hi": "आपका अपॉइंटमेंट अनुरोध", "ur": "آپ کی اپوائنٹمنٹ کی درخواست"}[_l]
+

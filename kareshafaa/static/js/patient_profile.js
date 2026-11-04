@@ -70,13 +70,17 @@
     if (L.book_recall) go.push(`<button type="button" class="sm" data-book-recall="${L.book_recall.recall_id}" data-programme="${W.esc(L.programme)}">${W.esc(RQ.recall_btn)}</button>`);
     if (L.situation === "unreachable") go.push(`<a role="button" class="sm" href="#self-details">${W.esc(T.go_details)}</a>`);
     if (["missed", "declined", "unreachable"].includes(L.situation) && document.getElementById("p-ask")) go.push(`<a role="button" class="secondary outline sm" href="#p-ask">${W.esc(T.go_ask)}</a>`);
+    // the next step comes first and is big; the full step list is one tap away (open on wide screens)
+    const cur = L.stages.find(s => s.key === L.current), curLab = cur ? (T.stage[cur.key] || "") : "";
+    const openSteps = !primary || matchMedia("(min-width: 900px)").matches;
     return `<div class="loop ${primary ? "" : "loop-other"}" data-programme="${W.esc(L.programme)}" data-situation="${W.esc(L.situation)}">
-      ${primary ? "" : ""}<h3 class="loop-prog">${W.esc(cap(L.programme_name))}</h3>
-      <ol class="tracker" aria-label="${W.esc(T.loop_title)}: ${W.esc(cap(L.programme_name))}">${st}</ol>
-      <div class="next-box" role="status"><h4>${W.esc(T.next_title)}</h4><p>${W.esc(text)}</p>${recall}
+      <h3 class="loop-prog">${W.esc(cap(L.programme_name))}</h3>
+      <div class="next-box next-first" role="status"><h4>${W.esc(T.next_title)}</h4><p>${W.esc(text)}</p>${recall}
       ${L.open_request ? `<p class="small" data-open-request="${L.open_request.id}">✓ ${W.esc(RQ.open_note)}</p>` : ""}
       ${go.length ? `<div class="tb-actions">${go.join("")}</div>` : ""}
-      ${PICK && PICK === L.case_id && L.choose_time ? pickForm(L, T, lang) : ""}${REQ && REQ.recall_id && L.book_recall && REQ.recall_id === L.book_recall.recall_id ? requestForm(T) : ""}</div></div>`;
+      ${PICK && PICK === L.case_id && L.choose_time ? pickForm(L, T, lang) : ""}${REQ && REQ.recall_id && L.book_recall && REQ.recall_id === L.book_recall.recall_id ? requestForm(T) : ""}</div>
+      <details class="tk-steps" ${openSteps ? "open" : ""}><summary>${W.esc(T.loop_title)}${curLab ? ": " + W.esc(curLab) : ""} · ${W.esc(T.all_steps)}</summary>
+      <ol class="tracker" aria-label="${W.esc(T.loop_title)}: ${W.esc(cap(L.programme_name))}">${st}</ol></details></div>`;
   }
 
   function loopBox(lang) {
@@ -84,7 +88,9 @@
     const T = P.text, L = P.loop || [];
     if (!L.length) { box.innerHTML = `<h3 class="loop-title">${W.esc(T.loop_title)}</h3><div class="next-box" role="status"><p>${W.esc(T.situation.none)}</p><p class="small muted">${W.esc(T.recall_none)}</p></div>`; return; }
     const [first, ...rest] = L;
-    box.innerHTML = `<h3 class="loop-title">${W.esc(T.loop_title)}</h3><p class="small muted">${W.esc(T.loop_intro)}</p>${tracker(first, T, lang, true)}
+    // always-there help: ask a question, or ask to change an appointment (nothing moves until the care team confirms)
+    const help = `<div class="p-help" role="group" aria-label="${W.esc(T.help_title)}"><span class="small">${W.esc(T.help_title)}</span>${document.getElementById("p-ask") ? `<a role="button" class="secondary outline sm" href="#p-ask">${W.esc(T.go_ask)}</a>` : ""}<a role="button" class="secondary outline sm" href="#self-appts">${W.esc(T.help_change)}</a></div>`;
+    box.innerHTML = `${tracker(first, T, lang, true)}${help}
       ${rest.map(x => `<details class="loop-more" ${x.book_recall || x.choose_time || (PICK && PICK === x.case_id) ? "open" : ""}><summary>${W.esc(cap(x.programme_name))} · ${W.esc((T.situation[x.situation] || "").split(/[.।۔]/)[0])}</summary>${tracker(x, T, lang, false)}</details>`).join("")}`;
   }
 

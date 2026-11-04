@@ -19,6 +19,19 @@ closure.
 
 ## Features
 
+**Focused screens (care, empathy, timely decisions, clarity)**
+* Every clinical home starts with **“Needs you now”**: the five most urgent cases in your scope (overdue first, then
+  T0→T3), each with the time left in plain words (“Overdue by 3 days”, “5 h left”), the patient's name and preferred
+  language, and **one button** for the next step (e.g. “Tell the patient their result”, “Book appointment”). The button
+  opens the case; every existing check and confirmation still applies.
+* The case screen opens with a **“Now:” bar** — current step, time left, owner and the one next action — above the
+  clinical record. Escalations, critical tiers and clinical-review alerts stay visible; nothing safety-relevant is folded away.
+* Navigation keeps the 3–4 screens each role uses daily; secondary screens (e.g. audit trail, recall list, “How decisions
+  are made”, admin Outcomes/Advanced) sit under **More** (sidebar and phone bottom bar). Long help texts are one tap
+  away (“How this page works”, “How requests work”), and empty request panels are hidden.
+* Patient app: the **next step comes first** in large type with one clear button, the full step list is one tap away,
+  and an always-visible **“Need help?”** row offers “Send a question” and “Change my appointment” (en/ar/hi/ur, RTL).
+
 **Case loop**
 * Exactly one accountable owner per open case (enforced in the DB and service layer).
 * Deterministic state machine with **SLA tiers T0–T3** (T0 critical, T1 urgent, T2 soon, T3 routine; T0/T1 clocks
@@ -72,11 +85,11 @@ usernames come from the staff directory (`kareshafaa/synth/directory.py`, `kares
 
 | Role | Example username | What they do |
 |---|---|---|
-| Admin | `admin` | Users and sign-in help, System status, Outcomes (read), Advanced tools (deadline-check runner, model training, proposal engine, simulation, configuration), audit-chain verification, About. **No clinical actions.** |
-| Clinical lead | `fatima.al.mansoori` | Overview, work queue and every clinical action incl. reopening cases; approvals for models, rules and content; outcomes; audit trail (read). **No admin tools** (users, system, training, configuration). |
-| Care coordinator | `aisha.rahman` | Today's queue incl. patient appointment requests, outreach and calls, triage/assign/transfer, referrals, patient registration and invites, recall list, results inbox (HL7/FHIR). |
-| GP (family doctor) | `omar.haddad` | Needs-review queue, confirmatory tests, referrals, care plans, authorised closure, care summaries, patients and recalls, ask a specialist. |
-| Specialist | `vikram.mehta` | Accept or reject referrals with a reason, booking and attendance, care plans, closure, consult replies. |
+| Admin | `admin` | Menu: Users · System · About; **More:** Outcomes, Advanced. Users and sign-in help, System status, Outcomes (read), Advanced tools (deadline-check runner, model training, proposal engine, simulation, configuration), audit-chain verification, About. **No clinical actions.** |
+| Clinical lead | `fatima.al.mansoori`, `layla.al.hashimi` | Menu: Overview (escalations and overdue first) · Work queue · Approvals · Outcomes; **More:** Audit trail, Recall list, How decisions are made. Overview, work queue and every clinical action incl. reopening cases; approvals for models, rules and content; outcomes; audit trail (read). **No admin tools** (users, system, training, configuration). |
+| Care coordinator | `aisha.rahman` | Menu: Today's queue · Patients · Due for recall · Results inbox. Today's queue (“Needs you now” first) incl. patient appointment requests, outreach and calls, triage/assign/transfer, referrals, patient registration and invites, recall list, results inbox (HL7/FHIR). |
+| GP (family doctor) | `omar.haddad` | Menu: Needs me · Patients · Care summaries · Ask a specialist; **More:** All my cases, Due for recall. Needs-review queue, confirmatory tests, referrals, care plans, authorised closure, care summaries, patients and recalls, ask a specialist. |
+| Specialist | `vikram.mehta` | Menu: Needs me · My cases · Patients · Consult requests. Accept or reject referrals with a reason, booking and attendance, care plans, closure, consult replies. |
 | Programme analyst | `analyst` | Aggregate outcomes only (small cells suppressed), read-only models and rules. |
 | Medical translator | `translator` | Content sign-off: attests that a translation matches the signed-off English. |
 | Patient | `patient.en` (also `patient.ar`, `.hi`, `.ur`, `.tl`) | Own results, journey, appointments, requests, messages and consent. |
