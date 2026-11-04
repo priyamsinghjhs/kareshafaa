@@ -297,6 +297,7 @@ class PatientCreateIn(_In):
     insurance_plan: str | None = _S(80)
     insurance_member_id: str | None = _S(40)
     insurance_valid_to: str | None = _S(10)
+    insurance_preauth_required: bool | None = None
     nok_name: str | None = _S(200)
     nok_relationship: str | None = _S(30)
     nok_phone: str | None = _S(30)
@@ -340,6 +341,7 @@ class PatientInsuranceIn(_In):
     insurance_plan: str | None = _S(80)
     insurance_member_id: str | None = _S(40)
     insurance_valid_to: str | None = _S(10)  # YYYY-MM-DD; checked in services/coverage.py
+    insurance_preauth_required: bool | None = None
 
 
 class PatientContactsIn(_In):

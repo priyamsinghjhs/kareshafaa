@@ -164,6 +164,8 @@ class Patient(Base):  # FHIR Patient (synthetic only)
     insurance_plan: Mapped[str | None] = mapped_column(String(80), nullable=True)
     insurance_member_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
     insurance_valid_to: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # payer needs pre-authorisation before a referral / specialist appointment (None = not recorded); added 4 Nov 2026
+    insurance_preauth_required: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     nok_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     nok_relationship: Mapped[str | None] = mapped_column(String(30), nullable=True)  # coverage.RELATIONSHIPS key
     nok_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)

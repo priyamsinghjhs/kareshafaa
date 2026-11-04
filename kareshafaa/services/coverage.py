@@ -29,7 +29,13 @@ PAYERS = {
 }
 RELATIONSHIPS = {"spouse": "Spouse", "parent": "Parent", "child": "Son / daughter", "sibling": "Brother / sister",
                  "relative": "Other relative", "friend": "Friend", "carer": "Carer", "legal_guardian": "Legal guardian"}
-INSURANCE_KEYS = ("insurance_payer", "insurance_plan", "insurance_member_id", "insurance_valid_to")
+INSURANCE_KEYS = ("insurance_payer", "insurance_plan", "insurance_member_id", "insurance_valid_to",
+                  "insurance_preauth_required")
+# roles that book referrals / appointments and deal with the payer see the full member number; other clinical roles
+# see only the last 4 characters (enough to match a card, not enough to misuse it)
+FULL_MEMBER_ROLES = frozenset({"coordinator", "gp", "patient"})
+# eligibility -> FHIR-style coverage status shown on the patient summary
+STATUS = {"ok": "active", "expiring": "expiring", "expired": "expired", "missing": "unknown", "self_pay": "self_pay"}
 CONTACT_PERSON_KEYS = ("nok_name", "nok_relationship", "nok_phone", "nok_is_guardian", "proxy_consent", "proxy_note")
 _MEMBER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ./-]{2,39}$")
 
@@ -55,11 +61,42 @@ def eligibility(p: Patient, today: date | None = None) -> dict[str, Any]:
     return {"status": "ok", "warn": False, "days": days, "message": "Insurance active."}
 
 
-def view(db: Session, p: Patient) -> dict[str, Any]:
+def mask_member(mid: str | None) -> str | None:
+    """'THQ-1234567' -> '•••• 4567' (last 4 characters only)."""
+    if not mid:
+        return None
+    tail = mid.replace(" ", "")[-4:]
+    return f"•••• {tail}"
+
+
+def member_for(actor: Actor | None, mid: str | None) -> tuple[str | None, bool]:
+    """(member number as this role may see it, masked?)."""
+    if mid and (actor is None or actor.role not in FULL_MEMBER_ROLES):
+        return mask_member(mid), True
+    return mid, False
+
+
+def summary_tile(p: Patient, actor: Actor | None = None, today: date | None = None) -> dict[str, Any]:
+    """Insurance tile for the patient summary (case screen, patient app). FHIR Coverage in short: payer, plan, member
+    number (masked for roles that do not book), validity, status and whether pre-authorisation is needed."""
+    e = eligibility(p, today)
+    on_file = bool(p.insurance_payer)
+    member, masked = member_for(actor, p.insurance_member_id)
+    return {"on_file": on_file, "payer": PAYERS.get(p.insurance_payer or "", p.insurance_payer) if on_file else None,
+            "plan": p.insurance_plan, "member": member, "member_masked": masked,
+            "valid_to": p.insurance_valid_to.isoformat() if p.insurance_valid_to else None,
+            "status": STATUS[e["status"]] if on_file else "none", "message": e["message"],
+            "preauth_required": p.insurance_preauth_required, "synthetic": bool(p.synthetic)}
+
+
+def view(db: Session, p: Patient, actor: Actor | None = None) -> dict[str, Any]:
+    member, masked = member_for(actor, p.insurance_member_id) if actor is not None else (p.insurance_member_id, False)
     return {
         "insurance": {"insurance_payer": p.insurance_payer, "payer_label": PAYERS.get(p.insurance_payer or "", None),
-                      "insurance_plan": p.insurance_plan, "insurance_member_id": p.insurance_member_id,
+                      "insurance_plan": p.insurance_plan, "insurance_member_id": member, "member_masked": masked,
                       "insurance_valid_to": p.insurance_valid_to.isoformat() if p.insurance_valid_to else None,
+                      "insurance_preauth_required": p.insurance_preauth_required,
+                      "coverage_status": STATUS[eligibility(p)["status"]] if p.insurance_payer else "none",
                       "eligibility": eligibility(p)},
         "contacts": {"nok_name": p.nok_name, "nok_relationship": p.nok_relationship,
                      "relationship_label": RELATIONSHIPS.get(p.nok_relationship or "", None), "nok_phone": p.nok_phone,
@@ -105,12 +142,20 @@ def validate_insurance(data: dict[str, Any], now: datetime) -> dict[str, Any]:
         if d is not None and not (date(2000, 1, 1) <= d <= now.date() + timedelta(days=366 * 10)):
             raise Invalid("insurance end date must be between 2000 and 10 years from now")
         v["insurance_valid_to"] = d
+    if "insurance_preauth_required" in data:
+        pa = data.get("insurance_preauth_required")
+        if isinstance(pa, str):
+            pa = {"yes": True, "true": True, "no": False, "false": False, "": None}.get(pa.strip().lower(), "bad")
+        if pa not in (True, False, None):
+            raise Invalid("pre-authorisation needed must be yes, no or not recorded")
+        v["insurance_preauth_required"] = pa
     payer = v.get("insurance_payer", data.get("_current_payer"))
     member = v.get("insurance_member_id", data.get("_current_member"))
     if payer and payer != "self_pay" and not member and ("insurance_payer" in v or "insurance_member_id" in v):
         raise Invalid("member / card number is required for an insurer (leave the insurer empty or choose self-pay)")
     if payer == "self_pay":
-        v.update({"insurance_plan": None, "insurance_member_id": None, "insurance_valid_to": None})
+        v.update({"insurance_plan": None, "insurance_member_id": None, "insurance_valid_to": None,
+                  "insurance_preauth_required": None})
     return v
 
 

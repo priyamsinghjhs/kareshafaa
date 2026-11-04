@@ -57,6 +57,69 @@ def _patient_identifiers(p) -> list[dict]:
     return out
 
 
+def _telecom(p) -> list[dict]:
+    """FHIR Patient.telecom: mobile phone (rank 1 when it works) and email."""
+    out = []
+    if p.phone:
+        out.append({"system": "phone", "value": p.phone, "use": "mobile", **({"rank": 1} if p.phone_valid else {})})
+    if p.email:
+        out.append({"system": "email", "value": p.email, "use": "home"})
+    return out
+
+
+def _address(p) -> dict:
+    a: dict = {"use": "home", "country": "AE"}
+    if p.address_line:
+        a["line"] = [p.address_line]
+    if p.city:
+        a["city"] = p.city
+    if p.emirate:
+        a["state"] = p.emirate
+    if p.region:
+        a["district"] = p.region
+    return a
+
+
+def coverage_resources(p) -> list[dict]:
+    """FHIR Coverage (beneficiary = Patient, payor = payer Organization) for the recorded insurance; self-pay is a
+    Coverage paid by the patient. Nothing when no insurance is on file. Pre-authorisation is an extension."""
+    from .services.coverage import PAYERS, eligibility
+
+    if not p.insurance_payer:
+        return []
+    tag = {"tag": [{"system": SYS + "/data", "code": "synthetic"}]} if p.synthetic else {}
+    if p.insurance_payer == "self_pay":
+        return [{"resourceType": "Coverage", "id": f"cov-{p.id}", **({"meta": tag} if tag else {}), "status": "active",
+                 "type": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/coverage-selfpay", "code": "pay",
+                                      "display": "PAY"}], "text": "Self-pay"},
+                 "beneficiary": _ref("Patient", p.id), "payor": [_ref("Patient", p.id)]}]
+    payer_id = f"payer-{p.insurance_payer.replace('_', '-')}"
+    cov: dict = {"resourceType": "Coverage", "id": f"cov-{p.id}", "status": "active",
+                 "type": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/v3-ActCode", "code": "EHCPOL",
+                                      "display": "extended healthcare"}]},
+                 "beneficiary": _ref("Patient", p.id), "payor": [{**_ref("Organization", payer_id),
+                                                                  "display": PAYERS.get(p.insurance_payer, p.insurance_payer)}]}
+    if tag:
+        cov["meta"] = tag
+    if p.insurance_member_id:
+        cov["subscriberId"] = p.insurance_member_id
+        cov["identifier"] = [{"system": f"https://kareshafaa.example/{payer_id}/member", "value": p.insurance_member_id}]
+    if p.insurance_valid_to:
+        cov["period"] = {"end": p.insurance_valid_to.isoformat()}
+    if p.insurance_plan:
+        cov["class"] = [{"type": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/coverage-class",
+                                              "code": "plan"}]}, "value": p.insurance_plan[:80], "name": p.insurance_plan}]
+    ext = [{"url": BASE + "/StructureDefinition/coverage-eligibility", "valueCode": eligibility(p)["status"]}]
+    if p.insurance_preauth_required is not None:
+        ext.append({"url": BASE + "/StructureDefinition/preauthorisation-required",
+                    "valueBoolean": bool(p.insurance_preauth_required)})
+    cov["extension"] = ext
+    payer = {"resourceType": "Organization", "id": payer_id, "name": PAYERS.get(p.insurance_payer, p.insurance_payer),
+             "type": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/organization-type", "code": "pay",
+                                   "display": "Payer"}]}], "address": [{"country": "AE"}]}
+    return [cov, payer]
+
+
 def export_case(db: Session, case: Case, include_audit: bool = True) -> dict:
     p = case.patient
     res: list[dict] = []
@@ -66,9 +129,11 @@ def export_case(db: Session, case: Case, include_audit: bool = True) -> dict:
                 "birthDate": str(p.birth_year), "deceasedBoolean": p.deceased,
                 "communication": [{"language": {"coding": [{"system": "urn:ietf:bcp:47", "code": p.language}]},
                                    "preferred": True}],
-                "address": [{"district": p.region, "country": "AE"}],
+                **({"telecom": _telecom(p)} if _telecom(p) else {}),
+                "address": [_address(p)],
                 "managingOrganization": _ref("Organization", p.managing_org_id),
                 **({"generalPractitioner": [_ref("Practitioner", p.gp_id)]} if p.gp_id else {})})
+    res.extend(coverage_resources(p))
     org_ids = {p.managing_org_id, case.managing_org_id}
     prac_ids = {case.owner_id} | ({p.gp_id} if p.gp_id else set())
     steps = db.scalars(select(StepTask).where(StepTask.case_id == case.id).order_by(StepTask.id)).all()

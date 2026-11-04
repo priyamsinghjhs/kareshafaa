@@ -649,3 +649,6 @@ details.first-run .first-run-steps { padding: 0 var(--s-4) var(--s-4) calc(var(-
 .next-bar .nb-title { font-size: var(--fs-lg); margin: 0 0 2px; }
 @media (max-width: 599px) { .next-bar .nb-go { width: 100%; } }
 .p-help > span { flex-basis: 100%; }
+/* patient summary: insurance tile */
+.ins-grid { display: grid; gap: var(--s-2) var(--s-4); grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); align-items: start; }
+.ins-grid .sub { display: block; }

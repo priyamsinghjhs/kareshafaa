@@ -8,7 +8,11 @@
 2. backfill_sample_clinical_history - realistic, pathway-consistent background history (conditions, allergies,
    medicines, consultations, investigations) for SYN- sample patients, marked source="sample_backfill".
 
-Both are recorded in data_migrations and run once per database (bootstrap, under the bootstrap lock).
+3. backfill_sample_recalls - recall rows for closed SYN- cases.
+4. backfill_sample_contact_insurance - synthetic UAE phone, email (example.com), address and insurance (Thiqa, Daman,
+   ADNIC, GIG/AXA; plans and member numbers marked synthetic) for EMPTY fields of SYN- sample patients only.
+
+All are recorded in data_migrations and run once per database (bootstrap, under the bootstrap lock).
 Selection is strictly: Patient.mrn starts with "SYN-" AND Patient.synthetic. Re-running is a no-op.
 """
 from __future__ import annotations
@@ -427,6 +431,78 @@ def backfill_sample_clinical_history(db: Session, now: datetime | None = None,
     return {"patients": n_pat, "rows": counts}
 
 
+# ------------------------------------------------------------------------------------------ 4. contact + insurance
+_AREAS = {  # region -> (city, [(neighbourhood, street prefix)])  - plausible, generic UAE addresses (synthetic)
+    "Abu Dhabi": ("Abu Dhabi", ["Khalifa City", "Al Reem Island", "Mussafah", "Al Khalidiyah", "Mohammed Bin Zayed City",
+                                "Al Bateen", "Al Shamkha"]),
+    "Al Ain": ("Al Ain", ["Al Jimi", "Al Muwaiji", "Al Towayya", "Hili", "Zakher"]),
+    "Al Dhafra": ("Madinat Zayed", ["Madinat Zayed", "Ruwais", "Ghayathi", "Liwa"]),
+}
+# synthetic payer mix; plan names and member numbers are clearly marked as synthetic, never real policies
+_PLANS = {"thiqa": "Thiqa (synthetic)", "daman_enhanced": "Enhanced - Silver network (synthetic)",
+          "daman_basic": "Basic (synthetic)", "adnic": "Standard network (synthetic)", "axa_gig": "Comprehensive (synthetic)"}
+_MEMBER_PREFIX = {"thiqa": "THQ", "daman_enhanced": "DME", "daman_basic": "DMB", "adnic": "ADN", "axa_gig": "GIG"}
+
+
+def _sample_contact_insurance(p: Patient, now: datetime) -> dict:
+    """Deterministic (seeded by patient id) synthetic contact and insurance values, returned only for fields that are
+    empty. Every random draw happens up front, so a re-run proposes exactly the same values (idempotent)."""
+    rng = random.Random(f"contact-insurance-{p.id}")
+    mobile = f"+9715{rng.choice('0245689')}{(p.id * 7919 + 1234567) % 10**7:07d}"  # unique per id; UAE mobile
+    wants_email = rng.random() < 0.75
+    city, areas = _AREAS.get(p.region, _AREAS["Abu Dhabi"])
+    street = f"{rng.choice(['Villa', 'Flat', 'Apartment'])} {rng.randint(1, 240)}, Street {rng.randint(1, 60)}, {rng.choice(areas)}"
+    no_cover = rng.random() < 0.05  # no insurance on file (the summary shows that state)
+    payer = "thiqa" if p.nationality_group == "Emirati" else \
+        rng.choices(["daman_enhanced", "daman_basic", "adnic", "axa_gig"], [0.35, 0.3, 0.2, 0.15])[0]
+    expired = rng.random() < 0.08
+    days = rng.randint(-120, -5) if expired else rng.randint(20, 700)
+    preauth = payer in ("daman_enhanced", "adnic", "axa_gig") and rng.random() < 0.7
+    vals: dict = {}
+    if not p.phone and p.phone_valid:
+        vals["phone"] = mobile
+    if not p.email and p.has_smartphone and wants_email:
+        g = "".join(ch for ch in (p.given_name or "").lower() if ch.isalpha()) or "patient"
+        f = "".join(ch for ch in (p.family_name or "").lower() if ch.isalpha())[:12]
+        vals["email"] = f"{g}.{f}{p.id}@example.com"  # reserved example domain: never a real mailbox
+    if not p.address_line:
+        vals["address_line"] = street
+    if not p.city:
+        vals["city"] = city
+    if not p.emirate:
+        vals["emirate"] = "Abu Dhabi"
+    if not p.insurance_payer and not no_cover:
+        vals.update({"insurance_payer": payer, "insurance_plan": _PLANS[payer],
+                     "insurance_member_id": f"SYN-{_MEMBER_PREFIX[payer]}-{100000 + p.id:07d}",
+                     "insurance_valid_to": (now + timedelta(days=days)).date(),
+                     "insurance_preauth_required": preauth})
+    return vals
+
+
+def backfill_sample_contact_insurance(db: Session, now: datetime | None = None) -> dict:
+    """SYN- sample patients only (mrn LIKE 'SYN-%' AND synthetic): fill EMPTY phone, email, address and insurance with
+    synthetic UAE-typical values. Never overwrites a value someone entered; never touches non-sample records."""
+    now = now or utcnow()
+    pats = db.scalars(select(Patient).where(Patient.mrn.like(SAMPLE_PREFIX + "%"), Patient.synthetic.is_(True))
+                      .order_by(Patient.id)).all()
+    n_pat, fields = 0, {}
+    for p in pats:
+        if not is_sample(p):
+            continue
+        vals = _sample_contact_insurance(p, now)
+        if not vals:
+            continue
+        for k, v in vals.items():
+            setattr(p, k, v)
+            fields[k] = fields.get(k, 0) + 1
+        n_pat += 1
+    db.flush()
+    audit.record(db, SYSTEM, "U", "sample_data.contact_insurance_backfilled", entity_type="Patient", entity_id="SYN-*",
+                 ts=now, detail={"patients": n_pat, "fields": fields, "selection": "mrn LIKE 'SYN-%' AND synthetic",
+                                 "overwrites": 0})
+    return {"patients": n_pat, "fields": fields}
+
+
 # ------------------------------------------------------------------------------------------ runner
 def backfill_sample_recalls(db: Session, now: datetime | None = None) -> dict:
     from .recall import backfill_sample_recalls as _b
@@ -438,6 +514,7 @@ MIGRATIONS = [
     ("reanchor_sample_case_dates_v1", reanchor_sample_case_dates),
     ("backfill_sample_clinical_history_v1", backfill_sample_clinical_history),
     ("backfill_sample_recalls_v1", backfill_sample_recalls),  # SYN- only; audited per recall + once overall
+    ("backfill_sample_contact_insurance_v1", backfill_sample_contact_insurance),  # SYN- only; empty fields only
 ]
 
 

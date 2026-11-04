@@ -365,3 +365,32 @@ for _l in SELF_TEXT:
     SELF_TEXT[_l]["msg_kind"]["appointment_request"] = {"en": "Your appointment request", "ar": "طلب موعدك",
                                                          "hi": "आपका अपॉइंटमेंट अनुरोध", "ur": "آپ کی اپوائنٹمنٹ کی درخواست"}[_l]
 
+# ---- my insurance (patient app, read-only; FHIR Coverage recorded by the care team; added 4 Nov 2026)
+INSURANCE_TEXT: dict[str, dict] = {
+    "en": {"title": "My insurance", "payer": "Insurer", "plan": "Plan", "member": "Member number", "valid": "Valid until",
+           "status": "Status", "preauth": "Approval needed before a referral", "yes": "Yes", "no": "No",
+           "st": {"active": "Active", "expiring": "Active - ends soon", "expired": "Expired", "unknown": "Not sure yet",
+                  "self_pay": "Self-pay"},
+           "none": "No insurance on file yet. Please bring your insurance card to your next visit - it will not stop your care.",
+           "note": "As recorded by your care team. If something is wrong, tell them at your next visit or send a question."},
+    "ar": {"title": "تأميني", "payer": "شركة التأمين", "plan": "الخطة", "member": "رقم العضوية", "valid": "صالح حتى",
+           "status": "الحالة", "preauth": "يلزم الحصول على موافقة قبل الإحالة", "yes": "نعم", "no": "لا",
+           "st": {"active": "ساري", "expiring": "ساري - ينتهي قريباً", "expired": "منتهي", "unknown": "غير مؤكد بعد",
+                  "self_pay": "دفع ذاتي"},
+           "none": "لا يوجد تأمين مسجل بعد. يرجى إحضار بطاقة التأمين في زيارتك القادمة - لن يوقف ذلك رعايتك.",
+           "note": "كما سجله فريق الرعاية. إذا كان هناك خطأ، أخبرهم في زيارتك القادمة أو أرسل سؤالاً."},
+    "hi": {"title": "मेरा बीमा", "payer": "बीमा कंपनी", "plan": "प्लान", "member": "सदस्य संख्या", "valid": "कब तक मान्य",
+           "status": "स्थिति", "preauth": "रेफ़रल से पहले मंज़ूरी ज़रूरी", "yes": "हाँ", "no": "नहीं",
+           "st": {"active": "चालू", "expiring": "चालू - जल्द खत्म होगा", "expired": "खत्म हो गया", "unknown": "अभी पक्का नहीं",
+                  "self_pay": "खुद भुगतान"},
+           "none": "अभी कोई बीमा दर्ज नहीं है। कृपया अगली बार अपना बीमा कार्ड साथ लाएँ - इससे आपकी देखभाल नहीं रुकेगी।",
+           "note": "जैसा आपकी देखभाल टीम ने दर्ज किया है। कुछ गलत हो तो अगली मुलाक़ात पर बताएँ या सवाल भेजें।"},
+    "ur": {"title": "میرا بیمہ", "payer": "بیمہ کمپنی", "plan": "پلان", "member": "ممبر نمبر", "valid": "کب تک کارآمد",
+           "status": "حیثیت", "preauth": "ریفرل سے پہلے منظوری ضروری", "yes": "ہاں", "no": "نہیں",
+           "st": {"active": "فعال", "expiring": "فعال - جلد ختم ہو گا", "expired": "ختم ہو گیا", "unknown": "ابھی یقینی نہیں",
+                  "self_pay": "خود ادائیگی"},
+           "none": "ابھی کوئی بیمہ درج نہیں۔ براہ کرم اگلی بار اپنا بیمہ کارڈ ساتھ لائیں - اس سے آپ کی دیکھ بھال نہیں رکے گی۔",
+           "note": "جیسا آپ کی نگہداشت ٹیم نے درج کیا ہے۔ اگر کچھ غلط ہو تو اگلی ملاقات پر بتائیں یا سوال بھیجیں۔"},
+}
+for _l in SELF_TEXT:
+    SELF_TEXT[_l]["ins"] = INSURANCE_TEXT[_l]

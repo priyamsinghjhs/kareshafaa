@@ -209,7 +209,10 @@ def my_profile(lang: str | None = Query(None, max_length=5), actor: Actor = Depe
 
     loop = [{**x, "programme_name": ss._prog_name(lang, x["programme"])} for x in pl.loop_view(db, actor)]
     pr.loop_extras(db, actor, loop)
+    from ..services.coverage import summary_tile
+
     return {"language": lang, "rtl": lang in RTL_LANGUAGES, "text": SELF_TEXT[lang], "contact": ss.contact_view(p),
+            "insurance": summary_tile(p, actor),
             "options": {"emirates": list(EMIRATES), "regions": list(ABU_DHABI_REGIONS), "barriers": list(pl.PATIENT_BARRIERS),
                         "consent_scopes": list(pl.PATIENT_SCOPES)},
             "history": ss.history(db, actor, lang),

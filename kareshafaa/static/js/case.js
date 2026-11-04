@@ -79,6 +79,30 @@ function sec(id, title, count, body, defOpen) {
   const open = REC_OPEN.has(id) ? true : REC_OPEN.has("!" + id) ? false : defOpen && matchMedia("(min-width: 900px)").matches;
   return `<details class="card rec-sec" data-sec="${id}" ${open ? "open" : ""}><summary><h3>${title}</h3><span class="count">${count}</span></summary><div class="rec-body">${body}</div></details>`;
 }
+// contact details for the people who contact the patient (phone, email, address, consent); hidden for other roles
+function contactTiles(K) {
+  if (!K) return "";
+  if (K.hidden) return `<div class="wide"><dt>Contact details</dt><dd class="muted">Not shown for your role</dd></div>`;
+  const ltr = x => `<span dir="ltr">${W.esc(x)}</span>`;
+  const CC = { permit: '<span class="chip sla-green">✓ Agrees to be contacted</span>', deny: '<span class="chip sla-red">✕ Does not want contact about care</span>' };
+  return `<div class="ct-tile"><dt>Phone</dt><dd>${K.phone ? `<a href="tel:${W.esc(K.phone)}">${ltr(K.phone)}</a>${K.whatsapp ? ' <span class="chip">WhatsApp</span>' : ""}${K.phone_valid ? "" : ' <span class="chip sla-amber">May not work</span>'}` : NR()}</dd></div>
+     <div class="ct-tile"><dt>Email</dt><dd>${K.email ? `<a href="mailto:${W.esc(K.email)}">${ltr(K.email)}</a>` : NR()}</dd></div>
+     <div class="ct-tile"><dt>Contact consent</dt><dd>${CC[K.consent] || '<span class="muted">Not recorded (contact allowed)</span>'}${(K.channels_refused || []).length ? `<span class="sub small">No ${W.esc(K.channels_refused.join(", "))}</span>` : ""}</dd></div>
+     <div class="wide ct-tile"><dt>Address</dt><dd>${K.address ? W.esc(K.address) : NR()}${K.preferred_channel ? `<span class="sub small muted">Prefers ${W.esc(K.preferred_channel)}</span>` : ""}</dd></div>`;
+}
+// insurance (FHIR Coverage): payer, plan, member number (last 4 only for roles that do not book), validity, status
+function insuranceTile(I) {
+  if (!I) return "";
+  const ST = { active: ["sla-green", "✓ Active"], expiring: ["sla-amber", "● Active, ends soon"], expired: ["sla-red", "▲ Expired"], unknown: ["sla-none", "? Unknown"], self_pay: ["sla-amber", "Self-pay"] };
+  if (!I.on_file) return `<div class="wide ins-tile" data-insurance="none"><dt>Insurance</dt><dd><span class="muted">No insurance on file</span> <span class="small">– check payer details before booking a referral or appointment.</span></dd></div>`;
+  const st = ST[I.status] || ST.unknown;
+  return `<div class="wide ins-tile" data-insurance="${W.esc(I.status)}"><dt>Insurance${I.synthetic ? ' <span class="chip">Synthetic</span>' : ""}</dt><dd>
+     <div class="ins-grid"><span><b>${W.esc(I.payer || "–")}</b>${I.plan ? `<span class="sub small">${W.esc(I.plan)}</span>` : ""}</span>
+     <span><span class="small muted">Member no.</span><br>${I.member ? `<span dir="ltr">${W.esc(I.member)}</span>` : NR()}</span>
+     <span><span class="small muted">Valid until</span><br>${I.valid_to ? day(I.valid_to) : NR()}</span>
+     <span><span class="small muted">Status</span><br><span class="chip ${st[0]}">${st[1]}</span></span>
+     <span><span class="small muted">Pre-authorisation</span><br>${I.preauth_required === true ? '<span class="chip sla-amber">Needed</span>' : I.preauth_required === false ? "Not needed" : '<span class="muted">Not recorded</span>'}</span></div></dd></div>`;
+}
 function record() {
   if (!REC) return "";
   if (REC.error) return `<div class="card notice">The clinical record could not be loaded: ${W.esc(REC.error)}</div>`;
@@ -89,6 +113,8 @@ function record() {
      <div><dt>Name</dt><dd>${W.esc(S.name)}</dd></div><div><dt>MRN</dt><dd>${W.esc(S.mrn)}</dd></div>
      <div><dt>Age / sex</dt><dd>${S.age} · ${W.esc(S.sex)}</dd></div><div><dt>Language</dt><dd>${val(S.language)}</dd></div>
      <div><dt>Contact preference</dt><dd>${val(S.contact_preference)}</dd></div><div><dt>Family doctor</dt><dd>${val(S.gp)}<span class="sub small muted">${W.esc(S.managing_org || "")}</span></dd></div>
+     ${contactTiles(S.contact)}
+     ${insuranceTile(S.insurance)}
      <div class="wide"><dt>Allergies</dt><dd>${alg}</dd></div><div class="wide"><dt>Key conditions</dt><dd>${cond}</dd></div></dl>
      ${S.deceased ? `<p class="notice-inline err">Recorded as deceased${S.deceased_record && S.deceased_record.by ? ` by ${W.esc(S.deceased_record.by)} on ${W.dt(S.deceased_record.at)}` : ""}.${S.deceased_record && S.deceased_record.note ? ` Source: ${W.esc(S.deceased_record.note)}` : ""}</p>` : ""}
      ${S.death_corrected ? `<p class="notice-inline info">A death recorded in error was corrected by ${W.esc(S.death_corrected.by || "–")} on ${W.dt(S.death_corrected.at)}: ${W.esc(S.death_corrected.note || "")}</p>` : ""}</section>`;

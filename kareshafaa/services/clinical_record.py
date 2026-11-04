@@ -83,6 +83,35 @@ def _contact(p: Patient) -> str:
     return " → ".join(ch) if ch else "No valid phone or app – letter or home visit"
 
 
+_CHANNEL_NAMES = {"app": "the patient app", "sms": "SMS", "whatsapp": "WhatsApp", "phone": "phone calls"}
+
+
+def _contact_details(db: Session, p: Patient, actor: Actor) -> dict[str, Any]:
+    """Phone, email, address, preferred channel and contact consent (FHIR Patient.telecom / address / Consent) for the
+    roles that contact the patient. Roles without patient-record access get no contact details at all."""
+    if not actor.can("patient:read"):
+        return {"hidden": True}
+    from .access import consent_status
+    from .patients import ABU_DHABI_REGIONS
+
+    emirate = p.emirate or ("Abu Dhabi" if p.region in ABU_DHABI_REGIONS else None)
+    addr = ", ".join(x for x in (p.address_line, p.city, emirate if emirate != p.city else None) if x) or None
+    refused = [_CHANNEL_NAMES[k[5:]] for k in ("comm_app", "comm_sms", "comm_whatsapp", "comm_phone")
+               if consent_status(db, p.id, k) == "deny"]
+    return {"phone": p.phone, "phone_valid": bool(p.phone_valid), "email": p.email, "address": addr,
+            "whatsapp": bool(p.whatsapp and p.phone),
+            "preferred_channel": _CHANNEL_NAMES.get(p.preferred_channel or "", None),
+            "consent": consent_status(db, p.id, "care_coordination"), "channels_refused": refused}
+
+
+def _insurance(p: Patient, actor: Actor, now: datetime) -> dict[str, Any] | None:
+    if not actor.can("patient:read"):
+        return None
+    from .coverage import summary_tile
+
+    return summary_tile(p, actor, now.date())
+
+
 def _tb_text(case: Case, answers: dict) -> list[dict]:
     from ..comms.service import teach_back_form
     form = teach_back_form(case, "en")
@@ -119,6 +148,7 @@ def build_record(db: Session, case: Case, actor: Actor, now: datetime | None = N
         "name": f"{p.given_name} {p.family_name}", "mrn": p.mrn, "age": max(0, now.year - p.birth_year),
         "birth_year": p.birth_year, "sex": p.gender, "language": LANG_NAMES.get(p.language, p.language),
         "region": p.region, "contact_preference": _contact(p), "alt_contact": p.alt_contact,
+        "contact": _contact_details(db, p, actor), "insurance": _insurance(p, actor, now),
         "gp": gp.name if gp else None, "managing_org": _oname(db, p.managing_org_id), "deceased": p.deceased,
         "deceased_record": {"note": p.deceased_note, "at": p.deceased_recorded_at.isoformat() if p.deceased_recorded_at else None,
                             "by": p.deceased_recorded_by} if p.deceased else None,

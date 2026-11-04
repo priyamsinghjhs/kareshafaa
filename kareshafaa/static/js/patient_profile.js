@@ -251,6 +251,20 @@
       <div class="tb-actions"><button type="button" class="${ccOn ? "secondary outline" : ""} sm" data-consent="care_coordination" data-to="${ccOn ? "deny" : "permit"}">${W.esc(ccOn ? T.withdraw : T.give)}</button></div></div>`;
   }
 
+  // my insurance, as recorded by the care team (read-only; the care team updates it)
+  function insuranceCard(T, lang) {
+    const I = P.insurance, X = T.ins; if (!I || !X) return "";
+    if (!I.on_file) return `<div class="card" id="self-insurance" data-insurance="none"><h4>${W.esc(X.title)}</h4><p>${W.esc(X.none)}</p></div>`;
+    const chip = { active: "sla-green", expiring: "sla-amber", expired: "sla-red", unknown: "sla-none", self_pay: "sla-amber" }[I.status] || "sla-none";
+    return `<div class="card" id="self-insurance" data-insurance="${W.esc(I.status)}"><h4>${W.esc(X.title)}</h4><dl class="facts self-facts">
+      <div><dt>${W.esc(X.payer)}</dt><dd>${W.esc(I.payer || "–")}</dd></div>
+      ${I.plan ? `<div><dt>${W.esc(X.plan)}</dt><dd>${W.esc(I.plan)}</dd></div>` : ""}
+      ${I.member ? `<div><dt>${W.esc(X.member)}</dt><dd><span dir="ltr">${W.esc(I.member)}</span></dd></div>` : ""}
+      ${I.valid_to ? `<div><dt>${W.esc(X.valid)}</dt><dd>${W.esc(day(I.valid_to, lang))}</dd></div>` : ""}
+      <div><dt>${W.esc(X.status)}</dt><dd><span class="chip ${chip}">${W.esc(X.st[I.status] || X.st.unknown)}</span></dd></div>
+      ${I.preauth_required != null ? `<div><dt>${W.esc(X.preauth)}</dt><dd>${W.esc(I.preauth_required ? X.yes : X.no)}</dd></div>` : ""}</dl>
+      <p class="small muted">${W.esc(X.note)}</p></div>`;
+  }
   function detailsBox(lang, rtl) {
     const box = document.getElementById("pprofile"); if (!box || !P) return;
     const T = P.text, C = P.contact;
@@ -260,9 +274,9 @@
         <div><dt>${W.esc(T.phone)}</dt><dd>${ltr(C.phone)}${C.phone && C.whatsapp ? ' <span class="chip">WhatsApp</span>' : ""}</dd></div>
         <div><dt>${W.esc(T.email)}</dt><dd>${ltr(C.email)}</dd></div>
         <div><dt>${W.esc(T.channel)}</dt><dd>${C.preferred_channel ? W.esc(T.channels[C.preferred_channel]) : W.esc(T.no_pref)}</dd></div>
-        <div class="wide"><dt>${W.esc(T.address)}</dt><dd>${v([C.address_line, C.city, C.emirate, C.region && C.region !== C.emirate ? C.region : ""].filter(Boolean).join(", "))}</dd></div></dl>
+        <div class="wide"><dt>${W.esc(T.address)}</dt><dd>${v([C.address_line, C.city, C.emirate !== C.city ? C.emirate : "", C.region && C.region !== C.emirate && C.region !== C.city ? C.region : ""].filter(Boolean).join(", "))}</dd></div></dl>
         <div class="tb-actions"><button class="secondary" id="self-edit">${W.esc(T.edit)}</button></div>`;
-    box.innerHTML = `<div class="card" id="self-details"><h4>${W.esc(T.details_title)}</h4>${details}</div>${consentCard(T, lang)}`;
+    box.innerHTML = `<div class="card" id="self-details"><h4>${W.esc(T.details_title)}</h4>${details}</div>${insuranceCard(T, lang)}${consentCard(T, lang)}`;
     const ed = document.getElementById("self-edit"); if (ed) ed.onclick = () => { OPEN = true; DRAFT = null; render(lang, rtl); const i = box.querySelector("#self-form input"); if (i) i.focus(); };
     const f = document.getElementById("self-form"); if (!f) return;
     const em = f.querySelector('[name="emirate"]'), reg = f.querySelector("[data-region]");

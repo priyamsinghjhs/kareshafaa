@@ -32,6 +32,23 @@ closure.
 * Patient app: the **next step comes first** in large type with one clear button, the full step list is one tap away,
   and an always-visible **“Need help?”** row offers “Send a question” and “Change my appointment” (en/ar/hi/ur, RTL).
 
+**Patient summary: contact details and insurance**
+* The case screen's **Patient summary** shows phone (tap to call, WhatsApp flag), email, address, preferred language,
+  contact preference and **contact consent** (care-coordination consent plus any refused channels) to the roles that
+  contact patients (coordinator, GP, specialist, clinical lead). Analysts and admins have no patient views at all.
+* **Insurance tile** (FHIR `Coverage`, beneficiary = Patient, payor = payer Organization): insurer, plan, member number,
+  valid until, coverage status (active / ends soon / expired / unknown / self-pay) and whether **pre-authorisation** is
+  needed; a clean “No insurance on file” state otherwise. The member number is shown in full to coordinators and GPs
+  (who book and deal with payers) and the patient; specialists and clinical leads see only the last 4 characters.
+  Pre-authorisation is recorded on the patient record (additive column `insurance_preauth_required`).
+* Patient app: a read-only **“My insurance”** card next to “My contact details” (en/ar/hi/ur).
+* FHIR export per case now includes `Patient.telecom`, the full `Patient.address`, a `Coverage` resource and the payer
+  `Organization` (validated against FHIR R4B in the tests).
+* Sample data: a one-time data step (`backfill_sample_contact_insurance_v1`) fills **empty** contact and insurance
+  fields of `SYN-` synthetic patients only with plausible UAE values (UAE mobiles, `example.com` emails, Abu Dhabi /
+  Al Ain / Al Dhafra addresses; Thiqa for Emirati patients, otherwise Daman Enhanced/Basic, ADNIC or GIG/AXA). Plans and
+  member numbers are marked synthetic; nothing a person entered is overwritten and non-sample records are never touched.
+
 **Case loop**
 * Exactly one accountable owner per open case (enforced in the DB and service layer).
 * Deterministic state machine with **SLA tiers T0–T3** (T0 critical, T1 urgent, T2 soon, T3 routine; T0/T1 clocks

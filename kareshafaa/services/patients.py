@@ -700,14 +700,14 @@ def build_patient_record(db: Session, actor: Actor, p: Patient, now: datetime | 
         "can_add_result": actor.is_human and actor.can("case:create"),
         "account": _account(db, actor, p),
         "recalls": _recalls(db, p),
-        **_coverage(db, p),
+        **_coverage(db, p, actor),
     }
 
 
-def _coverage(db: Session, p: Patient) -> dict:
+def _coverage(db: Session, p: Patient, actor: Actor | None = None) -> dict:
     from .coverage import view
 
-    return view(db, p)
+    return view(db, p, actor)
 
 
 def _recalls(db: Session, p: Patient) -> list[dict]:

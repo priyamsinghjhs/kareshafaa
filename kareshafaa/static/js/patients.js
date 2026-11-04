@@ -29,7 +29,7 @@ const PF = {
   insurance(v = {}) { const O = PF.opts;
     return `${PF.sel("insurance_payer", "Insurer", Object.entries(O.payers), v.insurance_payer, { blank: "Not recorded", hint: "Thiqa for UAE nationals; choose self-pay if the patient has no cover." })}
       <div data-policy ${v.insurance_payer === "self_pay" ? "hidden" : ""}><div class="form-pair">${PF.inp("insurance_plan", "Plan / network", v.insurance_plan, { attrs: 'maxlength="80"' })}${PF.inp("insurance_member_id", "Member / card number", v.insurance_member_id, { hint: "Needed when an insurer is chosen.", attrs: 'maxlength="40" autocomplete="off"' })}</div>
-      ${PF.inp("insurance_valid_to", "Cover ends on", v.insurance_valid_to, { type: "date", attrs: 'min="2000-01-01"' })}</div>`; },
+      <div class="form-pair">${PF.inp("insurance_valid_to", "Cover ends on", v.insurance_valid_to, { type: "date", attrs: 'min="2000-01-01"' })}${PF.sel("insurance_preauth_required", "Pre-authorisation needed before a referral?", [["yes", "Yes"], ["no", "No"]], v.insurance_preauth_required === true ? "yes" : v.insurance_preauth_required === false ? "no" : "", { blank: "Not recorded" })}</div></div>`; },
   contacts(v = {}) { const O = PF.opts;
     return `<div class="form-pair">${PF.inp("nok_name", "Next of kin name", v.nok_name, { attrs: 'maxlength="200" autocomplete="off"' })}${PF.sel("nok_relationship", "Relationship", Object.entries(O.relationships), v.nok_relationship, { blank: "Not recorded" })}</div>
       ${PF.inp("nok_phone", "Next of kin phone", v.nok_phone, { type: "tel", hint: "UAE mobile 05X XXX XXXX, or international with +", attrs: 'inputmode="tel" maxlength="30" autocomplete="off"' })}
@@ -132,13 +132,14 @@ const PF = {
     keys.forEach(k => { const el = form.querySelector(`[name="${k}"]`); if (!el) return;
       if (el.type === "checkbox") out[k] = el.checked;
       else if (["managing_org_id", "gp_id"].includes(k)) out[k] = fd.get(k) ? +fd.get(k) : null;
+      else if (k === "insurance_preauth_required") out[k] = fd.get(k) === "yes" ? true : fd.get(k) === "no" ? false : null;
       else { const v = String(fd.get(k) ?? "").trim(); out[k] = v === "" ? null : v; } });
     if (keys.includes("emirate") && out.emirate && out.emirate !== "Abu Dhabi") out.region = null;
     return out; },
   KEYS: { demographics: ["given_name", "family_name", "birth_date", "gender", "id_type", "id_number", "id_country", "nationality", "language"],
     contact: ["phone", "email", "address_line", "city", "emirate", "region", "preferred_channel", "whatsapp", "has_smartphone"],
     care: ["managing_org_id", "gp_id"],
-    insurance: ["insurance_payer", "insurance_plan", "insurance_member_id", "insurance_valid_to"],
+    insurance: ["insurance_payer", "insurance_plan", "insurance_member_id", "insurance_valid_to", "insurance_preauth_required"],
     contacts: ["nok_name", "nok_relationship", "nok_phone", "nok_is_guardian", "proxy_consent", "proxy_note"] },
   dupList(cands) { return `<ul class="dup-list">${cands.map(c => `<li><a href="/patients/${c.id}" target="_blank" rel="noopener"><b>${W.esc(c.name)}</b></a> · ${W.esc(c.mrn)} · born ${W.esc(c.birth_date || c.birth_year || "–")}${c.document ? " · " + W.esc(c.document.label) + " " + W.esc(c.document.number) : (c.emirates_id ? " · EID " + W.esc(c.emirates_id) : "")} <span class="chip sla-amber">${W.esc(c.why)}</span></li>`).join("")}</ul>`; },
   label(map, k) { return (map && map[k]) || k || "–"; },
