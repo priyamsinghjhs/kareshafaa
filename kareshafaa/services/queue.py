@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime
 
-from sqlalchemy import Numeric, case as sa_case, cast, exists, false, func, literal, or_, select, true
+from sqlalchemy import Numeric, case as sa_case, cast, false, func, literal, or_, select, true
 from sqlalchemy.orm import Session, aliased
 
 from ..models import (Appointment, AppointmentRequest, CallTask, Case, ConsultRequest, Escalation, Patient, Practitioner, ServiceRequest,
@@ -131,16 +131,17 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
     """Filtering, counts, ordering and paging in SQL (SQLite and PostgreSQL alike).
 
     RAG comes from the stored per-case thresholds (sla_amber_at / sla_red_at) compared with `now`, so only the page
-    is transferred and decoded: 3 statements whatever the number of open cases. Same visible result as the former
+    is transferred and decoded: 4 statements whatever the number of open cases. Same visible result as the former
     Python path (tests/queue_oracle.py, tests/test_queue_sql.py); exact ties are broken by case id."""
     now = now or utcnow()
     owner = aliased(Practitioner)
     pend = aliased(Practitioner)
-    esc = exists().where(Escalation.case_id == Case.id, Escalation.acknowledged_at.is_(None))
-    calls = exists().where(CallTask.case_id == Case.id, CallTask.status == "requested")
-    consults = exists().where(ConsultRequest.case_id == Case.id, ConsultRequest.status == "requested")
-    appt_req = exists().where(AppointmentRequest.case_id == Case.id, AppointmentRequest.kind == "change",
-                              AppointmentRequest.status == "open")
+    # uncorrelated IN (sub-select evaluated once) rather than a correlated EXISTS per open case
+    esc = Case.id.in_(select(Escalation.case_id).where(Escalation.acknowledged_at.is_(None)))
+    calls = Case.id.in_(select(CallTask.case_id).where(CallTask.status == "requested"))
+    consults = Case.id.in_(select(ConsultRequest.case_id).where(ConsultRequest.status == "requested"))
+    appt_req = Case.id.in_(select(AppointmentRequest.case_id).where(AppointmentRequest.kind == "change",
+                                                                    AppointmentRequest.status == "open"))
     unassigned = or_(owner.is_pool.is_(True), owner.active.is_not(True))
     rag = _rag_rank(now)
     conds = {
@@ -166,10 +167,11 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
         else:
             where.append(or_(
                 Case.managing_org_id == org, owner.org_id == org, pend.org_id == org,
-                exists().where(ServiceRequest.case_id == Case.id, ServiceRequest.performer_org_id == org),
-                exists().where(Appointment.case_id == Case.id, Appointment.org_id == org),
-                exists().where(ConsultRequest.case_id == Case.id,
-                               ConsultRequest.target_practitioner_id == Practitioner.id, Practitioner.org_id == org)))
+                Case.id.in_(select(ServiceRequest.case_id).where(ServiceRequest.performer_org_id == org)),
+                Case.id.in_(select(Appointment.case_id).where(Appointment.org_id == org)),
+                Case.id.in_(select(ConsultRequest.case_id).join(Practitioner,
+                                                                Practitioner.id == ConsultRequest.target_practitioner_id)
+                            .where(Practitioner.org_id == org))))
 
     def base(*cols):
         return (select(*cols).select_from(Case).join(Patient, Patient.id == Case.patient_id)
@@ -187,21 +189,26 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
         review_key = sa_case((Case.review_required.is_(True), 0), else_=1)
         risk_key = func.round(cast(func.coalesce(Case.risk_score, 0.0), Numeric), 3)
         due_null = sa_case((Case.due_at.is_(None), 1), else_=0)
-        q = (base(Case.id, Case.programme, Case.tier, Case.state, Case.owner_id, Case.due_at,
-                  sa_case((Case.target_alert_level > Case.escalation_level, Case.target_alert_level),
-                          else_=Case.escalation_level),
-                  Case.risk_score, Case.risk_model_version, Case.transfer_pending_owner_id, Case.review_required,
-                  Patient.given_name, Patient.family_name, Patient.mrn, Patient.language,
-                  owner.name, owner.is_pool, owner.active, StepTask.started_at, StepTask.due_at, StepTask.state,
-                  rag, calls, esc, consults, appt_req, Case.review_reasons, Case.risk_rationale)
+        # 1) the page's ids: sort keys only (the sort runs over every matching open case, so keep its rows narrow)
+        page_ids = list(db.scalars(base(Case.id).where(conds[view])
+                                   .order_by(rag, tier_rank, review_key, risk_key.desc(), due_null, Case.due_at, Case.id)
+                                   .offset(offset).limit(limit)))
+        # 2) everything shown for those rows only
+        q = (select(Case.id, Case.programme, Case.tier, Case.state, Case.owner_id, Case.due_at,
+                    sa_case((Case.target_alert_level > Case.escalation_level, Case.target_alert_level),
+                            else_=Case.escalation_level),
+                    Case.risk_score, Case.risk_model_version, Case.transfer_pending_owner_id, Case.review_required,
+                    Patient.given_name, Patient.family_name, Patient.mrn, Patient.language,
+                    owner.name, owner.is_pool, owner.active, StepTask.started_at, StepTask.due_at, StepTask.state,
+                    rag, calls, esc, consults, appt_req, Case.review_reasons, Case.risk_rationale)
+             .select_from(Case).join(Patient, Patient.id == Case.patient_id).join(owner, owner.id == Case.owner_id)
              .outerjoin(StepTask, (StepTask.case_id == Case.id) & (StepTask.status == "in-progress"))
-             .where(conds[view])
-             .order_by(rag, tier_rank, review_key, risk_key.desc(), due_null, Case.due_at, Case.id)
-             .offset(offset).limit(limit))
+             .where(Case.id.in_(page_ids)))
+        pos = {cid: i for i, cid in enumerate(page_ids)}
         sla = SlaLookup.load(db)
         for (cid, prog, tier, state, owner_id, due, lvl, risk, risk_v, pending, review, given, family, mrn, lang,
              oname, opool, oactive, s_start, s_due, s_state, rank, has_call, has_esc, has_consult, has_appt_req,
-             rr, why) in db.execute(q):
+             rr, why) in sorted(db.execute(q).all(), key=lambda r: pos[r[0]]) if page_ids else ():
             frac = 0.0
             if s_start is not None:
                 frac = rag_status(s_start, s_due, now, sla.reminder_fraction(s_state, tier))[1]
