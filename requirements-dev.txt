@@ -9,3 +9,5 @@ fhir.resources>=8.0  # tests/test_fhir_conformance.py (FHIR R4B model validation
 pip-audit>=2.7
 bandit>=1.7
 playwright>=1.45  # scripts/a11y_check.py, scripts/perf_check.py
+markdown>=3.5  # scripts/build_handover_pdf.py
+python-docx>=1.1  # scripts/build_handover_pdf.py
