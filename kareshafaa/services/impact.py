@@ -113,6 +113,86 @@ def _group_rows(m: pd.DataFrame, overall: float | None, col: str) -> list[dict]:
     return sorted(rows, key=lambda r: -(r["n"] if isinstance(r["n"], int) else 0))
 
 
+BARRIER_LABEL = {
+    "transport": "Transport", "work": "Work hours", "fear_anxiety": "Fear or anxiety", "cost": "Cost",
+    "language": "Language", "forgot": "Forgot", "childcare": "Childcare", "ramadan_hours": "Ramadan hours",
+    "unknown": "Not given", "patient_not_responding": "Patient not responding to contact",
+    "contact_details_wrong": "Contact details wrong", "patient_declined": "Patient declined",
+    "teach_back_failed": "Did not understand the result (teach-back)",
+}
+# Where a loop breaks, from the lessons log (one row per failure event, written by the workflow) and from the
+# barrier the patient gave (in the patient app, or to staff after a missed appointment).
+PATIENT_SIDE_KINDS = {"no_show": "Missed appointment", "unreachable": "Could not be reached",
+                      "declined": "Declined", "teach_back_failed": "Did not understand the result",
+                      "overdue_patient": "Step overdue"}
+# an overdue step whose recorded reason sits with the patient counts on the patient side
+PATIENT_REASONS = {"patient_not_responding", "contact_details_wrong", "language_barrier", "patient_travel",
+                   "patient_anxiety"}
+SYSTEM_SIDE_KINDS = {"overdue": "Step overdue", "rejected_referral": "Referral rejected", "incident": "Incident"}
+
+
+def barrier_analysis(db: Session, case_ids: set[int] | None) -> dict[str, Any]:
+    """Why loops fail: patient-reported barriers and where the service itself stalled. Counts are events, not
+    patients; small counts are suppressed like every other figure on this report."""
+    from ..models import AppointmentRequest, Lesson, PatientRequest
+
+    def keep(cid):
+        return case_ids is None or cid in case_ids
+
+    reported: dict[str, int] = {}
+    for cid, code in db.execute(select(Appointment.case_id, Appointment.barrier_code)
+                                .where(Appointment.status == "noshow", Appointment.barrier_code.is_not(None))).all():
+        if keep(cid):
+            reported[code] = reported.get(code, 0) + 1
+    app_answers = 0
+    for model in (AppointmentRequest, PatientRequest):
+        for cid, code in db.execute(select(model.case_id, model.barrier_code).where(model.barrier_code.is_not(None))).all():
+            if keep(cid):
+                reported[code] = reported.get(code, 0) + 1
+                app_answers += 1
+    patient_side: dict[str, int] = {}
+    system_side: dict[str, dict[str, int]] = {}
+    for cid, kind, reason in db.execute(select(Lesson.case_id, Lesson.kind, Lesson.reason_code)).all():
+        if not keep(cid):
+            continue
+        if kind == "overdue" and reason in PATIENT_REASONS:
+            kind = "overdue_patient"
+        if kind in PATIENT_SIDE_KINDS:
+            key = kind if kind in ("teach_back_failed", "no_show") else f"{kind}:{reason}"
+            patient_side[key] = patient_side.get(key, 0) + 1
+        elif kind in SYSTEM_SIDE_KINDS:
+            system_side.setdefault(kind, {})
+            system_side[kind][reason] = system_side[kind].get(reason, 0) + 1
+
+    def rows(d: dict[str, int], label) -> list[dict]:
+        tot = sum(d.values())
+        return [{"code": k, "label": label(k), "events": suppress_count(v), "share": suppress_rate(v, tot)}
+                for k, v in sorted(d.items(), key=lambda kv: -kv[1])]
+
+    def plabel(k: str) -> str:
+        kind, _, reason = k.partition(":")
+        base = PATIENT_SIDE_KINDS.get(kind, kind)
+        return f"{base}: {BARRIER_LABEL.get(reason, reason.replace('_', ' '))}" if reason else base
+
+    sys_rows = []
+    for kind, d in system_side.items():
+        for r in rows(d, lambda k: k.replace("_", " ").capitalize()):
+            sys_rows.append({"kind": kind, "kind_label": SYSTEM_SIDE_KINDS[kind], **r})
+    sys_rows.sort(key=lambda r: -(r["events"] if isinstance(r["events"], int) else 0))
+    tot_p, tot_s = sum(patient_side.values()), sum(sum(d.values()) for d in system_side.values())
+    return {
+        "patient_reported": rows(reported, lambda k: BARRIER_LABEL.get(k, k.replace("_", " "))),
+        "patient_reported_from_app": suppress_count(app_answers),
+        "patient_side": rows(patient_side, plabel),
+        "system_side": sys_rows[:12],
+        "split": {"patient_side_events": suppress_count(tot_p), "system_side_events": suppress_count(tot_s),
+                  "system_share": suppress_rate(tot_s, tot_p + tot_s)},
+        "note": ("Events, not patients: one case can fail more than once. 'Patient reported' is what the patient said "
+                 "got in the way (in the patient app, or to staff after a missed appointment). 'System side' are steps "
+                 "the service itself left overdue or a referral it rejected."),
+    }
+
+
 def impact_report(db: Session, programme: str | None = None, now=None) -> dict[str, Any]:
     from .recall import uptake
 
@@ -163,7 +243,9 @@ def impact_report(db: Session, programme: str | None = None, now=None) -> dict[s
                         "loop_closure_rate": _rate(gm.loop_closed.sum(), len(gm)), "lost_rate": _rate(gm.lost.sum(), len(gm)),
                         "median_days_to_specialist": _median(g.days_to_contact)})
     equity = {col: {"label": lab, "rows": _group_rows(m, overall if isinstance(overall, float) else None, col)} for col, lab in EQUITY_SLICES}
-    return base | {"headline": headline, "by_tier": by_tier, "by_programme": by_prog, "equity": equity}
+    barriers = barrier_analysis(db, set(int(x) for x in c.id))
+    return base | {"headline": headline, "by_tier": by_tier, "by_programme": by_prog, "equity": equity,
+                   "barriers": barriers}
 
 
 def impact_csv(rep: dict) -> str:
@@ -188,4 +270,11 @@ def impact_csv(rep: dict) -> str:
         for r in e["rows"]:
             for k in ("n", "loop_closure_rate", "lost_rate", "median_days_to_specialist", "gap_pp", "flag"):
                 w.writerow(["equity", col, r["group"], k, r[k]])
+    b = rep.get("barriers") or {}
+    for r in b.get("patient_reported", []):
+        w.writerow(["barrier", "patient_reported", r["label"], "events", r["events"]])
+    for r in b.get("patient_side", []):
+        w.writerow(["barrier", "patient_side", r["label"], "events", r["events"]])
+    for r in b.get("system_side", []):
+        w.writerow(["barrier", "system_side", f"{r['kind_label']}: {r['label']}", "events", r["events"]])
     return out.getvalue()

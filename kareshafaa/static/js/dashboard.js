@@ -1,3 +1,12 @@
+const barrierRows = (rows, supp, label = (x) => x.label) => rows.length
+  ? `<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><thead><tr><th>Reason</th><th>Events</th><th>Share</th></tr></thead><tbody>${rows.map(x => `<tr><td>${W.esc(label(x))}</td><td>${supp(x.events)}</td><td>${W.pct(supp(x.share))}</td></tr>`).join("")}</tbody></table></div>`
+  : `<p class="small muted">None recorded yet.</p>`;
+const barrierCard = (b, supp) => `<section class="card" id="impact-barriers" aria-labelledby="barriers-h"><h4 id="barriers-h">Why loops fail</h4>
+  <p class="small">${supp(b.split.system_side_events)} of the recorded failure events sit with the service (${W.pct(supp(b.split.system_share))}) and ${supp(b.split.patient_side_events)} with the patient's situation.</p>
+  <div class="grid-3"><div><h5>What patients told us</h5>${barrierRows(b.patient_reported, supp)}</div>
+  <div><h5>Patient side</h5>${barrierRows(b.patient_side, supp)}</div>
+  <div><h5>Service side</h5>${barrierRows(b.system_side, supp, x => `${x.kind_label}: ${x.label}`)}</div></div>
+  <p class="small muted">${W.esc(b.note)}</p></section>`;
 const KLABEL = { median_days_to_notification: "Median days to notification", median_days_to_acknowledgement: "Median days to understood (acknowledged)",
   median_days_to_confirmation: "Median days to confirmation", median_days_to_consultation: "Median days to consultation", median_days_to_care: "Median days to care",
   pct_notified: "% notified", pct_understood: "% understood (teach-back)", pct_referral_completed: "% referrals completed", pct_appointment_attended: "% appointments attended",
@@ -23,14 +32,15 @@ const tabs = {
       ${impactCard("Seen within pathway target", W.pct(supp(h.within_target_rate)), `${supp(h.waiting_past_target_now)} still waiting past target`)}
       ${impactCard("Closed by clinician decision", W.pct(supp(h.closed_by_decision_rate)), "informed decline, care elsewhere and similar")}
       ${impactCard("Recall uptake", W.pct(supp(h.recall_uptake_rate)), `screened within ${h.recall_uptake_window_days} days of the due date`)}</div>
-     <div class="card"><h4>Time to first specialist contact, by urgency tier</h4><div class="table-scroll"><table class="compact" id="impact-tiers"><thead><tr><th>Tier</th><th>Cases</th><th>Seen</th><th>Median days</th><th>90th percentile</th><th>Default target</th><th>Seen within target</th><th>Waiting past target</th></tr></thead><tbody>
+     <div class="card"><h4>Time to first specialist contact, by urgency tier</h4><div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact" id="impact-tiers"><thead><tr><th>Tier</th><th>Cases</th><th>Seen</th><th>Median days</th><th>90th percentile</th><th>Default target</th><th>Seen within target</th><th>Waiting past target</th></tr></thead><tbody>
       ${r.by_tier.map(t => `<tr data-tier="${t.tier}"><td><span class="chip">${W.esc(t.label)}</span></td><td>${supp(t.cases)}</td><td>${supp(t.seen)}</td><td>${t.median_days ?? "–"}</td><td>${t.p90_days ?? "–"}</td><td>${t.target_days_default} ${t.target_days_default === 1 ? "day" : "days"}</td><td>${W.pct(supp(t.within_target_rate))}</td><td>${supp(t.waiting_past_target)}</td></tr>`).join("")}</tbody></table></div>
       <p class="small muted">Each case has its own end-to-end target from its pathway (for example colonoscopy within 31 days of a positive FIT); the default column shows the fallback per tier.</p></div>
-     <div class="card"><h4>By screening programme</h4><div class="table-scroll"><table class="compact"><thead><tr><th>Programme</th><th>Cases</th><th>Loop closed</th><th>Lost to follow-up</th><th>Median days to specialist</th></tr></thead><tbody>
+     <div class="card"><h4>By screening programme</h4><div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><thead><tr><th>Programme</th><th>Cases</th><th>Loop closed</th><th>Lost to follow-up</th><th>Median days to specialist</th></tr></thead><tbody>
       ${r.by_programme.map(p => `<tr><td>${W.esc(p.label)}</td><td>${supp(p.cases)}</td><td>${W.pct(supp(p.loop_closure_rate))}</td><td>${W.pct(supp(p.lost_rate))}</td><td>${p.median_days_to_specialist ?? "–"}</td></tr>`).join("")}</tbody></table></div></div>
-     <div class="grid-3" id="impact-equity">${Object.entries(r.equity).map(([k, e]) => `<div class="card"><h4>Equity by ${W.esc(e.label.toLowerCase())}</h4><div class="table-scroll"><table class="compact"><thead><tr><th>Group</th><th>n</th><th>Loop closed</th><th>Gap</th></tr></thead><tbody>
+     <div class="grid-3" id="impact-equity">${Object.entries(r.equity).map(([k, e]) => `<div class="card"><h4>Equity by ${W.esc(e.label.toLowerCase())}</h4><div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><thead><tr><th>Group</th><th>n</th><th>Loop closed</th><th>Gap</th></tr></thead><tbody>
       ${e.rows.map(g => `<tr ${g.flag ? 'class="row-flag"' : ""}><td>${W.esc(g.group)}</td><td>${supp(g.n)}</td><td>${W.pct(supp(g.loop_closure_rate))}</td><td>${g.gap_pp == null ? "–" : (g.gap_pp > 0 ? `${g.gap_pp} pts below` : `${Math.abs(g.gap_pp)} pts above`)}${g.flag ? ' <span class="chip sla-red">▲ check</span>' : ""}</td></tr>`).join("")}</tbody></table></div></div>`).join("")}</div>
      <p class="small muted">A group is marked “check” when its loop-closure rate is ${st.equity_gap_pp} or more percentage points below the overall rate.</p>
+     ${r.barriers ? barrierCard(r.barriers, supp) : ""}
      <details class="card"><summary>How each figure is defined</summary><dl class="facts">${Object.entries(d).map(([k, v]) => `<div><dt>${W.esc(k.replaceAll("_", " "))}</dt><dd>${W.esc(v)}</dd></div>`).join("")}</dl></details>`;
     wireProg();
   },

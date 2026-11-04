@@ -260,3 +260,15 @@ def test_why_explains_review_flag_and_kept_tier(client, as_user, new_case, db):
     w = client.get(f"/api/cases/{c['id']}", headers=as_user(COORD)).json()["why"]
     assert w["decided_by"] == "rules engine, confirmed by a clinician"
     assert any("reviewed it and kept" in s and "keep the tier”." in s for s in w["steps"])
+
+
+def test_impact_barrier_analysis(client, as_user):
+    r = client.get("/api/analytics/impact", headers=as_user(LEAD))
+    assert r.status_code == 200, r.text
+    b = r.json()["barriers"]
+    assert {"patient_reported", "patient_side", "system_side", "split", "note"} <= set(b)
+    for row in b["patient_reported"] + b["patient_side"] + b["system_side"]:
+        assert row["label"] and (isinstance(row["events"], str) and row["events"].startswith("<") or row["events"] >= 0)
+    s = b["split"]
+    if isinstance(s["patient_side_events"], int) and isinstance(s["system_side_events"], int) and s["system_side_events"]:
+        assert abs(s["system_share"] - s["system_side_events"] / (s["patient_side_events"] + s["system_side_events"])) < 0.01
