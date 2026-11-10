@@ -16,7 +16,8 @@ from ..statemachine import LABELS, S
 
 RAG_RANK = {"red": 0, "amber": 1, "green": 2, "none": 3}
 TIER_RANK = {"critical": 0, "urgent": 1, "high": 2, "routine": 3}
-VIEWS = ("all", "review", "overdue", "unassigned", "rejected", "escalated", "calls", "transfers", "consults", "mine")
+VIEWS = ("all", "review", "overdue", "unassigned", "rejected", "escalated", "calls", "transfers", "consults", "mine",
+         "critical")  # critical = critical-result fast lane: open T0 cases with no direct read-back recorded yet
 
 
 def _org_scope(db: Session, case_ids: list[int]) -> dict[int, set[int]]:
@@ -144,12 +145,15 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
     appt_req = Case.id.in_(select(AppointmentRequest.case_id).where(AppointmentRequest.kind == "change",
                                                                     AppointmentRequest.status == "open"))
     unassigned = or_(owner.is_pool.is_(True), owner.active.is_not(True))
+    from .critical import missing_select
+    read_back_needed = (Case.tier == "critical") & Case.id.not_in(missing_select())
     rag = _rag_rank(now)
     conds = {
         "all": true(), "review": Case.review_required.is_(True), "overdue": rag == 0, "unassigned": unassigned,
         "rejected": Case.state == S.REFERRAL_REJECTED, "escalated": esc, "calls": calls,
         "transfers": Case.transfer_pending_owner_id.is_not(None), "consults": consults,
         "mine": Case.owner_id == actor.practitioner_id if actor.practitioner_id is not None else false(),
+        "critical": read_back_needed,
     }
     where = [Case.state != S.CLOSED]
     if programme:
@@ -203,7 +207,7 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
                     Case.risk_score, Case.risk_model_version, Case.transfer_pending_owner_id, Case.review_required,
                     Patient.given_name, Patient.family_name, Patient.mrn, Patient.language,
                     owner.name, owner.is_pool, owner.active, StepTask.started_at, StepTask.due_at, StepTask.state,
-                    rag, calls, esc, consults, appt_req, Case.review_reasons, Case.risk_rationale)
+                    rag, calls, esc, consults, appt_req, Case.review_reasons, Case.risk_rationale, read_back_needed)
              .select_from(Case).join(Patient, Patient.id == Case.patient_id).join(owner, owner.id == Case.owner_id)
              .outerjoin(StepTask, (StepTask.case_id == Case.id) & (StepTask.status == "in-progress"))
              .where(Case.id.in_(page_ids)))
@@ -211,7 +215,7 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
         sla = SlaLookup.load(db)
         for (cid, prog, tier, state, owner_id, due, lvl, risk, risk_v, pending, review, given, family, mrn, lang,
              oname, opool, oactive, s_start, s_due, s_state, rank, has_call, has_esc, has_consult, has_appt_req,
-             rr, why) in sorted(db.execute(q).all(), key=lambda r: pos[r[0]]) if page_ids else ():
+             rr, why, rb_needed) in sorted(db.execute(q).all(), key=lambda r: pos[r[0]]) if page_ids else ():
             frac = 0.0
             if s_start is not None:
                 frac = rag_status(s_start, s_due, now, sla.reminder_fraction(s_state, tier))[1]
@@ -225,6 +229,7 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
                 "open_escalation": bool(has_esc), "open_consult": bool(has_consult),
                 "unassigned": bool(opool) or not oactive, "review_required": bool(review),
                 "patient_change_request": bool(has_appt_req), "review_reasons": rr or [],
+                "read_back_needed": bool(rb_needed),
                 "risk_rationale": "; ".join(f"{w['text']} ({w['direction']})" for w in (why or [])),
             })
     return {"view": view, "counts": counts, "total": total, "offset": offset, "limit": limit, "items": items,

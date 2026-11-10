@@ -21,11 +21,17 @@ def available_actions(db: Session, actor: Actor, c: Case) -> list[dict]:
         if perm is None or can(perm):
             acts.append({"key": key, "label": label, "primary": primary, **extra})
 
+    from ..services.critical import read_back_needed as _rbn
+    read_back_needed = _rbn(db, c)
+    if read_back_needed:  # critical-result fast lane: before anything else, a clinician has it and read it back
+        add("read_back", "Record direct contact and read-back (critical result)", "critical:readback", True)
     open_call = db.scalar(select(CallTask).where(CallTask.case_id == c.id, CallTask.status == "requested"))
     if c.review_required and st != S.CLOSED:
         add("review", "Resolve clinical review", "case:triage_urgent", True)
     if st == S.ISSUED and c.review_required:
         pass  # nothing proceeds until a clinician has reviewed the result
+    elif st == S.ISSUED and read_back_needed:
+        pass  # triage opens once the read-back is recorded (workflow._guard)
     elif st == S.ISSUED:
         clin = c.tier in CLINICIAN_CONFIRMED_TIERS
         add("triage", "Confirm triage" + (" (clinician)" if clin else ""),

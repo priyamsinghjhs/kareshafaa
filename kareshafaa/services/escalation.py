@@ -127,16 +127,20 @@ def run_sweep(db: Session, now: datetime | None = None, actor: Actor = SYSTEM, c
                 target = programme_director(db)
             what = ("pathway target missed (consolidated case alert)" if d.clock == "pathway"
                     else f"{step.state} at {d.frac:.0%} of SLA")
+            # critical-result fast lane: from the first breach (level 2 and above) the alert is a PHONE call to the
+            # person, not a message in a queue (services/critical.py)
+            channel = "phone" if (case.tier == "critical" and lvl >= 2) else "internal"
             esc = Escalation(case_id=case.id, step_task_id=step.id, level=lvl, target_practitioner_id=target.id,
-                             created_at=now, kind=d.clock, note=f"{LEVEL_NAMES[lvl]}: {what}")
+                             created_at=now, kind=d.clock, note=f"{LEVEL_NAMES[lvl]}: {what}"
+                             + (" - by phone (critical result)" if channel == "phone" else ""), channel=channel)
             db.add(esc)
             db.add(Communication(case_id=case.id, recipient_practitioner_id=target.id, category="escalation",
-                                 channel="internal", content=f"[SIMULATED internal alert] {esc.note} - case #{case.id}",
-                                 status="completed", simulated=True, sent_at=now))
+                                 channel=channel, content=f"[SIMULATED {'phone escalation' if channel == 'phone' else 'internal alert'}] "
+                                 f"{esc.note} - case #{case.id}", status="completed", simulated=True, sent_at=now))
             db.flush()
             audit.record(db, actor, "C", f"escalation.level{lvl}", entity_type="Escalation", entity_id=esc.id,
                          case_id=case.id, ts=now, detail={"target": target.id, "state": step.state, "clock": d.clock,
-                                                          "fraction": round(d.frac, 3)})
+                                                          "fraction": round(d.frac, 3), "channel": channel})
             out[{1: "reminders", 2: "supervisor", 3: "clinical_lead", 4: "director"}[lvl]] += 1
             out["target_breach_alerts"] += int(d.clock == "pathway")
             if lvl == 1 and S(case.state) in PATIENT_FACING and not case.patient.deceased \

@@ -29,7 +29,7 @@ POLICY: dict[str, str] = {
     "GET /api/cases": "perm:case:read", "GET /api/cases/{case_id}": "inner:case:read",
     "GET /api/cases/{case_id}/actions": "perm:case:read", "GET /api/cases/{case_id}/fhir": "perm:fhir:export",
     "POST /api/cases/{case_id}/transition": "perm:case:read", "POST /api/cases/{case_id}/close": "perm:case:write",
-    "POST /api/cases/{case_id}/review": "perm:case:triage_urgent", "POST /api/cases/{case_id}/reopen": "perm:case:reopen",
+    "POST /api/cases/{case_id}/review": "perm:case:triage_urgent", "POST /api/cases/{case_id}/critical-read-back": "perm:critical:readback", "POST /api/cases/{case_id}/reopen": "perm:case:reopen",
     "POST /api/cases/{case_id}/assign": "perm:case:assign", "POST /api/cases/{case_id}/transfer": "perm:case:transfer",
     "POST /api/cases/{case_id}/transfer/decision": "perm:case:read", "POST /api/cases/{case_id}/notify": "perm:comm:send",
     "POST /api/cases/{case_id}/call": "perm:call:record", "POST /api/cases/{case_id}/teach-back": "perm:call:record",

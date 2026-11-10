@@ -29,7 +29,7 @@ function header() {
    <div class="case-head"><h1>${W.esc(C.patient.name)}</h1>
    <p class="muted small" style="margin:0">Case #${C.id} · ${W.esc(C.patient.mrn)} · ${W.prog(C.programme)} screening</p>
    <div class="case-meta">${W.tier(C.tier)} ${W.sla(C.sla.status, C.sla.fraction)} ${C.sla.escalation_level ? `<span class="chip sla-red">Escalated (level ${C.sla.escalation_level})</span>` : ""}</div></div>
-   ${nextBar()}${coverage()}${record()}
+   ${nextBar()}${fastLane()}${coverage()}${record()}
    <h2 class="sec-title" id="step-h">Current step on the care pathway</h2>
    <dl class="facts" aria-labelledby="step-h">
      <div><dt>Current step</dt><dd>${W.esc(C.state_label)}</dd></div>
@@ -53,6 +53,15 @@ function nextBar() {
   return `<section class="card next-bar ${W.esc(C.sla.status)}" aria-labelledby="nb-h"><div><h2 id="nb-h" class="nb-title">Now: ${W.esc(C.state_label)}</h2>
     <p class="small" style="margin:0">${C.sla.due_at ? W.leftHtml(C.sla.due_at, C.sla.status) + " · due " + W.esc(W.dt(C.sla.due_at)) : "No deadline on this step"} · owner ${W.esc(String(C.owner || "").split(" (")[0])}</p></div>
     ${primary ? `<button class="nb-go" data-k="${primary.key}" data-ev="${primary.evidence_type || ""}" data-scroll>${W.esc(primary.label)}</button>` : `<span class="small muted">Nothing for your role to do right now.</span>`}</section>`;
+}
+
+// critical-result fast lane (services/critical.py): direct clinician contact with read-back, phone escalation
+function fastLane() {
+  const f = C.fast_lane; if (!f) return "";
+  if (f.read_back) { const r = f.read_back;
+    return `<div class="card flat" data-fast-lane="done"><p class="small"><span class="chip sla-green">✓ Critical result read back</span> ${W.esc(r.method_label)} · ${W.dt(r.contacted_at)} · given by ${W.esc(r.reported_by)} · received by <b>${W.esc(r.received_by || "")}</b>. </p></div>`; }
+  if (!f.read_back_needed) return "";
+  return `<div class="card notice" role="alert" data-fast-lane="needed"><p class="small"><span class="shape fast-lane-icon" aria-hidden="true">!</span> <b>Critical result.</b> Record the read-back before triage. Escalates by phone.</p></div>`;
 }
 
 function coverage() {
@@ -317,6 +326,18 @@ async function openForm(key, evidenceType) {
   const d = ["assign", "transfer", "consult", "refer", "order_confirmatory", "book"].includes(key) ? await dir() : null;
   switch (key) {
     case "triage": return tr("triaged", "Triage confirmed");
+    case "read_back": { const fl = C.fast_lane || {}, now = new Date(), v = new Date(now - now.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+      const docs = d0 => opts(d0.prac.filter(p => !p.is_pool && ["gp", "specialist", "clinical_lead"].includes(p.role)), p => p.id, p => p.name + (p.id === W.me.practitioner_id ? " (me)" : ""));
+      const dd = await dir();
+      const f0 = form(`<p class="small">Direct contact only. Read the result back.</p>` +
+        F.sel("method", "How you were contacted", kv(fl.methods || { phone: "Phone call", in_person: "In person", secure_page: "Paged secure message" })) +
+        `<label>Who gave you the result (name or role)<input name="reported_by" required minlength="2" maxlength="120" placeholder="e.g. lab duty scientist"></label>` +
+        F.sel("received_by", "Clinician who received it", docs(dd)) +
+        `<label>When<input type="datetime-local" name="contacted_at" value="${v}" required></label>` +
+        `<label class="check"><input type="checkbox" name="read_back" value="yes" required> I read the result back and it was confirmed</label>`,
+        fd => post(`${u}/critical-read-back`, { method: fd.method, reported_by: fd.reported_by, received_by_practitioner_id: +fd.received_by, contacted_at: new Date(fd.contacted_at).toISOString(), read_back_confirmed: fd.read_back === "yes" }, "Read-back recorded"), "Record read-back");
+      setTimeout(() => { const s = document.querySelector('#aform select[name="received_by"]'); if (s && W.me.practitioner_id) s.value = String(W.me.practitioner_id); }, 0);
+      return f0; }
     case "consultation": return tr("consultation", "Consultation recorded");
     case "unreachable": return tr("unreachable", "Marked unreachable");
     case "notify": return post(`${u}/notify`, { category: "result_notification" }, "Notification recorded – sending to patients' phones is not connected yet");

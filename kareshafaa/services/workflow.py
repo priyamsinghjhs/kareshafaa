@@ -425,7 +425,11 @@ def _guard(db: Session, case: Case, dst: S) -> None:
         if not cond:
             raise TransitionError(msg)
 
-    if dst == S.PATIENT_NOTIFIED:
+    if dst == S.TRIAGED and src == S.ISSUED and case.tier == "critical":
+        from .critical import latest as _read_back
+        need(_read_back(db, case.id) is not None,
+             "critical result: record the direct clinician contact and read-back first (fast lane), then triage")
+    elif dst == S.PATIENT_NOTIFIED:
         need(db.scalar(select(func.count()).select_from(Communication).where(
             Communication.case_id == case.id, Communication.category == "result_notification",
             Communication.status == "completed")) > 0,
@@ -570,7 +574,7 @@ def close_case(db: Session, case: Case, actor: Actor, closure_type: str, *, evid
     try:
         check_closure(case.state, closure_type, evidence_type=evidence_type, reason=reason, note=note,
                       actor_is_human=actor.is_human, actor_can_authorise=actor.can("closure:authorise"),
-                      programme=case.programme)
+                      programme=case.programme, tier=case.tier)
     except TransitionError:
         raise  # the request-level audit middleware records the denied attempt
     if closure_type == "evidence":

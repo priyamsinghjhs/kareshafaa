@@ -318,3 +318,28 @@ def test_lab_message_ingestion_is_all_or_nothing(mode, raw, as_user, new_case, d
     assert _fingerprint(db, ctx) == before
     assert _trail(db, since, url)
     assert raw.post(url, headers=h, content=msg).status_code == 200
+
+
+@pytest.mark.parametrize("mode", ["mid", "commit", "queue"])
+def test_critical_read_back_is_all_or_nothing(mode, raw, as_user, new_case, db, inject):
+    """Critical-result fast lane: the read-back record and its audit event are saved together or not at all."""
+    from kareshafaa.models import Case
+    c = new_case("diabetes_hba1c", 16.0)
+    ctx = {"cid": c["id"], "pid": db.get(Case, c["id"]).patient_id}
+    body = {"method": "phone", "reported_by": "Lab duty scientist", "read_back_confirmed": True}
+    _r, fired = _check_fault(raw, as_user, db, ctx, inject, mode, LEAD, "/api/cases/{cid}/critical-read-back", body)
+    assert fired
+    r = raw.post(f"/api/cases/{ctx['cid']}/critical-read-back", headers=as_user(LEAD), json=body)
+    assert r.status_code == 200, r.text
+
+
+def test_critical_triage_without_read_back_changes_nothing(raw, as_user, new_case, db):
+    from kareshafaa.models import Case
+    c = new_case("diabetes_hba1c", 16.0)
+    ctx = {"cid": c["id"], "pid": db.get(Case, c["id"]).patient_id}
+    url = f"/api/cases/{ctx['cid']}/transition"
+    before, since = _fingerprint(db, ctx), _heads(db)
+    r = raw.post(url, headers=as_user(LEAD), json={"to_state": "triaged"})
+    assert 400 <= r.status_code < 500, r.text
+    assert _fingerprint(db, ctx) == before
+    assert _trail(db, since, url), "the refusal left no audit trail"

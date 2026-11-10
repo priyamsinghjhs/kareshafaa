@@ -106,6 +106,14 @@ class ConsultResponseIn(_In):
     response: str = Field(min_length=2, max_length=4000)
 
 
+class ReadBackIn(_In):
+    method: Literal["phone", "in_person", "secure_page"]
+    reported_by: str = Field(min_length=2, max_length=120)
+    read_back_confirmed: bool
+    received_by_practitioner_id: int | None = None
+    contacted_at: datetime | None = None
+
+
 class NoteIn(_In):
     note: str = Field(min_length=3, max_length=2000)
 

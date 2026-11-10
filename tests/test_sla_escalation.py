@@ -42,8 +42,10 @@ def test_escalation_ladder_levels(db, new_case):
 def test_critical_breach_goes_straight_to_clinical_lead(db, new_case, client, as_user):
     c = new_case("diabetes_hba1c", 16.0)
     assert c["tier"] == "critical" and c["state"] == "issued"
-    client.post(f"/api/cases/{c['id']}/transition", headers=as_user("fatima.al.mansoori"),
-                json={"to_state": "triaged"})
+    assert client.post(f"/api/cases/{c['id']}/critical-read-back", headers=as_user("fatima.al.mansoori"),
+                       json={"method": "phone", "reported_by": "Lab duty scientist", "read_back_confirmed": True}).status_code == 200
+    assert client.post(f"/api/cases/{c['id']}/transition", headers=as_user("fatima.al.mansoori"),
+                       json={"to_state": "triaged"}).status_code == 200
     db.expire_all()
     step = _step(db, c["id"])
     run_sweep(db, now=step.started_at + timedelta(hours=step.sla_hours * 1.05), case_ids=[c["id"]])

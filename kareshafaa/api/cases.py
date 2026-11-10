@@ -72,7 +72,11 @@ def get_case(case_id: int, actor: Actor = Depends(current_actor), db: Session = 
 @router.get("/cases/{case_id}/actions")
 def case_actions(case_id: int, actor: Actor = Depends(require("case:read")), db: Session = Depends(get_db)) -> dict:
     c = _load(db, actor, case_id)
-    return {"actions": available_actions(db, actor, c), "closure_reasons": AUTHORISED_CLOSURE_REASONS,
+    from ..statemachine import NEVER_FOR_CRITICAL
+
+    reasons = {k: v for k, v in AUTHORISED_CLOSURE_REASONS.items()
+               if not (c.tier == "critical" and k in NEVER_FOR_CRITICAL)}
+    return {"actions": available_actions(db, actor, c), "closure_reasons": reasons,
             "reject_reasons": wf.REJECT_REASONS, "barriers": wf.NO_SHOW_BARRIERS, "appointment_change_reasons": wf.APPOINTMENT_CHANGE_REASONS, "delay_reasons": wf.DELAY_REASONS}
 
 
@@ -101,6 +105,21 @@ def close(case_id: int, body: sch.CloseIn, actor: Actor = Depends(require("case:
     c = _load(db, actor, case_id)
     wf.close_case(db, c, actor, body.closure_type, evidence_type=body.evidence_type, evidence_id=body.evidence_id,
                   reason=body.reason, note=body.note)
+    return _done(db, c, actor)
+
+
+@router.post("/cases/{case_id}/critical-read-back")
+def critical_read_back(case_id: int, body: sch.ReadBackIn, actor: Actor = Depends(require("critical:readback")),
+                       db: Session = Depends(get_db)) -> dict:
+    """Critical-result fast lane: record the direct clinician contact and read-back (services/critical.py)."""
+    from ..calendar_uae import as_utc_naive
+    from ..services.critical import record_read_back
+
+    c = _load(db, actor, case_id)
+    record_read_back(db, c, actor, method=body.method, reported_by=body.reported_by,
+                     read_back_confirmed=body.read_back_confirmed,
+                     received_by_practitioner_id=body.received_by_practitioner_id,
+                     contacted_at=as_utc_naive(body.contacted_at) if body.contacted_at else None)
     return _done(db, c, actor)
 
 

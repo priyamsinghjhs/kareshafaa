@@ -61,6 +61,8 @@ def work_queue_python(db: Session, actor: Actor, view: str = "all", now: datetim
         from kareshafaa.services.access import case_visible
         scoped = {cid for cid in ids if actor.org_id in orgs.get(cid, ()) and case_visible(db, actor, db.get(Case, cid))}
     counts = {v: 0 for v in VIEWS}
+    from kareshafaa.models import CriticalReadBack
+    read_back = set(db.scalars(select(CriticalReadBack.case_id).where(CriticalReadBack.read_back_confirmed.is_(True))))
     rows = []
     for (cid, prog, tier, state, owner_id, due, esc, risk, risk_v, pending, review, given, family, mrn, lang,
          oname, opool, oactive, s_start, s_due, s_state) in rows_db:
@@ -79,11 +81,13 @@ def work_queue_python(db: Session, actor: Actor, view: str = "all", now: datetim
             "transfer_pending": pending is not None, "call_task": cid in open_calls,
             "open_escalation": cid in open_esc, "open_consult": cid in open_consults, "unassigned": unassigned,
             "review_required": bool(review), "patient_change_request": cid in open_appt_req,
+            "read_back_needed": tier == "critical" and cid not in read_back,
         }
         member = {
             "all": True, "review": bool(review), "overdue": rag == "red", "unassigned": unassigned, "rejected": state == S.REFERRAL_REJECTED,
             "escalated": row["open_escalation"], "calls": row["call_task"], "transfers": row["transfer_pending"],
             "consults": row["open_consult"], "mine": actor.practitioner_id == owner_id,
+            "critical": row["read_back_needed"],
         }
         for v, m in member.items():
             counts[v] += int(m)

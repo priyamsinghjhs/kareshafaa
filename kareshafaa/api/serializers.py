@@ -84,6 +84,11 @@ def _recall_info(db: Session, c: Case, now: datetime) -> dict:
             "surveillance_default_due": iso(add_months(now.date(), SURVEILLANCE_MONTHS.get(c.programme, 12)))}
 
 
+def _critical_status(db: Session, c: Case) -> dict | None:
+    from ..services.critical import status
+    return status(db, c)
+
+
 def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None) -> dict[str, Any]:
     now = now or utcnow()
     sla = SlaLookup.load(db)
@@ -128,6 +133,7 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
                    "observations": [{"display": o.display, "value": o.value, "value_text": o.value_text, "unit": o.unit,
                                      "interpretation": o.interpretation} for o in rep.observations]} if rep else None,
         "journey": journey(db, c),
+        "fast_lane": _critical_status(db, c),
         "coverage": _coverage_banner(db, actor, p),
         "steps": steps,
         "transfer_pending": {"to_owner_id": c.transfer_pending_owner_id, "to_owner": pname(db, c.transfer_pending_owner_id),

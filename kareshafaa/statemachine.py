@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-STATE_MACHINE_VERSION = "1.1.0"  # 1.1: surveillance plan after a negative confirmatory test
+STATE_MACHINE_VERSION = "1.2.0"  # 1.1: surveillance plan after a negative confirmatory test; 1.2: critical fast lane
 
 
 class S(StrEnum):
@@ -89,6 +89,9 @@ AUTHORISED_CLOSURE_REASONS: dict[str, str] = {
     "duplicate": "Duplicate case merged into another case",
 }
 
+# Critical-result fast lane: a critical case is never closed as unreachable (escalation-and-closure, principle 5).
+NEVER_FOR_CRITICAL = frozenset({"unable_to_contact"})
+
 TERMINAL = frozenset({S.CLOSED})
 ACTIVE_STATES = frozenset(s for s in S if s not in TERMINAL)
 
@@ -111,7 +114,7 @@ def check_transition(src: str, dst: str) -> None:
 
 def check_closure(state: str, closure_type: str, *, evidence_type: str | None, reason: str | None,
                   note: str | None, actor_is_human: bool, actor_can_authorise: bool,
-                  programme: str | None = None) -> None:
+                  programme: str | None = None, tier: str | None = None) -> None:
     """Closure guard. A case may close ONLY with recorded evidence or an authorised human decision."""
     s = S(state)
     if s == S.CLOSED:
@@ -132,6 +135,9 @@ def check_closure(state: str, closure_type: str, *, evidence_type: str | None, r
             raise TransitionError("actor is not authorised to sign off closure")
         if reason not in AUTHORISED_CLOSURE_REASONS:
             raise TransitionError("a valid closure reason code is required")
+        if reason in NEVER_FOR_CRITICAL and tier == "critical":
+            raise TransitionError("a critical result is never closed as 'unable to contact': it keeps escalating "
+                                  "(by phone) until a clinician decides")
         if not note or len(note.strip()) < 10:
             raise TransitionError("a closure rationale note (>= 10 characters) is required")
         return

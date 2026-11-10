@@ -229,6 +229,10 @@ class Replayer:
         clin = case.tier in CLINICIAN_CONFIRMED_TIERS
         if S(case.state) == S.ISSUED:
             self.adv(self.ln(0.5 if case.tier == "critical" else 2.0 if clin else 0.3))
+            if case.tier == "critical":  # fast lane: the GP was phoned by the lab and read the result back
+                from ..services.critical import record_read_back
+                record_read_back(db, case, self.gp(case), method="phone", reported_by="Laboratory duty scientist",
+                                 read_back_confirmed=True, now=self.t)
             wf.transition(db, case, S.TRIAGED, self.gp(case) if clin else SYSTEM, now=self.t)
         # notification via channel ladder, then phone-call tasks
         self.adv(self.ln(3))

@@ -71,6 +71,13 @@ closure.
 * Deterministic state machine with **SLA tiers T0–T3** (T0 critical, T1 urgent, T2 soon, T3 routine; T0/T1 clocks
   run 24/7, T2/T3 count UAE working days) and an L1–L4 escalation ladder. Handles no-shows, rejected referrals,
   unreachable patients, transfers (two-key), declines and deaths.
+* **Critical-result fast lane (T0):** a critical result cannot be triaged until a clinician records the **direct
+  contact and read-back** (phone, in person or paged secure message; who gave it, who received it, when; table
+  `critical_read_backs`, `POST /api/cases/{id}/critical-read-back`, permission `critical:readback` for GP, specialist
+  and clinical lead). Open critical cases without a read-back have their own worklist (**Critical: read-back needed**,
+  `GET /api/queue?view=critical`). From the first breach (level 2+), escalations on a critical case go **by phone**
+  (`escalations.channel = phone`, additive column), and a critical case can never be closed as `unable_to_contact`.
+  No new clinical timeframe: the existing T0 clocks apply (placeholders, see `docs/clinical_rules.md`).
 * **Closure guard:** a case closes only with evidence (care plan, procedure, negative confirmation) or an authorised
   human decision with a reason.
 * Clinical rules engine (`kareshafaa/clinical_rules.py`, sources in `docs/clinical_rules.md`): FIT, HPV/cytology,

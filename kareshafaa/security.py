@@ -30,15 +30,17 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     "gp": frozenset(_CLINICAL | {"case:triage", "case:triage_urgent", "case:assign", "case:transfer",
                                  "referral:create", "careplan:write", "closure:authorise", "call:record",
                                  "confirm:order", "confirm:result", "case:create", "record:write",
-                                 "summary:ack"} | _REGISTRATION),  # care summaries from the screening pathway
+                                 "summary:ack", "critical:readback"} | _REGISTRATION),  # care summaries from the screening pathway
     "specialist": frozenset(_CLINICAL | {"referral:decide", "careplan:write", "closure:authorise",
-                                         "case:triage_urgent", "confirm:result", "case:transfer", "record:write"}),
+                                         "case:triage_urgent", "confirm:result", "case:transfer", "record:write",
+                                         "critical:readback"}),
     "clinical_lead": frozenset(_CLINICAL | {"case:triage", "case:triage_urgent", "case:assign", "case:transfer",
                                             "referral:create", "referral:decide", "careplan:write",
                                             "closure:authorise", "case:reopen", "call:record", "confirm:order",
                                             "confirm:result", "analytics:read", "audit:read", "model:read",
                                             "model:approve", "model:rollback", "proposal:decide", "lesson:read",
-                                            "content:read", "content:approve", "record:write", "recall:read"}),
+                                            "content:read", "content:approve", "record:write", "recall:read",
+                                            "critical:readback"}),
     # clinical lead = clinical approvals and oversight only. System administration (users, system status, deadline-check
     # runner, model retraining, proposal engine, simulation runs, raw data import, audit-chain verification, active
     # configuration) belongs to admin; the audit log stays readable to the lead for clinical governance.

@@ -197,6 +197,10 @@ def _demo_patients(db, d, rng, now, users_by_pid) -> list[str]:
                                    unit={"colorectal_fit": "ug/g", "diabetes_hba1c": "%"}.get(prog))
         coord = actor_from_user(users_by_pid[d["coordinators"][prog][0].id])
         triager = actor_from_user(users_by_pid[p.gp_id]) if case.tier in ("critical", "urgent") else SYSTEM
+        if case.tier == "critical":  # fast lane: direct contact with read-back before triage
+            from .services.critical import record_read_back
+            record_read_back(db, case, triager, method="phone", reported_by="Laboratory duty scientist",
+                             read_back_confirmed=True, now=t + timedelta(minutes=5))
         wf.transition(db, case, S.TRIAGED, triager, now=t + timedelta(minutes=10),
                       note="clinician confirmed T1 (BI-RADS 4)" if triager is not SYSTEM else None)
         send_with_ladder(db, case, "result_notification", SYSTEM, now=t + timedelta(hours=1))

@@ -1,5 +1,5 @@
 // queue.html page script (moved out of the template: no inline scripts, CSP script-src 'self').
-const VIEWS = [["all", "All open cases"], ["overdue", "Overdue"], ["review", "Needs clinical review"], ["mine", "Assigned to me"], ["unassigned", "No named owner"],
+const VIEWS = [["all", "All open cases"], ["critical", "Critical: read-back needed"], ["overdue", "Overdue"], ["review", "Needs clinical review"], ["mine", "Assigned to me"], ["unassigned", "No named owner"],
   ["escalated", "Escalated"], ["rejected", "Referral rejected"], ["calls", "Phone calls to make"], ["transfers", "Transfers waiting"], ["consults", "Open consultations"]];
 const TITLES = { all: "All open cases", review: "Patients needing review", mine: "Assigned to me", overdue: "Overdue steps" };
 let view = new URLSearchParams(location.search).get("view") || "all", data = null, offset = 0, timer = null;
@@ -8,9 +8,9 @@ const EMPTY = { all: ["No open cases", "Every result has reached care or a docum
   overdue: ["Nothing overdue", "Every step is inside its deadline."], unassigned: ["Every case has an owner", "No case is waiting in a team pool."],
   rejected: ["No rejected referrals", "Nothing is waiting to be re-routed."], escalated: ["No open escalations", "Every escalation has been acknowledged."],
   review: ["No one needs review", "No results are waiting for a clinician. <a href='/queue'>See all cases</a>."], calls: ["No calls to make", "No phone-call tasks are waiting."],
-  transfers: ["No transfers waiting", "No hand-overs are pending."], consults: ["No open consultations", "No questions are waiting for an answer."] };
+  transfers: ["No transfers waiting", "No hand-overs are pending."], critical: ["No critical result is waiting", "Every critical result has a recorded clinician read-back."], consults: ["No open consultations", "No questions are waiting for an answer."] };
 function stats() {
-  const c = data.counts, S = [["overdue", "Overdue", "danger"], ["review", "Need review", "warning"], ["unassigned", "No named owner", ""], ["escalated", "Escalated", "danger"]];
+  const c = data.counts, S = [...((c.critical || 0) || view === "critical" ? [["critical", "Critical: read-back needed", "danger"]] : []), ["overdue", "Overdue", "danger"], ["review", "Need review", "warning"], ["unassigned", "No named owner", ""], ["escalated", "Escalated", "danger"]];
   document.getElementById("stats").innerHTML = S.map(([k, l, cls]) => `<a class="stat ${(c[k] || 0) ? cls : "ok"}" href="?view=${k}" data-v="${k}" ${k === view ? 'aria-current="true"' : ""}><span class="v">${c[k] ?? 0}</span><span class="l">${l}</span></a>`).join("");
   document.querySelectorAll("#stats a").forEach(a => a.onclick = e => { e.preventDefault(); setView(a.dataset.v); });
   const sel = document.getElementById("view");
@@ -27,7 +27,8 @@ async function load() {
   stats(); render();
 }
 function flags(r) {
-  return [r.review_required ? `<span class="chip sla-red" title="${W.esc((r.review_reasons || []).join(", "))}">Needs review</span>` : "",
+  return [r.read_back_needed ? '<span class="chip sla-red" title="Critical result: record the direct clinician contact and read-back">Critical: read-back needed</span>' : "",
+    r.review_required ? `<span class="chip sla-red" title="${W.esc((r.review_reasons || []).join(", "))}">Needs review</span>` : "",
     r.escalation_level ? `<span class="chip sla-red" title="Escalation level ${r.escalation_level}">Escalated L${r.escalation_level}</span>` : "",
     r.call_task ? '<span class="chip flag">Call due</span>' : "", r.open_consult ? '<span class="chip flag">Question open</span>' : "",
     r.patient_change_request ? '<span class="chip flag" title="The patient asked to change the appointment (it has not moved)">Patient asks to change appointment</span>' : "",

@@ -53,6 +53,7 @@ state) are checked the same way: 4xx, no change, and an audit trail.
 | Closure with evidence | `POST /api/cases/{id}/close` | middle, commit, queue; no evidence refused | all-or-nothing |
 | Authorised closure | `POST /api/cases/{id}/close` | middle, commit | all-or-nothing |
 | Reopen | `POST /api/cases/{id}/reopen` | middle, commit, queue | all-or-nothing |
+| Critical-result read-back (fast lane) | `POST /api/cases/{id}/critical-read-back` | middle, commit, queue; triage without read-back refused | all-or-nothing |
 | Consent change (care coordination, channel) | `POST /api/cases/{id}/consent` | middle, commit | all-or-nothing |
 | Patient decline | `POST /api/cases/{id}/decline` | middle, commit | all-or-nothing |
 | Reassign owner | `POST /api/cases/{id}/assign` | middle, commit | all-or-nothing |

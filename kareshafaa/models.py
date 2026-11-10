@@ -696,6 +696,25 @@ class Escalation(Base):
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     acknowledged_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # how the alert reaches the person: internal (worklist + internal message) | phone (critical-result fast lane:
+    # the first breach of a critical case is escalated by a phone call, not a message). Additive column.
+    channel: Mapped[str | None] = mapped_column(String(12), nullable=True, default="internal")
+
+
+class CriticalReadBack(Base):
+    """Critical-result fast lane: the responsible clinician was contacted DIRECTLY (voice or paged secure message)
+    about a critical result and read it back. One row per confirmed contact; never edited. Pseudonymous: staff
+    practitioner ids and the reporter's role/name as given (no patient identifiers)."""
+    __tablename__ = "critical_read_backs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    contacted_at: Mapped[datetime] = mapped_column(DateTime)                  # when the clinician was reached (UTC)
+    method: Mapped[str] = mapped_column(String(20))                           # phone | in_person | secure_page
+    reported_by: Mapped[str] = mapped_column(String(120))                     # who gave the result (e.g. lab duty scientist)
+    received_by_practitioner_id: Mapped[int] = mapped_column(ForeignKey("practitioners.id"))
+    read_back_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    recorded_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 # --------------------------------------------------------------------------- governance

@@ -42,6 +42,18 @@ guidance. Since Iteration 6 every case also carries an **end-to-end pathway targ
 from the pathway table below). No step clock may run past it: a step's due time is `min(step SLA, pathway
 target)`, so the escalation sweep fires before a guideline timeframe is missed.
 
+### 2.1 Critical-result fast lane (T0)
+
+Critical results do not wait in a queue (`kareshafaa/services/critical.py`):
+1. A clinician records the **direct contact with read-back** (method, who gave the result, who received it, when)
+   before the case can be triaged. Until then it is listed under **Critical: read-back needed**.
+2. From the first breach of a step clock (ladder level 2 and above) the escalation goes **by phone**, not as an
+   internal message.
+3. A critical case is never closed as `unable_to_contact`; it keeps escalating until a clinician decides.
+
+Which results are critical and the T0 clocks are unchanged (placeholders, **CONFIRM**). The fast lane adds no new
+timeframe.
+
 ## 3. Colorectal cancer screening - FIT
 
 **Eligibility:** ages 40–75, FIT yearly (ADPHC colorectal programme page). Outside this range: human review
