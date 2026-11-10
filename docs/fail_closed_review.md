@@ -63,6 +63,7 @@ state) are checked the same way: 4xx, no change, and an audit trail.
 | Result entry | `POST /api/results` | middle, commit | all-or-nothing |
 | Lab message ingestion (HL7 v2) | `POST /api/ingest/hl7v2` | middle, commit, queue | all-or-nothing (the retry loop only re-runs on a unique-index conflict, after a rollback) |
 | Recall invitation | `POST /api/recalls/{id}/invite` | middle, commit | all-or-nothing |
+| Reconciliation: open a case for a result missing from the loop | `POST /api/ingest/reconciliation/{id}/resolve` | middle, commit, queue | all-or-nothing |
 | SLA sweep (escalations, reminders, queue thresholds) | `POST /api/sla/sweep` | middle, commit, queue | all-or-nothing |
 
 Not fault-tested one by one, but built the same way (one commit at the end of the request, audit in the same

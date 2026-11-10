@@ -79,6 +79,14 @@ def _reconcile_audit_once() -> dict:
         db.close()
 
 
+def _reconcile_results_once() -> dict:
+    """Timed job: compare source results with cases; results missing from the loop go to the owned dead-letter list."""
+    from .services import reconcile
+
+    with session_scope() as db:
+        return reconcile.run(db)
+
+
 def _sweep_once() -> dict:
     global _LAST_SWEEP_AT
     from datetime import timedelta
@@ -135,22 +143,30 @@ def _release_sweeper() -> None:
 
 
 async def _run_timed_jobs() -> None:
+    from .services.job_health import track  # last run / success / failure per job, for Admin -> System
+
     try:
         t = time.time()
-        out = await asyncio.to_thread(_sweep_once)
+        out = await asyncio.to_thread(track, "sla_sweep", _sweep_once)
         log.info("background SLA sweep: %s in %.0f ms", out, (time.time() - t) * 1000)
     except Exception:  # noqa: BLE001
         log.exception("background SLA sweep failed")
     try:
-        await asyncio.to_thread(_purge_once)
+        await asyncio.to_thread(track, "retention_purge", _purge_once)
     except Exception:  # noqa: BLE001
         log.exception("retention purge failed")
     try:
-        out = await asyncio.to_thread(_reconcile_audit_once)
+        out = await asyncio.to_thread(track, "audit_reconcile", _reconcile_audit_once)
         if out.get("reconciled") or out.get("remaining"):
             log.warning("audit fallback reconciliation: %s", out)
     except Exception:  # noqa: BLE001
         log.exception("audit fallback reconciliation failed (retried at the next interval)")
+    try:
+        out = await asyncio.to_thread(track, "result_reconcile", _reconcile_results_once)
+        if out.get("new") or out.get("open"):
+            log.warning("result-to-case reconciliation: %s", out)
+    except Exception:  # noqa: BLE001
+        log.exception("result-to-case reconciliation failed (retried at the next interval)")
 
 
 async def _sweep_loop(interval: int) -> None:

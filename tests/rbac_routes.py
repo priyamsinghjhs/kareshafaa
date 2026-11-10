@@ -23,7 +23,9 @@ POLICY: dict[str, str] = {
     "GET /api/admin/users": "perm:user:admin", "POST /api/admin/users": "perm:user:admin",
     "POST /api/admin/users/{uid}/role": "perm:user:admin", "POST /api/admin/users/{uid}/reset-password": "perm:user:admin",
     "POST /api/admin/users/{uid}/deactivate": "perm:user:admin", "POST /api/admin/users/{uid}/activate": "perm:user:admin",
-    "GET /api/admin/system": "perm:user:admin", "POST /api/admin/system/audit-fallback/reconcile": "perm:user:admin",
+    "GET /api/admin/system": "perm:user:admin", "POST /api/admin/system/result-reconciliation/run": "perm:user:admin",
+    "GET /api/ingest/reconciliation": "perm:results:inbox", "POST /api/ingest/reconciliation/run": "perm:results:inbox",
+    "POST /api/ingest/reconciliation/{item_id}/resolve": "perm:results:inbox", "POST /api/admin/system/audit-fallback/reconcile": "perm:user:admin",
     "GET /api/admin/about": "perm:config:read", "GET /api/admin/about/openapi.json": "perm:config:read",
     # ---- cases
     "GET /api/cases": "perm:case:read", "GET /api/cases/{case_id}": "inner:case:read",

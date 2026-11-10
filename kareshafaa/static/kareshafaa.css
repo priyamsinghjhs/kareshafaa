@@ -662,3 +662,6 @@ details.first-run .first-run-steps { padding: 0 var(--s-4) var(--s-4) calc(var(-
 
 /* spacing helper for a button row under a card body (replaces an inline style) */
 .row-gap-top { margin-top: var(--s-4); }
+
+/* section heading inside a card (results inbox, admin monitoring) */
+.card-title { font-size: var(--fs-lg); }

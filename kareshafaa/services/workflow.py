@@ -338,6 +338,48 @@ def ingest_result(db: Session, patient: Patient, programme: str, *, value: float
     return rep, case
 
 
+def open_case_for_orphan_report(db: Session, rep: DiagnosticReport, actor: Actor, now: datetime | None = None) -> Case:
+    """Reconciliation found an actionable / review result with no case (services/reconcile.py): put it into the loop
+    as a clinician-review case owned by the programme clinical lead (reason `missing_from_loop`), or link it to the
+    patient's open case for that programme and flag that case for review. Never closes or downgrades anything."""
+    now = _now(now)
+    if not actor.is_human or actor.role == "ml_service":
+        raise Forbidden("a person must put a reconciled result into the loop")
+    if rep.case_id is not None and db.get(Case, rep.case_id) is not None:
+        raise Invalid("this result already has a case")
+    patient = db.get(Patient, rep.patient_id)
+    group = identity_group(db, patient)
+    rec = db.scalar(select(AuditEvent.detail).where(AuditEvent.event == "result.received",
+                                                    AuditEvent.entity_type == "DiagnosticReport",
+                                                    AuditEvent.entity_id == rep.id).limit(1))
+    seen_tier = (rec or {}).get("tier") if isinstance(rec, dict) else None
+    reasons = ["missing_from_loop"]
+    tier = max_tier(seen_tier if seen_tier in TIER_TARGET_DAYS else None, review_min_tier(reasons)) or "urgent"
+    open_case = db.scalar(select(Case).where(Case.patient_id.in_(group), Case.programme == rep.programme,
+                                             Case.state != S.CLOSED).order_by(Case.id.desc()).limit(1))
+    if open_case is not None:
+        _claim(open_case)
+        rep.case_id = open_case.id
+        flag_review(db, open_case, reasons, actor, now, tier=tier, detail={"report_id": rep.id})
+        audit.record(db, actor, "U", "case.linked_result", entity_type="Task", entity_id=open_case.id,
+                     case_id=open_case.id, ts=now, detail={"report_id": rep.id, "via": "reconciliation"})
+        return open_case
+    owner = programme_clinical_lead(db, rep.programme)
+    case = Case(patient_id=patient.id, report_id=rep.id, programme=rep.programme, tier=tier, state=S.ISSUED,
+                owner_id=owner.id, managing_org_id=patient.managing_org_id, needs_confirmation=True, created_at=now,
+                state_entered_at=now, rule_id=None, pathway="human_review", review_required=True,
+                review_reasons=reasons, target_due_at=now + timedelta(days=TIER_TARGET_DAYS[tier]))
+    case.patient = patient
+    db.add(case)
+    db.flush()
+    rep.case_id = case.id
+    _open_step(db, case, S.ISSUED, case.owner_id, actor, now, note="human review: missing_from_loop (reconciliation)")
+    audit.record(db, actor, "C", "case.created", entity_type="Task", entity_id=case.id, case_id=case.id, ts=now,
+                 detail={"programme": rep.programme, "tier": tier, "owner_id": owner.id, "review": True,
+                         "reasons": reasons, "via": "reconciliation", "report_id": rep.id})
+    return case
+
+
 def resolve_review(db: Session, case: Case, actor: Actor, *, note: str, tier: str | None = None,
                    now: datetime | None = None) -> Case:
     """An authorised clinician clears the human-review flag. Lowering the tier needs a rationale and is audited."""

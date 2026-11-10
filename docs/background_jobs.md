@@ -10,6 +10,7 @@ server without doing the work twice.
 | Retention purge | with the deadline check, at most once an hour | Removes sign-in attempts older than 90 days and ended sessions older than 30 days | Deletes only rows past the cut-off; records `retention.purged` in the audit log |
 | Audit writer | continuously | Appends request audit rows to the hash chain in small batches | Each row carries the previous row's hash; the chain check finds any gap |
 | Audit fallback reconciliation | with the deadline check (and **Admin → System → Add them to the audit trail now**) | Appends request audit events that could not be written at the time (kept in `audit_fallback_events` or `DATA_DIR/audit-fallback.jsonl`) to the hash chain with their original timestamps, marked `reconciled_late` | Each kept event has a unique `fallback_id`; appending it and marking it reconciled happen in one transaction, and file lines already imported are skipped |
+| Result-to-case reconciliation | with the deadline check (and **Admin → System → Check results now**, **Results inbox → Check now**) | Lists screening results that need action but have no case, and processed lab messages that filed no result, in `result_reconciliation_items` (owner: care coordination) | One open item per source row; re-runs only update `last_seen_at`; an item whose result now has a case is closed as `linked_later` |
 | One-time data steps | after start-up | Small additive updates to sample (SYN-) records, in small batches in a worker thread | Never blocks serving; never resets data |
 
 Only **one process** runs the timed jobs (deadline check, retention purge, audit-fallback reconciliation),
@@ -49,5 +50,9 @@ When the service runs on several servers (for example two or more containers beh
 
 * `/healthz` for liveness, `/readyz` for readiness (returns 503 until the database answers and initial records exist).
 * `KARESHAFAA_LOG_FORMAT=json` writes one JSON object per log line (`ts`, `level`, `logger`, `msg`) for a log collector.
+* Every timed job records its last start, finish, success, failure (exception class name only), duration, run and
+  failure counts and a small count summary in `background_job_status` (`kareshafaa/services/job_health.py`); the
+  **Monitoring** card on Admin → System shows them with the results-without-a-case count, results waiting for a
+  patient match and open escalations. Free: no external APM.
 * Each sweep logs its result and duration; Admin → System shows the data store and its persistence, and an alert
   with the number of audit events waiting to be reconciled (admin role only).

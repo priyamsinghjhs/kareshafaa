@@ -74,6 +74,8 @@ REVIEW_MIN_TIER = {
     "multiple_results": "high",  # one message carried several different values for the same test (e.g. left/right)
     "control_id_reused": "high",  # same HL7 control ID, different content: possibly a correction
     "possible_duplicate_identity": "high",  # another patient record carries the same Emirates ID
+    "missing_from_loop": "urgent",  # placeholder, verify: a result found by reconciliation with no case (unknown
+    # urgency until a clinician looks) uses the same urgent floor as other uncertain inputs
     "consent_withdrawn": "routine",  # patient withdrew care-coordination consent: a clinician decides (tier unchanged)
     "stale_result": "routine",  # specimen collected > STALE_RESULT_DAYS before receipt: repeat or act? (tier unchanged)
     "death_record_corrected": "routine",  # a death recorded in error was revoked: re-check the plan (tier unchanged)

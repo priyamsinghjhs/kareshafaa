@@ -920,6 +920,44 @@ class PatientInvite(Base):
     communication_id: Mapped[int | None] = mapped_column(ForeignKey("communications.id"), nullable=True)
 
 
+class ResultReconciliationItem(Base):
+    """Dead-letter list of the result-to-case reconciliation job (services/reconcile.py): a source result (or a
+    processed lab message) that has no case. Owned by care coordination for the programme (Results inbox); an item is
+    closed only by a person (a case opened for clinician review, or a documented note for a message without a
+    result) or automatically when the result is found linked to a case later. Pseudonymous: ids only."""
+    __tablename__ = "result_reconciliation_items"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(40))  # result_without_case | message_without_result
+    report_id: Mapped[int | None] = mapped_column(ForeignKey("diagnostic_reports.id"), nullable=True, index=True)
+    ingest_message_id: Mapped[int | None] = mapped_column(ForeignKey("ingest_messages.id"), nullable=True, index=True)
+    programme: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    owner_role: Mapped[str] = mapped_column(String(30), default="coordinator")  # who works the list (results:inbox)
+    status: Mapped[str] = mapped_column(String(20), default="open", index=True)  # open | resolved
+    detected_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    resolved_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    resolution: Mapped[str | None] = mapped_column(String(30), nullable=True)  # case_opened | linked_later | noted
+    resolution_case_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class BackgroundJobStatus(Base):
+    """Last run of each timed job, for Admin -> System monitoring (no paid APM). One row per job, updated in place
+    by whichever process runs the timed jobs. Error = exception class name only (no data, no secrets)."""
+    __tablename__ = "background_job_status"
+    name: Mapped[str] = mapped_column(String(40), primary_key=True)
+    last_started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_ok_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_error_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    last_duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    runs: Mapped[int] = mapped_column(Integer, default=0)
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class IngestMessage(Base):  # inbound HL7 v2 / FHIR message log (idempotency + human patient-match review)
     __tablename__ = "ingest_messages"
     id: Mapped[int] = mapped_column(primary_key=True)

@@ -23,6 +23,7 @@ GLOBAL_IDS = {
     "proposal_id": "improvement proposals - governance, not patient data",
     "key": "walkthrough scenario name - administrators only, test servers only",
     "msg_id": "results inbox - programme-level lab feed, care coordination only (results:inbox)",
+    "item_id": "result reconciliation list - programme-level dead-letter list, care coordination only (results:inbox)",
 }
 PATIENT_SELF = "/api/me/"  # patient routes take the patient from the session; tested in test_patient_*_isolation
 PROGRAMME_ONLY = {"POST /api/patient-requests/{request_id}/confirm", "POST /api/patient-requests/{request_id}/decline",

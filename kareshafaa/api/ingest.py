@@ -176,3 +176,36 @@ def resolve(msg_id: int, body: ResolveIn, actor: Actor = Depends(require("result
     msg = ing.resolve_match(db, msg_id, body.patient_id, actor)
     db.commit()
     return _out(db, msg)
+
+
+# ---- result-to-case reconciliation (services/reconcile.py): results missing from the loop, owned by coordination
+class ReconcileResolveIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    action: str
+    note: str | None = None
+
+
+@router.get("/reconciliation")
+def reconciliation(status: str = "open", actor: Actor = Depends(require("results:inbox")),
+                   db: Session = Depends(get_db)) -> dict:
+    from ..services import reconcile
+    if status not in ("open", "resolved"):
+        raise Invalid("status must be open or resolved")
+    return {"items": reconcile.items(db, actor, status), "status": reconcile.status(db)}
+
+
+@router.post("/reconciliation/run")
+def reconciliation_run(actor: Actor = Depends(require("results:inbox")), db: Session = Depends(get_db)) -> dict:
+    from ..services import reconcile
+    out = reconcile.run(db, actor)
+    db.commit()
+    return {"ok": True, **out}
+
+
+@router.post("/reconciliation/{item_id}/resolve")
+def reconciliation_resolve(item_id: int, body: ReconcileResolveIn, actor: Actor = Depends(require("results:inbox")),
+                           db: Session = Depends(get_db)) -> dict:
+    from ..services import reconcile
+    row = reconcile.resolve(db, item_id, actor, action=body.action, note=body.note)
+    db.commit()
+    return {"ok": True, "item": row}

@@ -135,6 +135,19 @@ closure.
   (`KARESHAFAA_REQUEST_AUDIT_LOCK_TIMEOUT_S`) is served once its event is kept in the fallback, and refused (503) only
   if it cannot be kept anywhere. The SLA sweep checks open cases read-only first and holds the audit writer lock only
   while it changes cases, so a long sweep no longer turns page loads into 503s.
+* **Result-to-case reconciliation (nothing fails silently).** A timed job (after every deadline check) compares the
+  source results with the cases: every screening result that needs action must be linked to a case, and every
+  processed lab message must have filed a result. Anything missing goes to an owned dead-letter list (table
+  `result_reconciliation_items`, owner: care coordination) shown as **Results not in the loop** in the Results inbox
+  (`GET /api/ingest/reconciliation`, `POST /api/ingest/reconciliation/run`, `POST
+  /api/ingest/reconciliation/{id}/resolve`, permission `results:inbox`). A result is never dismissed: the coordinator
+  opens a **clinician-review case** for it (reason `missing_from_loop`, urgent floor, placeholder) or it is closed
+  automatically once found linked to a case; a message without a result needs a written note. This is separate from
+  the audit-trail fallback reconciliation.
+* **Monitoring on Admin → System** (admin only, counts only): last success / failure / run count of each timed job
+  (deadline check, retention purge, audit fallback and result reconciliation; table `background_job_status`), results
+  without a case, results waiting for a patient match, open escalations, and **Check results now**
+  (`POST /api/admin/system/result-reconciliation/run`, detection only). No clinical buttons.
 * **One timed-jobs worker across containers.** On PostgreSQL the deadline check, retention purge and audit
   reconciliation run in exactly one process, elected by a session advisory lock (`pg_try_advisory_lock`, key 727001)
   held on a dedicated connection, re-checked before every run and released at shutdown; another container takes over
@@ -166,7 +179,7 @@ usernames come from the staff directory (`kareshafaa/synth/directory.py`, `kares
 |---|---|---|
 | Admin | `admin` | Menu: Users · System · About; **More:** Outcomes, Advanced. Users and sign-in help, System status, Outcomes (read), Advanced tools (deadline-check runner, model training, proposal engine, simulation, configuration), audit-chain verification, About. **No clinical actions.** |
 | Clinical lead | `fatima.al.mansoori`, `layla.al.hashimi` | Menu: Overview (escalations and overdue first) · Work queue · Approvals · Outcomes; **More:** Audit trail, Recall list, How decisions are made. Overview, work queue and every clinical action incl. reopening cases; approvals for models, rules and content; outcomes; audit trail (read). **No admin tools** (users, system, training, configuration). |
-| Care coordinator | `aisha.rahman` | Menu: Today's queue · Patients · Due for recall · Results inbox. Today's queue (“Needs you now” first) incl. patient appointment requests, outreach and calls, triage/assign/transfer, referrals, patient registration and invites, recall list, results inbox (HL7/FHIR). |
+| Care coordinator | `aisha.rahman` | Menu: Today's queue · Patients · Due for recall · Results inbox. Today's queue (“Needs you now” first) incl. patient appointment requests, outreach and calls, triage/assign/transfer, referrals, patient registration and invites, recall list, results inbox (HL7/FHIR) incl. **Results not in the loop** (reconciliation list). |
 | GP (family doctor) | `omar.haddad` | Menu: Needs me · Patients · Care summaries · Ask a specialist; **More:** All my cases, Due for recall. Needs-review queue, confirmatory tests, referrals, care plans, authorised closure, care summaries, patients and recalls, ask a specialist. |
 | Specialist | `vikram.mehta` | Menu: Needs me · My cases · Patients · Consult requests. Accept or reject referrals with a reason, booking and attendance, care plans, closure, consult replies. |
 | Programme analyst | `analyst` | Aggregate outcomes only (small cells suppressed), read-only models and rules. |

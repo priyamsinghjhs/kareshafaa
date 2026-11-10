@@ -313,7 +313,29 @@ def system_status(actor: Actor = Depends(require("user:admin")), db: Session = D
             "users_active": db.scalar(select(func.count(User.id)).where(User.active.is_(True))),
             "patients": db.scalar(select(func.count(Patient.id))), "cases": db.scalar(select(func.count(Case.id))),
             "write_limit_per_minute": s.write_limit_per_minute if s.mode == "production" else None,
-            "session_idle_minutes": s.session_idle_minutes, "audit_fallback": _fallback_status(db)}
+            "session_idle_minutes": s.session_idle_minutes, "audit_fallback": _fallback_status(db),
+            "monitoring": _monitoring(db, s)}
+
+
+def _monitoring(db: Session, s) -> dict:
+    """Basic, high-signal operational facts (counts and job health only: no patient data, no clinical actions)."""
+    from sqlalchemy import func
+
+    from ..models import Escalation, IngestMessage
+    from ..services import job_health, reconcile
+
+    out: dict = {"sweep_interval_seconds": s.sweep_interval_seconds}
+    for key, fn in (("jobs", lambda: job_health.status(db)), ("result_reconciliation", lambda: reconcile.status(db)),
+                    ("results_inbox_waiting", lambda: db.scalar(select(func.count()).select_from(IngestMessage).where(
+                        IngestMessage.status.in_(("needs_review", "needs_match_review")))) or 0),
+                    ("open_escalations", lambda: db.scalar(select(func.count()).select_from(Escalation).where(
+                        Escalation.acknowledged_at.is_(None))) or 0)):
+        try:
+            out[key] = fn()
+        except Exception as e:  # noqa: BLE001 - the System page must still load
+            out[key] = None
+            out.setdefault("errors", []).append(f"{key}: {type(e).__name__}")
+    return out
 
 
 def _fallback_status(db: Session) -> dict:
@@ -322,6 +344,18 @@ def _fallback_status(db: Session) -> dict:
         return audit_fallback.status(db)
     except Exception as e:  # noqa: BLE001 - the System page must still load
         return {"unreconciled": None, "error": type(e).__name__}
+
+
+@system_router.post("/result-reconciliation/run")
+def run_result_reconciliation(actor: Actor = Depends(require("user:admin")), db: Session = Depends(get_db)) -> dict:
+    """Admin > System: run the result-to-case check now (detection only; care coordination works the list)."""
+    from ..services import job_health, reconcile
+
+    out = reconcile.run(db, actor)
+    db.commit()
+    job_health._write("result_reconcile", last_started_at=utcnow(), last_finished_at=utcnow(), last_ok_at=utcnow(),
+                      last_summary=job_health._summary(out), runs=1)
+    return {"ok": True, **out, "status": reconcile.status(db)}
 
 
 @system_router.post("/audit-fallback/reconcile")

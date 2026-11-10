@@ -343,3 +343,25 @@ def test_critical_triage_without_read_back_changes_nothing(raw, as_user, new_cas
     assert 400 <= r.status_code < 500, r.text
     assert _fingerprint(db, ctx) == before
     assert _trail(db, since, url), "the refusal left no audit trail"
+
+
+@pytest.mark.parametrize("mode", ["mid", "commit", "queue"])
+def test_reconciliation_open_case_is_all_or_nothing(mode, raw, as_user, make_patient, db, inject):
+    """Putting a result found by reconciliation back into the loop: the case, the report link, the item resolution
+    and the audit events are saved together or not at all."""
+    from kareshafaa.models import DiagnosticReport, ResultReconciliationItem
+    from kareshafaa.services import reconcile
+    pid = make_patient()
+    rep = DiagnosticReport(patient_id=pid, programme="breast", category="screening", code="24606-6", display="Mammogram",
+                           conclusion="actionable", issued_at=utcnow(), performer_org_id=1, status="final")
+    db.add(rep)
+    db.commit()
+    reconcile.run(db)
+    db.commit()
+    it = db.scalar(select(ResultReconciliationItem).where(ResultReconciliationItem.report_id == rep.id))
+    ctx = {"cid": 0, "pid": pid}
+    _r, fired = _check_fault(raw, as_user, db, ctx, inject, mode, CO, f"/api/ingest/reconciliation/{it.id}/resolve",
+                             {"action": "open_case"})
+    assert fired
+    r = raw.post(f"/api/ingest/reconciliation/{it.id}/resolve", headers=as_user(CO), json={"action": "open_case"})
+    assert r.status_code == 200, r.text

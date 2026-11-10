@@ -11,6 +11,23 @@ function auditAlert(a) {
     <div class="row"><button type="button" id="reconcile-audit">Add them to the audit trail now</button></div></div>`;
 }
 
+// basic monitoring: timed-job health, reconciliation, waiting work (counts only; admin role only)
+function monitoring(m) {
+  if (!m) return "";
+  const when = v => v ? W.dt(v) : "–";
+  const chip = j => j.ok == null ? '<span class="chip">Not run yet</span>' : j.ok ? '<span class="chip sla-green">✓ OK</span>' : `<span class="chip sla-red">▲ Failed (${W.esc(j.last_error || "error")})</span>`;
+  const jobs = (m.jobs || []).map(j => `<tr data-job="${W.esc(j.name)}"><td>${W.esc(j.label)}</td><td>${chip(j)}</td><td class="small nowrap">${when(j.last_ok_at)}</td><td class="small">${j.failures ? j.failures + " / " + j.runs : j.runs}</td></tr>`).join("");
+  const r = m.result_reconciliation || {};
+  const tiles = [["mon-unmatched", "Results without a case", r.open, r.open ? "danger" : "ok"],
+    ["mon-inbox", "Waiting in results inbox", m.results_inbox_waiting, m.results_inbox_waiting ? "warning" : "ok"],
+    ["mon-esc", "Open escalations", m.open_escalations, ""]];
+  return `<section class="card monitoring" aria-labelledby="mon-h"><h2 id="mon-h" class="card-title">Monitoring</h2>
+    <div class="stats">${tiles.map(([id, l, v, cls]) => `<div class="stat ${cls}" id="${id}"><span class="v">${v ?? "–"}</span><span class="l">${l}</span></div>`).join("")}</div>
+    <table class="compact"><thead><tr><th>Job</th><th>Status</th><th>Last success</th><th>Runs</th></tr></thead><tbody>${jobs}</tbody></table>
+    <p class="small muted">Timed jobs every ${W.esc(String(m.sweep_interval_seconds))} s.</p>
+    <div class="row"><button type="button" class="secondary" id="run-result-check">Check results now</button></div></section>`;
+}
+
 async function loadSystem() {
   try {
     const s = await W.api("/api/admin/system");
@@ -22,7 +39,14 @@ async function loadSystem() {
       ["Sign-in sessions end after", s.session_idle_minutes + " minutes without activity"]];
     if (s.write_limit_per_minute) rows.push(["Change limit (abuse protection)", s.write_limit_per_minute + " changes per minute per user"]);
     document.getElementById("sys").innerHTML = `<article class="card"><dl class="facts">${rows.map(([k, v]) => `<div><dt>${W.esc(k)}</dt><dd>${W.esc(String(v))}</dd></div>`).join("")}</dl>
-      <div class="row row-gap-top"><a role="button" class="secondary" href="/admin/users">Manage users</a><a role="button" class="ghost" href="/healthz">Health check (JSON)</a></div></article>`;
+      <div class="row row-gap-top"><a role="button" class="secondary" href="/admin/users">Manage users</a><a role="button" class="ghost" href="/healthz">Health check (JSON)</a></div></article>` + monitoring(s.monitoring);
+    const rc = document.getElementById("run-result-check");
+    if (rc) rc.addEventListener("click", async () => {
+      W.busy(rc, true);
+      try { const r = await W.api("/api/admin/system/result-reconciliation/run", { method: "POST" });
+        W.toast(r.open ? `${r.open} result(s) without a case – listed in the Results inbox` : "Every result has a case", r.open ? "" : "ok"); await loadSystem(); }
+      catch (e) { W.busy(rc, false); W.toast(e.message, "err"); }
+    });
     const b = document.getElementById("reconcile-audit");
     if (b) b.addEventListener("click", async () => {
       W.busy(b, true);
