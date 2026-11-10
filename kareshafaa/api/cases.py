@@ -181,7 +181,7 @@ def navigator_teach_back(case_id: int, body: sch.TeachBackIn, actor: Actor = Dep
                          db: Session = Depends(get_db)) -> dict:
     c = _load(db, actor, case_id)
     qr = comms.submit_teach_back(db, c, actor, dict(body.answers), confidence=body.confidence, language=body.language)
-    return _done(db, c, actor, passed=qr.passed, score=qr.score)
+    return _done(db, c, actor, passed=qr.passed, score=qr.score, total=qr.total)
 
 
 @router.get("/cases/{case_id}/teach-back-form")

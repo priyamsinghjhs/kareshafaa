@@ -249,6 +249,11 @@ def submit_teach_back(db: Session, case: Case, actor: Actor, answers: dict[str, 
         raise DomainError("teach-back is available after the patient has been notified")
     if set(answers) - set(TEACH_BACK_CORRECT) or not answers:
         raise Invalid("answers must contain q1..q3")
+    if mode == "navigator" and db.scalar(select(QuestionnaireResponse.id).where(
+            QuestionnaireResponse.case_id == case.id, QuestionnaireResponse.passed.is_(True)).limit(1)):
+        # staff cannot enter a second check once the patient has understood (the patient's own "Change my answers"
+        # path is gated separately in services/patient_answers.py)
+        raise DomainError("Teach-back already recorded: the patient understood.")
     if confidence is not None and not 1 <= confidence <= 5:
         raise Invalid("confidence must be between 1 and 5")
     score = sum(1 for q, a in TEACH_BACK_CORRECT.items() if answers.get(q) == a)

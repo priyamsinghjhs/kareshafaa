@@ -167,9 +167,12 @@ def test_navigator_teach_back_still_works_and_does_not_lock_patient(client, as_u
     co = as_user("aisha.rahman")
     r = client.post(f"/api/cases/{cid}/teach-back", headers=co, json=_tb(WRONG))
     assert r.status_code == 200, r.text
-    assert client.post("/api/me/teach-back", headers=h, json=_tb(RIGHT)).status_code == 200  # patient's first own answer
+    assert client.post("/api/me/teach-back", headers=h, json=_tb(WRONG)).status_code == 200  # patient's first own answer
     r = client.post(f"/api/cases/{cid}/teach-back", headers=co, json=_tb(RIGHT))
-    assert r.status_code == 200  # staff can still record a navigator teach-back after the patient's answers
+    assert r.status_code == 200  # staff can still record a navigator teach-back after the patient's (not yet clear) answers
+    # once the patient has understood, staff cannot enter another check (shown on the case instead)
+    r = client.post(f"/api/cases/{cid}/teach-back", headers=co, json=_tb(RIGHT))
+    assert r.status_code == 409 and "already recorded" in r.text
 
 
 def test_cookie_session_needs_csrf_for_submit_and_reopen(app, patient_case):

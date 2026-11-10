@@ -96,6 +96,12 @@ closure.
 * **Recall invitations (Due for recall):** a recall invitation cannot be sent again for 24 hours. Staff who try see a
   popup asking them to wait (“Please wait 24 hours before sending the invite again.”); the server refuses the send too,
   and “Invite selected” skips anyone invited in the last 24 hours without blocking the others.
+* **Recorded teach-back stays visible:** once a teach-back is saved it is shown in a card at the top of the case
+  (score, understood or not yet clear, by the patient or with a navigator, language, time and the answers). A passed
+  check is never offered again, and the server refuses another staff entry (“Teach-back already recorded: the patient
+  understood.”); the patient's own “Change my answers” path is unchanged. After a failed check the case shows the last
+  result and offers an explicit “Try teach-back again” (every attempt is kept in the history), and the save message says
+  whether the patient understood.
 
 **Patient journey** (`/patient`)
 * Step tracker showing where the patient is in the loop.

@@ -110,6 +110,7 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
     q = lambda m: db.scalars(select(m).where(m.case_id == c.id).order_by(m.id)).all()  # noqa: E731
     gp = db.get(Practitioner, p.gp_id) if p.gp_id else None
     from ..services.patient_answers import changes_for_case
+    from ..services.clinical_record import _tb_text
     tb_changes = changes_for_case(db, c.id)  # patient used "Change my answers": new response -> replaced one
     return {
         **case_summary(db, c),
@@ -172,7 +173,7 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
                         "created_at": iso(t.created_at), "completed_at": iso(t.completed_at)} for t in q(CallTask)],
         "teach_back": [{"id": r.id, "score": r.score, "total": r.total, "passed": r.passed, "mode": r.mode,
                         "language": r.language, "confidence": r.confidence, "at": iso(r.created_at),
-                        "answers": r.answers, "replaces_id": tb_changes.get(r.id),
+                        "answers": r.answers, "answers_text": _tb_text(c, r.answers), "replaces_id": tb_changes.get(r.id),
                         "patient_changed_answers": r.id in tb_changes}
                        for r in q(QuestionnaireResponse)],
         "consults": [{"id": r.id, "type": r.requester_type, "target_id": r.target_practitioner_id,

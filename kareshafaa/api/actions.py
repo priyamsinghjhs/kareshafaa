@@ -6,7 +6,7 @@ from ..programmes import CLINICIAN_CONFIRMED_TIERS
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import CallTask, Case, ServiceRequest
+from ..models import CallTask, Case, QuestionnaireResponse, ServiceRequest
 from ..security import Actor
 from ..services.access import consent_status
 from ..statemachine import S
@@ -41,7 +41,16 @@ def available_actions(db: Session, actor: Actor, c: Case) -> list[dict]:
     if st in (S.TRIAGED, S.PATIENT_NOTIFIED, S.UNREACHABLE, S.NO_SHOW) or open_call:
         add("call", "Record phone call outcome", "call:record", st == S.TRIAGED and bool(open_call))
     if st == S.PATIENT_NOTIFIED:
-        add("teachback", "Check the patient understood (teach-back)", "call:record", True)
+        tbs = list(db.scalars(select(QuestionnaireResponse).where(QuestionnaireResponse.case_id == c.id)
+                              .order_by(QuestionnaireResponse.created_at.desc(), QuestionnaireResponse.id.desc())))
+        if not tbs:
+            add("teachback", "Check the patient understood (teach-back)", "call:record", True)
+        elif not any(t.passed for t in tbs):  # a passed check is never offered again; a failed one can be retried
+            last = tbs[0]
+            add("teachback", "Try teach-back again", "call:record", True, retry=True,
+                last_teach_back={"passed": last.passed, "score": last.score, "total": last.total,
+                                 "at": last.created_at.isoformat() if last.created_at else None, "mode": last.mode,
+                                 "attempts": len(tbs)})
         add("reminder", "Send reminder", "comm:send")
     if st in (S.TRIAGED, S.PATIENT_NOTIFIED, S.NO_SHOW):
         add("unreachable", "Mark unreachable (all calls tried)", "call:record")

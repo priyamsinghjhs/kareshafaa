@@ -29,7 +29,7 @@ function header() {
    <div class="case-head"><h1>${W.esc(C.patient.name)}</h1>
    <p class="muted small" style="margin:0">Case #${C.id} · ${W.esc(C.patient.mrn)} · ${W.prog(C.programme)} screening</p>
    <div class="case-meta">${W.tier(C.tier)} ${W.sla(C.sla.status, C.sla.fraction)} ${C.sla.escalation_level ? `<span class="chip sla-red">Escalated (level ${C.sla.escalation_level})</span>` : ""}</div></div>
-   ${loopStrip()}${nextBar()}${fastLane()}${coverage()}${record()}
+   ${loopStrip()}${nextBar()}${fastLane()}${teachBackCard()}${coverage()}${record()}
    <h2 class="sec-title" id="step-h">This step</h2>
    <dl class="facts" aria-labelledby="step-h">
      <div><dt>Step</dt><dd>${W.esc(C.state_label)}</dd></div>
@@ -81,6 +81,21 @@ function fastLane() {
     return `<div class="card flat" data-fast-lane="done"><p class="small"><span class="chip sla-green"><span class="shape" aria-hidden="true">✓</span>Read back</span> ${W.esc(r.method_label)} · ${W.dt(r.contacted_at)} · given by ${W.esc(r.reported_by)} · received by <b>${W.esc(r.received_by || "")}</b>. </p></div>`; }
   if (!f.read_back_needed) return "";
   return `<div class="card notice" role="alert" data-fast-lane="needed"><p class="small"><span class="fast-lane-icon" aria-hidden="true">${W.ic("bolt")}</span><b>Critical result</b> · record the clinician read-back before triage · escalates by phone</p></div>`;
+}
+
+// recorded teach-back, shown at the top so a saved check is never mistaken for a missing one (latest first)
+const TB_MODE = { self: "by the patient", navigator: "with a navigator" };
+const tbResult = t => `${t.score}/${t.total}, ${t.passed ? "understood" : "not yet clear"}`;
+function teachBackCard() {
+  const all = (C.teach_back || []).slice().reverse(); if (!all.length) return "";
+  const t = all[0], ok = all.some(x => x.passed), retry = (C.actions || []).some(a => a.key === "teachback");
+  const chip = x => x.passed ? '<span class="chip sla-green"><span class="shape" aria-hidden="true">✓</span>Understood</span>' : '<span class="chip sla-red"><span class="shape" aria-hidden="true">!</span>Not yet clear</span>';
+  const ans = (t.answers_text || []).map(a => `<li><span class="muted">${W.esc(a.question)}</span> ${W.esc(a.answer)}</li>`).join("");
+  const older = all.slice(1);
+  return `<div class="card flat" data-teach-back="${t.passed ? "passed" : "failed"}"><p class="small" style="margin:0">${chip(t)} <b>Teach-back ${t.score}/${t.total}</b> · ${W.esc(TB_MODE[t.mode] || t.mode)} · ${W.esc(String(t.language || "").toUpperCase())} · ${W.dt(t.at)}${t.confidence ? ` · confidence ${t.confidence}/5` : ""}</p>
+    ${ans ? `<ul class="small tb-ans">${ans}</ul>` : ""}
+    ${older.length ? `<p class="small muted" style="margin:0">Earlier: ${older.map(o => `${W.dt(o.at)} ${W.esc(tbResult(o))}`).join(" · ")}</p>` : ""}
+    ${ok ? `<p class="small muted" style="margin:0">${t.passed ? "The patient understood." : "An earlier check passed."} Teach-back is complete for this case.</p>` : retry ? `<p class="small muted" style="margin:0">Not yet clear. Explain again, then use “Try teach-back again”.</p>` : ""}</div>`;
 }
 
 function coverage() {
@@ -175,7 +190,7 @@ function record() {
     ${sec("enc", "Consultations and encounters", R.encounters.length, (w ? `<div class="rec-tools"><button class="secondary sm" data-rec="encounter">Add consultation note</button></div><div id="rec-form-encounter"></div>` : "") + encs, true)}
     ${sec("meds", "Medicines", R.medications.filter(m => m.status === "active").length + " active", (w ? `<div class="rec-tools"><button class="secondary sm" data-rec="medication">Add medicine</button></div><div id="rec-form-medication"></div>` : "") + meds, true)}
     ${sec("refs", "Referrals and appointments", R.referrals.length + R.appointments.length, `<h4>Referrals and test requests</h4>${refs}<h4>Appointments</h4>${apps}`, true)}
-    ${sec("out", "Outreach and patient responses", R.outreach_total + R.responses.length, `<h4>Patient responses</h4>${resp}<h4>Outreach attempts</h4>${out}`, false)}
+    ${sec("out", "Outreach and patient responses", R.outreach_total + R.responses.length, `<h4>Patient responses</h4>${resp}<h4>Outreach attempts</h4>${out}`, R.responses.some(r => r.kind === "teach_back"))}
     ${sec("docs", "Care plans and documents", R.documents.length, docs, false)}</section>`;
 }
 function localNow() { const t = new Date(); t.setSeconds(0, 0); return new Date(t - t.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); }
@@ -283,7 +298,7 @@ const btn = a => `<button class="secondary" data-k="${a.key}" data-ev="${a.evide
 async function postRaw(path, body, okMsg, key, formEl = null) {
   if (key && RISKY[key] && !(await W.confirm(RISKY[key], "This is recorded in the case history with your name and cannot be silently undone.", { ok: "Yes, continue", danger: /close|deceased|decline|unreachable/.test(key) }))) return false;
   W.formError(formEl, "");
-  try { const r = await W.api(path, { method: "POST", body }); W.toast(okMsg || "Saved", "ok"); await load(); return r || true; }
+  try { const r = await W.api(path, { method: "POST", body }); W.toast((typeof okMsg === "function" ? okMsg(r) : okMsg) || "Saved", "ok"); await load(); return r || true; }
   catch (e) { W.formError(formEl, e.message); W.toast(e.message, "err"); return false; }
 }
 const post = (p, b, m) => postRaw(p, b, m);
@@ -369,9 +384,12 @@ async function openForm(key, evidenceType) {
     case "teachback": {
       const lang = ["en", "ar", "hi", "ur"].includes(C.patient.language) ? C.patient.language : "en";
       const tb = await W.api(`${u}/teach-back-form?lang=${lang}`);
-      return form(`<p class="small">Ask the patient in their own words; tick what they say.</p><div class="${["ar", "ur"].includes(lang) ? "rtl" : ""}">` + tb.questions.map(q => `<div class="q"><b>${W.esc(q.text)}</b>${q.options.map(o => `<label><input type="radio" name="${q.id}" value="${o.key}" required> ${W.esc(o.text)}</label>`).join("")}</div>`).join("") +
+      const last = (C.actions.find(a => a.key === "teachback") || {}).last_teach_back;
+      return form((last ? `<p class="notice-inline" data-last-teach-back>Last check: <b>${last.score}/${last.total}, ${last.passed ? "understood" : "not yet clear"}</b> (${W.dt(last.at)}, ${W.esc(TB_MODE[last.mode] || last.mode)}). It is saved; this records a new check.</p>` : "") +
+        `<p class="small">Ask the patient in their own words; tick what they say.</p><div class="${["ar", "ur"].includes(lang) ? "rtl" : ""}">` + tb.questions.map(q => `<div class="q"><b>${W.esc(q.text)}</b>${q.options.map(o => `<label><input type="radio" name="${q.id}" value="${o.key}" required> ${W.esc(o.text)}</label>`).join("")}</div>`).join("") +
         `</div>` + F.sel("confidence", "Patient confidence (1–5)", [1, 2, 3, 4, 5].map(n => `<option value="${n}" ${n === 3 ? "selected" : ""}>${n}</option>`).join("")),
-        fd => post(`${u}/teach-back`, { answers: { q1: fd.q1, q2: fd.q2, q3: fd.q3 }, confidence: +fd.confidence, language: lang }, "Teach-back recorded"));
+        fd => post(`${u}/teach-back`, { answers: { q1: fd.q1, q2: fd.q2, q3: fd.q3 }, confidence: +fd.confidence, language: lang },
+          r => r && r.passed === false ? `Teach-back saved: ${r.score}/${r.total || 3}, not yet clear. Explain again and retry.` : `Teach-back saved: ${r && r.score != null ? r.score + "/" + (r.total || 3) + ", " : ""}the patient understood.`));
     }
     case "order_confirmatory": return form(F.sel("org", "Performing organisation", opts(d.orgs.filter(o => ["lab", "hospital"].includes(o.kind)))),
       fd => post(`${u}/confirmatory`, { performer_org_id: +fd.org }, "Confirmatory test ordered"));
