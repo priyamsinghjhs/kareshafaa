@@ -155,12 +155,29 @@ class Replayer:
                                  performer_org_id=self.d["lab"].id, now=self.t)
                 self.stats["late_results_sent"] = self.stats.get("late_results_sent", 0) + 1
 
+    def _ensure_critical_read_back(self, case: Case) -> None:
+        """Record a confirmed clinician read-back before any ISSUED → TRIAGED step on a critical case.
+
+        The workflow guard refuses triage of a T0 result until this exists. Review-required cases reach
+        that transition in resolve_review, so the read-back has to be recorded before _review, not only
+        in _journey (the non-review path).
+        """
+        if case.tier != "critical":
+            return
+        from ..services.critical import latest, record_read_back
+        if latest(self.db, case.id) is not None:
+            return
+        lead = self.a(self.d["leads"][case.programme])
+        record_read_back(self.db, case, lead, method="phone", reported_by="lab duty scientist",
+                         read_back_confirmed=True, now=self.t)
+
     def _journey_core(self, case: Case, patient: Patient, sp: SynthPatient, r) -> None:
         if r.status == "preliminary":  # the final report follows (exercises duplicate/supersede handling)
             self.adv(self.ln(24))
             wf.ingest_result(self.db, patient, sp.programme, value=r.value, value_text=r.value_text, unit=r.unit,
                              test=r.test, status="final", cytology=r.cytology, performer_org_id=self.d["lab"].id,
                              now=self.t)
+        self._ensure_critical_read_back(case)
         if case.review_required and not self._review(case, patient):
             return
         self._journey(case, patient, sp)
@@ -229,10 +246,7 @@ class Replayer:
         clin = case.tier in CLINICIAN_CONFIRMED_TIERS
         if S(case.state) == S.ISSUED:
             self.adv(self.ln(0.5 if case.tier == "critical" else 2.0 if clin else 0.3))
-            if case.tier == "critical":  # fast lane: the GP was phoned by the lab and read the result back
-                from ..services.critical import record_read_back
-                record_read_back(db, case, self.gp(case), method="phone", reported_by="Laboratory duty scientist",
-                                 read_back_confirmed=True, now=self.t)
+            self._ensure_critical_read_back(case)
             wf.transition(db, case, S.TRIAGED, self.gp(case) if clin else SYSTEM, now=self.t)
         # notification via channel ladder, then phone-call tasks
         self.adv(self.ln(3))

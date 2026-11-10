@@ -89,7 +89,9 @@ closure.
   (`escalations.channel = phone`, additive column), and a critical case can never be closed as `unable_to_contact`.
   No new clinical timeframe: the existing T0 clocks apply (placeholders, see `docs/clinical_rules.md`).
   Staff enter the contact time on the UAE clinic clock (see **Dates and times** below); the page sends it as UTC
-  (more than 5 minutes ahead is refused).
+  (more than 5 minutes ahead is refused). The synthetic seed (including Docker `SEED_AT_BUILD`) records this
+  clinician read-back through `services.critical.record_read_back` before a critical case is triaged, so history
+  replay obeys the same fast-lane guard as live use.
 * **Dates and times – one clinic clock:** every clinical date/time is **stored as naive UTC** in the database and
   sent by the API as naive UTC ISO text (no offset; an offset sent *to* the API is converted). Everywhere a person
   reads or types one – staff pages, the patient app, SMS/message content, server errors and GP summaries – it is on

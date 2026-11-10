@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from kareshafaa.models import Case, Communication, CriticalReadBack, Escalation, StepTask
 from kareshafaa.services.escalation import run_sweep
-from kareshafaa.statemachine import TransitionError, check_closure
+from kareshafaa.statemachine import S, TransitionError, check_closure
 
 LEAD = "fatima.al.mansoori"
 GP = "omar.haddad"
@@ -137,3 +137,82 @@ def test_contacted_at_utc_now_ok_and_unconverted_local_time_is_future(client, as
     assert r.status_code == 422 and "future" in r.text
     r = client.post(u, headers=as_user(LEAD), json={**RB, "contacted_at": now.isoformat().replace("+00:00", "Z")})
     assert r.status_code == 200, r.text
+
+
+def _replay_directory(db):
+    """Rebuild the seed directory and user map from the already-seeded test database."""
+    from kareshafaa.models import Organization, Practitioner, User
+    from kareshafaa.programmes import PROGRAMMES
+
+    orgs = list(db.scalars(select(Organization)))
+    pracs = list(db.scalars(select(Practitioner)))
+    leads, coordinators, gps, specialists = {}, {}, {}, {}
+    for p in pracs:
+        if p.role == "clinical_lead" and p.programme:
+            leads[p.programme] = p
+        elif p.role == "coordinator" and p.programme and not p.is_pool:
+            coordinators.setdefault(p.programme, []).append(p)
+        elif p.role == "gp":
+            gps.setdefault(p.org_id, []).append(p)
+        elif p.role == "specialist":
+            specialists[(p.org_id, p.specialty)] = p
+    for key in PROGRAMMES:
+        assert key in leads and key in coordinators
+    d = {"lab": next(o for o in orgs if o.kind == "lab"),
+         "phc": [o for o in orgs if o.kind == "primary_care"],
+         "hosp": [o for o in orgs if o.kind == "hospital"],
+         "leads": leads, "coordinators": coordinators, "gps": gps, "specialists": specialists}
+    users_by_pid = {u.practitioner_id: u for u in db.scalars(select(User).where(User.practitioner_id.is_not(None)))}
+    return d, users_by_pid
+
+
+def test_history_replay_records_critical_read_back_before_review_triage(db, monkeypatch):
+    """A critical, review-required result used to crash Docker SEED_AT_BUILD at resolve_review
+    (ISSUED → TRIAGED) because the history replayer had not recorded the fast-lane read-back."""
+    import random
+    from types import SimpleNamespace
+
+    from kareshafaa.models import utcnow
+    from kareshafaa.services import critical as crit
+    from kareshafaa.services import workflow as wf
+    from kareshafaa.synth.cohort import SynthPatient
+    from kareshafaa.synth.history import Replayer, add_patient
+
+    d, users_by_pid = _replay_directory(db)
+    now = utcnow()
+    t0 = now - timedelta(days=14)
+    rng = random.Random(42)
+    sp = SynthPatient(idx=810001, given="Critical", family="Review", gender="male", age=50,
+                      nationality="emirati", language="en", region="Abu Dhabi", phone_valid=True,
+                      has_smartphone=True, whatsapp=True, alt_contact=True, prior_no_shows=0,
+                      prior_screens=1, responsiveness=1.0, programme="diabetes_hba1c",
+                      share_consent=True, analytics_consent=True, haemoglobinopathy=True)
+    patient = add_patient(db, sp, d, rng, now, age_at=t0)
+    db.flush()
+
+    monkeypatch.setattr("kareshafaa.synth.history.draw_result",
+                        lambda *_a, **_k: SimpleNamespace(value=16.0, value_text=None, unit="%",
+                                                          test="HBA1C", status="final",
+                                                          cytology=None, defect=None))
+    seen = {}
+    orig_resolve = wf.resolve_review
+
+    def _resolve(db_s, case, actor, **kw):
+        rb = crit.latest(db_s, case.id)
+        seen["before"] = rb
+        assert rb is not None and rb.read_back_confirmed, "read-back must exist before review resolves"
+        return orig_resolve(db_s, case, actor, **kw)
+
+    monkeypatch.setattr(wf, "resolve_review", _resolve)
+
+    rep = Replayer(db, rng, d, users_by_pid, now, enriched=True)
+    case = rep.run(patient, sp, t0)
+    assert case is not None and case.tier == "critical"
+    assert "before" in seen, "review should have been resolved for this haemoglobinopathy + critical HbA1c"
+    assert seen["before"].read_back_confirmed and seen["before"].method == "phone"
+    assert seen["before"].reported_by == "lab duty scientist"
+    db.expire_all()
+    case = db.get(Case, case.id)
+    assert case is not None and S(case.state) != S.ISSUED
+    assert crit.latest(db, case.id) is not None
+    db.rollback()
