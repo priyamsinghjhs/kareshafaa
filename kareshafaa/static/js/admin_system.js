@@ -18,11 +18,11 @@ function monitoring(m) {
   const chip = j => j.ok == null ? '<span class="chip">Not run yet</span>' : j.ok ? '<span class="chip sla-green">✓ OK</span>' : `<span class="chip sla-red">▲ Failed (${W.esc(j.last_error || "error")})</span>`;
   const jobs = (m.jobs || []).map(j => `<tr data-job="${W.esc(j.name)}"><td>${W.esc(j.label)}</td><td>${chip(j)}</td><td class="small nowrap">${when(j.last_ok_at)}</td><td class="small">${j.failures ? j.failures + " / " + j.runs : j.runs}</td></tr>`).join("");
   const r = m.result_reconciliation || {};
-  const tiles = [["mon-unmatched", "Results without a case", r.open, r.open ? "danger" : "ok"],
-    ["mon-inbox", "Waiting in results inbox", m.results_inbox_waiting, m.results_inbox_waiting ? "warning" : "ok"],
-    ["mon-esc", "Open escalations", m.open_escalations, ""]];
-  return `<section class="card monitoring" aria-labelledby="mon-h"><h2 id="mon-h" class="card-title">Monitoring</h2>
-    <div class="stats">${tiles.map(([id, l, v, cls]) => `<div class="stat ${cls}" id="${id}"><span class="v">${v ?? "–"}</span><span class="l">${l}</span></div>`).join("")}</div>
+  const tiles = [["mon-unmatched", "Results without a case", r.open, r.open ? "danger" : "ok", "alert"],
+    ["mon-inbox", "Inbox waiting", m.results_inbox_waiting, m.results_inbox_waiting ? "warning" : "ok", "inbox"],
+    ["mon-esc", "Open escalations", m.open_escalations, "", "flag"]];
+  return `<section class="card monitoring" aria-labelledby="mon-h"><h2 id="mon-h" class="card-title">${W.ic("pulse")}Monitoring</h2>
+    <div class="stats">${tiles.map(([id, l, v, cls, ic]) => W.stat("", v, l, cls, ic, `id="${id}"`)).join("")}</div>
     <table class="compact"><thead><tr><th>Job</th><th>Status</th><th>Last success</th><th>Runs</th></tr></thead><tbody>${jobs}</tbody></table>
     <p class="small muted">Timed jobs every ${W.esc(String(m.sweep_interval_seconds))} s.</p>
     <div class="row"><button type="button" class="secondary" id="run-result-check">Check results now</button></div></section>`;
@@ -35,7 +35,7 @@ function aiSwitch(a) {
   const state = a.enabled == null ? '<span class="chip">Unknown</span>'
     : on ? '<span class="chip sla-green">✓ On</span>' : '<span class="chip sla-amber">■ Off</span>';
   const locked = !a.deployment_enabled ? '<p class="small muted">Off in the server settings.</p>' : "";
-  return `<section class="card ai-switch" aria-labelledby="ai-h" data-ai-enabled="${on}"><h2 id="ai-h" class="card-title"><span class="ai-switch-icon" aria-hidden="true"></span>AI suggestions ${state}</h2>
+  return `<section class="card ai-switch" aria-labelledby="ai-h" data-ai-enabled="${on}"><h2 id="ai-h" class="card-title"><span class="ai-switch-icon" aria-hidden="true">${W.ic("gauge")}</span>AI suggestions ${state}</h2>
     <p class="small muted">Queue order only. Off: deadline order.</p>${locked}
     ${a.deployment_enabled ? `<div class="row"><label class="grow">Reason<input id="ai-reason" maxlength="300" minlength="10" autocomplete="off"></label>
     <button type="button" class="${on ? "danger" : "secondary"}" id="ai-toggle" data-on="${on ? "0" : "1"}">${on ? "Switch off" : "Switch on"}</button></div>` : ""}</section>`;

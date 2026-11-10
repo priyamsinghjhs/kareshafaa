@@ -1,8 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-head">
-  <div>{% set nm = user.display_name.split(' (')[0] %}<h1 id="q-title">Hello, {{ nm if nm.startswith('Dr.') else nm.split(' ')[0] }}</h1>
-    <p class="lede" id="q-lede">What needs you now, most urgent first. Each item shows the time left and the one thing to do next.</p></div>
+  <div>{% set nm = user.display_name.split(' (')[0] %}<h1 id="q-title">Hello, {{ nm if nm.startswith('Dr.') else nm.split(' ')[0] }}</h1></div>
 </div>
 <section class="now" id="now" aria-labelledby="now-h">
   <div class="now-head"><h2 id="now-h">Needs you now</h2><span id="now-count" class="small muted" aria-live="polite"></span></div>
@@ -27,10 +26,10 @@
     <select id="prog"><option value="">All programmes</option><option value="colorectal_fit">Bowel (FIT stool test)</option>
       <option value="cervical">Cervical (HPV test)</option><option value="breast">Breast (mammogram)</option><option value="diabetes_hba1c">Diabetes (HbA1c blood test)</option></select></label>
   <label for="search">Find a patient
-    <input id="search" type="search" inputmode="search" autocomplete="off" placeholder="Name, MRN or case number"></label>
+    <input id="search" type="search" inputmode="search" autocomplete="off" placeholder="Name, MRN or case #"></label>
 </div>
 <details class="queue-legend">
-  <summary>What do the urgency levels and the order mean?</summary>
+  <summary>What do the urgency levels mean?</summary>
   <ul class="legend-list small">
     {% for k in ["critical", "urgent", "high", "routine"] %}<li><span class="chip tier-{{ k }}">{{ tiers[k].code }} · {{ tiers[k].name }}</span> first action within {{ tiers[k].first_action }}{% if k in ["critical", "urgent"] %}, day or night{% endif %}</li>{% endfor %}
     <li><span class="chip sla-red"><span class="shape" aria-hidden="true">▲</span>Overdue</span> the current step is past its deadline</li>

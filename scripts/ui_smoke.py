@@ -48,7 +48,7 @@ def main() -> int:
         page = ctx.new_page()
         page.on("pageerror", lambda e: problems.append(f"flow: JS error {e}"))
         page.goto(BASE + "/ingest", wait_until="networkidle")
-        page.get_by_text("Load sample (positive FIT)").click()
+        page.get_by_text("Insert example (positive FIT)").click()
         page.wait_for_timeout(300)
         page.get_by_text("Ingest message", exact=True).click()
         page.wait_for_selector("#ack:has-text('MSA|')", timeout=5000)

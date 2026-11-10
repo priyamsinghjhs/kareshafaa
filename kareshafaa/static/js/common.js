@@ -74,7 +74,14 @@ const W = {
       f => { const v = f.querySelector("textarea").value.trim(); if (optional && !v) return ""; if (v.length < min) { f.querySelector("textarea").setAttribute("aria-invalid", "true"); W.formError(f, `Please write at least ${min} characters.`); return false; } return v; }, "", save);
   },
   loading(text = "Loading…") { return `<div class="loading" role="status">${W.esc(text)}</div>`; },
-  empty(title, text = "", action = "") { return `<div class="empty"><h3>${W.esc(title)}</h3>${text ? `<p>${text}</p>` : ""}${action}</div>`; },
+  // inline icon from the SVG sprite in templates/_icons.html (decorative: the text next to it carries the meaning)
+  ic(name, cls = "") { return `<svg class="icon ic-${name} ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`; },
+  // empty state: icon + one short line (errors get the warning icon)
+  empty(title, text = "", action = "", icon = "") { const i = icon || (/^(Could not|No connection)/.test(title) ? "alert" : "ok");
+    return `<div class="empty">${W.ic(i, "empty-ic")}<h3>${W.esc(title)}</h3>${text ? `<p>${text}</p>` : ""}${action}</div>`; },
+  // number-first stat tile: big figure, 1-2 word label, icon (status colour always comes with the label)
+  stat(href, v, label, cls = "", icon = "", attrs = "") { const tag = href ? "a" : "div";
+    return `<${tag} class="stat ${cls}"${href ? ` href="${href}"` : ""} ${attrs}>${icon ? W.ic(icon, "stat-ic") : ""}<span class="v">${v ?? "–"}</span><span class="l">${label}</span></${tag}>`; },
   dt(s) { if (!s) return "–"; const d = new Date(s.endsWith("Z") || s.includes("+") ? s : s + "Z");
     return d.toLocaleString(undefined, { day: "2-digit", month: "short", ...(d.getFullYear() !== new Date().getFullYear() ? { year: "numeric" } : {}), hour: "2-digit", minute: "2-digit" }); },
   ago(s) { if (!s) return "–"; const d = new Date(s.endsWith("Z") ? s : s + "Z"); const h = (d - Date.now()) / 36e5;
@@ -88,7 +95,7 @@ const W = {
     const span = a < 1 ? Math.max(1, Math.round(a * 60)) + " min" : a < 48 ? Math.round(a) + " h" : Math.round(a / 24) + " days";
     return ms < 0 ? { text: "Overdue by " + span, cls: "red" } : { text: span + " left", cls: a < 24 ? "amber" : "green" }; },
   leftHtml(s, st) { const L = W.left(s); const cls = st === "red" || L.cls === "red" ? "red" : st === "amber" ? "amber" : L.cls;
-    return `<span class="time-left ${cls}">${W.esc(L.text)}</span>`; },
+    return `<span class="time-left ${cls}">${cls === "none" ? "" : W.ic("clock")}${W.esc(L.text)}</span>`; },
   langName(c) { const n = { en: "English", ar: "Arabic", hi: "Hindi", ur: "Urdu", ml: "Malayalam", tl: "Tagalog", bn: "Bengali", ta: "Tamil", te: "Telugu",
     fa: "Persian", fr: "French", ru: "Russian", zh: "Chinese", ps: "Pashto", ne: "Nepali", si: "Sinhala", so: "Somali", am: "Amharic", id: "Indonesian", es: "Spanish" }[c];
     return n || String(c || "–"); },

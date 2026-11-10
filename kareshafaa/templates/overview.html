@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="page-head"><div><h1>Good to see you, {{ user.display_name.split(' (')[0] }}</h1>
-<p class="lede">Patient safety first, then the decisions waiting for you.</p></div></div>
+<div class="page-head"><div><h1>Good to see you, {{ user.display_name.split(' (')[0] }}</h1></div></div>
 <section class="now" id="now" aria-labelledby="now-h">
   <div class="now-head"><h2 id="now-h">Needs you now</h2><a href="/queue?view=escalated" class="small" id="now-all">All escalations</a></div>
   <div id="now-list"><div class="loading" role="status">Loading…</div></div>
@@ -9,7 +8,7 @@
 <div class="section-title"><h2>Patient safety</h2><a href="/queue?view=overdue" class="small">Open the queue</a></div>
 <div class="stats" id="safety"><div class="loading" role="status">Loading…</div></div>
 <div class="section-title"><h2>Waiting for your decision</h2><a href="/governance" class="small" id="go-approvals">Review approvals</a></div>
-<div class="grid-3" id="approvals"><div class="loading" role="status">Loading…</div></div>
+<div class="stats" id="approvals"><div class="loading" role="status">Loading…</div></div>
 <div class="section-title"><h2>Programme results</h2><a href="/dashboard" class="small">All outcomes</a></div>
 <div class="stats" id="kpis"><div class="loading" role="status">Loading…</div></div>
 {% endblock %}

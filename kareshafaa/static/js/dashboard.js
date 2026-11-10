@@ -1,7 +1,7 @@
 const barrierRows = (rows, supp, label = (x) => x.label) => rows.length
   ? `<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><thead><tr><th>Reason</th><th>Events</th><th>Share</th></tr></thead><tbody>${rows.map(x => `<tr><td>${W.esc(label(x))}</td><td>${supp(x.events)}</td><td>${W.pct(supp(x.share))}</td></tr>`).join("")}</tbody></table></div>`
   : `<p class="small muted">None recorded yet.</p>`;
-const barrierCard = (b, supp) => `<section class="card" id="impact-barriers" aria-labelledby="barriers-h"><h4 id="barriers-h">Why loops fail</h4>
+const barrierCard = (b, supp) => `<section class="card" id="impact-barriers" aria-labelledby="barriers-h"><h4 id="barriers-h">${W.ic("alert")} Why loops fail</h4>
   <p class="small">${supp(b.split.system_side_events)} of the recorded failure events sit with the service (${W.pct(supp(b.split.system_share))}) and ${supp(b.split.patient_side_events)} with the patient's situation.</p>
   <div class="grid-3"><div><h5>What patients told us</h5>${barrierRows(b.patient_reported, supp)}</div>
   <div><h5>Patient side</h5>${barrierRows(b.patient_side, supp)}</div>
@@ -21,7 +21,7 @@ function armsCard(a) {
   const pct = x => W.pct(x.rate) + ` <span class="small muted">${W.pct(x.ci_low)}–${W.pct(x.ci_high)}</span>`;
   const g = a.equity_gap_care_reached_by_language || {};
   const gap = x => x ? `${x.gap_pp} pts` : "–";
-  return `<section class="card synthetic-arms" id="impact-arms" aria-labelledby="arms-h"><h4 id="arms-h"><span class="chip">Synthetic</span> Baseline vs loop</h4>
+  return `<section class="card synthetic-arms" id="impact-arms" aria-labelledby="arms-h"><h4 id="arms-h">${W.ic("chart")} Baseline vs loop <span class="chip">Synthetic</span></h4>
     <p class="small muted">${W.esc(a.statement)}</p>
     <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><thead><tr><th>Measure</th><th>Baseline</th><th>Loop</th><th>Difference</th></tr></thead><tbody>
     ${a.measures.map(m => `<tr data-measure="${W.esc(m.measure)}"><td>${W.esc(m.label)}</td><td>${pct(m.baseline)}</td><td>${pct(m.loop)}</td><td>${m.difference_pp > 0 ? "+" : ""}${m.difference_pp} pts <span class="small muted">${m.difference_ci_pp.join(" to ")}</span></td></tr>`).join("")}
@@ -35,24 +35,24 @@ const tabs = {
     const h = r.headline || {}, d = r.definitions, st = r.settings;
     document.getElementById("impact-csv").href = "/api/analytics/impact?format=csv" + (prog ? `&programme=${encodeURIComponent(prog)}` : "");
     const sel = `<label for="imp-prog" class="small" style="max-width:20rem">Screening programme<select id="imp-prog"><option value="">All programmes</option>${Object.entries(r.programmes).map(([k, l]) => `<option value="${k}" ${k === prog ? "selected" : ""}>${W.esc(l)}</option>`).join("")}</select></label>`;
-    if (!h.mature_cases && h.mature_cases !== "suppressed") { el.innerHTML = sel + W.empty("No cases yet", "The report fills in as results arrive and cases move through their pathway."); wireProg(); return; }
-    el.innerHTML = `<div class="card notice" id="impact-data-label" role="note"><b>${W.esc(r.data.label)}.</b> <span class="small">Generated ${W.dt(r.generated_at)}. Groups smaller than ${st.suppression_threshold} are hidden. Patients who opted out of analytics are not counted.</span></div>
+    if (!h.mature_cases && h.mature_cases !== "suppressed") { el.innerHTML = sel + W.empty("No cases yet", "", "", "chart"); wireProg(); return; }
+    el.innerHTML = `<div class="card notice" id="impact-data-label" role="note"><b>${W.esc(r.data.label)}.</b> <span class="small">${W.dt(r.generated_at)} · groups under ${st.suppression_threshold} hidden · analytics opt-outs excluded</span></div>
      ${sel}
      <div class="grid-4" id="impact-headline">
-      ${impactCard("Loop closed", W.pct(supp(h.loop_closure_rate)), `${supp(h.loop_closed)} of ${supp(h.mature_cases)} cases ≥${st.loop_maturity_days} days old${ci(h.loop_closure_ci_low, h.loop_closure_ci_high)}`)}
-      ${impactCard("Lost to follow-up", W.pct(supp(h.lost_to_follow_up_rate)), `${supp(h.lost_to_follow_up_now)} open cases lost now`)}
-      ${impactCard("First specialist contact", h.median_days_to_specialist == null ? "–" : h.median_days_to_specialist + " days", "median of cases seen so far")}
-      ${impactCard("Seen within pathway target", W.pct(supp(h.within_target_rate_all)), `all mature cases, unfinished = not met${ci(h.within_target_all_ci_low, h.within_target_all_ci_high)}`)}
-      ${impactCard("Closed by clinician decision", W.pct(supp(h.closed_by_decision_rate)), "informed decline, care elsewhere and similar")}
-      ${impactCard("Recall uptake", W.pct(supp(h.recall_uptake_rate)), `screened within ${h.recall_uptake_window_days} days of the due date`)}</div>
+      ${impactCard("Loop closed", W.pct(supp(h.loop_closure_rate)), `${supp(h.loop_closed)} / ${supp(h.mature_cases)} cases ≥${st.loop_maturity_days} d${ci(h.loop_closure_ci_low, h.loop_closure_ci_high)}`)}
+      ${impactCard("Lost to follow-up", W.pct(supp(h.lost_to_follow_up_rate)), `${supp(h.lost_to_follow_up_now)} open now`)}
+      ${impactCard("First specialist contact", h.median_days_to_specialist == null ? "–" : h.median_days_to_specialist + " days", "median")}
+      ${impactCard("Seen within pathway target", W.pct(supp(h.within_target_rate_all)), `unfinished = not met${ci(h.within_target_all_ci_low, h.within_target_all_ci_high)}`)}
+      ${impactCard("Closed by clinician decision", W.pct(supp(h.closed_by_decision_rate)), "")}
+      ${impactCard("Recall uptake", W.pct(supp(h.recall_uptake_rate)), `within ${h.recall_uptake_window_days} d of due`)}</div>
      <div class="card"><h4>Time to first specialist contact, by urgency tier</h4><div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact" id="impact-tiers"><thead><tr><th>Tier</th><th>Cases</th><th>Seen</th><th>Median days</th><th>90th percentile</th><th>Default target</th><th>Seen within target</th><th>Waiting past target</th></tr></thead><tbody>
       ${r.by_tier.map(t => `<tr data-tier="${t.tier}"><td><span class="chip">${W.esc(t.label)}</span></td><td>${supp(t.cases)}</td><td>${supp(t.seen)}</td><td>${t.median_days ?? "–"}</td><td>${t.p90_days ?? "–"}</td><td>${t.target_days_default} ${t.target_days_default === 1 ? "day" : "days"}</td><td>${W.pct(supp(t.within_target_rate))}</td><td>${supp(t.waiting_past_target)}</td></tr>`).join("")}</tbody></table></div>
-      <p class="small muted">Each case has its own end-to-end target from its pathway (for example colonoscopy within 31 days of a positive FIT); the default column shows the fallback per tier.</p></div>
+      <p class="footnote">Each case uses its pathway target; “Default target” is the fallback per tier.</p></div>
      <div class="card"><h4>By screening programme</h4><div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><thead><tr><th>Programme</th><th>Cases</th><th>Loop closed</th><th>Lost to follow-up</th><th>Median days to specialist</th></tr></thead><tbody>
       ${r.by_programme.map(p => `<tr><td>${W.esc(p.label)}</td><td>${supp(p.cases)}</td><td>${W.pct(supp(p.loop_closure_rate))}</td><td>${W.pct(supp(p.lost_rate))}</td><td>${p.median_days_to_specialist ?? "–"}</td></tr>`).join("")}</tbody></table></div></div>
      <div class="grid-3" id="impact-equity">${Object.entries(r.equity).map(([k, e]) => `<div class="card"><h4>Equity by ${W.esc(e.label.toLowerCase())}</h4><div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><thead><tr><th>Group</th><th>n</th><th>Loop closed</th><th>95% CI</th><th>Gap</th></tr></thead><tbody>
-      ${e.rows.map(g => `<tr ${g.flag ? 'class="row-flag"' : ""}><td>${W.esc(g.group)}</td><td>${supp(g.n)}</td><td>${W.pct(supp(g.loop_closure_rate))}</td><td class="small nowrap">${g.ci_low == null ? "–" : W.pct(g.ci_low) + "–" + W.pct(g.ci_high)}</td><td>${g.gap_pp == null ? "–" : (g.gap_pp > 0 ? `${g.gap_pp} pts below` : `${Math.abs(g.gap_pp)} pts above`)}${g.flag ? ' <span class="chip sla-red">▲ check</span>' : ""}</td></tr>`).join("")}</tbody></table></div>${e.gap ? `<p class="equity-gap small" data-gap="${e.gap.gap_pp}"><b>${e.gap.gap_pp} pts</b> best–worst (${W.esc(e.gap.best_group)} vs ${W.esc(e.gap.worst_group)})</p>` : ""}</div>`).join("")}</div>
-     <p class="small muted">A group is marked “check” when its loop-closure rate is ${st.equity_gap_pp} or more percentage points below the overall rate.</p>
+      ${e.rows.map(g => `<tr ${g.flag ? 'class="row-flag"' : ""}><td>${W.esc(g.group)}</td><td>${supp(g.n)}</td><td>${W.pct(supp(g.loop_closure_rate))}</td><td class="small nowrap">${g.ci_low == null ? "–" : W.pct(g.ci_low) + "–" + W.pct(g.ci_high)}</td><td>${g.gap_pp == null ? "–" : (g.gap_pp > 0 ? `${g.gap_pp} pts below` : `${Math.abs(g.gap_pp)} pts above`)}${g.flag ? ' <span class="chip sla-red">▲ check</span>' : ""}</td></tr>`).join("")}</tbody></table></div>${e.gap ? `<p class="equity-gap small" data-gap="${e.gap.gap_pp}">${W.ic("gauge")}<b>${e.gap.gap_pp} pts</b> best–worst gap <span class="muted">${W.esc(e.gap.best_group)} vs ${W.esc(e.gap.worst_group)}</span></p>` : ""}</div>`).join("")}</div>
+     <p class="footnote">“Check” = ${st.equity_gap_pp}+ pts below the overall loop-closure rate.</p>
      ${r.barriers ? barrierCard(r.barriers, supp) : ""}
      ${r.synthetic_arms ? armsCard(r.synthetic_arms) : ""}
      <details class="card"><summary>How each figure is defined</summary><dl class="facts">${Object.entries(d).map(([k, v]) => `<div><dt>${W.esc(k.replaceAll("_", " "))}</dt><dd>${W.esc(v)}</dd></div>`).join("")}</dl></details>`;
@@ -60,7 +60,7 @@ const tabs = {
   },
   async sim(el) {
     const s = await W.api("/api/analytics/simulation");
-    if (!s.available) { el.innerHTML = `<div class="empty">No simulation run yet.</div>`; return; }
+    if (!s.available) { el.innerHTML = W.empty("No simulation run yet", "", "", "chart"); return; }
     const k = Object.fromEntries(s.kpis.map(x => [x.kpi, x]));
     const pick = keys => keys.filter(x => k[x]).map(x => ({ label: KLABEL[x] || x, a: k[x].baseline, b: k[x].with_system }));
     el.innerHTML = `<div class="card notice"><b>${W.esc(s.label)}</b> · ${s.n_patients} modelled patients × ${s.replications} replications, ${s.horizon_days}-day horizon, same cohort and random stream in both arms. Ranges are min–max across replications.</div>
@@ -81,7 +81,7 @@ const tabs = {
   async live(el) {
     const k = await W.api("/api/analytics/kpis");
     const card = (l, v) => `<div class="card kpi"><div class="l">${l}</div><div class="v">${v ?? "–"}</div></div>`;
-    el.innerHTML = `<div class="card notice"><b>${W.esc(k.label)}</b> – figures from the cases recorded in this system.</div>
+    el.innerHTML = `<div class="card notice"><b>${W.esc(k.label)}</b> </div>
      <div class="grid-4">${card("Cases", k.total_cases)}${card("Open", k.open_cases)}${card("Open steps overdue", k.open_overdue_steps)}${card("Closure rate", W.pct(k.closure_rate))}
      ${card("Closed with evidence", k.closed_with_evidence)}${card("Closed by authorised decision", k.closed_authorised_decision)}${card("Median days to notification", k.median_days_to_notification)}${card("Median days to care", k.median_days_to_care)}
      ${card("Median days to understood", k.median_days_to_acknowledgement)}${card("Median days to confirmation", k.median_days_to_confirmation)}${card("Referral acceptance", W.pct(k.referral_acceptance_rate))}${card("Appointment attendance", W.pct(k.appointment_attendance_rate))}
@@ -92,7 +92,7 @@ const tabs = {
   },
   async fair(el) {
     const f = await W.api("/api/analytics/fairness");
-    el.innerHTML = `<p class="small muted">Outcome rates per group. Look for gaps: e.g. lower teach-back pass or care-reached rates for languages without a template. n&lt;${f.suppression_threshold} suppressed.</p>` +
+    el.innerHTML = `<p class="footnote">Outcome rates per group · n&lt;${f.suppression_threshold} suppressed</p>` +
       Object.entries(f.slices).map(([sl, rows]) => `<div class="card"><h4>${W.esc(sl.replace("_", " "))}</h4><table class="compact"><thead><tr><th>Group</th><th>n</th><th>Notified</th><th>Teach-back pass</th><th>Care reached</th><th>Closed</th><th>Median days to care</th></tr></thead><tbody>${rows.map(r =>
         `<tr><td>${W.esc(r.group)}</td><td>${r.n}</td><td>${W.pct(r.notified_rate)}</td><td>${W.pct(r.teach_back_pass_rate)}</td><td>${W.pct(r.care_reached_rate)}</td><td>${W.pct(r.closure_rate)}</td><td>${r.median_days_to_care ?? "–"}</td></tr>`).join("")}</tbody></table></div>`).join("");
   },

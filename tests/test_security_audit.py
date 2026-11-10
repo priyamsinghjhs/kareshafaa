@@ -71,7 +71,7 @@ def test_patient_sees_only_own_case(client, as_user):
     r = client.get("/api/me/case?lang=hi", headers=as_user("patient.hi")).json()
     r2 = client.get("/api/me/case", headers=as_user("patient.en")).json()
     assert r["case_id"] != r2["case_id"]
-    assert r["language"] == "hi" and r["label"].startswith("KareShafaa prototype")
+    assert r["language"] == "hi" and r["label"].startswith("Please check")
     ur = client.get("/api/me/case?lang=ur", headers=as_user("patient.ur")).json()
     assert ur["rtl"] is True
     # no internal fields leak to the patient view

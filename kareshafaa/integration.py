@@ -31,8 +31,8 @@ def capability_statement(base_url: str) -> dict:
         "date": utcnow().date().isoformat(), "publisher": "KareShafaa", "kind": "instance",
         "name": "KareShafaaCapabilityStatement", "title": "KareShafaa screening-to-care loop - FHIR R4 capabilities",
         "description": "Inbound screening results as FHIR R4 Bundles or HL7 v2 ORU^R01 messages; outbound FHIR R4 "
-                       "collection Bundle per case. Search and per-resource REST reads are not offered. Prototype "
-                       "software with synthetic data, not a certified medical device.",
+                       "collection Bundle per case. Search and per-resource REST reads are not offered. Synthetic "
+                       "data only; not a certified medical device.",
         "software": {"name": "KareShafaa", "version": __version__},
         "implementation": {"description": "KareShafaa API", "url": base_url.rstrip("/")},
         "fhirVersion": "4.0.1", "format": ["json"],

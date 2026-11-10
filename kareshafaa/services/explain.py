@@ -248,7 +248,7 @@ DATA_PROTECTION = [
              "the last health procedure (Art. 20).",
      "prototype": "Role-based access on every request, append-only hash-chained audit, no deletion of clinical data, "
                   "retention settings below. Synthetic records only.",
-     "pilot": "Host every component in a UAE region or on premises (the free prototype hosting is outside the UAE and "
+     "pilot": "Host every component in a UAE region or on premises (the current free hosting is outside the UAE and "
               "must never hold real patient data).", "status": "partly"},
     {"framework": "UAE Federal Decree-Law No. 45 of 2021 on personal data protection (PDPL)",
      "url": "https://www.uaelegislation.gov.ae/en/legislations/1972/download",
@@ -291,7 +291,7 @@ def data_protection(db: Session) -> dict:
     engine = "PostgreSQL" if url.startswith(("postgres", "postgresql")) else "SQLite"
     return {"frameworks": DATA_PROTECTION, "retention": SETTINGS,
             "hosting": {"database": engine, "mode": s.mode,
-                        "residency": "This prototype runs on free cloud hosting outside the UAE with synthetic records "
+                        "residency": "This deployment runs on free cloud hosting outside the UAE with synthetic records "
                                      "only. A pilot must run in a UAE region or on premises."},
             "checked": "2026-11-03",
             "disclaimer": "A mapping prepared by the product team, not a legal opinion or a certification."}

@@ -444,7 +444,7 @@ def model_card(mv: ModelVersion) -> str:
     lines = [
         f"# Model card - KareShafaa outreach-priority model v{mv.version}",
         "",
-        "**TRAINED ON SIMULATED DATA ONLY - prototype, not validated for clinical use.**",
+        "**TRAINED ON SIMULATED DATA ONLY - not validated for clinical use.**",
         "",
         "## Intended use",
         "Predicts the risk that an actionable screening case will be delayed or drop off, so coordinators can "

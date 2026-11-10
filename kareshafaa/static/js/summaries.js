@@ -26,7 +26,7 @@ async function load() {
   try { const d = await W.api("/api/gp-summaries?view=" + VIEW);
     document.getElementById("n-unread").textContent = d.unread ? `(${d.unread})` : "";
     el.innerHTML = d.items.length ? `<p class="small muted">Please acknowledge within ${d.ack_days} days.</p>` + d.items.map(card).join("")
-      : W.empty(VIEW === "unread" ? "Nothing to acknowledge" : "No summaries yet", "Summaries arrive when care starts or a case closes for your patients.");
+      : W.empty(VIEW === "unread" ? "Nothing to acknowledge" : "No summaries yet", "", "", "inbox");
     el.querySelectorAll("form.ack-form").forEach(f => f.onsubmit = async ev => { ev.preventDefault(); const b = f.querySelector("button"); W.busy(b, true);
       try { await W.api(`/api/gp-summaries/${f.dataset.id}/ack`, { method: "POST", body: { note: f.note.value.trim() || null } }); W.toast("Summary acknowledged", "ok"); await load(); }
       catch (e) { W.busy(b, false); W.formError(f, e.message); } });

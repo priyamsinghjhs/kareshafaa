@@ -56,7 +56,7 @@ def manifest() -> dict:
         {"src": "/static/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
     ]
     return {"id": "/", "name": BRAND, "short_name": BRAND, "lang": "en", "dir": "ltr",
-            "description": f"{BRAND} - closing the screening-to-care loop - prototype software",
+            "description": f"{BRAND} - closing the screening-to-care loop",
             "start_url": "/", "scope": "/", "display": "standalone", "orientation": "any",
             "theme_color": THEME_COLOR, "background_color": BACKGROUND_COLOR, "categories": ["medical", "health"],
             "icons": icons}

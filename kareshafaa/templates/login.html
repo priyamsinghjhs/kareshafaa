@@ -1,27 +1,17 @@
 {% extends "base.html" %}
 {% block bodyclass %} auth-page{% endblock %}
 {% block content %}
-<div class="auth-grid{% if lang != 'en' %} activate-grid{% endif %}" lang="{{ lang }}" dir="{{ 'rtl' if rtl else 'ltr' }}">
-  {% if lang == 'en' %}
-  <section class="pitch" aria-labelledby="pitch-h">
-    <h2 id="pitch-h">Every actionable screening result, carried all the way to care.</h2>
-    <p class="muted">KareShafaa gives each abnormal screening result one accountable owner, a clear deadline, plain-language
-      messages the patient understands, and closure only with evidence or a signed clinical decision.</p>
-    <ul class="small">
-      <li><b>Care coordinators</b> work one queue, most urgent first.</li>
-      <li><b>Family doctors (GPs)</b> and <b>specialists</b> see the patients who need their review.</li>
-      <li><b>Clinical leads</b> approve changes and watch safety measures.</li>
-      <li><b>Patients</b> read their result in Arabic, English, Hindi or Urdu.</li>
-    </ul>
+<div class="auth-grid" lang="{{ lang }}" dir="{{ 'rtl' if rtl else 'ltr' }}">
+  <section class="pitch" aria-label="KareShafaa">
+    <img class="logo-full pitch-logo" src="{{ asset('brand/logo-stacked.svg') }}" alt="KareShafaa" width="180" height="120">
+    <p class="pitch-line">{{ t.tagline }}</p>
+    <ol class="pitch-loop" aria-hidden="true"><li><svg class="icon"><use href="#i-pulse"/></svg></li><li><svg class="icon"><use href="#i-chat"/></svg></li><li><svg class="icon"><use href="#i-check"/></svg></li><li><svg class="icon"><use href="#i-route"/></svg></li><li><svg class="icon"><use href="#i-ok"/></svg></li></ol>
   </section>
-  {% endif %}
   <div class="auth-card">
-    <img class="logo-full auth-logo" src="{{ asset('brand/logo-horizontal.svg') }}" alt="KareShafaa" width="199" height="56">
     <div class="lang-switch" role="group" aria-label="{{ t.lang_label }}">
       {% for k, v in langs.items() %}<a role="button" class="{{ '' if k == lang else 'secondary outline' }} sm" href="/login?lang={{ k }}{% if next %}&next={{ next|urlencode }}{% endif %}" lang="{{ k }}" aria-current="{{ 'true' if k == lang else 'false' }}">{{ v }}</a>{% endfor %}
     </div>
     <h1>{{ t.title }}</h1>
-    <p class="small muted">{{ t.intro }}</p>
     {% if signed_out %}<div class="notice-inline ok" role="status">{{ t.signed_out }}</div>{% endif %}
     {% if error %}<div class="notice-inline err" role="alert" id="login-error">{{ error }}</div>{% endif %}
     <form method="post" action="/login" id="login-form" novalidate>
@@ -43,7 +33,7 @@
       <a id="forgot-password" href="/forgot-password?lang={{ lang }}">{{ t.forgot_password }}</a>
     </nav>
     <p class="small auth-activate">{{ t.activate_q }} <a href="/activate?lang={{ lang }}">{{ t.activate_link }}</a></p>
-    <p class="xs muted" style="margin-top:var(--s-3)">{{ t.idle_note }}</p>
+    <p class="xs muted row-gap-top">{{ t.idle_note }}</p>
   </div>
 </div>
 {% endblock %}

@@ -25,24 +25,43 @@ const RISKY = { close_evidence: "Close this case?", close_authorised: "Sign off 
 
 function header() {
   const owner = `${C.owner_is_pool ? '<span class="chip pool">Team pool – needs a named owner</span> ' : ""}${W.esc(C.owner)}`;
-  return `<a class="back-link" href="/queue"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Back to the queue</a>
+  return `<a class="back-link" href="/queue"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Back to queue</a>
    <div class="case-head"><h1>${W.esc(C.patient.name)}</h1>
    <p class="muted small" style="margin:0">Case #${C.id} · ${W.esc(C.patient.mrn)} · ${W.prog(C.programme)} screening</p>
    <div class="case-meta">${W.tier(C.tier)} ${W.sla(C.sla.status, C.sla.fraction)} ${C.sla.escalation_level ? `<span class="chip sla-red">Escalated (level ${C.sla.escalation_level})</span>` : ""}</div></div>
-   ${nextBar()}${fastLane()}${coverage()}${record()}
-   <h2 class="sec-title" id="step-h">Current step on the care pathway</h2>
+   ${loopStrip()}${nextBar()}${fastLane()}${coverage()}${record()}
+   <h2 class="sec-title" id="step-h">This step</h2>
    <dl class="facts" aria-labelledby="step-h">
-     <div><dt>Current step</dt><dd>${W.esc(C.state_label)}</dd></div>
-     <div><dt>Accountable owner</dt><dd>${owner}</dd></div>
-     <div><dt>Step deadline</dt><dd>${deadline()}</dd></div>
+     <div><dt>Step</dt><dd>${W.esc(C.state_label)}</dd></div>
+     <div><dt>Owner</dt><dd>${owner}</dd></div>
+     <div><dt>Deadline</dt><dd>${deadline()}</dd></div>
      <div><dt>Urgency</dt><dd class="small">${W.esc(W.tierText(C.tier))}</dd></div>
    </dl>
-   <p class="small muted stepper-count">Step ${Math.max(1, C.journey.findIndex(j => j.status === "current") + 1)} of ${C.journey.filter(j => j.status !== "side").length} on the care pathway</p>
-   <ol class="stepper" aria-label="Care pathway progress">${C.journey.map(j => `<li class="st ${j.status}" ${j.status === "current" ? 'aria-current="step"' : ""}>${W.esc(j.label)}</li>`).join("")}</ol>
+   <details class="help-more all-steps"><summary>All steps · ${Math.max(1, C.journey.findIndex(j => j.status === "current") + 1)} of ${C.journey.filter(j => j.status !== "side").length}</summary>
+   <ol class="stepper" aria-label="Care pathway progress">${C.journey.map(j => `<li class="st ${j.status}" ${j.status === "current" ? 'aria-current="step"' : ""}>${W.esc(j.label)}</li>`).join("")}</ol></details>
    ${C.review_required ? `<div class="card alert" role="alert"><h3>Clinical review needed</h3><p>This result cannot move on automatically until a clinician reviews it: ${(C.review_reasons || []).map(x => `<span class="chip sla-red">${W.esc(x.replace(/_/g, " "))}</span>`).join(" ")}</p><p class="small" style="margin:0">Rule ${W.esc(C.rule_id || "–")} · pathway <b>${W.esc((C.pathway || "–").replace(/_/g, " "))}</b>${C.target ? " · target " + W.esc(C.target) : ""}. Urgency was set to the safer level; lowering it needs a clinician's reason (recorded).</p></div>` : (C.rule_id ? `<p class="small muted">Clinical rule ${W.esc(C.rule_id)} · pathway ${W.esc((C.pathway || "").replace(/_/g, " "))}${C.target ? " · target " + W.esc(C.target) : ""}${C.target_due_at ? ` · pathway target date <b>${W.dt(C.target_due_at)}</b>` : ""}</p>` : "")}
    ${C.transfer_pending ? `<div class="card notice">Transfer waiting for <b>${W.esc(C.transfer_pending.to_owner)}</b> to accept. The current owner stays accountable until then. <span class="small muted">${W.esc(C.transfer_pending.note || "")}</span></div>` : ""}
    ${C.closure ? `<div class="card ok"><b>Closed</b> (${W.esc(C.closure.type.replace(/_/g, " "))}: <b>${W.esc(C.closure.reason)}</b>) on ${W.dt(C.closure.closed_at)}. ${W.esc(C.closure.note || "")} ${C.closure.evidence_id ? `· evidence #${C.closure.evidence_id}` : ""}
      <br><span class="small">${C.recall && C.recall.next_screening_due ? `Next screening due <b>${W.esc(C.recall.next_screening_due)}</b>${C.recall.recall ? ` (recall ${W.esc(C.recall.recall.status)})` : ""}.` : "No automatic recall for this closure (follow-up set by the treating team, or the person left the programme)."}</span></div>` : ""}`;
+}
+
+// the loop at a glance: result -> notified -> understood -> referred -> closed. Each existing case state maps to one
+// of these five stages (display only - no new workflow states); a side state (unreachable, no-show, declined,
+// referral rejected) marks the stage it interrupted as needing attention.
+const LOOP = [["result", "Result", "pulse", ["issued", "triaged"]], ["notified", "Notified", "chat", ["patient_notified"]],
+  ["understood", "Understood", "check", ["acknowledged", "confirmatory_test", "consultation"]],
+  ["referred", "Referred", "route", ["referral_sent", "referral_accepted", "referral_rejected", "appointment_booked", "appointment_attended", "treatment_or_surveillance_started"]],
+  ["closed", "Closed", "ok", ["closed"]]];
+const loopStage = st => LOOP.findIndex(x => x[3].includes(st));
+function loopStrip() {
+  const main = (C.journey || []).filter(j => j.status !== "side");
+  const reached = Math.max(0, ...main.filter(j => j.status === "done" || j.status === "current").map(j => loopStage(j.state)));
+  let cur = loopStage(C.state), attention = C.state === "referral_rejected";
+  if (cur < 0) { cur = Math.min(LOOP.length - 1, reached + (C.state === "no_show" ? 0 : 1)); attention = true; }
+  if (C.state === "closed") cur = LOOP.length;  // every stage done
+  const label = i => i < cur ? "done" : i === cur ? (attention ? "needs attention" : "now") : "to do";
+  return `<ol class="loop-strip" aria-label="Screening-to-care loop">${LOOP.map(([k, l, ic], i) => { const st = i < cur ? "done" : i === cur ? (attention ? "attention" : "current") : "todo";
+    return `<li class="ls ls-${st}" data-stage="${k}" ${i === cur ? 'aria-current="step"' : ""}><span class="ls-dot">${W.ic(i < cur ? "ok" : attention && i === cur ? "alert" : ic)}</span><span class="ls-l">${l}<span class="sr-only"> (${label(i)})</span></span></li>`; }).join("")}</ol>`;
 }
 
 // the step that is due, the time left and the one next action, at the top of the case (same form and checks as the
@@ -50,18 +69,18 @@ function header() {
 function nextBar() {
   const primary = (C.actions || []).find(a => a.primary);
   if (C.closure && !primary) return "";
-  return `<section class="card next-bar ${W.esc(C.sla.status)}" aria-labelledby="nb-h"><div><h2 id="nb-h" class="nb-title">Now: ${W.esc(C.state_label)}</h2>
+  return `<section class="card next-bar ${W.esc(C.sla.status)}" aria-labelledby="nb-h"><div><h2 id="nb-h" class="nb-title">${W.ic("arrow", "nb-ic")}Now: ${W.esc(C.state_label)}</h2>
     <p class="small" style="margin:0">${C.sla.due_at ? W.leftHtml(C.sla.due_at, C.sla.status) + " · due " + W.esc(W.dt(C.sla.due_at)) : "No deadline on this step"} · owner ${W.esc(String(C.owner || "").split(" (")[0])}</p></div>
-    ${primary ? `<button class="nb-go" data-k="${primary.key}" data-ev="${primary.evidence_type || ""}" data-scroll>${W.esc(primary.label)}</button>` : `<span class="small muted">Nothing for your role to do right now.</span>`}</section>`;
+    ${primary ? `<button class="nb-go" data-k="${primary.key}" data-ev="${primary.evidence_type || ""}" data-scroll>${W.esc(primary.label)}</button>` : `<span class="small muted">Nothing for your role now</span>`}</section>`;
 }
 
 // critical-result fast lane (services/critical.py): direct clinician contact with read-back, phone escalation
 function fastLane() {
   const f = C.fast_lane; if (!f) return "";
   if (f.read_back) { const r = f.read_back;
-    return `<div class="card flat" data-fast-lane="done"><p class="small"><span class="chip sla-green">✓ Critical result read back</span> ${W.esc(r.method_label)} · ${W.dt(r.contacted_at)} · given by ${W.esc(r.reported_by)} · received by <b>${W.esc(r.received_by || "")}</b>. </p></div>`; }
+    return `<div class="card flat" data-fast-lane="done"><p class="small"><span class="chip sla-green"><span class="shape" aria-hidden="true">✓</span>Read back</span> ${W.esc(r.method_label)} · ${W.dt(r.contacted_at)} · given by ${W.esc(r.reported_by)} · received by <b>${W.esc(r.received_by || "")}</b>. </p></div>`; }
   if (!f.read_back_needed) return "";
-  return `<div class="card notice" role="alert" data-fast-lane="needed"><p class="small"><span class="shape fast-lane-icon" aria-hidden="true">!</span> <b>Critical result.</b> Record the read-back before triage. Escalates by phone.</p></div>`;
+  return `<div class="card notice" role="alert" data-fast-lane="needed"><p class="small"><span class="fast-lane-icon" aria-hidden="true">${W.ic("bolt")}</span><b>Critical result</b> · record the clinician read-back before triage · escalates by phone</p></div>`;
 }
 
 function coverage() {
@@ -241,9 +260,9 @@ function render() {
   root().innerHTML = header() + `<div class="grid-2 case-grid"><div>
     <div class="tabs" role="tablist" aria-label="Case details" id="case-timeline"><button role="tab" aria-selected="true" data-t="steps">Timeline</button><button role="tab" aria-selected="false" class="secondary" data-t="events">Messages &amp; events</button><button role="tab" aria-selected="false" class="secondary" data-t="audit">Audit (${C.audit.length})</button></div>
     <div id="tabbody" role="tabpanel"></div></div>
-    <aside aria-label="Actions and patient details"><section class="card ${primary ? "next-step" : ""}" aria-labelledby="act-h"><h2 id="act-h" style="font-size:var(--fs-lg)">${primary ? "Next step" : "Actions"}</h2>
+    <aside aria-label="Actions and patient details"><section class="card ${primary ? "next-step" : ""}" aria-labelledby="act-h"><h2 id="act-h" class="card-title">${W.ic(primary ? "arrow" : "list")}${primary ? "Next step" : "Actions"}</h2>
       ${primary ? `<button class="primary-action" data-k="${primary.key}" data-ev="${primary.evidence_type || ""}">${W.esc(primary.label)}</button>` : ""}
-      ${others.length ? (primary ? `<details class="more-actions"><summary>More actions (${others.length})</summary><div class="actions">${others.map(btn).join("")}</div></details>` : `<div class="actions">${others.map(btn).join("")}</div>`) : (primary ? "" : `<p class="small muted">There is nothing for your role to do on this case right now.</p>`)}
+      ${others.length ? (primary ? `<details class="more-actions"><summary>More actions (${others.length})</summary><div class="actions">${others.map(btn).join("")}</div></details>` : `<div class="actions">${others.map(btn).join("")}</div>`) : (primary ? "" : `<p class="small muted">Nothing for your role now</p>`)}
       <div id="aform"></div></section>${patientRequests()}${patientCard()}</aside></div>`;
   const tabs = { steps, events, audit: auditTable };
   root().querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
@@ -292,7 +311,7 @@ function events() {
   C.escalations.forEach(e => ev.push([e.created_at, `🚨 <b>L${e.level}</b> → ${W.esc(e.target)}: ${W.esc(e.note)} ${e.acknowledged_at ? '<span class="chip sla-green">acknowledged</span>' : (W.me.permissions.includes("escalation:ack") ? `<button class="secondary sm" data-click="ackEsc" data-args="[${e.id}]">Acknowledge</button>` : "")}`]));
   C.ownership_events.forEach(o => ev.push([o.at, `👤 ownership ${W.esc(o.kind)}: ${W.esc(o.from || "–")} → <b>${W.esc(o.to)}</b> ${W.esc(o.reason || "")}`]));
   ev.sort((a, b) => (b[0] || "").localeCompare(a[0] || ""));
-  return ev.length ? `<ul class="timeline">${ev.map(([t, h]) => `<li class="ev"><span class="small muted">${W.dt(t)}</span> ${h}</li>`).join("")}</ul>` : W.empty("No events yet", "Messages, calls, referrals and appointments will appear here.");
+  return ev.length ? `<ul class="timeline">${ev.map(([t, h]) => `<li class="ev"><span class="small muted">${W.dt(t)}</span> ${h}</li>`).join("")}</ul>` : W.empty("No events yet", "", "", "chat");
 }
 
 function steps() {
@@ -303,7 +322,7 @@ function steps() {
 }
 
 function auditTable() {
-  return `<p class="small muted">Every view and change of this case, in an append-only, tamper-evident log.</p><table class="compact"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Event</th><th>Outcome</th></tr></thead><tbody>${C.audit.map(a =>
+  return `<p class="small muted">Append-only, tamper-evident log.</p><table class="compact"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Event</th><th>Outcome</th></tr></thead><tbody>${C.audit.map(a =>
     `<tr><td class="small">${W.dt(a.ts)}</td><td class="small">${W.esc(a.actor)}<div class="muted">${W.esc(W.role(a.role))}</div></td><td>${a.action}</td><td class="small">${W.esc(a.event)}${a.detail && a.detail.to ? " → " + W.esc(a.detail.to) : ""}</td><td class="small">${a.outcome}</td></tr>`).join("")}</tbody></table>`;
 }
 

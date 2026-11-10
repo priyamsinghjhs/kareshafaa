@@ -32,6 +32,16 @@ closure.
 * Patient app: the **next step comes first** in large type with one clear button, the full step list is one tap away,
   and an always-visible **“Need help?”** row offers “Send a question” and “Change my appointment” (en/ar/hi/ur, RTL).
 
+* **Minimal interface (Nov 2026):** less instructional copy and a clearer visual hierarchy. Page introductions moved
+  into one-tap “Why this page” disclosures; stat tiles are number-first (big figure, 1–2 word label, icon); empty states
+  are one short line with an icon; headings use the brand navy and mint marks “on track”, while overdue / critical keep
+  their semantic colours, always with an icon and a label. The sign-in screen is the logo, one line and the form. The
+  case screen adds a five-stage loop strip (Result → Notified → Understood → Referred → Closed, mapped from the existing
+  case states; no new workflow states). The patient result card is a visual pathway: urgency badge and timeframe, what
+  it means, the next step (emphasised), who is looking after you (name and role), and a one-line reassurance with
+  “More” (en/ar/hi/ur, RTL). Icons come from the inline SVG sprite (`templates/_icons.html`); no webfonts or icon CDNs.
+  The footer is one line: KareShafaa is not a certified medical device; clinical decisions stay with the treating clinician.
+
 **Patient summary: contact details and insurance**
 * The case screen's **Patient summary** shows phone (tap to call, WhatsApp flag), email, address, preferred language,
   contact preference and **contact consent** (care-coordination consent plus any refused channels) to the roles that

@@ -53,7 +53,7 @@ def test_clinical_lead_keeps_clinical_duties_and_a_read_only_audit_view(client, 
                 "/api/governance/sla-rules", "/api/audit?limit=1", "/api/analytics/kpis", "/api/queue?view=escalated&limit=1"):
         assert client.get(api, headers=h).status_code == 200, api
     page = client.get("/audit", headers=h).text
-    assert "Check the log is intact" not in page and "Read-only view" in page and 'href="/advanced"' not in page
+    assert "Check the log is intact" not in page and "read-only" in page and 'href="/advanced"' not in page
     for p in ("/advanced", "/walkthrough", "/ingest", "/admin/users", "/admin/system"):
         assert client.get(p, headers=h).status_code == 403, p
 

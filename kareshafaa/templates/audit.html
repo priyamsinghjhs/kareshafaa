@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-head"><div>{% if user and user.role == "admin" %}<a class="back-link" href="/advanced"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Advanced</a>{% endif %}<h1>Audit trail</h1>
-<p class="lede">Every view and change, including refused attempts, in an append-only, hash-chained log.</p>{% if user and user.role != "admin" %}<p class="small muted">Read-only view for clinical governance. The system administrator checks the log's integrity.</p>{% endif %}</div>
+<p class="lede">Append-only, hash-chained log{% if user and user.role != "admin" %} · read-only{% endif %}.</p><details class="help-more"><summary>Why this page</summary><p class="small muted">Every view and change, including refused attempts. {% if user and user.role != "admin" %}The system administrator checks the log's integrity.{% else %}Use “Check the log is intact” to verify the chain.{% endif %}</p></details></div>
 {% if user and user.role == "admin" %}<div class="page-actions"><button id="verify">Check the log is intact</button></div>{% endif %}</div>
 <form class="filters" id="af" role="search">
   <label for="ev">Event type<input id="ev" placeholder="e.g. auth. or case. or model." autocomplete="off"></label>

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-head"><div><h1>Questions for you</h1>
-<p class="lede">Ask-a-specialist requests (e-consults) from other clinicians, and questions from patients. Answer within the time shown: {{ tiers.critical.code }} 1 h · {{ tiers.urgent.code }} 4 h · {{ tiers.high.code }} 24 h · {{ tiers.routine.code }} 72 h.</p></div></div>
+<p class="answer-by small" aria-label="Answer within"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg><span class="chip tier-critical">{{ tiers.critical.code }} 1 h</span><span class="chip tier-urgent">{{ tiers.urgent.code }} 4 h</span><span class="chip tier-high">{{ tiers.high.code }} 24 h</span><span class="chip tier-routine">{{ tiers.routine.code }} 72 h</span></p><details class="help-more"><summary>Why this page</summary><p class="small muted">Ask-a-specialist requests (e-consults) from other clinicians, and questions from patients. Answer each within the time shown for its urgency.</p></details></div></div>
 <div id="ctable"><div class="loading" role="status">Loading…</div></div>
 {% endblock %}
 {% block scripts %}

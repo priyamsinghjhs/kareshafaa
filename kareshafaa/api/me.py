@@ -58,7 +58,7 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
         lang = lang if lang in SUPPORTED_LANGUAGES else (saved or comms.comm_language(p0))
         return {"display_language_saved": saved, "case_id": None, "self": _page_words(lang), "language": lang, "rtl": lang in RTL_LANGUAGES,
                 "languages": SUPPORTED_LANGUAGES, "ui": UI_TEXT[lang],
-                "label": "KareShafaa prototype - please check anything important with your care team",
+                "label": "Please check anything important with your care team",
                 "patient": {"given_name": p0.given_name, "preferred_language": p0.language}}
     p: Patient = c.patient
     lang = lang if lang in SUPPORTED_LANGUAGES else (saved or comms.comm_language(p))
@@ -80,7 +80,7 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
     return {
         "told": told, "closed": closed, "self": _page_words(lang),
         "display_language_saved": saved,
-        "label": "KareShafaa prototype - please check anything important with your care team", "case_id": c.id, "language": lang, "rtl": lang in RTL_LANGUAGES,
+        "label": "Please check anything important with your care team", "case_id": c.id, "language": lang, "rtl": lang in RTL_LANGUAGES,
         "languages": SUPPORTED_LANGUAGES, "ui": UI_TEXT[lang],
         "patient": {"given_name": p.given_name, "preferred_language": p.language},
         "interpreter_notice": INTERPRETER_NOTICE.get(p.language) or (
@@ -90,6 +90,7 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
         "next_step": prog["next_step"] if told and not closed else None,
         "timeframe": TIMEFRAME[lang][c.tier] if told and not closed else None,
         "urgency": URGENCY[lang][c.tier] if told and not closed else None,
+        "urgency_level": c.tier if told and not closed else None,  # badge colour only; the words above carry the meaning
         "reassurance": TEMPLATES[lang]["reassurance"][variant],
         "care_team": {"owner": coord.name.split(" (")[0] if coord and not coord.is_pool else "Care coordination team",
                       "role": (coord.role if coord else "coordinator")},

@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-head"><div><h1>Patients</h1>
-<p class="lede">Find a patient by name, MRN, Emirates ID, passport number or phone number, or register someone new. Every record starts with a check for an existing record of the same person.</p></div>
+</div>
 <div class="page-actions" id="reg-actions" hidden><a role="button" class="secondary" href="/recalls" id="recall-link"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg>Due for recall</a><a role="button" href="/patients/new"><svg class="icon" aria-hidden="true"><use href="#i-user-plus"/></svg>Register a patient</a></div></div>
 <form class="filters" role="search" id="sf" data-nosubmit>
   <label for="pq">Find a patient<input id="pq" type="search" inputmode="search" autocomplete="off" placeholder="Name, MRN, Emirates ID, passport or phone" minlength="2" maxlength="80"></label>
 </form>
-<div id="plist" aria-live="polite"><p class="small muted">Type at least 2 characters to search.</p></div>
+<div id="plist" aria-live="polite"><p class="small muted">Type 2+ characters to search.</p></div>
 {% endblock %}
 {% block scripts %}
 <script src="{{ asset('js/patients_search.js') }}"></script>

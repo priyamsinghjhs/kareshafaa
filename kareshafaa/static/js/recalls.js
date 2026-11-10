@@ -9,7 +9,7 @@ function updSel() { const n = sel().length; document.getElementById("selcount").
 async function summary() {
   try { const s = await W.api("/api/recalls/summary");
     const rate = s.denominator ? Math.round(100 * s.completed_in_window / s.denominator) + "%" : "–";
-    document.getElementById("rsum").innerHTML = `<div class="stat"><div class="v">${s.open_due_now}</div><div class="l">Due now</div></div><div class="stat"><div class="v">${s.invited_open}</div><div class="l">Invited, waiting</div></div><div class="stat"><div class="v">${rate}</div><div class="l">Recall uptake (screened within ${s.window_days} days of due)</div></div>`;
+    document.getElementById("rsum").innerHTML = W.stat("", s.open_due_now, "Due now", s.open_due_now ? "warning" : "ok", "calendar") + W.stat("", s.invited_open, "Invited, waiting", "", "chat") + W.stat("", rate, `Uptake (${s.window_days} d)`, "", "ok", `title="Screened within ${s.window_days} days of the due date"`);
   } catch (e) { document.getElementById("rsum").innerHTML = ""; }
 }
 async function load() {
@@ -29,7 +29,7 @@ async function load() {
         <td><span class="chip ${sc}">${sl}</span>${r.invited_at ? `<span class="sub">${r.invite_count}× · last ${W.dt(r.invited_at)} (${CH[r.last_invite_channel] || r.last_invite_channel})</span>` : ""}${r.completed_case_id ? `<span class="sub"><a href="/cases/${r.completed_case_id}">new case #${r.completed_case_id}</a></span>` : ""}${r.closed_note ? `<span class="sub">${W.esc(r.closed_note)}</span>` : ""}</td>
         <td class="small">${W.esc(r.health_centre || "–")}</td>
         ${can ? `<td><div class="row"><button class="sm" data-inv="${r.id}" ${r.phone || r.has_smartphone ? "" : 'disabled title="No mobile number or app – phone the patient"'}>${r.invite_count ? "Invite again" : "Send invitation"}</button><button class="secondary sm" data-cancel="${r.id}">Cancel</button></div>${r.phone || r.has_smartphone ? "" : '<span class="sub small">No mobile or app – phone them</span>'}</td>` : ""}</tr>`; }).join("")}</tbody></table>`
-      : W.empty("Nobody in this list", v === "due" ? "No one is due for a recall in the next 60 days." : "Try another filter.");
+      : W.empty(v === "due" ? "No one due in the next 60 days" : "Nobody in this list", "", "", "calendar");
     el.querySelectorAll("[data-inv]").forEach(b => b.onclick = async () => { W.busy(b, true);
       try { const r = await W.api(`/api/recalls/${b.dataset.inv}/invite`, { method: "POST" }); W.toast(`Invitation sent by ${CH[r.channel] || r.channel} (simulated)`, "ok"); await load(); summary(); }
       catch (e) { W.busy(b, false); W.toast(e.message, "err"); } });

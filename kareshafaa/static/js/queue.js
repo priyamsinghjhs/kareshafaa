@@ -4,14 +4,12 @@ const VIEWS = [["all", "All open cases"], ["critical", "Critical: read-back need
 const TITLES = { all: "All open cases", review: "Patients needing review", mine: "Assigned to me", overdue: "Overdue steps" };
 let view = new URLSearchParams(location.search).get("view") || "all", data = null, offset = 0, timer = null;
 const PAGE = 25;
-const EMPTY = { all: ["No open cases", "Every result has reached care or a documented closure."], mine: ["Nothing assigned to you", "No cases have you as the named owner right now."],
-  overdue: ["Nothing overdue", "Every step is inside its deadline."], unassigned: ["Every case has an owner", "No case is waiting in a team pool."],
-  rejected: ["No rejected referrals", "Nothing is waiting to be re-routed."], escalated: ["No open escalations", "Every escalation has been acknowledged."],
-  review: ["No one needs review", "No results are waiting for a clinician. <a href='/queue'>See all cases</a>."], calls: ["No calls to make", "No phone-call tasks are waiting."],
-  transfers: ["No transfers waiting", "No hand-overs are pending."], critical: ["No critical result is waiting", "Every critical result has a recorded clinician read-back."], consults: ["No open consultations", "No questions are waiting for an answer."] };
+const EMPTY = { all: ["No open cases"], mine: ["Nothing assigned to you"], overdue: ["Nothing overdue"], unassigned: ["Every case has an owner"],
+  rejected: ["No rejected referrals"], escalated: ["No open escalations"], review: ["No one needs review", "<a href='/queue'>See all cases</a>"],
+  calls: ["No calls to make"], transfers: ["No transfers waiting"], critical: ["No critical result waiting"], consults: ["No open consultations"] };
 function stats() {
-  const c = data.counts, S = [...((c.critical || 0) || view === "critical" ? [["critical", "Critical: read-back needed", "danger"]] : []), ["overdue", "Overdue", "danger"], ["review", "Need review", "warning"], ["unassigned", "No named owner", ""], ["escalated", "Escalated", "danger"]];
-  document.getElementById("stats").innerHTML = S.map(([k, l, cls]) => `<a class="stat ${(c[k] || 0) ? cls : "ok"}" href="?view=${k}" data-v="${k}" ${k === view ? 'aria-current="true"' : ""}><span class="v">${c[k] ?? 0}</span><span class="l">${l}</span></a>`).join("");
+  const c = data.counts, S = [...((c.critical || 0) || view === "critical" ? [["critical", "Read-back needed", "danger", "bolt"]] : []), ["overdue", "Overdue", "danger", "clock"], ["review", "Need review", "warning", "eye"], ["unassigned", "No owner", "", "user-x"], ["escalated", "Escalated", "danger", "flag"]];
+  document.getElementById("stats").innerHTML = S.map(([k, l, cls, ic]) => W.stat(`?view=${k}`, c[k] ?? 0, l, (c[k] || 0) ? cls : "ok", ic, `data-v="${k}" ${k === view ? 'aria-current="true"' : ""}`)).join("");
   document.querySelectorAll("#stats a").forEach(a => a.onclick = e => { e.preventDefault(); setView(a.dataset.v); });
   const sel = document.getElementById("view");
   sel.innerHTML = VIEWS.map(([k, l]) => `<option value="${k}" ${k === view ? "selected" : ""}>${l} (${c[k] ?? 0})</option>`).join("");
@@ -38,12 +36,12 @@ function flags(r) {
 async function loadNow() {
   const d = await W.api("/api/queue?view=all&limit=5"), el = document.getElementById("now-list"), c = d.counts || {};
   document.getElementById("now-count").textContent = d.total ? `${c.overdue || 0} overdue · ${d.total} open` : "";
-  el.innerHTML = d.items.length ? W.nowList(d.items) : W.empty("You are all caught up", "Nothing needs you right now. New results and requests appear here.");
+  el.innerHTML = d.items.length ? W.nowList(d.items) : W.empty("You are all caught up");
 }
 function render() {
   const rows = data.items;
-  if (!rows.length) { const e = EMPTY[view] || ["Nothing here", ""];
-    document.getElementById("qtable").innerHTML = document.getElementById("search").value ? W.empty("No match", "No open case matches your search.") : W.empty(e[0], e[1]); return; }
+  if (!rows.length) { const e = EMPTY[view] || ["Nothing here"];
+    document.getElementById("qtable").innerHTML = document.getElementById("search").value ? W.empty("No matching open case", "", "", "list") : W.empty(e[0], e[1] || ""); return; }
   const from = data.offset + 1, to = data.offset + rows.length;
   const risk = r => r.risk_score == null ? '<span class="muted small">–</span>' : `<span class="risk" title="${W.esc("Why: " + (r.risk_rationale || "close to the typical case") + " - orders within the same urgency only")}"><span class="risk-bar" aria-hidden="true"><i style="width:${Math.round(r.risk_score * 100)}%"></i></span>${Math.round(r.risk_score * 100)}%</span>`;
   const owner = r => `${r.owner_is_pool ? '<span class="chip pool">Team pool</span> ' : ""}${W.esc(r.owner.split(" (")[0])}`;

@@ -113,7 +113,7 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
     tb_changes = changes_for_case(db, c.id)  # patient used "Change my answers": new response -> replaced one
     return {
         **case_summary(db, c),
-        "label": "KareShafaa v0.1 prototype record",
+        "label": "KareShafaa case record",
         "needs_confirmation": c.needs_confirmation,
         "sla": {"status": cur["sla_status"] if cur else "none", "fraction": cur["sla_fraction"] if cur else None,
                 "due_at": cur["due_at"] if cur else None, "escalation_level": max(c.escalation_level or 0, c.target_alert_level or 0)},

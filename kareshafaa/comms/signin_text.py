@@ -5,7 +5,7 @@ from __future__ import annotations
 LANGS = {"en": "English", "ar": "العربية", "hi": "हिन्दी", "ur": "اردو"}
 
 LOGIN_TEXT = {
-    "en": {"title": "Sign in", "intro": "Use the username and password you were given.", "username": "Username",
+    "en": {"tagline": "Every screening result, followed through to care.", "title": "Sign in", "intro": "Use the username and password you were given.", "username": "Username",
            "password": "Password", "show": "Show", "hide": "Hide", "submit": "Sign in", "signed_out": "You have signed out.",
            "forgot_username": "Forgot username?", "forgot_password": "Forgot password?",
            "activate_q": "Patient with an activation code?", "activate_link": "Activate your account",
@@ -14,7 +14,7 @@ LOGIN_TEXT = {
            "err_locked": "Too many failed attempts. For your security, sign-in is paused for a few minutes. Please try later.",
            "err_expired": "Your sign-in page expired. Please try again.", "err_missing": "Enter your username and password.",
            "help_links": "Sign-in help", "lang_label": "Language"},
-    "ar": {"title": "تسجيل الدخول", "intro": "استخدم اسم المستخدم وكلمة المرور اللذين حصلت عليهما.", "username": "اسم المستخدم",
+    "ar": {"tagline": "كل نتيجة فحص، نتابعها حتى تصل إلى الرعاية.", "title": "تسجيل الدخول", "intro": "استخدم اسم المستخدم وكلمة المرور اللذين حصلت عليهما.", "username": "اسم المستخدم",
            "password": "كلمة المرور", "show": "إظهار", "hide": "إخفاء", "submit": "تسجيل الدخول", "signed_out": "تم تسجيل خروجك.",
            "forgot_username": "نسيت اسم المستخدم؟", "forgot_password": "نسيت كلمة المرور؟",
            "activate_q": "هل لديك رمز تفعيل من فريق الرعاية؟", "activate_link": "فعّل حسابك",
@@ -23,7 +23,7 @@ LOGIN_TEXT = {
            "err_locked": "محاولات فاشلة كثيرة. لحمايتك، تم إيقاف تسجيل الدخول لبضع دقائق. يرجى المحاولة لاحقاً.",
            "err_expired": "انتهت صلاحية صفحة تسجيل الدخول. يرجى المحاولة مرة أخرى.", "err_missing": "أدخل اسم المستخدم وكلمة المرور.",
            "help_links": "مساعدة في تسجيل الدخول", "lang_label": "اللغة"},
-    "hi": {"title": "साइन इन करें", "intro": "आपको दिए गए यूज़रनेम और पासवर्ड का उपयोग करें।", "username": "यूज़रनेम",
+    "hi": {"tagline": "हर जांच परिणाम, देखभाल तक पूरा साथ।", "title": "साइन इन करें", "intro": "आपको दिए गए यूज़रनेम और पासवर्ड का उपयोग करें।", "username": "यूज़रनेम",
            "password": "पासवर्ड", "show": "दिखाएं", "hide": "छिपाएं", "submit": "साइन इन करें", "signed_out": "आप साइन आउट हो गए हैं।",
            "forgot_username": "यूज़रनेम भूल गए?", "forgot_password": "पासवर्ड भूल गए?",
            "activate_q": "क्या आपके पास देखभाल टीम से मिला सक्रियण कोड है?", "activate_link": "अपना खाता सक्रिय करें",
@@ -32,7 +32,7 @@ LOGIN_TEXT = {
            "err_locked": "बहुत सारी असफल कोशिशें। आपकी सुरक्षा के लिए साइन इन कुछ मिनटों के लिए रोका गया है। कृपया बाद में कोशिश करें।",
            "err_expired": "साइन-इन पेज की समय-सीमा खत्म हो गई। कृपया फिर से कोशिश करें।", "err_missing": "अपना यूज़रनेम और पासवर्ड दर्ज करें।",
            "help_links": "साइन-इन सहायता", "lang_label": "भाषा"},
-    "ur": {"title": "سائن ان کریں", "intro": "آپ کو دیا گیا یوزر نیم اور پاس ورڈ استعمال کریں۔", "username": "یوزر نیم",
+    "ur": {"tagline": "ہر اسکریننگ نتیجہ، دیکھ بھال تک مکمل پیروی۔", "title": "سائن ان کریں", "intro": "آپ کو دیا گیا یوزر نیم اور پاس ورڈ استعمال کریں۔", "username": "یوزر نیم",
            "password": "پاس ورڈ", "show": "دکھائیں", "hide": "چھپائیں", "submit": "سائن ان کریں", "signed_out": "آپ سائن آؤٹ ہو گئے ہیں۔",
            "forgot_username": "یوزر نیم بھول گئے؟", "forgot_password": "پاس ورڈ بھول گئے؟",
            "activate_q": "کیا آپ کے پاس نگہداشت ٹیم کا ایکٹیویشن کوڈ ہے؟", "activate_link": "اپنا اکاؤنٹ فعال کریں",

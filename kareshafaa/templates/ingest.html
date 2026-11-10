@@ -1,17 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="page-head"><div><h1>Results inbox</h1>
-<p class="lede">New lab results arrive here and become tracked cases with an owner and a deadline. Anything the system cannot match to a patient with certainty waits for a person to decide – it never guesses.</p></div></div>
-<section class="card" aria-labelledby="rev-h"><h2 id="rev-h" style="font-size:var(--fs-lg)">Waiting for a patient match</h2><div id="review"><div class="loading" role="status">Loading…</div></div></section>
-<section class="card" aria-labelledby="rec-h" id="reconcile-card"><h2 id="rec-h" class="card-title">Results not in the loop</h2><div id="reconcile"><div class="loading" role="status">Loading…</div></div></section>
+<div class="page-head"><div><h1>Results inbox</h1><details class="help-more"><summary>Why this page</summary><p class="small muted">New lab results become tracked cases with an owner and a deadline. A result that cannot be matched to a patient with certainty waits here for a person to decide – the system never guesses.</p></details></div></div>
+<section class="card" aria-labelledby="rev-h"><h2 id="rev-h" class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-users"/></svg>Waiting for a patient match</h2><div id="review"><div class="loading" role="status">Loading…</div></div></section>
+<section class="card" aria-labelledby="rec-h" id="reconcile-card"><h2 id="rec-h" class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg>Results not in the loop</h2><div id="reconcile"><div class="loading" role="status">Loading…</div></div></section>
 <div class="section-title"><h2>Recent results</h2></div>
 <div id="recent"></div>
 <details class="card flat">
-  <summary><b>Add a test result by hand (HL7 v2 message)</b></summary>
-  <p class="small muted" style="margin-top:var(--s-3)">For integration testing. Sending the same message twice is safe (it is recognised by its message ID).</p>
+  <summary><b>Add a result by hand (HL7 v2)</b></summary>
+  <p class="small muted row-gap-top">Sending the same message twice is safe (matched by message ID).</p>
   <label for="msg">HL7 v2 ORU^R01 message, one segment per line
   <textarea id="msg" rows="7" style="font-family:var(--mono);font-size:max(16px,.85rem)" spellcheck="false" autocapitalize="none"></textarea></label>
-  <div class="row"><button data-click="send" data-args='["$el"]'>Add result</button><button class="secondary" data-click="sample">Fill in a sample (positive FIT)</button></div>
+  <div class="row"><button data-click="send" data-args='["$el"]'>Add result</button><button class="secondary" data-click="sample">Insert example (positive FIT)</button></div>
   <pre id="ack" class="small" aria-live="polite" hidden></pre>
 </details>
 {% endblock %}

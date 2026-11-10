@@ -10,7 +10,7 @@ async function find() {
       <td><a href="/patients/${p.id}"><b>${W.esc(p.name)}</b></a>${p.deceased ? ' <span class="chip sla-none">Deceased</span>' : ""}${p.sample ? ' <span class="chip">Sample record</span>' : ""}</td><td class="nowrap">${W.esc(p.mrn)}</td>
       <td class="nowrap">${W.esc(p.birth_date || (p.birth_year ? p.birth_year + " (year only)" : "–"))}</td><td class="nowrap">${p.document ? `<span class="sub small muted">${W.esc(p.document.label)}</span>${W.esc(p.document.number)}` : "–"}</td><td class="nowrap">${W.esc(p.phone || "–")}</td>
       <td>${W.esc(p.health_centre || "–")}</td><td>${p.open_cases}</td></tr>`).join("")}</tbody></table>`
-      : W.empty("No patient found", "Check the spelling or search by MRN, Emirates ID or passport number." + (W.can("patient:register") ? ` If this person is new, <a href="/patients/new">register them</a>.` : ""));
+      : W.empty("No patient found", W.can("patient:register") ? `<a href="/patients/new">Register a new patient</a>` : "", "", "users");
   } catch (e) { el.innerHTML = W.empty("Search failed", W.esc(e.message)); }
 }
 document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return;

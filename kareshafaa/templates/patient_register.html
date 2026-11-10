@@ -2,7 +2,7 @@
 {% block content %}
 <a class="back-link" href="/patients"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Back to patients</a>
 <div class="page-head"><div><h1>Register a patient</h1>
-<p class="lede">Fields marked <span class="req">*</span> are required. Before the record is created the system checks for the same Emirates ID or passport and for a similar name with the same date of birth.</p></div></div>
+<p class="lede"><span class="req">*</span> Required</p><details class="help-more"><summary>Duplicate check</summary><p class="small muted">Before the record is created the system checks for the same Emirates ID or passport and for a similar name with the same date of birth.</p></details></div></div>
 <div id="reg-root"><div class="loading" role="status">Loading…</div></div>
 {% endblock %}
 {% block scripts %}

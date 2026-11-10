@@ -13,7 +13,7 @@ from sqlalchemy import create_engine, select
 from kareshafaa import accounts
 
 PW = "violet-canyon-harbour-73"
-FOOTER = "KareShafaa v0.1 · Prototype software, not a certified medical device. Clinical decisions remain with the treating clinician."
+FOOTER = "KareShafaa is not a certified medical device. Clinical decisions stay with the treating clinician."
 SHOWCASE = re.compile(r"(?i)\bdemo|synthetic")
 
 

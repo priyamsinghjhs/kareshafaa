@@ -139,7 +139,8 @@ def test_pages_render(client, path):
     r = client.get(path)
     assert r.status_code == 200
     if path != "/healthz":
-        assert "Prototype software, not a certified medical device" in r.text
+        assert "not a certified medical device" in r.text
+        assert "prototype" not in r.text.lower()
         assert "demo" not in r.text.lower() and "synthetic" not in r.text.lower()
 
 

@@ -9,8 +9,7 @@ from .security import has_perm
 from .programmes import WORKING_DAY_TIERS
 from .sla import load_default_hours
 
-FOOTER = ("KareShafaa v0.1 · Prototype software, not a certified medical device. "
-          "Clinical decisions remain with the treating clinician.")
+FOOTER = "KareShafaa is not a certified medical device. Clinical decisions stay with the treating clinician."
 
 # icon keys refer to inline SVG symbols in templates/_icons.html
 # NAV = the few screens each role uses every day (sidebar + phone bottom bar); MORE = secondary screens, kept one

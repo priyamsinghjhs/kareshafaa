@@ -109,7 +109,7 @@ tabsG.overrides = async el => {
      <p class="small muted" id="override-count" aria-live="polite"></p>
      <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact" id="override-list"><thead><tr><th>When</th><th>Who</th><th>What</th><th>Reason given</th><th>Case</th></tr></thead><tbody></tbody></table></div>
      <button type="button" class="secondary sm" id="override-more">Show ${PAGE} more</button>`
-     : W.empty("No overrides yet", "When a clinician lowers a tier, closes a case by decision or decides on a model or rule change, it is listed here.")}`;
+     : W.empty("No overrides yet", "", "", "shield")}`;
   if (!n) return;
   el.querySelector("#override-kind").onchange = e => { filt = e.target.value; shown = PAGE; draw(); };
   el.querySelector("#override-more").onclick = () => { shown += PAGE; draw(); };
