@@ -123,3 +123,17 @@ def test_read_back_row_is_never_written_without_confirmation(db, new_case):
         record_read_back(db, case, lead, method="phone", reported_by="Lab", read_back_confirmed=False)
     assert db.scalar(select(CriticalReadBack).where(CriticalReadBack.case_id == case.id)) is None
     db.rollback()
+
+
+def test_contacted_at_utc_now_ok_and_unconverted_local_time_is_future(client, as_user, new_case):
+    """The case page sends the contact time as UTC (local wall clock converted in the browser). A naive local
+    IST time sent as if it were UTC looks ~5.5 h ahead and must be refused, not silently stored."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    c = _critical(new_case)
+    u = f"/api/cases/{c['id']}/critical-read-back"
+    ahead = (now + timedelta(hours=5, minutes=30)).replace(tzinfo=None).isoformat()
+    r = client.post(u, headers=as_user(LEAD), json={**RB, "contacted_at": ahead})
+    assert r.status_code == 422 and "future" in r.text
+    r = client.post(u, headers=as_user(LEAD), json={**RB, "contacted_at": now.isoformat().replace("+00:00", "Z")})
+    assert r.status_code == 200, r.text

@@ -88,6 +88,7 @@ closure.
   `GET /api/queue?view=critical`). From the first breach (level 2+), escalations on a critical case go **by phone**
   (`escalations.channel = phone`, additive column), and a critical case can never be closed as `unable_to_contact`.
   No new clinical timeframe: the existing T0 clocks apply (placeholders, see `docs/clinical_rules.md`).
+  Staff enter the contact time on their own clock; the case page sends it as UTC (more than 5 minutes ahead is refused).
 * **Closure guard:** a case closes only with evidence (care plan, procedure, negative confirmation) or an authorised
   human decision with a reason.
 * Clinical rules engine (`kareshafaa/clinical_rules.py`, sources in `docs/clinical_rules.md`): FIT, HPV/cytology,
