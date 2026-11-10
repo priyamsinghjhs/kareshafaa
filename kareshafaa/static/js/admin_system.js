@@ -28,7 +28,14 @@ function monitoring(m) {
     <div class="row"><button type="button" class="secondary" id="run-result-check">Check results now</button></div></section>`;
 }
 
-// AI kill switch (advisory outreach-priority model only)
+// draft-text suggestions on staff note fields: follow the same switch and need KARESHAFAA_SLM_API_KEY (no buttons here)
+function drafts(d) {
+  if (!d) return "";
+  const t = d.enabled ? `On · ${W.esc(d.model || "")}` : d.reason === "not_configured" ? "Not set up (no API key)" : d.reason === "off" ? "Off with the switch" : "Unknown";
+  return `<p class="small"><b>Note drafts:</b> ${t}</p>`;
+}
+
+// AI kill switch (advisory outreach-priority model and note drafts)
 function aiSwitch(a) {
   if (!a) return "";
   const on = a.enabled === true;
@@ -36,7 +43,7 @@ function aiSwitch(a) {
     : on ? '<span class="chip sla-green">✓ On</span>' : '<span class="chip sla-amber">■ Off</span>';
   const locked = !a.deployment_enabled ? '<p class="small muted">Off in the server settings.</p>' : "";
   return `<section class="card ai-switch" aria-labelledby="ai-h" data-ai-enabled="${on}"><h2 id="ai-h" class="card-title"><span class="ai-switch-icon" aria-hidden="true">${W.ic("gauge")}</span>AI suggestions ${state}</h2>
-    <p class="small muted">Queue order only. Off: deadline order.</p>${locked}
+    <p class="small muted">Queue order and note drafts. Off: deadline order, no drafts.</p>${drafts(a.drafts)}${locked}
     ${a.deployment_enabled ? `<div class="row"><label class="grow">Reason<input id="ai-reason" maxlength="300" minlength="10" autocomplete="off"></label>
     <button type="button" class="${on ? "danger" : "secondary"}" id="ai-toggle" data-on="${on ? "0" : "1"}">${on ? "Switch off" : "Switch on"}</button></div>` : ""}</section>`;
 }

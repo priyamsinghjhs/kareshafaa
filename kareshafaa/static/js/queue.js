@@ -121,6 +121,7 @@ function openRq(id, mode) {
     document.getElementById("preq-ok").className = "danger";
   }
   document.getElementById("preq-dlg-body").innerHTML = body;
+  if (r.case_id) W.attachSuggest(document.getElementById("preq-dlg-body"), { caseId: r.case_id, action: "patient_request_decline", optionFrom: ["reason"] });
   document.getElementById("preq-cancel").onclick = () => dlg.close();
   f.onsubmit = async ev => {
     ev.preventDefault(); const g = n => f.querySelector(`[name="${n}"]`), bad = [];

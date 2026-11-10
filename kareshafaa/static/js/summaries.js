@@ -16,7 +16,7 @@ function card(s) {
     <h3 class="small">Next steps</h3>${li(c.next_steps)}
     <p class="small"><a href="/cases/${s.case_id}">Open case #${s.case_id}</a></p>
     ${s.acknowledged_at ? `<p class="small muted">Acknowledged ${W.dt(s.acknowledged_at)} by ${W.esc(s.acknowledged_by || "")}${s.ack_note ? `: ${W.esc(s.ack_note)}` : ""}</p>`
-      : (s.can_ack ? `<form class="ack-form" data-id="${s.id}" novalidate><label>Note (optional)<textarea name="note" rows="2" maxlength="1000" placeholder="e.g. reviewed; will see at next diabetes clinic"></textarea></label><button type="submit" class="sm">Acknowledge</button></form>` : "")}
+      : (s.can_ack ? `<form class="ack-form" data-id="${s.id}" novalidate><label>Note (optional)<textarea name="note" rows="2" maxlength="1000" placeholder="e.g. reviewed; will see at next diabetes clinic" data-suggest-case="${s.case_id}" data-suggest-action="summary_ack" data-suggest-field="note"></textarea></label><button type="submit" class="sm">Acknowledge</button></form>` : "")}
   </article>`;
 }
 async function load() {

@@ -31,7 +31,8 @@ Values below are **placeholder, verify**; the programme's clinical governance se
 | **Assisted** | coordinators use the work queue and escalations; patient messages after content sign-off; current safety nets stay | coordinators, as an extra net | shadow concordance agreed; two drills passed in a row; Monitoring shows jobs healthy for 4 weeks | a critical result handled without read-back; an escalation not raised within 2 sweep intervals; a case closed without evidence or authorised decision; a patient contacted after stopping contact; two failed drills in a row |
 | **Live** | KareShafaa is the system of record for follow-up of abnormal screening results | the programme | assisted-stage review signed by the clinical lead and the Clinical Safety Officer (names recorded in `kareshafaa/policy.py` and the safety case) | as assisted, plus any serious incident attributable to the system |
 
-Switching off the advisory model (AI kill switch, Admin → System) is always allowed and is not a stage change.
+Switching off the advisory model (AI kill switch, Admin → System) is always allowed and is not a stage change. The
+same switch also turns off the note drafts on staff fields.
 
 ## 3. Residency and data protection: to confirm before any real data
 
@@ -44,4 +45,4 @@ Switching off the advisory model (AI kill switch, Admin → System) is always al
 | Retention periods (cases, audit, messages, sign-in records) | prototype values in code; **to confirm** |
 | Malaffi / HIE integration agreement | **not started** |
 | Messaging providers (SMS, WhatsApp) and their data location | **not chosen**; delivery is simulated today |
-| Sub-processors list and data-processing agreement | **to do** |
+| Sub-processors list and data-processing agreement | **to do** (DPA). Current sub-processors: Render (hosting), Neon (database); and, **only when `KARESHAFAA_SLM_API_KEY` is set**, the note-draft model provider (default OpenRouter, routing to InclusionAI Ling 3.0 Flash Sante). For a draft, a minimised context of the one case the staff member has open is sent: programme, result values and flag, urgency, step, the form and its linked evidence (e.g. care-plan type and description) and the typed draft. Patient name, MRN, Emirates ID / other ID numbers, phone, email, address, birth year and staff names are removed (also from free text). Nothing is stored by KareShafaa beyond an audit event without the text. Free-tier providers may log or use prompts under their own terms: **keep the key unset for real patient data until a DPA and UAE-region processing are agreed.** Off with the AI kill switch. |

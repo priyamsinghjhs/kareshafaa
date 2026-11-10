@@ -11,3 +11,8 @@ joblib>=1.3
 python-multipart>=0.0.9
 argon2-cffi>=23.1
 psycopg[binary]>=3.2  # PostgreSQL (DATABASE_URL); SQLite needs nothing extra
+# draft-text suggestions on staff note fields (kareshafaa/services/assist.py): a small LangGraph graph calling a free
+# hosted healthcare model over HTTPS. No local model, no torch/transformers, no GPU.
+langgraph>=1.0,<2
+langchain-core>=1.0,<2
+httpx>=0.27,<1

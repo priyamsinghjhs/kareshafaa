@@ -193,9 +193,10 @@ function recForm(kind) {
       <div class="form-pair"><label>Route<input name="route" maxlength="40" value="oral"></label><label>Start date<input type="date" name="start_date" value="${localNow().slice(0, 10)}"></label></div>
       <div class="form-pair"><label>End date (optional)<input type="date" name="end_date"></label><span></span></div>
       <label>Status<select name="status"><option value="active">Active</option><option value="completed">Completed course</option><option value="stopped">Stopped</option></select></label>
-      <label>Reason / indication<input name="reason" maxlength="300"></label><label>Note<textarea name="note" rows="2" maxlength="2000"></textarea></label>
+      <label>Reason / indication<input name="reason" maxlength="300"></label><label>Note<textarea name="note" rows="2" maxlength="2000" data-no-suggest></textarea></label>
       <div class="form-buttons"><button type="submit">Save medicine</button><button type="button" class="secondary" data-cancel>Cancel</button></div></form>`;
   const f = el.querySelector("form"); f.querySelector("[data-cancel]").onclick = () => { el.innerHTML = ""; }; f.querySelector("select, input").focus();
+  if (kind === "encounter") W.attachSuggest(f, { caseId: CASE_ID, action: "encounter_note", field: "notes" });
   f.onsubmit = async ev => { ev.preventDefault(); const b = f.querySelector("button[type=submit]"); W.busy(b, true); W.formError(f, ""); const fd = Object.fromEntries(new FormData(f));
     try {
       if (kind === "encounter") await W.api(`/api/cases/${CASE_ID}/encounters`, { method: "POST", body: { kind: fd.kind, start: new Date(fd.start).toISOString(), reason: fd.reason || null, notes: fd.notes, outcome: fd.outcome || null } });
@@ -274,7 +275,7 @@ function render() {
     if (b.hasAttribute("data-scroll")) { const f = document.getElementById("aform"), sec = f && f.closest("section"); if (sec) sec.scrollIntoView({ block: "start", behavior: "smooth" });
       const i = f && f.querySelector("input, select, textarea, button"); if (i) i.focus({ preventScroll: true }); } });
   wireRecord();
-  root().querySelectorAll("[data-resolve]").forEach(b => b.onclick = () => W.ask("Patient's change request handled", "What was done (e.g. phoned, the patient keeps the time)", { ok: "Mark as handled", min: 5,
+  root().querySelectorAll("[data-resolve]").forEach(b => b.onclick = () => W.ask("Patient's change request handled", "What was done (e.g. phoned, the patient keeps the time)", { ok: "Mark as handled", min: 5, suggest: { caseId: CASE_ID, action: "appointment_request_resolve" },
     save: async note => { await W.api(`/api/cases/${CASE_ID}/appointment/requests/${b.dataset.resolve}/resolve`, { method: "POST", body: { reason: note } }); W.toast("Request marked as handled", "ok"); await load(); } }));
 }
 const btn = a => `<button class="secondary" data-k="${a.key}" data-ev="${a.evidence_type || ""}">${W.esc(a.label)}</button>`;
@@ -289,9 +290,9 @@ const post = (p, b, m) => postRaw(p, b, m);
 window.respond = async (id, b) => { const ta = document.getElementById("resp-" + id), v = ta.value.trim(), box = ta.parentElement;
   if (v.length < 2) { W.formError(box, "Write your answer first (at least 2 characters)."); ta.focus(); return; }
   W.busy(b, true); const ok = await postRaw(`/api/consults/${id}/respond`, { response: v }, "Answer sent", null, box); if (!ok) W.busy(b, false); };
-window.ackSummary = async id => { await W.ask("Acknowledge the care summary", "Note (optional)", { ok: "Acknowledge", optional: true,
+window.ackSummary = async id => { await W.ask("Acknowledge the care summary", "Note (optional)", { ok: "Acknowledge", optional: true, suggest: { caseId: CASE_ID, action: "summary_ack" },
   save: async note => { await W.api(`/api/gp-summaries/${id}/ack`, { method: "POST", body: { note: note || null } }); W.toast("Summary acknowledged", "ok"); await load(); } }); };
-window.ackEsc = async id => { await W.ask("Acknowledge escalation", "What action are you taking?", { ok: "Acknowledge", min: 3,
+window.ackEsc = async id => { await W.ask("Acknowledge escalation", "What action are you taking?", { ok: "Acknowledge", min: 3, suggest: { caseId: CASE_ID, action: "escalation_ack" },
   save: async note => { await W.api(`/api/escalations/${id}/ack`, { method: "POST", body: { note } }); W.toast("Escalation acknowledged", "ok"); await load(); } }); };
 
 function events() {
@@ -307,7 +308,7 @@ function events() {
   C.care_plans.forEach(p => ev.push([p.created_at, `🩺 ${p.kind} plan by ${W.esc(p.by)}: ${W.esc(p.description)}${p.review_due_on ? ` · review due ${W.esc(p.review_due_on)}` : ""}`]));
   (C.gp_summaries || []).forEach(g => ev.push([g.created_at, `📨 care summary to GP <b>${W.esc(g.to || "")}</b> (${g.kind === "case_closed" ? "case closed" : "care started"}) ${g.acknowledged_at ? `<span class="chip sla-green">acknowledged ${W.dt(g.acknowledged_at)}</span>${g.ack_note ? `<div class="small">GP note: ${W.esc(g.ack_note)}</div>` : ""}` : `<span class="chip ${g.overdue ? "sla-red" : "sla-amber"}">${g.overdue ? "not acknowledged · overdue" : "waiting for the GP"}</span>`}
     <details class="small"><summary>Read the summary</summary><div class="sum-text">${W.esc(g.text || "")}</div></details>${g.can_ack ? `<button class="secondary sm" data-click="ackSummary" data-args="[${g.id}]">Acknowledge</button>` : ""}`]));
-  C.consults.forEach(q => ev.push([q.created_at, `💬 ${q.type === "patient" ? "patient-to-clinician" : "clinician-to-clinician"} consult → ${W.esc(q.target)} (${q.urgency}) <span class="chip ${q.status === "answered" ? "sla-green" : q.overdue ? "sla-red" : "sla-amber"}">${q.status}${q.overdue ? " · overdue" : ""}</span><div class="small">Q: ${W.esc(q.question)}</div>${q.response ? `<div class="small">A: ${W.esc(q.response)}</div>` : ""}${q.status === "requested" && W.me.practitioner_id === q.target_id ? `<div><label for="resp-${q.id}" class="sr-only">Your answer</label><textarea id="resp-${q.id}" rows="2" placeholder="Your answer…"></textarea><button class="secondary sm" data-click="respond" data-args='[${q.id},"$el"]'>Send answer</button></div>` : ""}`]));
+  C.consults.forEach(q => ev.push([q.created_at, `💬 ${q.type === "patient" ? "patient-to-clinician" : "clinician-to-clinician"} consult → ${W.esc(q.target)} (${q.urgency}) <span class="chip ${q.status === "answered" ? "sla-green" : q.overdue ? "sla-red" : "sla-amber"}">${q.status}${q.overdue ? " · overdue" : ""}</span><div class="small">Q: ${W.esc(q.question)}</div>${q.response ? `<div class="small">A: ${W.esc(q.response)}</div>` : ""}${q.status === "requested" && W.me.practitioner_id === q.target_id ? `<div><label for="resp-${q.id}" class="sr-only">Your answer</label><textarea id="resp-${q.id}" rows="2" placeholder="Your answer…" data-suggest-case="${CASE_ID}" data-suggest-action="consult_answer" data-suggest-field="answer" data-suggest-consult="${q.id}"></textarea><button class="secondary sm" data-click="respond" data-args='[${q.id},"$el"]'>Send answer</button></div>` : ""}`]));
   C.escalations.forEach(e => ev.push([e.created_at, `🚨 <b>L${e.level}</b> → ${W.esc(e.target)}: ${W.esc(e.note)} ${e.acknowledged_at ? '<span class="chip sla-green">acknowledged</span>' : (W.me.permissions.includes("escalation:ack") ? `<button class="secondary sm" data-click="ackEsc" data-args="[${e.id}]">Acknowledge</button>` : "")}`]));
   C.ownership_events.forEach(o => ev.push([o.at, `👤 ownership ${W.esc(o.kind)}: ${W.esc(o.from || "–")} → <b>${W.esc(o.to)}</b> ${W.esc(o.reason || "")}`]));
   ev.sort((a, b) => (b[0] || "").localeCompare(a[0] || ""));
@@ -338,7 +339,9 @@ async function openForm(key, evidenceType) {
   const form = (html, onsubmit, submit = "Confirm") => {
     el.innerHTML = `<form class="action-form" aria-label="${W.esc(TITLE[key] || "Action")}"><h3>${W.esc(TITLE[key] || "Action")}</h3>${html}<div class="form-buttons"><button type="submit">${submit}</button><button type="button" class="secondary" id="cancel">Cancel</button></div></form>`;
     el.querySelector("#cancel").onclick = () => { el.innerHTML = ""; };
-    const fm = el.querySelector("form"); const first = fm.querySelector("select, input:not([type=hidden]), textarea"); if (first) first.focus(); fm.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    const fm = el.querySelector("form");
+    W.attachSuggest(fm, { caseId: CASE_ID, action: key, evidenceType, optionFrom: ["reason", "outcome", "accept", "kind", "decision", "tier", "reason_code", "scope"] });
+    const first = fm.querySelector("select, input:not([type=hidden]), textarea"); if (first) first.focus(); fm.scrollIntoView({ block: "nearest", behavior: "smooth" });
     fm.onsubmit = async ev => { ev.preventDefault(); const b = fm.querySelector("button[type=submit]"); W.busy(b, true); const fd = Object.fromEntries(new FormData(ev.target)); await onsubmit(fd); W.busy(b, false); };
   };
   const tr = (to, msg) => form(F.note(), fd => post(`${u}/transition`, { to_state: to, note: fd.note || null }, msg));

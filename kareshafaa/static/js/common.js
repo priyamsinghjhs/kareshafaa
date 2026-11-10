@@ -46,7 +46,7 @@ const W = {
   // accessible modal dialogs (native <dialog>: focus trap, Esc to cancel)
   // save (optional): async function(value) run while the dialog stays open; on error the message is shown in the
   // dialog and everything typed is kept, so nothing is lost when the server refuses the input
-  _dialog(inner, onOk, dir = "", save = null) {
+  _dialog(inner, onOk, dir = "", save = null, onOpen = null) {
     return new Promise(resolve => {
       const d = document.createElement("dialog"); d.className = "dlg"; d.setAttribute("aria-labelledby", "dlg-title");
       if (dir) d.dir = dir;  // e.g. rtl for an Arabic/Urdu patient page
@@ -60,18 +60,18 @@ const W = {
           return; }
         d.close("ok"); resolve(v); };
       d.addEventListener("close", () => { if (d.returnValue !== "ok") resolve(null); d.remove(); });
-      d.showModal(); const first = f.querySelector("textarea, input, [data-ok]"); if (first) first.focus();
+      if (onOpen) onOpen(f); d.showModal(); const first = f.querySelector("textarea, input, [data-ok]"); if (first) first.focus();
     });
   },
   confirm(title, body = "", { ok = "Confirm", danger = false, cancel = "Cancel", dir = "", save = null } = {}) {
     return W._dialog(`<h2 id="dlg-title">${W.esc(title)}</h2>${body ? `<p>${body}</p>` : ""}
       <div class="dlg-buttons"><button type="button" class="secondary" data-cancel>${W.esc(cancel)}</button><button type="submit" data-ok class="${danger ? "danger" : ""}">${W.esc(ok)}</button></div>`, () => true, dir, save);
   },
-  ask(title, label, { ok = "Confirm", body = "", min = 1, danger = false, placeholder = "", save = null, optional = false } = {}) {
+  ask(title, label, { ok = "Confirm", body = "", min = 1, danger = false, placeholder = "", save = null, optional = false, suggest = null } = {}) {
     return W._dialog(`<h2 id="dlg-title">${W.esc(title)}</h2>${body ? `<p class="small">${body}</p>` : ""}
       <label for="dlg-text">${W.esc(label)}<textarea id="dlg-text" rows="3" ${optional ? "" : `required minlength="${min}"`} placeholder="${W.esc(placeholder)}"></textarea></label>
       <div class="dlg-buttons"><button type="button" class="secondary" data-cancel>Cancel</button><button type="submit" data-ok class="${danger ? "danger" : ""}">${W.esc(ok)}</button></div>`,
-      f => { const v = f.querySelector("textarea").value.trim(); if (optional && !v) return ""; if (v.length < min) { f.querySelector("textarea").setAttribute("aria-invalid", "true"); W.formError(f, `Please write at least ${min} characters.`); return false; } return v; }, "", save);
+      f => { const v = f.querySelector("textarea").value.trim(); if (optional && !v) return ""; if (v.length < min) { f.querySelector("textarea").setAttribute("aria-invalid", "true"); W.formError(f, `Please write at least ${min} characters.`); return false; } return v; }, "", save, suggest ? f => W.attachSuggest(f, suggest) : null);
   },
   loading(text = "Loading…") { return `<div class="loading" role="status">${W.esc(text)}</div>`; },
   // inline icon from the SVG sprite in templates/_icons.html (decorative: the text next to it carries the meaning)
@@ -157,6 +157,64 @@ const W = {
   },
   requireLogin() { if (!W.me) { location.href = "/login?next=" + encodeURIComponent(location.pathname + location.search); return false; } return true; },
 };
+// Draft-text suggestions on staff clinical note fields (POST /api/assist/suggest; kareshafaa/services/assist.py).
+// Advisory only: the draft appears under the field with Use / Dismiss. Nothing is inserted unless the user presses
+// Use, and nothing is ever submitted. Off (no API key, AI switch off) or failing: the field works exactly as before.
+// meta: { caseId, action, evidenceType, consultId, field, optionFrom: [select names whose value adds context] }
+W.SUGGEST_NOTE = "Draft only. Check against the record before you use it.";
+W.attachSuggest = (root, meta = {}) => {
+  if (!root || !meta.caseId || !meta.action || W._sgOff) return;
+  const tas = root.matches && root.matches("textarea") ? [root] : root.querySelectorAll("textarea:not([data-no-suggest])");
+  tas.forEach(ta => { const d = ta.dataset; d.suggestCase = String(meta.caseId); d.suggestAction = meta.action;
+    d.suggestField = meta.field || (["note", "notes", "description", "summary", "question", "answer", "response", "rationale"].includes(ta.name) ? ta.name : "note");
+    if (meta.evidenceType) d.suggestEvidence = meta.evidenceType; if (meta.consultId) d.suggestConsult = String(meta.consultId);
+    if (meta.optionFrom) d.suggestOption = [].concat(meta.optionFrom).join(","); });
+};
+(() => {
+  const DEBOUNCE = 600, timers = new WeakMap(), inflight = new WeakMap();
+  const panelOf = ta => ta._sgPanel && ta._sgPanel.isConnected ? ta._sgPanel : null;
+  const hide = ta => { const p = panelOf(ta); if (p) p.remove(); ta._sgPanel = null; };
+  const place = (ta, html, cls = "") => { let p = panelOf(ta);
+    if (!p) { p = document.createElement("div"); p.className = "suggest"; p.setAttribute("role", "status"); p.setAttribute("aria-live", "polite");
+      (ta.closest("label") || ta).after(p); ta._sgPanel = p; }
+    p.className = "suggest " + cls; p.innerHTML = html; return p; };
+  const optionOf = ta => { const f = ta.form || ta.closest("form"); if (!f || !ta.dataset.suggestOption) return null;
+    for (const n of ta.dataset.suggestOption.split(",")) { const s = f.querySelector(`select[name="${n}"]`); if (s && s.value) return s.value; } return null; };
+  const insert = (ta, text) => { const max = ta.maxLength > 0 ? ta.maxLength : 0; const t = max ? text.slice(0, max) : text;
+    ta.focus(); ta.select(); let ok = false;
+    try { ok = document.execCommand && document.execCommand("insertText", false, t); } catch (e) { ok = false; }  // keeps Ctrl+Z
+    if (!ok || ta.value !== t) { ta.value = t; ta.dispatchEvent(new Event("input", { bubbles: true })); }
+    ta._sgLast = ta.value.trim(); };
+  async function ask(ta) {
+    if (W._sgOff || !ta.isConnected || !W.me || W.me.role === "patient") return;
+    const draft = ta.value.trim(); if (draft === ta._sgLast || draft === ta._sgDismissed) return;
+    ta._sgLast = draft;
+    const prev = inflight.get(ta); if (prev) prev.abort();
+    const ac = new AbortController(); inflight.set(ta, ac);
+    const d = ta.dataset, body = { case_id: +d.suggestCase, action: d.suggestAction, field: d.suggestField || "note", draft: draft.slice(0, 2000) };
+    if (d.suggestEvidence) body.evidence_type = d.suggestEvidence; if (d.suggestConsult) body.consult_id = +d.suggestConsult;
+    const opt = optionOf(ta); if (opt && /^[a-z0-9_]{1,40}$/.test(opt)) body.option = opt;
+    const slow = setTimeout(() => { if (!ac.signal.aborted) place(ta, `${W.ic("bolt", "sg-ic")}<span class="sg-wait">Drafting a suggestion…</span>`, "wait"); }, 350);
+    let r = null;
+    try { r = await W.api("/api/assist/suggest", { method: "POST", body, signal: ac.signal }); }
+    catch (e) { clearTimeout(slow); if (ac.signal.aborted) return; r = { enabled: true, unavailable: true }; }
+    clearTimeout(slow); if (ac.signal.aborted || inflight.get(ta) !== ac) return; inflight.delete(ta);
+    if (!r.enabled) { W._sgOff = true; hide(ta); return; }  // switched off or not set up: stop asking on this page
+    if (!r.suggestion) { ta._sgLast = undefined;
+      const p = place(ta, `${W.ic("bolt", "sg-ic")}<span class="sg-wait">Suggestion unavailable</span>`, "wait");
+      setTimeout(() => { if (ta._sgPanel === p) hide(ta); }, 2500); return; }
+    const p = place(ta, `<div class="sg-row">${W.ic("bolt", "sg-ic")}<p class="sg-text" dir="auto"></p></div>
+      <div class="sg-actions"><button type="button" class="secondary sm" data-sg-use>Use</button><button type="button" class="ghost sm" data-sg-dismiss>Dismiss</button></div>
+      <p class="sg-note">${W.esc(r.disclaimer || W.SUGGEST_NOTE)}</p>`);
+    p.querySelector(".sg-text").textContent = r.suggestion;
+    p.querySelector("[data-sg-use]").onclick = () => { insert(ta, r.suggestion); hide(ta); };
+    p.querySelector("[data-sg-dismiss]").onclick = () => { ta._sgDismissed = ta.value.trim(); hide(ta); ta.focus(); };
+  }
+  const schedule = (ta, ms) => { clearTimeout(timers.get(ta)); const prev = inflight.get(ta); if (prev) { prev.abort(); inflight.delete(ta); ta._sgLast = undefined; }
+    timers.set(ta, setTimeout(() => ask(ta), ms)); };
+  document.addEventListener("focusin", e => { const ta = e.target; if (ta && ta.matches && ta.matches("textarea[data-suggest-case]")) schedule(ta, DEBOUNCE); });
+  document.addEventListener("input", e => { const ta = e.target; if (ta && ta.matches && ta.matches("textarea[data-suggest-case]") && ta.value.trim() !== ta._sgLast) schedule(ta, DEBOUNCE); });
+})();
 document.addEventListener("DOMContentLoaded", () => {
   // after a cold start the "starting" page reopens this page with ?ks_wait=1: tidy the address bar
   if (new URLSearchParams(location.search).has("ks_wait")) { const u = new URL(location.href); u.searchParams.delete("ks_wait"); history.replaceState(null, "", u); }

@@ -59,6 +59,14 @@ class Settings(BaseSettings):
     # AI kill switch (deployment level). False: the outreach-priority model never scores; the work queue falls back
     # to deadline order. Admins can also switch it off at runtime on Admin > System (kareshafaa/ml/switch.py).
     ml_enabled: bool = True
+    # --- draft-text suggestions on staff clinical note fields (kareshafaa/services/assist.py, added 10 Nov 2026) ----
+    # A free hosted healthcare small language model behind an OpenAI-compatible chat-completions API. No key = off.
+    # Advisory draft text only (never closes, moves, assigns or messages); the AI kill switch above also turns it off.
+    slm_api_key: str | None = None  # secret (KARESHAFAA_SLM_API_KEY); never commit or log it
+    slm_base_url: str = "https://openrouter.ai/api/v1"
+    slm_model: str = "inclusionai/ling-3.0-flash-sante:free"
+    slm_timeout_s: float = 12.0
+    slm_rate_per_minute: int = 20  # suggestion requests per signed-in user per minute, per worker (free quota)
     # Re-opened case (CLOSED -> active): False (default, the safer choice) keeps the ORIGINAL pathway target, so a
     # case re-opened after its target is flagged breached at once and escalates (more alerts, not fewer). True gives
     # the re-opened episode a fresh target for its tier. CLINICAL LEAD TO CONFIRM (round 19/20 open question).

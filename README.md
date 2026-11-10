@@ -128,6 +128,20 @@ closure.
   reason required, audited `ml.switched_off` / `ml.switched_on`). Off clears every open case's score at once and the
   work queue falls back to deadline order; clinical work is not affected.
   Registry with AUC, calibration and fairness gates; promotion needs clinical-lead approval; drift and rollback.
+* **Note drafts (advisory):** staff clinical note fields (close with evidence, authorised-closure rationale, care-plan
+  description, clinical review, call notes, decline / reconsider / transfer notes, referral summary, consult question
+  and answer, consultation notes, escalation and summary acknowledgements, patient-request decline notes) can show a
+  short draft from a free hosted healthcare small language model (default InclusionAI Ling 3.0 Flash Sante on
+  OpenRouter), run as a small LangGraph graph (build prompt → generate → post-check; `kareshafaa/services/assist.py`,
+  `POST /api/assist/suggest`, staff with `case:read` who can open the case; patients 403). The draft appears under
+  the field with **Use** (inserts it, editable) or **Dismiss**; nothing is inserted or submitted on its own, and the
+  model cannot close, move, assign or message a case. Not offered for patient-app fields, names, contact details,
+  IDs, dates, results or medicine name/dose/frequency/route. Only a minimised case context is sent (programme,
+  result, urgency, step, the form and its evidence, the typed draft); patient name, MRN, Emirates ID, phone, email,
+  address, birth year and staff names are stripped. Off without `KARESHAFAA_SLM_API_KEY`, and off with the AI kill
+  switch (deployment or Admin → System); a failing or slow model just shows no draft. Requests are audited
+  (`assist.suggestion_requested`: case, form, model, whether a draft came back; never the prompt or the text) and
+  limited to 20 per user per minute. Drafts are not clinical advice: check them against the record.
 * Transparency pages: **why this priority** (per case), **rule and model cards**, **override register**,
   **data protection** and **data retention** (Governance).
 * Lessons-learned engine proposes rule changes that a human must approve.
@@ -246,6 +260,8 @@ at commit, in the message gateway and in the work-queue refresh.
 * **Frontend:** server-rendered Jinja templates + vanilla JS, service worker, no build step.
 * **Interop:** HL7 v2, FHIR R4 (R4B model validation in tests).
 * **ML:** scikit-learn, lazy-loaded; model files also stored in the DB (`model_artifacts`).
+* **Note drafts:** LangGraph + langchain-core, calling an OpenAI-compatible chat-completions API with httpx (no local
+  model weights, no GPU).
 * Details: `docs/architecture.md`, `docs/background_jobs.md`, `docs/performance.md`.
 
 ```
@@ -321,7 +337,9 @@ guide: [`DEPLOY.md`](DEPLOY.md). Environment variables (set in the Render dashbo
 | `KARESHAFAA_DEMO_PASSWORD` | First password for staff accounts that have none yet (secret; never overwrites a changed password). |
 | `KARESHAFAA_MODE` | `production` on Render. |
 | `KARESHAFAA_CLINICAL_PROFILE` | `synthetic` (default). `live` is **refused at startup** while the clinical policy (`kareshafaa/policy.py`, version `2026.11-p1`, status *placeholder, verify*) has no named approver and approval reference. Separate from `KARESHAFAA_MODE`. |
-| `KARESHAFAA_ML_ENABLED` | `false` switches the advisory outreach-priority model off at deployment (AI kill switch). |
+| `KARESHAFAA_ML_ENABLED` | `false` switches the advisory outreach-priority model **and the note drafts** off at deployment (AI kill switch). The runtime switch on Admin → System does the same. |
+| `KARESHAFAA_SLM_API_KEY` | API key for the note-draft model provider (secret; default provider OpenRouter, free model). Unset = note drafts off. |
+| `KARESHAFAA_SLM_BASE_URL`, `KARESHAFAA_SLM_MODEL` | Optional: OpenAI-compatible base URL (default `https://openrouter.ai/api/v1`) and model (default `inclusionai/ling-3.0-flash-sante:free`). `KARESHAFAA_SLM_TIMEOUT_S` (default 12) and `KARESHAFAA_SLM_RATE_PER_MINUTE` (default 20 per user) are also optional. |
 | `WEB_WORKERS`, `KARESHAFAA_SWEEP_INTERVAL_SECONDS` | Worker count and SLA-sweep interval. |
 | `KARESHAFAA_WORKER_LOCK_DATABASE_URL` | Optional, PostgreSQL only: direct (unpooled) URL for the timed-jobs lock session when `DATABASE_URL` goes through PgBouncer or another pooler (secret). Neon `-pooler` hosts are mapped automatically. |
 

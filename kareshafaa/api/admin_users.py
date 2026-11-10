@@ -326,10 +326,16 @@ def _policy() -> dict:
 
 def _ai_status(db: Session) -> dict:
     from ..ml import switch
+    from ..services import assist
     try:
-        return switch.status(db)
+        out = switch.status(db)
     except Exception as e:  # noqa: BLE001 - the System page must still load
         return {"enabled": None, "error": type(e).__name__}
+    try:  # draft-text suggestions on staff note fields follow the same switch (and need an API key)
+        out["drafts"] = assist.status(db)
+    except Exception as e:  # noqa: BLE001
+        out["drafts"] = {"enabled": None, "error": type(e).__name__}
+    return out
 
 
 def _monitoring(db: Session, s) -> dict:

@@ -772,3 +772,13 @@ a.stat[aria-current="true"] { outline: 2px solid var(--c-primary); outline-offse
 [dir="rtl"] .ic-arrow, [dir="rtl"] .ic-back, .rtl .ic-arrow { transform: scaleX(-1); }
 .time-left { display: inline-flex; align-items: center; gap: 3px; }
 .time-left .icon { width: 14px; height: 14px; }
+/* draft-text suggestion under a staff note field (common.js W.attachSuggest): icon + draft + Use / Dismiss + one line */
+.suggest { margin: var(--s-1) 0 var(--s-3); padding: var(--s-2) var(--s-3); border: 1px solid var(--c-border);
+  border-inline-start: 3px solid var(--c-brand-mint); border-radius: var(--r-sm); background: var(--c-surface-2); font-size: var(--fs-sm); }
+.suggest.wait { display: flex; align-items: center; gap: var(--s-2); color: var(--c-muted); }
+.suggest .sg-row { display: flex; align-items: flex-start; gap: var(--s-2); }
+.suggest .sg-ic { width: 16px; height: 16px; margin-top: 2px; color: var(--c-brand-navy); }
+.suggest .sg-text { margin: 0; color: var(--c-text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.suggest .sg-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-2); }
+.suggest .sg-actions button { min-height: var(--tap); }
+.suggest .sg-note { margin: var(--s-1) 0 0; font-size: var(--fs-xs); color: var(--c-muted); }
