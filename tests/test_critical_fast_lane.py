@@ -1,6 +1,7 @@
 """Critical-result fast lane (screening-to-care principle 5): direct clinician contact with read-back before
 triage, phone escalation at the first breach, never closed as unreachable, visible on its own worklist."""
 from datetime import timedelta
+import random
 
 import pytest
 from sqlalchemy import select
@@ -215,4 +216,109 @@ def test_history_replay_records_critical_read_back_before_review_triage(db, monk
     case = db.get(Case, case.id)
     assert case is not None and S(case.state) != S.ISSUED
     assert crit.latest(db, case.id) is not None
+    db.rollback()
+
+
+class _MidRandom(random.Random):
+    """Deterministic stream that never takes the 15% 'leave overdue' draw in _resolve (0.5 >= 0.15)."""
+
+    def random(self):
+        return 0.5
+
+
+def _critical_review_patient(db, *, idx, alt_contact=True, now=None, days_ago=14):
+    from kareshafaa.models import utcnow
+    from kareshafaa.synth.cohort import SynthPatient
+    from kareshafaa.synth.history import add_patient
+
+    d, users_by_pid = _replay_directory(db)
+    now = now or utcnow()
+    t0 = now - timedelta(days=days_ago)
+    sp = SynthPatient(idx=idx, given="Critical", family="Review", gender="male", age=50,
+                      nationality="emirati", language="en", region="Abu Dhabi", phone_valid=True,
+                      has_smartphone=True, whatsapp=True, alt_contact=alt_contact, prior_no_shows=0,
+                      prior_screens=1, responsiveness=1.0, programme="diabetes_hba1c",
+                      share_consent=True, analytics_consent=True, haemoglobinopathy=True)
+    patient = add_patient(db, sp, d, random.Random(1), now, age_at=t0)
+    db.flush()
+    return d, users_by_pid, now, t0, sp, patient
+
+
+def test_history_resolve_leaves_critical_case_open(db):
+    """A stalled critical case in _resolve must not be closed as unable_to_contact (the live guard)."""
+    from kareshafaa.comms.service import send_with_ladder
+    from kareshafaa.models import CallTask
+    from kareshafaa.security import SYSTEM
+    from kareshafaa.services import workflow as wf
+    from kareshafaa.synth.history import Replayer
+
+    d, users_by_pid, now, t0, sp, patient = _critical_review_patient(db, idx=810002, days_ago=200)
+    _, case = wf.ingest_result(db, patient, "diabetes_hba1c", value=16.0, value_text=None, unit="%", test="HBA1C",
+                               performer_org_id=d["lab"].id, now=t0)
+    assert case is not None and case.tier == "critical" and case.review_required
+
+    rep = Replayer(db, _MidRandom(), d, users_by_pid, now, enriched=True)
+    rep.t = t0
+    rep._ensure_critical_read_back(case)
+    assert rep._review(case, patient)
+    send_with_ladder(db, case, "result_notification", SYSTEM, now=rep.t)
+    assert S(case.state) == S.PATIENT_NOTIFIED
+
+    rep._resolve(case)
+    db.expire_all()
+    case = db.get(Case, case.id)
+    assert case is not None and S(case.state) != S.CLOSED
+    assert case.closure_reason != "unable_to_contact"
+    calls = list(db.scalars(select(CallTask).where(CallTask.case_id == case.id, CallTask.outcome == "no_answer")))
+    assert len(calls) >= 2
+    db.rollback()
+
+
+def test_history_replay_critical_run_does_not_close_as_unreachable(db, monkeypatch):
+    """Full Replayer.run of a critical, review-required result must exercise _resolve without
+    TransitionError and must never close the case as unable_to_contact."""
+    from types import SimpleNamespace
+
+    from kareshafaa.synth.history import Replayer
+
+    d, users_by_pid, now, t0, sp, patient = _critical_review_patient(
+        db, idx=810003, alt_contact=False, days_ago=400)
+
+    monkeypatch.setattr("kareshafaa.synth.history.draw_result",
+                        lambda *_a, **_k: SimpleNamespace(value=16.0, value_text=None, unit="%",
+                                                          test="HBA1C", status="final",
+                                                          cytology=None, defect=None))
+    resolved = []
+    orig = Replayer._resolve
+
+    def _resolve(self, case):
+        resolved.append(S(case.state))
+        return orig(self, case)
+
+    monkeypatch.setattr(Replayer, "_resolve", _resolve)
+
+    class OpenReplayer(Replayer):
+        """Force a silent, unresolved journey so run() reaches _resolve with the case still open."""
+
+        def force(self, key, default, **kw):
+            if key == "silent":
+                real = self.rng.random
+
+                def _stay_open():
+                    self.rng.random = real
+                    return 0.0  # the next draw is `if rng.random() < 0.5: return`
+
+                self.rng.random = _stay_open
+                return True
+            return default
+
+    rep = OpenReplayer(db, random.Random(42), d, users_by_pid, now, enriched=True)
+    case = rep.run(patient, sp, t0)
+    assert case is not None and case.tier == "critical"
+    assert resolved, "_resolve must run end-to-end after the journey leaves the case open"
+    db.expire_all()
+    case = db.get(Case, case.id)
+    assert case is not None
+    assert S(case.state) != S.CLOSED
+    assert case.closure_reason != "unable_to_contact"
     db.rollback()

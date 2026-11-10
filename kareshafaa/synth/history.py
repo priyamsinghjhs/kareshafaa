@@ -233,6 +233,8 @@ class Replayer:
                 for _ in range(2):
                     self.adv(self.ln(30))
                     record_call(db, case, self.coord(case), "no_answer", now=self.t)
+            if case.tier == "critical":
+                return  # stays open and overdue; a critical result keeps escalating until a clinician decides
             wf.close_case(db, case, lead, "authorised_decision", reason="unable_to_contact",
                           note="Escalated to clinical lead; full contact ladder exhausted; GP informed.", now=self.t)
         elif st in (S.CONSULTATION, S.REFERRAL_REJECTED):
@@ -263,6 +265,8 @@ class Replayer:
                 self.adv(self.ln(24 * 10))
                 if sp.alt_contact and rng.random() < 0.5:
                     record_call(db, case, self.coord(case), "reached", note="reached via alternate contact", now=self.t)
+                elif case.tier == "critical":
+                    return  # stays open; a critical result keeps escalating until a clinician decides
                 elif rng.random() < 0.8:
                     wf.close_case(db, case, lead, "authorised_decision", reason="unable_to_contact",
                                   note="Full contact ladder exhausted; GP informed; letter sent (simulated).", now=self.t)
