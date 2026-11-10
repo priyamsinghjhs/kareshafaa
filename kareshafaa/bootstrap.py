@@ -16,14 +16,76 @@ import logging
 import os
 import sys
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 from sqlalchemy import bindparam, create_engine, func, inspect, select, text
+from sqlalchemy.engine import make_url
 
 from .config import get_settings, storage_is_persistent
 from .db import Base, get_engine, init_db, session_scope
 
 log = logging.getLogger("kareshafaa.bootstrap")
+
+# How long a starting instance waits for ANOTHER bootstrap (overlapping deploys) before giving up. Long enough for a
+# first-start copy, short enough that a stuck holder cannot hang the deploy forever.
+BOOTSTRAP_LOCK_WAIT_MS = 120_000
+
+
+class BootstrapLockTimeout(RuntimeError):
+    pass
+
+
+def _bootstrap_lock_engine(url: str):
+    """Dedicated engine for the bootstrap lock session: no pool, autocommit, and NOT the request pool's short
+    lock_timeout (db.py), so this session can wait for another bootstrap."""
+    from sqlalchemy.pool import NullPool
+
+    return create_engine(url, poolclass=NullPool, isolation_level="AUTOCOMMIT",
+                         connect_args={"application_name": "kareshafaa-bootstrap", "keepalives": 1,
+                                       "keepalives_idle": 30, "keepalives_interval": 10, "keepalives_count": 3,
+                                       "connect_timeout": 10})
+
+
+def _is_lock_timeout(exc: BaseException) -> bool:
+    orig = getattr(exc, "orig", exc)
+    return getattr(orig, "sqlstate", None) == "55P03" or type(orig).__name__ == "LockNotAvailable"
+
+
+@contextmanager
+def postgres_bootstrap_lock(url: str, engine_factory=None, wait_ms: int = BOOTSTRAP_LOCK_WAIT_MS):
+    """One bootstrap at a time across instances: session advisory lock BOOTSTRAP_LOCK_KEY (never the timed-jobs key,
+    which the running instance holds for its whole life). Taken on the database's direct (unpooled) connection."""
+    from .worker_lock import BOOTSTRAP_LOCK_KEY, direct_url
+
+    eng = (engine_factory or _bootstrap_lock_engine)(direct_url(url))
+    conn = None
+    locked = False
+    try:
+        conn = eng.connect()
+        conn.execute(text("SELECT set_config('lock_timeout', :v, false)"), {"v": str(int(wait_ms))})
+        try:
+            conn.execute(text("SELECT pg_advisory_lock(:k)"), {"k": BOOTSTRAP_LOCK_KEY})
+        except Exception as e:  # noqa: BLE001
+            if _is_lock_timeout(e):
+                raise BootstrapLockTimeout(
+                    f"another bootstrap still holds the start-up lock (key {BOOTSTRAP_LOCK_KEY}) after "
+                    f"{wait_ms // 1000}s; not starting on a half-prepared database") from None
+            raise
+        locked = True
+        yield
+    finally:
+        if conn is not None:
+            if locked:
+                try:
+                    conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": BOOTSTRAP_LOCK_KEY})
+                except Exception:  # noqa: BLE001 - session gone: the database already released it
+                    pass
+            try:
+                conn.close()
+            except Exception:  # noqa: BLE001
+                pass
+        eng.dispose()
 
 
 def _is_empty(eng) -> bool:
@@ -113,48 +175,48 @@ def backfill_model_artifacts() -> int:
     return n
 
 
+def _prepare(s) -> dict:
+    init_db()
+    eng = get_engine()
+    out: dict = {"database": eng.dialect.name, "persistent_storage": storage_is_persistent(s)}
+    if not _is_empty(eng):
+        out["action"] = "existing data kept"
+    else:
+        src = _source_path(s.database_url)
+        t0 = time.time()
+        if src is not None:
+            out["action"] = f"first start: copied initial records from {src.name}"
+            out["rows"] = sum(copy_database(src, eng).values())
+        else:
+            from .seed import seed
+
+            out["action"] = "first start: generated initial records"
+            seed(verbose=False)
+        out["seconds"] = round(time.time() - t0, 1)
+        init_db()  # indexes/triggers after a bulk copy (idempotent)
+    out["model_files_saved_to_database"] = backfill_model_artifacts()
+    # one-time data steps for SYN- sample patients only (guarded by data_migrations; never real records)
+    if s.data_steps == "startup":
+        from .db import session_factory
+        from .services.sample_data import run_pending
+        out["data_steps"] = run_pending(session_factory())
+    else:
+        out["data_steps"] = "after start-up (background)" if s.data_steps == "background" else "off"
+    return out
+
+
 def run() -> dict:
     s = get_settings()
     s.data_dir.mkdir(parents=True, exist_ok=True)
     fd = os.open(str(s.data_dir / ".bootstrap.lock"), os.O_CREAT | os.O_RDWR, 0o600)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)
-        init_db()
-        eng = get_engine()
-        backend = eng.dialect.name
-        out: dict = {"database": backend, "persistent_storage": storage_is_persistent(s)}
-        lock_conn = None
-        if backend == "postgresql":  # one bootstrap at a time across instances
-            lock_conn = eng.connect()
-            lock_conn.execute(text("SELECT pg_advisory_lock(727001)"))
-        try:
-            if not _is_empty(eng):
-                out["action"] = "existing data kept"
-            else:
-                src = _source_path(s.database_url)
-                t0 = time.time()
-                if src is not None:
-                    out["action"] = f"first start: copied initial records from {src.name}"
-                    out["rows"] = sum(copy_database(src, eng).values())
-                else:
-                    from .seed import seed
-
-                    out["action"] = "first start: generated initial records"
-                    seed(verbose=False)
-                out["seconds"] = round(time.time() - t0, 1)
-                init_db()  # indexes/triggers after a bulk copy (idempotent)
-            out["model_files_saved_to_database"] = backfill_model_artifacts()
-            # one-time data steps for SYN- sample patients only (guarded by data_migrations; never real records)
-            if s.data_steps == "startup":
-                from .db import session_factory
-                from .services.sample_data import run_pending
-                out["data_steps"] = run_pending(session_factory())
-            else:
-                out["data_steps"] = "after start-up (background)" if s.data_steps == "background" else "off"
-        finally:
-            if lock_conn is not None:
-                lock_conn.execute(text("SELECT pg_advisory_unlock(727001)"))
-                lock_conn.close()
+        backend = make_url(s.database_url).get_backend_name()
+        if backend == "postgresql":  # one bootstrap (schema changes included) at a time across instances
+            with postgres_bootstrap_lock(s.worker_lock_database_url or s.database_url):
+                out = _prepare(s)
+        else:
+            out = _prepare(s)
         if backend == "sqlite" and s.mode == "production":
             log.warning("DATABASE_URL is not set: data is kept in SQLite on this server's disk%s.",
                         "" if storage_is_persistent(s) else " - a TEMPORARY disk: everything is lost on restart/redeploy;"

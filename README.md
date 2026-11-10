@@ -355,6 +355,7 @@ guide: [`DEPLOY.md`](DEPLOY.md). Environment variables (set in the Render dashbo
 Neon note: use the **unpooled (direct) connection string** from Neon's *Connect* dialog: the timed-jobs election
 uses a session-level advisory lock, which a transaction pooler (PgBouncer) cannot keep for one client.
 On first start against an empty database, `python -m kareshafaa.bootstrap` creates the schema and copies in the initial records once; existing data is never reset.
+Start-up (`kareshafaa.bootstrap`) takes its **own** advisory lock (key 727003, on a dedicated direct connection that waits up to 120 s), never the timed-jobs lock (727001), and prepares the schema under it. A new instance can therefore finish start-up while the previous instance is still running and holding 727001; sharing that key was why Render deploys failed with `pg_advisory_lock(727001)` / lock timeout.
 
 ## Documentation
 

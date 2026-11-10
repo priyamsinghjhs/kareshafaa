@@ -24,7 +24,16 @@ import logging
 import os
 
 log = logging.getLogger("kareshafaa")
-TIMED_JOBS_LOCK_KEY = 727001  # fixed 64-bit key (727002 = one-time data steps; 4242 = audit writer, per transaction)
+# Fixed 64-bit advisory-lock keys, one per purpose (never share a key between purposes):
+#   727001 = timed-jobs worker (held for the life of the elected process)
+#   727002 = one-time data steps (services/sample_data.py)
+#   727003 = start-up bootstrap (bootstrap.py; held only while bootstrap runs). It must NOT be 727001: the running
+#            instance holds 727001 for its whole life, so a new instance waiting on it at start-up never finishes and
+#            the deploy fails (Render keeps the old instance until the new one is healthy).
+#   4242   = audit writer, per transaction
+TIMED_JOBS_LOCK_KEY = 727001
+DATA_STEPS_LOCK_KEY = 727002
+BOOTSTRAP_LOCK_KEY = 727003
 
 
 def direct_url(url: str) -> str:
