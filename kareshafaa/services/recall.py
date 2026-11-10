@@ -24,6 +24,8 @@ from .access import consent_status, has_consent
 from .errors import DomainError, Forbidden, Invalid, NotFound
 
 OPEN = ("due", "invited")
+INVITE_COOLDOWN = timedelta(hours=24)  # one recall invitation per person per 24 hours (no repeat sends)
+COOLDOWN_TEXT = "Please wait 24 hours before sending the invite again."
 REASON_TEXT = {"routine_after_negative": "Routine re-screen after a negative result", "after_closure": "Next routine screen after the case closed",
                "surveillance": "Surveillance review (care plan)"}
 
@@ -163,10 +165,19 @@ def _can_manage(actor: Actor) -> bool:
     return actor.is_human and actor.can("recall:manage")
 
 
-def row(db: Session, r: Recall, p: Patient, today: date) -> dict:
+def next_invite_at(r: Recall, now: datetime | None = None) -> datetime | None:
+    """When another invitation may be sent, or None if one may be sent now (never invited / 24 hours passed)."""
+    if r.invited_at is None:
+        return None
+    nxt = r.invited_at + INVITE_COOLDOWN
+    return nxt if (now or utcnow()) < nxt else None
+
+
+def row(db: Session, r: Recall, p: Patient, today: date, now: datetime | None = None) -> dict:
     from ..programmes import PROGRAMMES
 
     org = db.get(Organization, p.managing_org_id)
+    nxt = next_invite_at(r, now)
     return {"id": r.id, "patient_id": p.id, "patient": f"{p.given_name} {p.family_name}", "mrn": p.mrn,
             "programme": r.programme, "programme_name": PROGRAMMES[r.programme].name, "due_on": r.due_on.isoformat(),
             "days_overdue": (today - r.due_on).days, "reason": r.reason, "reason_text": REASON_TEXT.get(r.reason, r.reason),
@@ -175,7 +186,8 @@ def row(db: Session, r: Recall, p: Patient, today: date) -> dict:
             "health_centre": org.name if org else None, "phone": bool(p.phone_valid), "has_smartphone": bool(p.has_smartphone),
             "source_case_id": r.source_case_id, "completed_at": r.completed_at.isoformat() if r.completed_at else None,
             "completed_case_id": r.completed_case_id, "closed_note": r.closed_note, "closed_by": r.closed_by,
-            "sample": (p.mrn or "").startswith("SYN-")}
+            "sample": (p.mrn or "").startswith("SYN-"), "can_invite": r.status in OPEN and nxt is None,
+            "next_invite_at": nxt.isoformat() if nxt else None}
 
 
 def list_recalls(db: Session, actor: Actor, *, view: str = "due", programme: str | None = None,
@@ -255,6 +267,8 @@ def send_invite(db: Session, actor: Actor, r: Recall, p: Patient, now: datetime 
         raise Forbidden("your role cannot send recall invitations")
     if r.status not in OPEN:
         raise Invalid("this recall is no longer open")
+    if next_invite_at(r, now) is not None:
+        raise Invalid(COOLDOWN_TEXT)  # nothing sent, counted or re-stamped inside the 24-hour window
     if p.deceased:
         raise DomainError("patient is recorded as deceased: all patient messaging is stopped")
     if consent_status(db, p.id, "care_coordination") == "deny":

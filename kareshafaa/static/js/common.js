@@ -67,6 +67,11 @@ const W = {
     return W._dialog(`<h2 id="dlg-title">${W.esc(title)}</h2>${body ? `<p>${body}</p>` : ""}
       <div class="dlg-buttons"><button type="button" class="secondary" data-cancel>${W.esc(cancel)}</button><button type="submit" data-ok class="${danger ? "danger" : ""}">${W.esc(ok)}</button></div>`, () => true, dir, save);
   },
+  // one-button information dialog (nothing to confirm): resolves when closed
+  alert(title, body = "", { ok = "OK" } = {}) {
+    return W._dialog(`<h2 id="dlg-title">${W.esc(title)}</h2>${body ? `<p>${body}</p>` : ""}
+      <div class="dlg-buttons"><button type="submit" data-ok data-cancel>${W.esc(ok)}</button></div>`, () => true);
+  },
   ask(title, label, { ok = "Confirm", body = "", min = 1, danger = false, placeholder = "", save = null, optional = false, suggest = null } = {}) {
     return W._dialog(`<h2 id="dlg-title">${W.esc(title)}</h2>${body ? `<p class="small">${body}</p>` : ""}
       <label for="dlg-text">${W.esc(label)}<textarea id="dlg-text" rows="3" ${optional ? "" : `required minlength="${min}"`} placeholder="${W.esc(placeholder)}"></textarea></label>

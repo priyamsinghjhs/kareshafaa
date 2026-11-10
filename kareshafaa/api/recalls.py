@@ -54,7 +54,7 @@ def invite_many(body: BulkInviteIn, actor: Actor = Depends(require("recall:manag
             com = svc.send_invite(db, actor, r, p)
             db.flush()
             sent.append({"id": rid, "channel": com.channel})
-        except DomainError as e:  # one person without a channel must not block the others
+        except DomainError as e:  # no channel, or invited in the last 24 hours (Invalid): must not block the others
             failed.append({"id": rid, "reason": e.message})
     db.commit()
     return {"ok": True, "sent": sent, "failed": failed}

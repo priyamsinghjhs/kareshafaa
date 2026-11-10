@@ -93,6 +93,9 @@ closure.
 * Clinical rules engine (`kareshafaa/clinical_rules.py`, sources in `docs/clinical_rules.md`): FIT, HPV/cytology,
   BI-RADS, HbA1c/FPG. Anything unknown, conflicting or out of range goes to a clinical review queue at a safe tier.
 * Patient records and registration, recall lists, GP care summaries, specialist e-consults, medications and encounters.
+* **Recall invitations (Due for recall):** a recall invitation cannot be sent again for 24 hours. Staff who try see a
+  popup asking them to wait (“Please wait 24 hours before sending the invite again.”); the server refuses the send too,
+  and “Invite selected” skips anyone invited in the last 24 hours without blocking the others.
 
 **Patient journey** (`/patient`)
 * Step tracker showing where the patient is in the loop.

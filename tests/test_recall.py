@@ -144,3 +144,70 @@ def test_recall_page_and_nav(client, as_user):
     assert any(x["href"] == "/recalls" for x in nav_for("coordinator"))
     assert not any(x["href"] == "/recalls" for x in nav_for("specialist"))
     assert client.get("/recalls", headers=as_user("aisha.rahman")).status_code == 200
+
+
+WAIT = "Please wait 24 hours before sending the invite again."
+
+
+def test_recall_invite_24h_cooldown_single(client, as_user, db, make_patient):
+    from datetime import datetime
+
+    from kareshafaa.models import Communication
+    pid = make_patient(phone_valid=True)
+    _neg(client, as_user, pid)
+    r = _recall(db, pid)
+    r.due_on = date.today() + timedelta(days=5)  # on the "due" list
+    db.commit()
+    h = as_user("aisha.rahman")
+    row = next(x for x in client.get("/api/recalls?view=due", headers=h).json()["items"] if x["id"] == r.id)
+    assert row["can_invite"] is True and row["next_invite_at"] is None
+    first = client.post(f"/api/recalls/{r.id}/invite", headers=h)
+    assert first.status_code == 200, first.text
+    r = _recall(db, pid)
+    assert r.invite_count == 1
+    invited_at = r.invited_at
+    # an immediate second send is refused: nothing sent, counted or re-stamped
+    again = client.post(f"/api/recalls/{r.id}/invite", headers=h)
+    assert again.status_code == 422 and WAIT in again.json()["detail"]
+    comms = lambda: db.scalars(select(Communication).where(Communication.patient_id == pid,  # noqa: E731
+                                                           Communication.category == "recall_invite")).all()
+    assert len(comms()) == 1
+    r = _recall(db, pid)
+    assert r.invite_count == 1 and r.invited_at == invited_at
+    row = next(x for x in client.get("/api/recalls?view=due", headers=h).json()["items"] if x["id"] == r.id)
+    assert row["can_invite"] is False and row["invite_count"] == 1
+    nxt = datetime.fromisoformat(row["next_invite_at"]) - datetime.fromisoformat(row["invited_at"])
+    assert abs(nxt.total_seconds() - 24 * 3600) < 2
+    # once 24 hours have passed, "Invite again" works as before
+    r.invited_at = invited_at - timedelta(hours=24, seconds=1)
+    db.commit()
+    row = next(x for x in client.get("/api/recalls?view=due", headers=h).json()["items"] if x["id"] == r.id)
+    assert row["can_invite"] is True and row["next_invite_at"] is None
+    ok = client.post(f"/api/recalls/{r.id}/invite", headers=h)
+    assert ok.status_code == 200, ok.text
+    r = _recall(db, pid)
+    assert r.invite_count == 2 and r.invited_at > invited_at and len(comms()) == 2
+
+
+def test_recall_invite_cooldown_boundary_with_frozen_now(client, as_user, db, make_patient):
+    from kareshafaa.services import recall as rc
+    pid = make_patient(phone_valid=True)
+    _neg(client, as_user, pid)
+    r = _recall(db, pid)
+    assert rc.next_invite_at(r) is None  # never invited
+    assert client.post(f"/api/recalls/{r.id}/invite", headers=as_user("aisha.rahman")).status_code == 200
+    r = _recall(db, pid)
+    assert rc.next_invite_at(r, r.invited_at + timedelta(hours=23, minutes=59)) == r.invited_at + timedelta(hours=24)
+    assert rc.next_invite_at(r, r.invited_at + timedelta(hours=24)) is None
+
+
+def test_bulk_invite_skips_people_inside_cooldown(client, as_user, db, make_patient):
+    a, b = make_patient(phone_valid=True), make_patient(phone_valid=True)
+    _neg(client, as_user, a); _neg(client, as_user, b)
+    ra, rb = _recall(db, a), _recall(db, b)
+    h = as_user("aisha.rahman")
+    assert client.post(f"/api/recalls/{rb.id}/invite", headers=h).status_code == 200
+    res = client.post("/api/recalls/invite", headers=h, json={"ids": [ra.id, rb.id]}).json()
+    assert [x["id"] for x in res["sent"]] == [ra.id]
+    assert [x["id"] for x in res["failed"]] == [rb.id] and WAIT in res["failed"][0]["reason"]
+    assert _recall(db, b).invite_count == 1 and _recall(db, a).invite_count == 1
