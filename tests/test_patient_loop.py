@@ -139,3 +139,27 @@ def test_messages_never_show_staff_call_notes(client, db, booked):
     txt = client.get("/api/me/profile", headers=booked["h"]).text
     assert "STAFF NOTE" not in txt
     assert "STAFF NOTE" not in client.get("/api/me/case", headers=booked["h"]).text
+
+
+def test_patient_stop_contact_never_closes_and_keeps_the_case_owned(client, db, booked, as_user):
+    """Item: a patient who stops contact from their own app. The case stays open and owned, a clinician is asked
+    to review, automated outreach stops, and staff can still see and work the case."""
+    from kareshafaa.comms.service import send_with_ladder
+    from kareshafaa.security import SYSTEM
+    from kareshafaa.services.errors import DomainError
+    h = booked["h"]
+    try:
+        r = client.post("/api/me/contact-consent", headers=h, json={"scope": "care_coordination", "decision": "deny"})
+        assert r.status_code == 200, r.text
+        db.expire_all()
+        c = db.get(Case, booked["case"])
+        assert c.state != S.CLOSED and c.owner_id is not None
+        assert c.review_required and "consent_withdrawn" in (c.review_reasons or [])
+        with pytest.raises(DomainError):
+            send_with_ladder(db, c, "reminder", SYSTEM)
+        db.rollback()
+        assert client.get(f"/api/cases/{c.id}", headers=as_user("aisha.rahman")).status_code == 200
+        assert db.scalar(select(AuditEvent.id).where(AuditEvent.event == "consent.recorded",
+                                                     AuditEvent.case_id.is_(None) | (AuditEvent.case_id == c.id)).limit(1)) is not None
+    finally:
+        client.post("/api/me/contact-consent", headers=h, json={"scope": "care_coordination", "decision": "permit"})
