@@ -9,16 +9,9 @@ async function dir() {
     .then(r => r.map(x => (x && Array.isArray(x.items) ? x.items : Array.isArray(x) ? x : [])));
   return DIR;
 }
-// datetime-local is YYYY-MM-DDTHH:mm (no seconds, no offset). new Date(that) is not a valid ES date-time
-// string (seconds are required), so some browsers return Invalid Date and toISOString() throws, and others
-// read it as UTC (a time entered in IST/UAE then looks hours in the future). Build a local Date from parts.
-function localInputIso(s) {
-  const m = String(s || "").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-  if (!m) throw new Error("Enter the date and time.");
-  const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
-  if (Number.isNaN(d.getTime())) throw new Error("Enter a valid date and time.");
-  return d.toISOString();
-}
+// Every datetime-local on this page is on the UAE clinic clock (W.utcIsoFromLocalInput / W.localInputFromUtc in
+// common.js), the same clock the queue page, patient messages and server errors use, whatever the browser zone.
+const localInputIso = s => W.utcIsoFromLocalInput(s);
 const opts = (arr, v = x => x.id, l = x => x.name) => arr.map(x => `<option value="${W.esc(v(x))}">${W.esc(l(x))}</option>`).join("");
 const kv = obj => Object.entries(obj).map(([k, v]) => `<option value="${k}">${W.esc(v)}</option>`).join("");
 
@@ -118,7 +111,7 @@ function coverage() {
 
 function deadline() {
   const d = C.sla.due_at; if (!d) return "No deadline";
-  const t = new Date(/Z|[+-]\d\d:?\d\d$/.test(d) ? d : d + "Z"), ms = t - Date.now(), days = Math.abs(ms) / 864e5;
+  const t = W.inst(d), ms = t - Date.now(), days = Math.abs(ms) / 864e5;
   const span = days < 1 ? Math.max(1, Math.round(Math.abs(ms) / 36e5)) + " h" : Math.round(days) + (Math.round(days) === 1 ? " day" : " days");
   return `${W.dt(d)} <span class="small ${ms < 0 ? "overdue-text" : "muted"}">(${ms < 0 ? "overdue by " + span : "due in " + span})</span>`;
 }
@@ -126,7 +119,7 @@ function deadline() {
 // ---------------------------------------------------------------- clinical record (doctor view)
 const NR = () => `<span class="muted">${W.esc((REC && REC.none) || "None recorded")}</span>`;
 const val = v => (v === null || v === undefined || v === "") ? NR() : W.esc(v);
-const day = s => s ? new Date(/Z|[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z").toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : NR();
+const day = s => s ? W.date(s) : NR();  // UAE calendar date
 const flagChip = (abn, txt) => abn ? `<span class="chip sla-red"><span class="shape" aria-hidden="true">▲</span>${W.esc(txt || "Abnormal")}</span>` : `<span class="chip sla-green"><span class="shape" aria-hidden="true">✓</span>${W.esc(txt || "Normal")}</span>`;
 const tbl = (heads, rows) => rows.length ? `<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact rec-table"><thead><tr>${heads.map(h => `<th scope="col">${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>` : `<p class="small">${NR()}</p>`;
 function sec(id, title, count, body, defOpen) {
@@ -204,19 +197,19 @@ function record() {
     ${sec("out", "Outreach and patient responses", R.outreach_total + R.responses.length, `<h4>Patient responses</h4>${resp}<h4>Outreach attempts</h4>${out}`, R.responses.some(r => r.kind === "teach_back"))}
     ${sec("docs", "Care plans and documents", R.documents.length, docs, false)}</section>`;
 }
-function localNow() { const t = new Date(); t.setSeconds(0, 0); return new Date(t - t.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); }
+const localNow = () => W.localInputNow();  // UAE wall-clock, for datetime-local value / max
 function recForm(kind) {
   const el = document.getElementById("rec-form-" + kind); if (!el) return;
   if (el.innerHTML) { el.innerHTML = ""; return; }
   const kinds = Object.entries(REC.encounter_kinds).filter(([k]) => k !== "e_consult").map(([k, v]) => `<option value="${k}">${W.esc(v)}</option>`).join("");
   el.innerHTML = kind === "encounter" ? `<form class="action-form" aria-label="Add consultation note"><h3>Add consultation note</h3><p class="small muted">Visible to the care team only – never shown to the patient.</p>
-      <label>Type<select name="kind">${kinds}</select></label><label>Date and time<input type="datetime-local" name="start" value="${localNow()}" max="${localNow()}" required></label>
+      <label>Type<select name="kind">${kinds}</select></label><label>Date and time (UAE)<input type="datetime-local" name="start" value="${localNow()}" max="${localNow()}" required></label>
       <label>Reason<input name="reason" maxlength="300"></label><label>Clinical note<textarea name="notes" rows="4" minlength="5" maxlength="5000" required></textarea></label>
       <label>Outcome / plan<input name="outcome" maxlength="300"></label><div class="form-buttons"><button type="submit">Save note</button><button type="button" class="secondary" data-cancel>Cancel</button></div></form>`
     : `<form class="action-form" aria-label="Add medicine"><h3>Add medicine</h3>
       <label>Medicine<input name="name" minlength="2" maxlength="200" required placeholder="e.g. Metformin"></label>
       <div class="form-pair"><label>Dose<input name="dose" maxlength="80" placeholder="e.g. 500 mg"></label><label>Frequency<input name="frequency" maxlength="80" placeholder="e.g. Twice daily with meals"></label></div>
-      <div class="form-pair"><label>Route<input name="route" maxlength="40" value="oral"></label><label>Start date<input type="date" name="start_date" value="${localNow().slice(0, 10)}"></label></div>
+      <div class="form-pair"><label>Route<input name="route" maxlength="40" value="oral"></label><label>Start date<input type="date" name="start_date" value="${W.localDateToday()}"></label></div>
       <div class="form-pair"><label>End date (optional)<input type="date" name="end_date"></label><span></span></div>
       <label>Status<select name="status"><option value="active">Active</option><option value="completed">Completed course</option><option value="stopped">Stopped</option></select></label>
       <label>Reason / indication<input name="reason" maxlength="300"></label><label>Note<textarea name="note" rows="2" maxlength="2000" data-no-suggest></textarea></label>
@@ -226,7 +219,7 @@ function recForm(kind) {
   f.onsubmit = async ev => { ev.preventDefault(); const b = f.querySelector("button[type=submit]"); W.busy(b, true); W.formError(f, ""); const fd = Object.fromEntries(new FormData(f));
     try {
       if (kind === "encounter") await W.api(`/api/cases/${CASE_ID}/encounters`, { method: "POST", body: { kind: fd.kind, start: localInputIso(fd.start), reason: fd.reason || null, notes: fd.notes, outcome: fd.outcome || null } });
-      else await W.api(`/api/cases/${CASE_ID}/medications`, { method: "POST", body: { name: fd.name, dose: fd.dose || null, frequency: fd.frequency || null, route: fd.route || null, start_date: fd.start_date ? new Date(fd.start_date + "T12:00:00").toISOString() : null, end_date: fd.end_date ? new Date(fd.end_date + "T12:00:00").toISOString() : null, status: fd.status, reason: fd.reason || null, note: fd.note || null } });
+      else await W.api(`/api/cases/${CASE_ID}/medications`, { method: "POST", body: { name: fd.name, dose: fd.dose || null, frequency: fd.frequency || null, route: fd.route || null, start_date: fd.start_date ? W.utcIsoFromLocalDate(fd.start_date) : null, end_date: fd.end_date ? W.utcIsoFromLocalDate(fd.end_date) : null, status: fd.status, reason: fd.reason || null, note: fd.note || null } });
       REC_OPEN.add(kind === "encounter" ? "enc" : "meds"); W.toast(kind === "encounter" ? "Consultation note saved" : "Medicine saved", "ok"); await load();
     } catch (e) { W.formError(f, e.message); W.toast(e.message, "err"); W.busy(b, false); } };
 }
@@ -380,7 +373,7 @@ async function openForm(key, evidenceType) {
   const d = ["assign", "transfer", "consult", "refer", "order_confirmatory", "book"].includes(key) ? await dir() : null;
   switch (key) {
     case "triage": return tr("triaged", "Triage confirmed");
-    case "read_back": { const fl = C.fast_lane || {}, now = new Date(), v = new Date(now - now.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+    case "read_back": { const fl = C.fast_lane || {}, v = W.localInputNow();
       const me = W.me && W.me.practitioner_id;  // whoever sees this button holds critical:readback, so always list them
       const docs = d0 => { const all = d0.prac || [], list = all.filter(p => !p.is_pool && (p.id === me || ["gp", "specialist", "clinical_lead"].includes(p.role)));
         if (me && !list.some(p => p.id === me)) list.unshift({ id: me, name: (W.me.display_name || "Me") });
@@ -391,7 +384,7 @@ async function openForm(key, evidenceType) {
         `<label>Who gave you the result (name or role)<input name="reported_by" required minlength="2" maxlength="120" placeholder="e.g. lab duty scientist"></label>` +
         (rb.length ? `<label>Clinician who received it<select name="received_by" required>${opts(rb, p => p.id, p => p.name + (p.id === me ? " (me)" : ""))}</select></label>`
           : `<p class="small muted">Received by: you (the signed-in clinician).</p>`) +
-        `<label>When<input type="datetime-local" name="contacted_at" value="${v}" required></label>` +
+        `<label>When (UAE time)<input type="datetime-local" name="contacted_at" value="${v}" required></label>` +
         `<label class="check"><input type="checkbox" name="read_back" value="yes" required> I read the result back and it was confirmed</label>`,
         fd => post(`${u}/critical-read-back`, { method: fd.method, reported_by: fd.reported_by, received_by_practitioner_id: +fd.received_by > 0 ? +fd.received_by : null, contacted_at: localInputIso(fd.contacted_at), read_back_confirmed: fd.read_back === "yes" }, "Read-back recorded"), "Record read-back");
       setTimeout(() => { const s = document.querySelector('#aform select[name="received_by"]'); if (s && me) s.value = String(me); }, 0);
@@ -426,19 +419,22 @@ async function openForm(key, evidenceType) {
     }
     case "decide_referral": return form(F.sel("accept", "Decision", kv({ true: "Accept", false: "Reject (reason required)" })) + F.sel("reason_code", "Reject reason", `<option value="">–</option>` + kv(META.reject_reasons)) + F.note("Note (required if rejecting)"),
       fd => post(`${u}/referral/decision`, { accept: fd.accept === "true", reason_code: fd.reason_code || null, note: fd.note || null }, "Referral decision recorded"));
-    case "book": { const t = new Date(Date.now() + 7 * 864e5); t.setMinutes(0, 0, 0); const v = new Date(t - t.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); // local wall-clock
-      return form(`<label>Appointment date/time<input type="datetime-local" name="start" value="${v}" required></label>` +
-        `<label>Reason if after the pathway target${C.target_due_at ? " (" + W.esc(String(C.target_due_at).slice(0, 10)) + ")" : ""}<input name="beyond" placeholder="e.g. earliest available slot; patient's choice"></label>`,
+    case "book": { const v = W.localInputNow(7 * 864e5).slice(0, 13) + ":00";  // a week ahead, on the hour, UAE clock
+      // the pathway target is shown exactly as the server checks and reports it: the UAE calendar date, dd/mm/yyyy
+      const tgt = C.target_due_at ? W.dmy(C.target_due_at) : "", passed = C.target_due_at && W.inst(C.target_due_at) < new Date();
+      return form(`<label>Appointment date and time (UAE)<input type="datetime-local" name="start" value="${v}" required></label>` +
+        (passed ? `<p class="small notice-inline">The pathway target (${W.esc(tgt)}) has already passed, so any booking now is after it: give the reason below (at least 10 characters).</p>` : "") +
+        `<label>Reason if after the pathway target${tgt ? " (" + W.esc(tgt) + ")" : ""}<input name="beyond" placeholder="e.g. earliest available slot; patient's choice"></label>`,
         fd => post(`${u}/appointment`, { start: localInputIso(fd.start), beyond_target_reason: fd.beyond || null }, "Appointment booked – confirmation recorded (sending to phones is not connected yet)")); }
     case "attendance": return form(F.sel("attended", "Outcome", kv({ true: "Attended", false: "No-show" })) + F.sel("barrier", "No-show barrier", `<option value="">–</option>` + META.barriers.map(b => `<option>${b}</option>`).join("")),
       fd => post(`${u}/attendance`, { attended: fd.attended === "true", barrier_code: fd.attended === "true" ? null : (fd.barrier || "unknown") }, "Attendance recorded"));
-    case "reschedule": { const t = new Date(Date.now() + 7 * 864e5); t.setMinutes(0, 0, 0); const v = new Date(t - t.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+    case "reschedule": { const v = W.localInputNow(7 * 864e5).slice(0, 13) + ":00", tgt = C.target_due_at ? W.dmy(C.target_due_at) : "";
       const reasons = Object.entries(META.appointment_change_reasons || {}).map(([k,l]) => `<option value="${k}">${W.esc(l)}</option>`).join("");
-      return form(`<label>New date/time<input type="datetime-local" name="start" value="${v}" required></label>` +
+      return form(`<label>New date and time (UAE)<input type="datetime-local" name="start" value="${v}" required></label>` +
         F.sel("reason_code", "Why the change", reasons) +
         F.sel("barrier", "What got in the way (if the patient asked)", `<option value="">–</option>` + META.barriers.map(b => `<option>${b}</option>`).join("")) +
         F.note("Note (needed for clinical reason or booking error)") +
-        `<label>Reason if after the pathway target<input name="beyond" placeholder="e.g. earliest available slot"></label>`,
+        `<label>Reason if after the pathway target${tgt ? " (" + W.esc(tgt) + ")" : ""}<input name="beyond" placeholder="e.g. earliest available slot"></label>`,
         fd => post(`${u}/appointment/reschedule`, { start: localInputIso(fd.start), reason_code: fd.reason_code, barrier_code: fd.barrier || null, note: fd.note || null, beyond_target_reason: fd.beyond || null }, "Appointment moved – patient message recorded (sending to phones is not connected yet)")); }
     case "cancel_appointment": {
       const reasons = Object.entries(META.appointment_change_reasons || {}).map(([k,l]) => `<option value="${k}">${W.esc(l)}</option>`).join("");
@@ -449,7 +445,7 @@ async function openForm(key, evidenceType) {
     case "appointment_reminder": return post(`${u}/appointment/remind`, {}, "Appointment reminder recorded (sending to phones is not connected yet)");
     case "start_care": { const sd = (C.recall && C.recall.surveillance_default_due) || "";
       const f0 = form(F.sel("kind", "Plan type", kv({ treatment: "Treatment", surveillance: "Surveillance" })) + `<label>Plan description<textarea name="description" rows="2" required></textarea></label>` +
-        `<label data-review hidden>Review / re-test due<input type="date" name="review_due_on" value="${sd}" min="${new Date(Date.now() + 864e5).toISOString().slice(0, 10)}"><span class="hint small muted">Default from the programme rule (${W.esc(sd)}); the person is recalled on this date after the case closes.</span></label>`,
+        `<label data-review hidden>Review / re-test due<input type="date" name="review_due_on" value="${sd}" min="${W.localDateToday(1)}"><span class="hint small muted">Default from the programme rule (${W.esc(sd)}); the person is recalled on this date after the case closes.</span></label>`,
         fd => post(`${u}/care-plan`, { kind: fd.kind, description: fd.description, review_due_on: fd.kind === "surveillance" ? (fd.review_due_on || null) : null }, "Care plan recorded"));
       setTimeout(() => { const k = document.querySelector('#aform select[name="kind"]'), r = document.querySelector("#aform [data-review]");
         if (k && r) { const t = () => { r.hidden = k.value !== "surveillance"; }; k.addEventListener("change", t); t(); } }, 0);

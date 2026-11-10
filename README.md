@@ -88,7 +88,19 @@ closure.
   `GET /api/queue?view=critical`). From the first breach (level 2+), escalations on a critical case go **by phone**
   (`escalations.channel = phone`, additive column), and a critical case can never be closed as `unable_to_contact`.
   No new clinical timeframe: the existing T0 clocks apply (placeholders, see `docs/clinical_rules.md`).
-  Staff enter the contact time on their own clock; the case page sends it as UTC (more than 5 minutes ahead is refused).
+  Staff enter the contact time on the UAE clinic clock (see **Dates and times** below); the page sends it as UTC
+  (more than 5 minutes ahead is refused).
+* **Dates and times – one clinic clock:** every clinical date/time is **stored as naive UTC** in the database and
+  sent by the API as naive UTC ISO text (no offset; an offset sent *to* the API is converted). Everywhere a person
+  reads or types one – staff pages, the patient app, SMS/message content, server errors and GP summaries – it is on
+  the **UAE clock (Asia/Dubai, UTC+4, no daylight saving)**, whatever time zone the browser or server is in. Staff
+  date-time fields are labelled “(UAE)”: 21:00 typed on the case or queue page is 21:00 UAE = 17:00 UTC in the
+  database, and the patient is told `dd/mm/yyyy 21:00`. Calendar-date fields (medicine start/end, review dates, date
+  of birth) are UAE calendar dates and never shift a day. The pathway target is shown as the UAE date `dd/mm/yyyy` on
+  the booking form, exactly as in the server's error; booking after it always needs a reason (≥ 10 characters), and
+  once the target has passed the message says so instead of “book earlier”. Shared helpers: `W.utcIsoFromLocalInput`,
+  `W.localInputFromUtc`, `W.localInputNow`, `W.dt`, `W.dmy` in `static/js/common.js`; server side
+  `kareshafaa/calendar_uae.py`; tests in `tests/test_time_handling.py`.
 * **Closure guard:** a case closes only with evidence (care plan, procedure, negative confirmation) or an authorised
   human decision with a reason.
 * Clinical rules engine (`kareshafaa/clinical_rules.py`, sources in `docs/clinical_rules.md`): FIT, HPV/cytology,

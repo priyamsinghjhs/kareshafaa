@@ -12,6 +12,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from .. import audit
+from ..calendar_uae import to_local
 from ..clinical_rules import GP_SUMMARY_ACK_DAYS
 from ..models import (Appointment, CarePlan, Case, DiagnosticReport, GpSummary, Organization, Patient, Practitioner,
                       Recall, ServiceRequest, utcnow)
@@ -27,7 +28,11 @@ PROG = {"colorectal_fit": "Bowel screening (FIT)", "cervical": "Cervical screeni
 
 
 def _d(x) -> str | None:
-    return x.strftime("%d %b %Y") if x else None
+    """Date for the GP letter on the UAE calendar: stored datetimes are naive UTC (20:00-24:00 UTC is the next UAE day);
+    a plain date is already a calendar date."""
+    if not x:
+        return None
+    return (to_local(x) if isinstance(x, datetime) else x).strftime("%d %b %Y")
 
 
 def recipient(db: Session, case: Case) -> Practitioner | None:

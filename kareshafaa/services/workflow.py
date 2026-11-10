@@ -906,7 +906,11 @@ def _check_start(case: Case, start: datetime, now: datetime, beyond_target_reaso
     if beyond and (not beyond_target_reason or len(beyond_target_reason.strip()) < 10):
         from ..calendar_uae import local_display
 
-        raise Invalid(f"appointment is after the pathway target ({local_display(case.target_due_at)[:10]}): book "
+        target = local_display(case.target_due_at)[:10]  # UAE calendar date, as the booking form shows it
+        if case.target_due_at < now:  # the target has gone: booking earlier is impossible, only the reason is missing
+            raise Invalid(f"the pathway target ({target}) has already passed, so this appointment is after it: give the "
+                          "reason (>= 10 characters, e.g. earliest slot, patient's choice)")
+        raise Invalid(f"appointment is after the pathway target ({target}): book "
                       "earlier, or give the reason (>= 10 characters, e.g. earliest slot, patient's choice)")
     return beyond
 

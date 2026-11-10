@@ -68,7 +68,7 @@ const RQ_DAY = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri" }, R
 const RQ_BARRIER = { work: "work or study", transport: "transport", childcare: "childcare or caring", language: "language", cost: "cost", worry: "worried about the test", other: "other" };
 const RQ_DECLINE = { no_capacity: "No appointments at that site or time", not_due: "Not due yet", already_booked: "Already booked", clinical_review: "Needs a clinician to review first", other: "Other reason" };
 let RQ = null;
-const localInput = iso => { if (!iso) return ""; const d = new Date(iso.endsWith("Z") ? iso : iso + "Z"); return new Date(d.getTime() + 4 * 36e5).toISOString().slice(0, 16); };
+const localInput = iso => W.localInputFromUtc(iso);  // UAE clinic clock (common.js), same as the case page
 async function loadRequests() {
   const box = document.getElementById("preq");
   if (!W.me || W.me.role !== "coordinator") return;
@@ -130,7 +130,7 @@ function openRq(id, mode) {
     let url, payload;
     if (mode === "confirm") {
       payload = { note: g("note").value.trim() || null };
-      if (g("start")) { if (!g("start").value) mark("start", "Choose the appointment date and time."); else payload.start = g("start").value + ":00+04:00"; }
+      if (g("start")) { if (!g("start").value) mark("start", "Choose the appointment date and time."); else { try { payload.start = W.utcIsoFromLocalInput(g("start").value); } catch (e) { mark("start", e.message); } } }
       if (g("org")) { if (!g("org").value) mark("org", "Choose the screening site."); else payload.org_id = +g("org").value; }
       if (g("beyond") && g("beyond").value.trim()) payload.beyond_target_reason = g("beyond").value.trim();
       url = `/api/patient-requests/${id}/confirm`;

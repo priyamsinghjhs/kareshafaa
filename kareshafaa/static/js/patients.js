@@ -10,7 +10,7 @@ const PF = {
     return `<label>${W.esc(label)}${required || mark ? ' <span class="req" aria-hidden="true">*</span>' : ""}<input name="${name}" type="${type}" value="${W.esc(value ?? "")}" ${required ? "required" : ""} ${attrs}>${hint ? `<span class="hint small muted">${hint}</span>` : ""}</label>`;
   },
   chk(name, label, on) { return `<label class="check"><input type="checkbox" name="${name}" ${on ? "checked" : ""}> ${W.esc(label)}</label>`; },
-  today() { const t = new Date(); return new Date(t - t.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); },
+  today() { return W.localDateToday(); },  // UAE calendar date (common.js)
   demographics(v = {}) { const O = PF.opts;
     return `<div class="form-pair">${PF.inp("given_name", "Given name(s)", v.given_name, { required: true, attrs: 'maxlength="100" autocomplete="off"' })}${PF.inp("family_name", "Family name", v.family_name, { required: true, attrs: 'maxlength="100" autocomplete="off"' })}</div>
       <div class="form-pair">${PF.inp("birth_date", "Date of birth", v.birth_date, { type: "date", required: true, attrs: `max="${PF.today()}" min="1900-01-01"` })}${PF.sel("gender", "Sex", Object.entries(O.genders), v.gender, { required: true })}</div>

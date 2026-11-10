@@ -87,16 +87,50 @@ const W = {
   // number-first stat tile: big figure, 1-2 word label, icon (status colour always comes with the label)
   stat(href, v, label, cls = "", icon = "", attrs = "") { const tag = href ? "a" : "div";
     return `<${tag} class="stat ${cls}"${href ? ` href="${href}"` : ""} ${attrs}>${icon ? W.ic(icon, "stat-ic") : ""}<span class="v">${v ?? "–"}</span><span class="l">${label}</span></${tag}>`; },
-  dt(s) { if (!s) return "–"; const d = new Date(s.endsWith("Z") || s.includes("+") ? s : s + "Z");
-    return d.toLocaleString(undefined, { day: "2-digit", month: "short", ...(d.getFullYear() !== new Date().getFullYear() ? { year: "numeric" } : {}), hour: "2-digit", minute: "2-digit" }); },
-  ago(s) { if (!s) return "–"; const d = new Date(s.endsWith("Z") ? s : s + "Z"); const h = (d - Date.now()) / 36e5;
+  // ---- clinic clock. Stored datetimes are naive UTC and the API sends them without an offset (so "naive" = UTC
+  // here). Every clinical date/time is shown and entered on the UAE clinic clock (Asia/Dubai, UTC+4 all year, no
+  // daylight saving) – the same clock as local_display() in patient messages and server errors – whatever time
+  // zone the browser is in (a coordinator in India must not book 21:00 IST when the patient is told 21:00 UAE).
+  // Calendar-date fields (YYYY-MM-DD) are UAE calendar dates and are never shifted.
+  // Check: node -e "<common.js with stubs>; W.utcIsoFromLocalInput('2027-01-17T21:00')" -> 2027-01-17T17:00:00.000Z
+  TZ: "Asia/Dubai", UAE_OFFSET_MS: 4 * 36e5,
+  inst(s) { if (s instanceof Date) return s; if (s == null || s === "") return new Date(NaN); s = String(s).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + "T08:00:00Z");  // calendar date: noon UAE, same day in UTC and UAE
+    s = s.replace(" ", "T").replace(/(\.\d{3})\d+/, "$1");  // Python microseconds: Safari only parses milliseconds
+    return new Date(/Z$|[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z"); },
+  uaeIso(d) { return new Date(d.getTime() + W.UAE_OFFSET_MS).toISOString(); },  // UAE wall-clock as YYYY-MM-DDTHH:mm:ss...
+  dt(s) { if (!s) return "–"; const d = W.inst(s); if (Number.isNaN(d.getTime())) return String(s);
+    return d.toLocaleString(undefined, { timeZone: W.TZ, day: "2-digit", month: "short", ...(W.uaeIso(d).slice(0, 4) !== W.uaeIso(new Date()).slice(0, 4) ? { year: "numeric" } : {}), hour: "2-digit", minute: "2-digit" }); },
+  date(s) { if (!s) return "–"; const d = W.inst(s); if (Number.isNaN(d.getTime())) return String(s);
+    return d.toLocaleDateString(undefined, { timeZone: W.TZ, day: "2-digit", month: "short", year: "numeric" }); },
+  // dd/mm/yyyy on the UAE calendar: the exact text the server uses in errors and patient messages (local_display[:10])
+  dmy(s) { if (!s) return "–"; const d = W.inst(s); if (Number.isNaN(d.getTime())) return String(s); const i = W.uaeIso(d);
+    return `${i.slice(8, 10)}/${i.slice(5, 7)}/${i.slice(0, 4)}`; },
+  // datetime-local "YYYY-MM-DDTHH:mm" typed on the UAE clock -> UTC ISO instant for the API. Never new Date(that string):
+  // without seconds it is Invalid Date on Safari and UTC on some engines; new Date(y, m, d, h, min) is the browser zone.
+  utcIsoFromLocalInput(s) {
+    const m = String(s || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (!m) throw new Error("Enter a valid date and time.");
+    const [y, mo, d, h, mi] = [+m[1], +m[2], +m[3], +m[4], +m[5]], wall = Date.UTC(y, mo - 1, d, h, mi), c = new Date(wall);
+    if (Number.isNaN(wall) || c.getUTCFullYear() !== y || c.getUTCMonth() !== mo - 1 || c.getUTCDate() !== d || c.getUTCHours() !== h || c.getUTCMinutes() !== mi)
+      throw new Error("Enter a valid date and time.");
+    return new Date(wall - W.UAE_OFFSET_MS).toISOString(); },
+  // stored/API instant (or a Date) -> "YYYY-MM-DDTHH:mm" on the UAE clock, for a datetime-local value=
+  localInputFromUtc(iso) { if (!iso) return ""; const d = W.inst(iso); return Number.isNaN(d.getTime()) ? "" : W.uaeIso(d).slice(0, 16); },
+  localInputNow(addMs = 0) { return W.localInputFromUtc(new Date(Date.now() + addMs)); },
+  // calendar dates on the UAE calendar (date inputs, min/max): "YYYY-MM-DD"
+  localDateToday(addDays = 0) { return W.localInputNow(addDays * 864e5).slice(0, 10); },
+  // a calendar date the API stores as a datetime: noon UAE on that date (08:00 UTC), the same day in UTC and UAE
+  utcIsoFromLocalDate(s) { const m = String(s || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/); if (!m) throw new Error("Enter a valid date.");
+    return W.utcIsoFromLocalInput(`${m[1]}-${m[2]}-${m[3]}T12:00`); },
+  ago(s) { if (!s) return "–"; const d = W.inst(s); const h = (d - Date.now()) / 36e5;
     const a = Math.abs(h); const txt = a < 1 ? Math.round(a * 60) + " min" : a < 48 ? Math.round(a) + " h" : Math.round(a / 24) + " days";
     return h < 0 ? txt + " ago" : "in " + txt; },
   // status always = shape + text + colour (never colour alone)
   sla(st, frac) { const L = { red: ["▲", "Overdue"], amber: ["●", "Due soon"], green: ["✓", "On track"], none: ["–", "No deadline"] }[st] || ["", st];
     return `<span class="chip sla-${st}" title="${frac != null ? Math.round(frac * 100) + "% of the time allowed has passed" : ""}"><span class="shape" aria-hidden="true">${L[0]}</span>${L[1]}</span>`; },
   // plain time left on a deadline: "Overdue by 3 days", "5 h left", "2 days left" (colour + words, never colour alone)
-  left(s) { if (!s) return { text: "No deadline", cls: "none" }; const d = new Date(/Z|[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z"), ms = d - Date.now(), a = Math.abs(ms) / 36e5;
+  left(s) { if (!s) return { text: "No deadline", cls: "none" }; const d = W.inst(s), ms = d - Date.now(), a = Math.abs(ms) / 36e5;
     const span = a < 1 ? Math.max(1, Math.round(a * 60)) + " min" : a < 48 ? Math.round(a) + " h" : Math.round(a / 24) + " days";
     return ms < 0 ? { text: "Overdue by " + span, cls: "red" } : { text: span + " left", cls: a < 24 ? "amber" : "green" }; },
   leftHtml(s, st) { const L = W.left(s); const cls = st === "red" || L.cls === "red" ? "red" : st === "amber" ? "amber" : L.cls;

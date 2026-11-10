@@ -58,7 +58,7 @@ async function load() {
   wireLang(el); window.renderProfile(d);
   const tbEl = document.getElementById("tb") || document.createElement("div"), L = d.answers_lock || {}, sub = L.submitted;
   const when = iso => { if (!iso) return "–"; const t = new Date(/Z|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + "Z");
-    try { return t.toLocaleString({ en: "en-GB", ar: "ar-AE", hi: "hi-IN", ur: "ur-PK" }[lang] || undefined, { dateStyle: "medium", timeStyle: "short" }); } catch (e) { return W.dt(iso); } };
+    try { return t.toLocaleString({ en: "en-GB", ar: "ar-AE", hi: "hi-IN", ur: "ur-PK" }[lang] || undefined, { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Dubai" }); } catch (e) { return W.dt(iso); } };  // UAE clock, as local_display()
   const opts = (q, mark, ro) => q.options.map(o => { const on = mark && mark[q.id] === o.key;
     return `<label class="${ro && on ? "chosen" : ""}"><input type="radio" name="${q.id}" value="${o.key}"${on ? " checked" : ""}${ro ? " disabled" : " required"}> ${W.esc(o.text)}</label>`; }).join("");
   const confRow = (v, ro) => `<div class="q"><b>${W.esc(tb.confidence)}</b><div>${[1, 2, 3, 4, 5].map(n => `<label class="inline${ro && v === n ? " chosen" : ""}"><input type="radio" name="conf" value="${n}"${v === n ? " checked" : ""}${ro ? " disabled" : " required"}> ${n}</label>`).join("")}</div></div>`;

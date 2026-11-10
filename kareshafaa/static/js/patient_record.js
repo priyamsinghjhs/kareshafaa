@@ -6,7 +6,7 @@ const DRAFT = {};                // values typed into a form survive a failed sa
 const pr = () => document.getElementById("pr-root");
 const NR = '<span class="muted">Not recorded</span>';
 const v = x => (x === null || x === undefined || x === "") ? NR : W.esc(x);
-const dday = s => s ? new Date(s.length <= 10 ? s + "T12:00:00" : (/Z|[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z")).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : NR;
+const dday = s => s ? W.date(s) : NR;  // UAE calendar date (common.js); a bare YYYY-MM-DD is kept as that date
 const EXTRA_SECTIONS = [];      // later sections register here: {id, render(R) -> html, wire?(R)}
 let SHOWN_CODE = null;          // a new activation code is shown once, until the page is left
 

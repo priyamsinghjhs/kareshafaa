@@ -4,7 +4,7 @@ const P = new URLSearchParams(location.search);
 let D = null, timer = null;
 const CH = { sms: "SMS", whatsapp: "WhatsApp", app: "App" };
 const ST = { due: ["Due", "sla-amber"], invited: ["Invited", "sla-green"], completed: ["Screened", "sla-green"], cancelled: ["Cancelled", "sla-none"], superseded: ["Replaced", "sla-none"] };
-const day = s => s ? new Date(s + "T12:00:00").toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : "–";
+const day = s => s ? W.date(s) : "–";  // UAE calendar date (common.js), never shifted by the browser zone
 const WAIT = "Please wait 24 hours before sending the invite again.";
 const waitPopup = (next, msg = WAIT) => W.alert(msg, next ? `You can send the next invitation from ${W.esc(W.dt(next))}.` : "");
 const reach = r => r.phone || r.has_smartphone;
