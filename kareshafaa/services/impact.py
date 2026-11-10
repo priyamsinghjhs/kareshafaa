@@ -276,7 +276,25 @@ def impact_report(db: Session, programme: str | None = None, now=None) -> dict[s
         equity[col] = {"label": lab, "rows": rows, "gap": best_worst_gap(rows)}
     barriers = barrier_analysis(db, set(int(x) for x in c.id))
     return base | {"headline": headline, "by_tier": by_tier, "by_programme": by_prog, "equity": equity,
-                   "barriers": barriers}
+                   "barriers": barriers, "synthetic_arms": synthetic_arms(db)}
+
+
+def synthetic_arms(db: Session) -> dict | None:
+    """The latest baseline-vs-loop simulation, shown beside (never mixed into) the live figures."""
+    from ..models import SimulationRun
+    from ..synth.simulator import ARMS_STATEMENT, arm_comparison
+
+    run = db.scalar(select(SimulationRun).order_by(SimulationRun.id.desc()).limit(1))
+    if run is None or not isinstance(run.results, dict):
+        return None
+    r = run.results
+    arms = r.get("arms")
+    if arms is None and r.get("baseline_detail") and r.get("with_system_detail"):  # runs saved before arms existed
+        arms = arm_comparison(r["baseline_detail"], r["with_system_detail"], int(r.get("n_patients") or 0))
+    if not arms:
+        return None
+    return {"run_id": run.id, "created_at": run.created_at.isoformat(timespec="seconds"),
+            "n_patients": r.get("n_patients"), "label": r.get("label"), **arms, "statement": ARMS_STATEMENT}
 
 
 def impact_csv(rep: dict) -> str:
@@ -305,6 +323,15 @@ def impact_csv(rep: dict) -> str:
         if e.get("gap"):
             for k, v in e["gap"].items():
                 w.writerow(["equity_gap", col, "best_to_worst", k, v])
+    sa = rep.get("synthetic_arms") or {}
+    if sa:
+        w.writerow(["# synthetic arms", sa["statement"]])
+        for m in sa.get("measures", []):
+            for arm in ("baseline", "loop"):
+                for k in ("num", "rate", "ci_low", "ci_high"):
+                    w.writerow(["synthetic_arms", arm, m["label"], k, m[arm][k]])
+            w.writerow(["synthetic_arms", "difference", m["label"], "difference_pp", m["difference_pp"]])
+            w.writerow(["synthetic_arms", "difference", m["label"], "difference_ci_pp", "; ".join(map(str, m["difference_ci_pp"]))])
     b = rep.get("barriers") or {}
     for r in b.get("patient_reported", []):
         w.writerow(["barrier", "patient_reported", r["label"], "events", r["events"]])

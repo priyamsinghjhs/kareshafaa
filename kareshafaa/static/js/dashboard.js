@@ -16,6 +16,18 @@ const TIERWORD = { critical: "T0", urgent: "T1", high: "T2", routine: "T3" };
 function impactCard(l, v, hint) { return `<div class="card kpi"><div class="l">${l}</div><div class="v">${v ?? "–"}</div>${hint ? `<div class="l">${hint}</div>` : ""}</div>`; }
 const supp = v => v === "suppressed" ? '<span class="muted" title="fewer than 5 – hidden to protect privacy">&lt;5</span>' : v;
 const ci = (lo, hi) => lo == null ? "" : ` · 95% CI ${W.pct(lo)}–${W.pct(hi)}`;
+// baseline vs loop arms from the latest simulation (synthetic only, kept apart from the live figures)
+function armsCard(a) {
+  const pct = x => W.pct(x.rate) + ` <span class="small muted">${W.pct(x.ci_low)}–${W.pct(x.ci_high)}</span>`;
+  const g = a.equity_gap_care_reached_by_language || {};
+  const gap = x => x ? `${x.gap_pp} pts` : "–";
+  return `<section class="card synthetic-arms" id="impact-arms" aria-labelledby="arms-h"><h4 id="arms-h"><span class="chip">Synthetic</span> Baseline vs loop</h4>
+    <p class="small muted">${W.esc(a.statement)}</p>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><thead><tr><th>Measure</th><th>Baseline</th><th>Loop</th><th>Difference</th></tr></thead><tbody>
+    ${a.measures.map(m => `<tr data-measure="${W.esc(m.measure)}"><td>${W.esc(m.label)}</td><td>${pct(m.baseline)}</td><td>${pct(m.loop)}</td><td>${m.difference_pp > 0 ? "+" : ""}${m.difference_pp} pts <span class="small muted">${m.difference_ci_pp.join(" to ")}</span></td></tr>`).join("")}
+    <tr><td>Best–worst gap by language</td><td>${gap(g.baseline)}</td><td>${gap(g.loop)}</td><td></td></tr></tbody></table></div>
+    <p class="small muted">${a.n_patients} modelled patients per arm · run ${W.dt(a.created_at)}</p></section>`;
+}
 const tabs = {
   async impact(el) {
     const prog = new URLSearchParams(location.search).get("programme") || "";
@@ -42,6 +54,7 @@ const tabs = {
       ${e.rows.map(g => `<tr ${g.flag ? 'class="row-flag"' : ""}><td>${W.esc(g.group)}</td><td>${supp(g.n)}</td><td>${W.pct(supp(g.loop_closure_rate))}</td><td class="small nowrap">${g.ci_low == null ? "–" : W.pct(g.ci_low) + "–" + W.pct(g.ci_high)}</td><td>${g.gap_pp == null ? "–" : (g.gap_pp > 0 ? `${g.gap_pp} pts below` : `${Math.abs(g.gap_pp)} pts above`)}${g.flag ? ' <span class="chip sla-red">▲ check</span>' : ""}</td></tr>`).join("")}</tbody></table></div>${e.gap ? `<p class="equity-gap small" data-gap="${e.gap.gap_pp}"><b>${e.gap.gap_pp} pts</b> best–worst (${W.esc(e.gap.best_group)} vs ${W.esc(e.gap.worst_group)})</p>` : ""}</div>`).join("")}</div>
      <p class="small muted">A group is marked “check” when its loop-closure rate is ${st.equity_gap_pp} or more percentage points below the overall rate.</p>
      ${r.barriers ? barrierCard(r.barriers, supp) : ""}
+     ${r.synthetic_arms ? armsCard(r.synthetic_arms) : ""}
      <details class="card"><summary>How each figure is defined</summary><dl class="facts">${Object.entries(d).map(([k, v]) => `<div><dt>${W.esc(k.replaceAll("_", " "))}</dt><dd>${W.esc(v)}</dd></div>`).join("")}</dl></details>`;
     wireProg();
   },

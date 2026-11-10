@@ -107,6 +107,10 @@ closure.
   band carry numerator, denominator and a **Wilson 95% interval**; a suppressed cell shows no rate and no interval;
   unfinished cases count as not closed / not within target; each slice shows the **best-to-worst gap**; the median
   days to specialist is labelled as conditional on being seen (`kareshafaa/services/impact.py`).
+  The report also shows the latest **synthetic baseline-vs-loop arms** (same generated cohort; per-arm rate with
+  Wilson interval, difference in points with an interval, best-to-worst language gap per arm), kept apart from the
+  live figures and labelled: differences come only from the generator's assumptions, not observed care
+  (`kareshafaa/synth/simulator.py` `arm_comparison`; also in the CSV).
 * Governed ML (scikit-learn) used only to order outreach within a tier — never for triage, tier or closure. The
   model actor is refused by the workflow for every case or patient action (move, close, file a result, contact),
   checked by the property test. **AI kill switch:** `KARESHAFAA_ML_ENABLED=false` at deployment, or **Admin → System →

@@ -205,6 +205,48 @@ def summarise(rows: list[dict]) -> dict:
     return out
 
 
+ARMS_STATEMENT = ("Synthetic arms: both arms use the same generated cohort. Every difference between them comes "
+                  "from the generator's assumed parameters (listed under assumptions), not from observed care. It shows "
+                  "the measurement works end to end; it is not evidence that the loop improves outcomes.")
+ARM_MEASURES = (("pct_care_reached_or_resolved", "Care reached or resolved"),
+                ("pct_documented_closure", "Closed with evidence"), ("pct_notified", "Patient notified"))
+MIN_GROUP = 5
+
+
+def arm_comparison(base: dict, loop: dict, n: int) -> dict:
+    """Baseline vs loop arm for the first replication: count, rate and Wilson 95% interval per arm, the risk
+    difference (percentage points; Newcombe hybrid-score interval, arms treated as independent although they share the
+    cohort), and the best-to-worst gap by language in each arm (groups smaller than MIN_GROUP left out)."""
+    from ..services.analytics import wilson
+
+    rows = []
+    for key, label in ARM_MEASURES:
+        b, w = base.get(key), loop.get(key)
+        if b is None or w is None or not n:
+            continue
+        kb, kw = round(b * n / 100), round(w * n / 100)
+        lb, hb = wilson(kb, n)
+        lw, hw = wilson(kw, n)
+        pb, pw = kb / n, kw / n
+        d = pw - pb
+        lo = d - ((pw - lw) ** 2 + (hb - pb) ** 2) ** 0.5
+        hi = d + ((hw - pw) ** 2 + (pb - lb) ** 2) ** 0.5
+        rows.append({"measure": key, "label": label, "den": n,
+                     "baseline": {"num": kb, "rate": round(pb, 3), "ci_low": round(lb, 3), "ci_high": round(hb, 3)},
+                     "loop": {"num": kw, "rate": round(pw, 3), "ci_low": round(lw, 3), "ci_high": round(hw, 3)},
+                     "difference_pp": round(100 * d, 1), "difference_ci_pp": [round(100 * lo, 1), round(100 * hi, 1)]})
+
+    def gap(detail: dict) -> dict | None:
+        g = {k: v["pct_care_reached"] for k, v in (detail.get("by_language") or {}).items()
+             if v["n"] >= MIN_GROUP and v["pct_care_reached"] is not None}
+        if len(g) < 2:
+            return None
+        best, worst = max(g, key=g.get), min(g, key=g.get)
+        return {"best_group": best, "worst_group": worst, "gap_pp": round(g[best] - g[worst], 1)}
+    return {"statement": ARMS_STATEMENT, "measures": rows,
+            "equity_gap_care_reached_by_language": {"baseline": gap(base), "loop": gap(loop)}}
+
+
 def run_simulation(n: int = 2000, seed: int = 20261120, replications: int = 5, min_age: int = 25) -> dict:
     """Common random numbers: both scenarios see the same cohort, the same results and random stream."""
     cohort = make_cohort(n, seed, min_age=min_age)
@@ -232,6 +274,7 @@ def run_simulation(n: int = 2000, seed: int = 20261120, replications: int = 5, m
         "label": "SIMULATED - modelled cohort and assumed parameters; not real-world evidence",
         "n_patients": n, "replications": replications, "horizon_days": HORIZON_DAYS, "seed": seed,
         "kpis": kpis,
+        "arms": arm_comparison(reps["baseline"][0], reps["with_system"][0], n),
         "baseline_detail": reps["baseline"][0], "with_system_detail": reps["with_system"][0],
         "assumptions": {"baseline": BASELINE, "with_system": WITH_SYSTEM,
                         "notes": "Priority outreach uses the latent synthetic risk as a stand-in for the model ranking "
