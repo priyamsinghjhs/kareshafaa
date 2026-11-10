@@ -24,6 +24,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..clinical_rules import TIER_TARGET_DAYS
+from ..policy import POLICY_STATUS_NOTE, POLICY_VERSION
 from ..models import Appointment, Case, utcnow
 from .analytics import _frames, _thr, prop, suppress_count, suppress_rate
 from .patients import LANGUAGES
@@ -225,7 +226,8 @@ def impact_report(db: Session, programme: str | None = None, now=None) -> dict[s
     base = {"generated_at": now.isoformat(timespec="seconds"), "programme": programme,
             "programmes": PROGRAMME_LABEL, "definitions": DEFINITIONS,
             "settings": {"loop_maturity_days": LOOP_MATURITY_DAYS, "lost_grace_days": LOST_GRACE_DAYS,
-                         "lost_stale_days": LOST_STALE_DAYS, "equity_gap_pp": EQUITY_GAP_PP, "suppression_threshold": _thr()},
+                         "lost_stale_days": LOST_STALE_DAYS, "equity_gap_pp": EQUITY_GAP_PP, "suppression_threshold": _thr(),
+                         "clinical_policy_version": POLICY_VERSION, "clinical_policy_status": POLICY_STATUS_NOTE},
             "data": {"cases": suppress_count(total), "synthetic_cases": suppress_count(syn), "all_synthetic": bool(total) and syn == total,
                      "label": (f"Synthetic sample records: all {total} cases are generated test data, not real patients" if total and syn == total
                                else f"{syn} of {total} cases are synthetic sample records; the rest were entered in this system")}}

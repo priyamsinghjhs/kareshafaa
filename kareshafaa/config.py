@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # per-user write limit (abuse protection), password logins only. "public_demo": the legacy read-mostly showcase
     # (internal; kareshafaa/public_demo.py). "standard": local development and tests.
     mode: str = "standard"  # standard | production | public_demo
+    # clinical profile: 'synthetic' (default; prototype rules on synthetic or pilot-shadow data) or 'live' (real
+    # clinical use). 'live' is refused at startup while kareshafaa/policy.py is a placeholder (not tied to mode).
+    clinical_profile: str = "synthetic"
     write_limit_per_minute: int = 300  # production: API writes per signed-in user (or client IP) per minute, per worker
     # None = auto: Postgres is persistent; SQLite is treated as persistent except on hosts with an ephemeral disk
     # (Render sets RENDER=true and its free plan has no persistent disk).
@@ -167,6 +170,8 @@ def get_settings() -> Settings:
     s.model_dir.mkdir(parents=True, exist_ok=True)
     if s.env == "prod" and s.demo_logins:
         raise RuntimeError("KARESHAFAA_DEMO_LOGINS must be false in prod")
+    from .policy import check_profile
+    check_profile(s.clinical_profile)
     s.secret_key = _resolve_secret(s)
     return s
 

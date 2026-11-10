@@ -50,6 +50,7 @@ async function loadSystem() {
     const rows = [["Version", s.version], ["Database", s.database + (s.database_host ? " · " + s.database_host : "")],
       ["Active accounts", s.users_active], ["Patients", s.patients], ["Cases", s.cases],
       ["Sign-in sessions end after", s.session_idle_minutes + " minutes without activity"]];
+    if (s.clinical_policy) rows.push(["Clinical policy", `${s.clinical_policy.version} · ${s.clinical_policy.note} · profile ${s.clinical_profile}`]);
     if (s.write_limit_per_minute) rows.push(["Change limit (abuse protection)", s.write_limit_per_minute + " changes per minute per user"]);
     document.getElementById("sys").innerHTML = `<article class="card"><dl class="facts">${rows.map(([k, v]) => `<div><dt>${W.esc(k)}</dt><dd>${W.esc(String(v))}</dd></div>`).join("")}</dl>
       <div class="row row-gap-top"><a role="button" class="secondary" href="/admin/users">Manage users</a><a role="button" class="ghost" href="/healthz">Health check (JSON)</a></div></article>` + monitoring(s.monitoring) + aiSwitch(s.ai);

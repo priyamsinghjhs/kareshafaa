@@ -1,6 +1,10 @@
 # KareShafaa clinical decision rules (prototype)
 
 > **Status: DRAFT for clinical-lead review. Not approved for clinical use.**
+> **Policy version `2026.11-p1` — placeholder, verify** (`kareshafaa/policy.py`; covers these rules, the step clocks in
+> `kareshafaa/sla.py`, the escalation ladder in `kareshafaa/alert_policy.py` and state machine 1.2.0). No approver is
+> recorded; `KARESHAFAA_CLINICAL_PROFILE=live` is refused at startup until a named approver and approval reference
+> are added by a reviewed change. Each result decision records the policy version in its `result.received` audit event.
 > These rules are implemented in `kareshafaa/clinical_rules.py` (pure, deterministic, no ML) and tested by
 > `tests/test_clinical_golden.py` (130 hand-written golden cases), `tests/test_properties.py` (Hypothesis) and
 > `tests/test_failsafe.py`. Each rule has an ID that appears on the case (`Case.rule_id`), in the audit trail

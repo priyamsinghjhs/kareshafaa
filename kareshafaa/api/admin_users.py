@@ -315,7 +315,13 @@ def system_status(actor: Actor = Depends(require("user:admin")), db: Session = D
             "patients": db.scalar(select(func.count(Patient.id))), "cases": db.scalar(select(func.count(Case.id))),
             "write_limit_per_minute": s.write_limit_per_minute if s.mode == "production" else None,
             "session_idle_minutes": s.session_idle_minutes, "audit_fallback": _fallback_status(db),
-            "monitoring": _monitoring(db, s), "ai": _ai_status(db)}
+            "monitoring": _monitoring(db, s), "ai": _ai_status(db), "clinical_profile": s.clinical_profile,
+            "clinical_policy": _policy()}
+
+
+def _policy() -> dict:
+    from ..policy import summary
+    return summary()
 
 
 def _ai_status(db: Session) -> dict:

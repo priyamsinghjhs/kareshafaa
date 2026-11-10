@@ -15,6 +15,7 @@ from .programmes import WORKING_DAY_TIERS
 
 # Hours allowed in each state before the step is overdue, per tier (T0 critical, T1 urgent, T2 soon, T3 routine).
 # ILLUSTRATIVE prototype defaults aligned with the KareShafaa design doc - configuration, not clinical guidance.
+# Placeholder, verify: clinical policy version kareshafaa/policy.py POLICY_VERSION (not approved).
 # T2/T3 clocks count UAE working days (see calendar_uae); T0/T1 clocks run 24/7.
 DEFAULT_SLA_HOURS: dict[str, tuple[float, float, float, float]] = {
     "issued": (1, 4, 24, 48),

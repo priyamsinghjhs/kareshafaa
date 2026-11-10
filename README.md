@@ -303,6 +303,8 @@ guide: [`DEPLOY.md`](DEPLOY.md). Environment variables (set in the Render dashbo
 | `KARESHAFAA_SECRET_KEY` | Session/token signing key (secret, required in production). |
 | `KARESHAFAA_DEMO_PASSWORD` | First password for staff accounts that have none yet (secret; never overwrites a changed password). |
 | `KARESHAFAA_MODE` | `production` on Render. |
+| `KARESHAFAA_CLINICAL_PROFILE` | `synthetic` (default). `live` is **refused at startup** while the clinical policy (`kareshafaa/policy.py`, version `2026.11-p1`, status *placeholder, verify*) has no named approver and approval reference. Separate from `KARESHAFAA_MODE`. |
+| `KARESHAFAA_ML_ENABLED` | `false` switches the advisory outreach-priority model off at deployment (AI kill switch). |
 | `WEB_WORKERS`, `KARESHAFAA_SWEEP_INTERVAL_SECONDS` | Worker count and SLA-sweep interval. |
 | `KARESHAFAA_WORKER_LOCK_DATABASE_URL` | Optional, PostgreSQL only: direct (unpooled) URL for the timed-jobs lock session when `DATABASE_URL` goes through PgBouncer or another pooler (secret). Neon `-pooler` hosts are mapped automatically. |
 

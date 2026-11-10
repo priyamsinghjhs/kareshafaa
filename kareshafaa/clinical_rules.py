@@ -521,7 +521,7 @@ PATHWAY_TARGET_DAYS = {
     "prediabetes_gp": 90,       # CONFIRM
 }
 RULE_TARGET_DAYS = {"CRC-FIT-URGENT": 14, "DM-A1C-HIGH": 14, "DM-FPG-HIGH": 14}  # CONFIRM (local rules)
-TIER_TARGET_DAYS = {"critical": 1, "urgent": 14, "high": 31, "routine": 90}     # CONFIRM (fallback)
+TIER_TARGET_DAYS = {"critical": 1, "urgent": 14, "high": 31, "routine": 90}     # CONFIRM (fallback); placeholder, verify (policy.POLICY_VERSION)
 
 
 def target_days(pathway: str | None, rule_id: str | None, tier: str, clinical_tier: str | None) -> int:

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from .. import audit
 from ..config import get_settings
+from ..policy import POLICY_VERSION
 from ..models import (
     Appointment,
     AuditEvent,
@@ -279,7 +280,7 @@ def ingest_result(db: Session, patient: Patient, programme: str, *, value: float
     db.flush()
     audit.record(db, actor, "C", "result.received", entity_type="DiagnosticReport", entity_id=rep.id, ts=now,
                  detail={"programme": programme, "disposition": dec.disposition, "tier": dec.tier,
-                         "rule": dec.rule_id, "reasons": dec.reasons})
+                         "rule": dec.rule_id, "reasons": dec.reasons, "policy_version": POLICY_VERSION})
     from . import recall as _recall  # the person's open recall for this programme is now completed (new episode)
     _recall.on_new_result(db, patient, rep, now)
     group = identity_group(db, patient)

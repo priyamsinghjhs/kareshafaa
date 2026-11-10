@@ -740,7 +740,9 @@ def create_app() -> FastAPI:
         finally:
             db.close()
         from .request_timeout import TIMEOUTS
-        return {"status": "ok", "version": __version__, "mode": s.mode,
+        from .policy import POLICY_STATUS_NOTE, POLICY_VERSION
+        return {"status": "ok", "version": __version__, "mode": s.mode, "clinical_profile": s.clinical_profile,
+                "clinical_policy": {"version": POLICY_VERSION, "status": POLICY_STATUS_NOTE},
                 "storage": "persistent" if storage_is_persistent(s) else "temporary",
                 "request_timeouts": TIMEOUTS["count"],
                 "slow_committing_requests": TIMEOUTS["slow_committing"]}
