@@ -86,6 +86,9 @@ def _attempt_no(db: Session, case: Case, category: str) -> int:
 def send_with_ladder(db: Session, case: Case, category: str, actor: Actor = SYSTEM, *, now: datetime | None = None,
                      date: str | None = None, max_channels: int | None = None) -> dict:
     """Try channels in order (app link -> SMS -> WhatsApp -> phone-call task), honouring consent."""
+    if actor.role == "ml_service":
+        from ..services.errors import Forbidden
+        raise Forbidden("the outreach-priority model is advisory only and may not contact a patient")
     now = now or utcnow()
     p = case.patient
     if p.deceased:

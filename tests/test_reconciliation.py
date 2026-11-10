@@ -130,15 +130,16 @@ def test_admin_system_shows_monitoring_counts(client, as_user, db, make_patient)
     assert client.post("/api/admin/system/result-reconciliation/run", headers=as_user("fatima.al.mansoori")).status_code == 403
 
 
-def test_job_health_records_success_and_failure(db):
+def test_job_health_records_success_and_failure(db, monkeypatch):
     import pytest
     from kareshafaa.models import BackgroundJobStatus
     from kareshafaa.services import job_health
-    job_health.track("ml_scoring", lambda: {"n": 3})
+    monkeypatch.setitem(job_health.JOBS, "test_job", "Test job")
+    job_health.track("test_job", lambda: {"n": 3})
     with pytest.raises(ZeroDivisionError):
-        job_health.track("ml_scoring", lambda: 1 / 0)
+        job_health.track("test_job", lambda: 1 / 0)
     db.expire_all()
-    row = db.get(BackgroundJobStatus, "ml_scoring")
+    row = db.get(BackgroundJobStatus, "test_job")
     assert row.failures >= 1 and row.last_error == "ZeroDivisionError" and row.last_summary == {"n": 3}
-    st = next(j for j in job_health.status(db) if j["name"] == "ml_scoring")
+    st = next(j for j in job_health.status(db) if j["name"] == "test_job")
     assert st["ok"] is False

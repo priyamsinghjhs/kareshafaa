@@ -15,8 +15,7 @@ from ..models import BackgroundJobStatus, utcnow
 
 log = logging.getLogger("kareshafaa.jobs")
 JOBS = {"sla_sweep": "Deadline check (SLA sweep)", "retention_purge": "Retention purge",
-        "audit_reconcile": "Audit fallback reconciliation", "result_reconcile": "Result-to-case reconciliation",
-        "ml_scoring": "Outreach-priority scoring"}
+        "audit_reconcile": "Audit fallback reconciliation", "result_reconcile": "Result-to-case reconciliation"}
 
 
 def _summary(out: Any) -> dict | None:

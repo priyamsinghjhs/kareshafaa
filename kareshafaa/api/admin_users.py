@@ -6,6 +6,7 @@ stays readable so the screen can be shown."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -314,7 +315,15 @@ def system_status(actor: Actor = Depends(require("user:admin")), db: Session = D
             "patients": db.scalar(select(func.count(Patient.id))), "cases": db.scalar(select(func.count(Case.id))),
             "write_limit_per_minute": s.write_limit_per_minute if s.mode == "production" else None,
             "session_idle_minutes": s.session_idle_minutes, "audit_fallback": _fallback_status(db),
-            "monitoring": _monitoring(db, s)}
+            "monitoring": _monitoring(db, s), "ai": _ai_status(db)}
+
+
+def _ai_status(db: Session) -> dict:
+    from ..ml import switch
+    try:
+        return switch.status(db)
+    except Exception as e:  # noqa: BLE001 - the System page must still load
+        return {"enabled": None, "error": type(e).__name__}
 
 
 def _monitoring(db: Session, s) -> dict:
@@ -356,6 +365,22 @@ def run_result_reconciliation(actor: Actor = Depends(require("user:admin")), db:
     job_health._write("result_reconcile", last_started_at=utcnow(), last_finished_at=utcnow(), last_ok_at=utcnow(),
                       last_summary=job_health._summary(out), runs=1)
     return {"ok": True, **out, "status": reconcile.status(db)}
+
+
+class MlSwitchIn(BaseModel):
+    enabled: bool
+    reason: str = Field(min_length=10, max_length=300)
+
+
+@system_router.post("/ml-switch")
+def ml_switch(body: MlSwitchIn, actor: Actor = Depends(require("ml:switch")), db: Session = Depends(get_db)) -> dict:
+    """Admin > System: AI kill switch for the advisory outreach-priority model (reason required, audited). Off clears
+    every open case's score; the work queue then uses deadline order. Clinical decisions are never affected."""
+    from ..ml import switch
+
+    out = switch.set_enabled(db, actor, body.enabled, body.reason)
+    db.commit()
+    return {"ok": True, **out}
 
 
 @system_router.post("/audit-fallback/reconcile")

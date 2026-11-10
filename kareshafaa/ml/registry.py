@@ -383,6 +383,10 @@ def rollback(db: Session, actor: Actor, reason: str, now: datetime | None = None
 
 def score_open_cases(db: Session, now: datetime | None = None) -> int:
     """Score open cases with the production model. Writes only Case.risk_score (queue ordering)."""
+    from .switch import clear_scores, enabled
+    if not enabled(db):  # AI kill switch: no scores at all, the queue uses deadline order
+        clear_scores(db)
+        return 0
     mv = production(db)
     df = case_frame(db, open_only=True)
     if df.empty:

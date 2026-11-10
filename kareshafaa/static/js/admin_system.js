@@ -28,6 +28,19 @@ function monitoring(m) {
     <div class="row"><button type="button" class="secondary" id="run-result-check">Check results now</button></div></section>`;
 }
 
+// AI kill switch (advisory outreach-priority model only)
+function aiSwitch(a) {
+  if (!a) return "";
+  const on = a.enabled === true;
+  const state = a.enabled == null ? '<span class="chip">Unknown</span>'
+    : on ? '<span class="chip sla-green">✓ On</span>' : '<span class="chip sla-amber">■ Off</span>';
+  const locked = !a.deployment_enabled ? '<p class="small muted">Off in the server settings.</p>' : "";
+  return `<section class="card ai-switch" aria-labelledby="ai-h" data-ai-enabled="${on}"><h2 id="ai-h" class="card-title"><span class="ai-switch-icon" aria-hidden="true"></span>AI suggestions ${state}</h2>
+    <p class="small muted">Queue order only. Off: deadline order.</p>${locked}
+    ${a.deployment_enabled ? `<div class="row"><label class="grow">Reason<input id="ai-reason" maxlength="300" minlength="10" autocomplete="off"></label>
+    <button type="button" class="${on ? "danger" : "secondary"}" id="ai-toggle" data-on="${on ? "0" : "1"}">${on ? "Switch off" : "Switch on"}</button></div>` : ""}</section>`;
+}
+
 async function loadSystem() {
   try {
     const s = await W.api("/api/admin/system");
@@ -39,7 +52,16 @@ async function loadSystem() {
       ["Sign-in sessions end after", s.session_idle_minutes + " minutes without activity"]];
     if (s.write_limit_per_minute) rows.push(["Change limit (abuse protection)", s.write_limit_per_minute + " changes per minute per user"]);
     document.getElementById("sys").innerHTML = `<article class="card"><dl class="facts">${rows.map(([k, v]) => `<div><dt>${W.esc(k)}</dt><dd>${W.esc(String(v))}</dd></div>`).join("")}</dl>
-      <div class="row row-gap-top"><a role="button" class="secondary" href="/admin/users">Manage users</a><a role="button" class="ghost" href="/healthz">Health check (JSON)</a></div></article>` + monitoring(s.monitoring);
+      <div class="row row-gap-top"><a role="button" class="secondary" href="/admin/users">Manage users</a><a role="button" class="ghost" href="/healthz">Health check (JSON)</a></div></article>` + monitoring(s.monitoring) + aiSwitch(s.ai);
+    const at = document.getElementById("ai-toggle");
+    if (at) at.addEventListener("click", async () => {
+      const reason = (document.getElementById("ai-reason").value || "").trim();
+      if (reason.length < 10) { W.toast("Give a reason (at least 10 characters)", "err"); return; }
+      W.busy(at, true);
+      try { const r = await W.api("/api/admin/system/ml-switch", { method: "POST", body: { enabled: at.dataset.on === "1", reason } });
+        W.toast(r.enabled ? "AI suggestions on" : "AI suggestions off", "ok"); await loadSystem(); }
+      catch (e) { W.busy(at, false); W.toast(e.message, "err"); }
+    });
     const rc = document.getElementById("run-result-check");
     if (rc) rc.addEventListener("click", async () => {
       W.busy(rc, true);

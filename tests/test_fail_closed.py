@@ -365,3 +365,23 @@ def test_reconciliation_open_case_is_all_or_nothing(mode, raw, as_user, make_pat
     assert fired
     r = raw.post(f"/api/ingest/reconciliation/{it.id}/resolve", headers=as_user(CO), json={"action": "open_case"})
     assert r.status_code == 200, r.text
+
+
+@pytest.mark.parametrize("mode", ["mid", "commit"])
+def test_ai_switch_off_is_all_or_nothing(mode, raw, as_user, db, inject):
+    """Switching the AI suggestions off: the config row, the cleared scores and the audit event go together."""
+    from kareshafaa.ml import switch
+    from kareshafaa.models import Case
+    scored = db.query(Case).filter(Case.state != "closed", Case.risk_score.is_not(None)).count()
+    h = as_user("admin")
+    st = inject(mode)
+    r = raw.post("/api/admin/system/ml-switch", headers=h, json={"enabled": False, "reason": "fault injection check"})
+    fired = st["fired"]
+    inject(None)
+    try:
+        assert fired and r.status_code >= 500
+        db.expire_all()
+        assert switch.runtime_enabled(db) is True
+        assert db.query(Case).filter(Case.state != "closed", Case.risk_score.is_not(None)).count() == scored
+    finally:
+        raw.post("/api/admin/system/ml-switch", headers=as_user("admin"), json={"enabled": True, "reason": "restore after the check"})

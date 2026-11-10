@@ -104,7 +104,12 @@ closure.
 **Impact and responsible AI**
 * Outcomes dashboard and **loop impact report**, including **“Why loops fail”** (patient-reported vs service-side
   barriers, small cells suppressed, CSV export).
-* Governed ML (scikit-learn) used only to order outreach within a tier — never for triage, tier or closure.
+* Governed ML (scikit-learn) used only to order outreach within a tier — never for triage, tier or closure. The
+  model actor is refused by the workflow for every case or patient action (move, close, file a result, contact),
+  checked by the property test. **AI kill switch:** `KARESHAFAA_ML_ENABLED=false` at deployment, or **Admin → System →
+  AI suggestions → Switch off** at runtime (`POST /api/admin/system/ml-switch`, permission `ml:switch`, admin only,
+  reason required, audited `ml.switched_off` / `ml.switched_on`). Off clears every open case's score at once and the
+  work queue falls back to deadline order; clinical work is not affected.
   Registry with AUC, calibration and fairness gates; promotion needs clinical-lead approval; drift and rollback.
 * Transparency pages: **why this priority** (per case), **rule and model cards**, **override register**,
   **data protection** and **data retention** (Governance).

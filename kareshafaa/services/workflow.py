@@ -240,6 +240,7 @@ def ingest_result(db: Session, patient: Patient, programme: str, *, value: float
     Fail-safe: nothing is dropped. Negative -> report only. Actionable -> one case. Anything uncertain (bad data,
     patient context, amended/preliminary status, conflict with an open case, result after closure) -> a case in
     the human-review queue at a tier no lower than the most urgent plausible interpretation."""
+    refuse_ai(actor, "file a result")
     now = _now(now)
     prog = PROGRAMMES.get(programme)
     ctx = patient_context(patient, programme, now)
@@ -520,8 +521,15 @@ def _guard(db: Session, case: Case, dst: S) -> None:
              "declined_pending_review requires a recorded decline (Consent)")
 
 
+def refuse_ai(actor: Actor, what: str) -> None:
+    """The outreach-priority model is advisory only: it may never act on a case or a patient."""
+    if actor.role == "ml_service":
+        raise Forbidden(f"the outreach-priority model is advisory only and may not {what}")
+
+
 def transition(db: Session, case: Case, dst: S | str, actor: Actor, *, owner_id: int | None = None,
                note: str | None = None, now: datetime | None = None) -> Case:
+    refuse_ai(actor, "move a case")
     _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     dst = S(dst)
@@ -600,6 +608,7 @@ def close_case(db: Session, case: Case, actor: Actor, closure_type: str, *, evid
                evidence_id: int | None = None, reason: str | None = None, note: str | None = None,
                now: datetime | None = None) -> Case:
     """Close ONLY with linked evidence or an authorised human decision with reason (enforced here)."""
+    refuse_ai(actor, "close a case")
     _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
     now = _now(now)
     if actor.is_human and actor.role not in ("patient",) and not actor.can("case:write"):

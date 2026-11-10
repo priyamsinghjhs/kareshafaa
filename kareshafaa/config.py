@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     # 'none' (default): log-loss-fitted models are used as-is; 'auto': Platt recalibration chosen on a temporal tuning
     # slice of the training data. At demo/pilot volumes (<5k labelled cases) 'auto' over-corrected on the hold-out.
     ml_recalibration: str = "none"
+    # AI kill switch (deployment level). False: the outreach-priority model never scores; the work queue falls back
+    # to deadline order. Admins can also switch it off at runtime on Admin > System (kareshafaa/ml/switch.py).
+    ml_enabled: bool = True
     # Re-opened case (CLOSED -> active): False (default, the safer choice) keeps the ORIGINAL pathway target, so a
     # case re-opened after its target is flagged breached at once and escalates (more alerts, not fewer). True gives
     # the re-opened episode a fresh target for its tier. CLINICAL LEAD TO CONFIRM (round 19/20 open question).
