@@ -316,7 +316,15 @@ def system_status(actor: Actor = Depends(require("user:admin")), db: Session = D
             "write_limit_per_minute": s.write_limit_per_minute if s.mode == "production" else None,
             "session_idle_minutes": s.session_idle_minutes, "audit_fallback": _fallback_status(db),
             "monitoring": _monitoring(db, s), "ai": _ai_status(db), "clinical_profile": s.clinical_profile,
-            "clinical_policy": _policy()}
+            "clinical_policy": _policy(), "mail": _mail_status()}
+
+
+def _mail_status() -> dict:
+    from ..comms import mail
+    try:
+        return mail.status()  # from address, host, on/off: never the password
+    except Exception as e:  # noqa: BLE001 - the System page must still load
+        return {"configured": None, "error": type(e).__name__}
 
 
 def _policy() -> dict:
@@ -403,3 +411,36 @@ def reconcile_audit_fallback(actor: Actor = Depends(require("user:admin")), db: 
 
     out = audit_fallback.reconcile(db, actor)
     return {"ok": True, **out, "status": audit_fallback.status(db)}
+
+
+class MailTestIn(BaseModel):
+    to: str = Field(min_length=3, max_length=200)
+
+
+@system_router.post("/mail/test")
+def mail_test(body: MailTestIn, actor: Actor = Depends(require("user:admin")), db: Session = Depends(get_db)):
+    """Admin > System: send one plain test e-mail from the app mailbox (no patient data). 503 when e-mail is not
+    configured (no OAuth refresh token or password set); 502 when the mail server refuses or cannot be reached."""
+    from fastapi.responses import JSONResponse
+
+    from ..comms import mail
+
+    to = mail.validate_address(body.to)  # Invalid -> 422
+    if not mail.configured():
+        return JSONResponse({"detail": ("E-mail is not configured: set KARESHAFAA_MAIL_OAUTH_CLIENT_ID and "
+                                       "KARESHAFAA_MAIL_OAUTH_REFRESH_TOKEN (Outlook.com), or KARESHAFAA_SMTP_PASSWORD, "
+                                       "on the server."),
+                             "mail": mail.status()}, status_code=503)
+    domain = to.rsplit("@", 1)[-1]
+    try:
+        mail.send_email(to, "KareShafaa: test email",
+                        "This is a test message from KareShafaa.\n\nThe app mailer is working: e-mail sent from "
+                        f"{mail.from_address()} reached you.\n\nSent by an administrator from Admin > System. "
+                        "It contains no patient data.")
+    except mail.MailError as e:
+        audit.record(db, actor, "E", "mail.test", outcome="failure", detail={"to_domain": domain, "error": str(e)[:200]})
+        db.commit()
+        return JSONResponse({"detail": f"Test e-mail not sent: {e}"}, status_code=502)
+    audit.record(db, actor, "E", "mail.test", detail={"to_domain": domain})
+    db.commit()
+    return {"ok": True, "sent": True, "from": mail.from_address(), "to": to}

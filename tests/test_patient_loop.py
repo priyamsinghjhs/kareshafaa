@@ -46,7 +46,7 @@ def test_profile_has_loop_messages_consent_and_options(client, booked):
     lp = next(x for x in d["loop"] if x.get("case_id") == booked["case"]) if any("case_id" in x for x in d["loop"]) else d["loop"][0]
     assert lp["programme_name"]
     assert set(d["options"]["barriers"]) >= {"work", "transport", "childcare"}
-    assert set(d["consent"]) == {"comm_app", "comm_sms", "comm_whatsapp", "comm_phone", "care_coordination"}
+    assert set(d["consent"]) == {"comm_app", "comm_sms", "comm_whatsapp", "comm_phone", "comm_email", "care_coordination"}
     for m in d["messages"]:
         assert m["simulated"] is not None
         if m["channel"] == "phone":

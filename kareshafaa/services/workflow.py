@@ -1185,7 +1185,7 @@ def record_consent(db: Session, patient: Patient, actor: Actor, scope: str, deci
         require_signoff(actor, "consent.record", note)
     if decision not in ("permit", "deny"):
         raise Invalid("decision must be permit or deny")
-    allowed = {"care_coordination", "share_external", "comm_app", "comm_sms", "comm_whatsapp", "comm_phone",
+    allowed = {"care_coordination", "share_external", "comm_app", "comm_sms", "comm_whatsapp", "comm_phone", "comm_email",
                "analytics", "alt_contact", "proxy_contact"}
     if scope not in allowed:
         raise Invalid(f"scope must be one of {sorted(allowed)}")

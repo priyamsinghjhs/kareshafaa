@@ -245,7 +245,7 @@
         <button type="button" class="secondary outline sm" data-consent="${sc}" data-to="${on ? "deny" : "permit"}">${W.esc(on ? T.stop : T.allow)}</button></li>`; };
     const cc = C.care_coordination || {}, ccOn = cc.decision !== "deny";
     return `<div class="card" id="p-consent"><h4 class="p-sec-h">${W.ic("shield")}${W.esc(T.consent_title)}</h4><p class="small muted">${W.esc(T.consent_intro)}</p>
-      <ul class="consent-list">${["comm_app", "comm_sms", "comm_whatsapp", "comm_phone"].map(row).join("")}</ul>
+      <ul class="consent-list">${["comm_app", "comm_sms", "comm_whatsapp", "comm_phone", "comm_email"].map(row).join("")}</ul>
       <h4>${W.esc(T.care_title)}</h4><p class="small" data-care="${ccOn ? "permit" : "deny"}">${W.esc(ccOn ? T.care_on : T.care_off)}</p>
       <p class="small muted">${W.esc(T.duty)}</p>
       <div class="tb-actions"><button type="button" class="${ccOn ? "secondary outline" : ""} sm" data-consent="care_coordination" data-to="${ccOn ? "deny" : "permit"}">${W.esc(ccOn ? T.withdraw : T.give)}</button></div></div>`;

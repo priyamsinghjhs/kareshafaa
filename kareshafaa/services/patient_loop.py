@@ -41,7 +41,7 @@ ARRANGING = (S.ACKNOWLEDGED, S.CONFIRMATORY_TEST, S.CONSULTATION, S.REFERRAL_SEN
 # barrier codes a patient can choose when asking to change an appointment (subset of workflow.NO_SHOW_BARRIERS;
 # "forgot" makes no sense before the appointment, "unknown" is shown as "another reason")
 PATIENT_BARRIERS = ("work", "transport", "childcare", "cost", "fear_anxiety", "language", "ramadan_hours", "unknown")
-CONTACT_SCOPES = ("comm_app", "comm_sms", "comm_whatsapp", "comm_phone")
+CONTACT_SCOPES = ("comm_app", "comm_sms", "comm_whatsapp", "comm_phone", "comm_email")
 PATIENT_SCOPES = CONTACT_SCOPES + ("care_coordination",)
 HIDDEN_CATEGORIES = ("escalation",)
 

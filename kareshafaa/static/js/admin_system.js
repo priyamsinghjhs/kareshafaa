@@ -48,6 +48,18 @@ function aiSwitch(a) {
     <button type="button" class="${on ? "danger" : "secondary"}" id="ai-toggle" data-on="${on ? "0" : "1"}">${on ? "Switch off" : "Switch on"}</button></div>` : ""}</section>`;
 }
 
+// outbound e-mail from the app mailbox (OAuth refresh token or password on the server; never shown)
+function mailCard(m) {
+  if (!m) return "";
+  const on = m.configured === true;
+  const state = m.configured == null ? '<span class="chip">Unknown</span>' : on ? '<span class="chip sla-green">✓ Configured</span>' : '<span class="chip sla-amber">■ Not configured</span>';
+  return `<section class="card mail-status" aria-labelledby="mail-h" data-mail-configured="${on}"><h2 id="mail-h" class="card-title">${W.ic("chat")}Email ${state}</h2>
+    <p class="small">From <b>${W.esc(m.from || "–")}</b>${m.transport === "graph" ? " · Microsoft Graph (HTTPS, OAuth)" : m.transport === "smtp" ? ` · SMTP ${W.esc(m.host)}:${W.esc(String(m.port))} (STARTTLS, ${m.auth === "oauth2" ? "OAuth" : "password"})` : ""}. Staff alert copies: ${m.alerts_to_set ? "on" : "off (KARESHAFAA_ALERT_TO not set)"}.</p>
+    <p class="small muted">${on ? "Patients with a real email address get their messages by email. Sample (SYN-) records are never emailed." : "Off until the mailbox sign-in is set on the server (KARESHAFAA_MAIL_OAUTH_REFRESH_TOKEN or KARESHAFAA_SMTP_PASSWORD). Patient messages are recorded only."}</p>
+    ${on ? `<div class="row"><label class="grow">Send a test email to<input id="mail-to" type="email" maxlength="200" autocomplete="email"></label>
+    <button type="button" class="secondary" id="mail-test">Send test email</button></div>` : ""}</section>`;
+}
+
 async function loadSystem() {
   try {
     const s = await W.api("/api/admin/system");
@@ -60,7 +72,16 @@ async function loadSystem() {
     if (s.clinical_policy) rows.push(["Clinical policy", `${s.clinical_policy.version} · ${s.clinical_policy.note} · profile ${s.clinical_profile}`]);
     if (s.write_limit_per_minute) rows.push(["Change limit (abuse protection)", s.write_limit_per_minute + " changes per minute per user"]);
     document.getElementById("sys").innerHTML = `<article class="card"><dl class="facts">${rows.map(([k, v]) => `<div><dt>${W.esc(k)}</dt><dd>${W.esc(String(v))}</dd></div>`).join("")}</dl>
-      <div class="row row-gap-top"><a role="button" class="secondary" href="/admin/users">Manage users</a><a role="button" class="ghost" href="/healthz">Health check (JSON)</a></div></article>` + monitoring(s.monitoring) + aiSwitch(s.ai);
+      <div class="row row-gap-top"><a role="button" class="secondary" href="/admin/users">Manage users</a><a role="button" class="ghost" href="/healthz">Health check (JSON)</a></div></article>` + monitoring(s.monitoring) + mailCard(s.mail) + aiSwitch(s.ai);
+    const mt = document.getElementById("mail-test");
+    if (mt) mt.addEventListener("click", async () => {
+      const to = (document.getElementById("mail-to").value || "").trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) { W.toast("Enter a valid email address", "err"); return; }
+      W.busy(mt, true);
+      try { await W.api("/api/admin/system/mail/test", { method: "POST", body: { to } }); W.toast(`Test email sent to ${to}`, "ok"); }
+      catch (e) { W.toast(e.message, "err"); }
+      finally { W.busy(mt, false); }
+    });
     const at = document.getElementById("ai-toggle");
     if (at) at.addEventListener("click", async () => {
       const reason = (document.getElementById("ai-reason").value || "").trim();

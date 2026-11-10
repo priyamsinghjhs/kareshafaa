@@ -83,7 +83,7 @@ def _contact(p: Patient) -> str:
     return " → ".join(ch) if ch else "No valid phone or app – letter or home visit"
 
 
-_CHANNEL_NAMES = {"app": "the patient app", "sms": "SMS", "whatsapp": "WhatsApp", "phone": "phone calls"}
+_CHANNEL_NAMES = {"app": "the patient app", "sms": "SMS", "whatsapp": "WhatsApp", "phone": "phone calls", "email": "email"}
 
 
 def _contact_details(db: Session, p: Patient, actor: Actor) -> dict[str, Any]:
@@ -96,7 +96,7 @@ def _contact_details(db: Session, p: Patient, actor: Actor) -> dict[str, Any]:
 
     emirate = p.emirate or ("Abu Dhabi" if p.region in ABU_DHABI_REGIONS else None)
     addr = ", ".join(x for x in (p.address_line, p.city, emirate if emirate != p.city else None) if x) or None
-    refused = [_CHANNEL_NAMES[k[5:]] for k in ("comm_app", "comm_sms", "comm_whatsapp", "comm_phone")
+    refused = [_CHANNEL_NAMES[k[5:]] for k in ("comm_app", "comm_sms", "comm_whatsapp", "comm_phone", "comm_email")
                if consent_status(db, p.id, k) == "deny"]
     return {"patient_id": p.id, "phone": p.phone, "phone_valid": bool(p.phone_valid), "email": p.email, "address": addr,
             "whatsapp": bool(p.whatsapp and p.phone),

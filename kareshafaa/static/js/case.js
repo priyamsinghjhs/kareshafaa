@@ -309,6 +309,8 @@ async function postRaw(path, body, okMsg, key, formEl = null) {
   catch (e) { W.formError(formEl, e.message); W.toast(e.message, "err"); return false; }
 }
 const post = (p, b, m) => postRaw(p, b, m);
+// toast for an action that messages the patient: say "sent by email" only when the server really e-mailed it
+const sentMsg = (what, notSent) => r => (r && r.result && r.result.email_sent) ? `${what} – sent to the patient by email` : notSent;
 window.respond = async (id, b) => { const ta = document.getElementById("resp-" + id), v = ta.value.trim(), box = ta.parentElement;
   if (v.length < 2) { W.formError(box, "Write your answer first (at least 2 characters)."); ta.focus(); return; }
   W.busy(b, true); const ok = await postRaw(`/api/consults/${id}/respond`, { response: v }, "Answer sent", null, box); if (!ok) W.busy(b, false); };
@@ -391,8 +393,8 @@ async function openForm(key, evidenceType) {
       return f0; }
     case "consultation": return tr("consultation", "Consultation recorded");
     case "unreachable": return tr("unreachable", "Marked unreachable");
-    case "notify": return post(`${u}/notify`, { category: "result_notification" }, "Notification recorded – sending to patients' phones is not connected yet");
-    case "reminder": return post(`${u}/notify`, { category: "reminder" }, "Reminder recorded – sending to patients' phones is not connected yet");
+    case "notify": return post(`${u}/notify`, { category: "result_notification" }, sentMsg("Notification", "Notification recorded – sending to patients' phones is not connected yet"));
+    case "reminder": return post(`${u}/notify`, { category: "reminder" }, sentMsg("Reminder", "Reminder recorded – sending to patients' phones is not connected yet"));
     case "call": return form(F.sel("outcome", "Call outcome", kv({ reached: "Reached – result explained", no_answer: "No answer", wrong_number: "Wrong number" })) + F.note(),
       fd => post(`${u}/call`, { outcome: fd.outcome, note: fd.note || null }, "Call recorded"));
     case "teachback": {
@@ -425,7 +427,7 @@ async function openForm(key, evidenceType) {
       return form(`<label>Appointment date and time (UAE)<input type="datetime-local" name="start" value="${v}" required></label>` +
         (passed ? `<p class="small notice-inline">The pathway target (${W.esc(tgt)}) has already passed, so any booking now is after it: give the reason below (at least 10 characters).</p>` : "") +
         `<label>Reason if after the pathway target${tgt ? " (" + W.esc(tgt) + ")" : ""}<input name="beyond" placeholder="e.g. earliest available slot; patient's choice"></label>`,
-        fd => post(`${u}/appointment`, { start: localInputIso(fd.start), beyond_target_reason: fd.beyond || null }, "Appointment booked – confirmation recorded (sending to phones is not connected yet)")); }
+        fd => post(`${u}/appointment`, { start: localInputIso(fd.start), beyond_target_reason: fd.beyond || null }, sentMsg("Appointment booked – confirmation", "Appointment booked – confirmation recorded (sending to phones is not connected yet)"))); }
     case "attendance": return form(F.sel("attended", "Outcome", kv({ true: "Attended", false: "No-show" })) + F.sel("barrier", "No-show barrier", `<option value="">–</option>` + META.barriers.map(b => `<option>${b}</option>`).join("")),
       fd => post(`${u}/attendance`, { attended: fd.attended === "true", barrier_code: fd.attended === "true" ? null : (fd.barrier || "unknown") }, "Attendance recorded"));
     case "reschedule": { const v = W.localInputNow(7 * 864e5).slice(0, 13) + ":00", tgt = C.target_due_at ? W.dmy(C.target_due_at) : "";
@@ -435,14 +437,14 @@ async function openForm(key, evidenceType) {
         F.sel("barrier", "What got in the way (if the patient asked)", `<option value="">–</option>` + META.barriers.map(b => `<option>${b}</option>`).join("")) +
         F.note("Note (needed for clinical reason or booking error)") +
         `<label>Reason if after the pathway target${tgt ? " (" + W.esc(tgt) + ")" : ""}<input name="beyond" placeholder="e.g. earliest available slot"></label>`,
-        fd => post(`${u}/appointment/reschedule`, { start: localInputIso(fd.start), reason_code: fd.reason_code, barrier_code: fd.barrier || null, note: fd.note || null, beyond_target_reason: fd.beyond || null }, "Appointment moved – patient message recorded (sending to phones is not connected yet)")); }
+        fd => post(`${u}/appointment/reschedule`, { start: localInputIso(fd.start), reason_code: fd.reason_code, barrier_code: fd.barrier || null, note: fd.note || null, beyond_target_reason: fd.beyond || null }, sentMsg("Appointment moved – message", "Appointment moved – patient message recorded (sending to phones is not connected yet)"))); }
     case "cancel_appointment": {
       const reasons = Object.entries(META.appointment_change_reasons || {}).map(([k,l]) => `<option value="${k}">${W.esc(l)}</option>`).join("");
       return form(F.sel("reason_code", "Why cancel", reasons) +
         F.sel("barrier", "What got in the way (if the patient asked)", `<option value="">–</option>` + META.barriers.map(b => `<option>${b}</option>`).join("")) +
         F.note("Note (needed for clinical reason or booking error)"),
         fd => post(`${u}/appointment/cancel`, { reason_code: fd.reason_code, barrier_code: fd.barrier || null, note: fd.note || null }, "Appointment cancelled – case back to clinic accepted for rebooking")); }
-    case "appointment_reminder": return post(`${u}/appointment/remind`, {}, "Appointment reminder recorded (sending to phones is not connected yet)");
+    case "appointment_reminder": return post(`${u}/appointment/remind`, {}, sentMsg("Appointment reminder", "Appointment reminder recorded (sending to phones is not connected yet)"));
     case "start_care": { const sd = (C.recall && C.recall.surveillance_default_due) || "";
       const f0 = form(F.sel("kind", "Plan type", kv({ treatment: "Treatment", surveillance: "Surveillance" })) + `<label>Plan description<textarea name="description" rows="2" required></textarea></label>` +
         `<label data-review hidden>Review / re-test due<input type="date" name="review_due_on" value="${sd}" min="${W.localDateToday(1)}"><span class="hint small muted">Default from the programme rule (${W.esc(sd)}); the person is recalled on this date after the case closes.</span></label>`,
@@ -470,7 +472,7 @@ async function openForm(key, evidenceType) {
       fd => post(`${u}/consults`, { target_practitioner_id: +fd.target, urgency: fd.urgency, question: fd.question }, "Consultation requested"));
     case "lesson": return form(F.sel("kind", "Type", kv({ overdue: "Overdue / delay", drop_off: "Drop-off", incident: "Incident / near miss" })) + F.sel("reason_code", "Reason", META.delay_reasons.map(r => `<option>${r}</option>`).join("")) + `<label>Detail<input name="detail"></label>`,
       fd => post(`${u}/lessons`, { kind: fd.kind, reason_code: fd.reason_code, detail: fd.detail || null }, "Lesson recorded"));
-    case "consent": return form(F.sel("scope", "Scope", ["share_external", "comm_app", "comm_sms", "comm_whatsapp", "comm_phone", "alt_contact", "analytics"].map(s => `<option>${s}</option>`).join("")) + F.sel("decision", "Decision", kv({ permit: "Permit", deny: "Deny" })) + F.note("How did the patient give this decision? (≥10 characters, recorded with your name)", true),
+    case "consent": return form(F.sel("scope", "Scope", ["share_external", "comm_app", "comm_sms", "comm_whatsapp", "comm_phone", "comm_email", "alt_contact", "analytics"].map(s => `<option>${s}</option>`).join("")) + F.sel("decision", "Decision", kv({ permit: "Permit", deny: "Deny" })) + F.note("How did the patient give this decision? (≥10 characters, recorded with your name)", true),
       fd => post(`${u}/consent`, { scope: fd.scope, decision: fd.decision, note: fd.note || null }, "Consent recorded"));
     case "review": return form(`<p class="small">Review the result and patient context. Keep or raise the urgency unless you are certain; lowering it is audited as a downgrade.</p>` + F.sel("tier", "Urgency after review", `<option value="">Keep ${W.esc(C.tier)}</option>` + kv({ critical: "Critical", urgent: "Urgent", high: "High", routine: "Routine" })) + F.note("Clinical review note (≥10 characters)", true),
       fd => post(`${u}/review`, { note: fd.note, tier: fd.tier || null }, "Review recorded"));

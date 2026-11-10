@@ -33,6 +33,12 @@ services:
         sync: false
       - key: DATABASE_URL               # secret: PostgreSQL connection string (e.g. Neon free tier), never committed
         sync: false
+      - key: KARESHAFAA_MAIL_OAUTH_CLIENT_ID      # app mailbox sign-in (Outlook.com OAuth2): Entra app client id
+        sync: false
+      - key: KARESHAFAA_MAIL_OAUTH_REFRESH_TOKEN  # secret: from scripts/outlook_oauth_setup.py; unset = email off
+        sync: false
+      - key: KARESHAFAA_ALERT_TO        # optional: inbox for staff escalation alert emails
+        sync: false
       - key: WEB_WORKERS                # 512 MB instance: one worker (~220 MB RSS)
         value: "1"
       - key: KARESHAFAA_SWEEP_INTERVAL_SECONDS

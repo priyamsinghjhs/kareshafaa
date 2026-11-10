@@ -1,8 +1,10 @@
 """Patient communication: templating, channel fallback ladder, teach-back.
 
-ALL SENDING IS SIMULATED. There is no network code in this module and no gateway credentials
-exist anywhere in the prototype; messages are rendered and stored as FHIR Communication rows
-marked simulated=True.
+App, SMS and WhatsApp sending is SIMULATED (no gateway is connected): those messages are rendered and stored as FHIR
+Communication rows marked simulated=True. E-mail is REAL when the app mailbox is configured (comms/mail.py,
+KARESHAFAA_SMTP_PASSWORD): it is tried first for a patient with a real e-mail address who has not refused e-mail, and
+stored with simulated=False. Without the password nothing changes. Synthetic SYN- / example.com records are never
+e-mailed (see mail.can_send_to_patient).
 """
 from __future__ import annotations
 
@@ -108,7 +110,12 @@ def send_with_ladder(db: Session, case: Case, category: str, actor: Actor = SYST
         body = render_message(category, lang, case, variant=variant, date=date)[0]
     attempts: list[dict] = []
     delivered = None
-    order = channel_order(db, p.language)
+    email = _try_email(db, case, p, category, lang, variant, body, now)
+    if email:
+        attempts.append(email)
+        if email["status"] == "completed":
+            delivered = "email"
+    order = [] if delivered else channel_order(db, p.language)
     if max_channels:
         order = order[:max_channels]
     for ch in order:
@@ -155,7 +162,7 @@ def send_with_ladder(db: Session, case: Case, category: str, actor: Actor = SYST
     db.flush()
     audit.record(db, actor, "C", f"communication.{category}", entity_type="Communication", case_id=case.id, ts=now,
                  detail={"attempts": attempts, "delivered": delivered, "language": lang, "variant": variant,
-                         "simulated": True, "requested_language": requested_lang,
+                         "simulated": delivered != "email", "requested_language": requested_lang,
                          "interpreter_call_task_id": interpreter_task.id if interpreter_task else None})
     if category == "result_notification" and delivered and S(case.state) in (S.TRIAGED, S.UNREACHABLE) \
             and (actor.is_human or not case.review_required):
@@ -164,10 +171,57 @@ def send_with_ladder(db: Session, case: Case, category: str, actor: Actor = SYST
         # a clinician-sent notification on a case under review records the step as that clinician (the system
         # may not progress a flagged case; this used to fail the whole send with 403)
         transition(db, case, S.PATIENT_NOTIFIED, actor if actor.is_human else SYSTEM, now=now,
-                   note=f"delivery confirmed via {delivered} (simulated)")
+                   note=f"delivery confirmed via {delivered}" + ("" if delivered == "email" else " (simulated)"))
     return {"delivered_channel": delivered, "attempts": attempts, "language": lang, "variant": variant,
+            "email_sent": delivered == "email", "simulated": delivered != "email",
             "requested_language": requested_lang,
             "interpreter_call_task_id": interpreter_task.id if interpreter_task else None}
+
+
+def _email_subject(category: str, lang: str) -> str:
+    from .self_service_text import SELF_TEXT  # noqa: PLC0415
+
+    kinds = SELF_TEXT.get(lang, SELF_TEXT["en"]).get("msg_kind", {})
+    return f"KareShafaa: {kinds.get(category) or kinds.get('other') or 'Message'}"
+
+
+def _email_body(body: str, case: Case) -> str:
+    """The template's patient-app link is a placeholder domain; in an e-mail it points at this server's patient app
+    (KARESHAFAA_PUBLIC_BASE_URL) when that is set."""
+    from ..config import get_settings  # noqa: PLC0415
+
+    base = (get_settings().public_base_url or "").rstrip("/")
+    if base:
+        body = body.replace(f"https://kareshafaa.example/p/{_link_token(case)}", f"{base}/patient")
+    return body
+
+
+def _try_email(db: Session, case: Case, p: Patient, category: str, lang: str, variant: str, body: str,
+               now: datetime) -> dict | None:
+    """Real e-mail first, when it can be sent (mail configured, real address, not a SYN- sample, e-mail not refused).
+    None = e-mail not applicable (the simulated ladder runs exactly as before). A failure is stored (no credentials
+    in it) and the ladder continues."""
+    from . import mail  # noqa: PLC0415
+
+    if not mail.can_send_to_patient(p):
+        return None
+    attempt = _attempt_no(db, case, category)
+    if not has_consent(db, p.id, "comm_email"):
+        return {"channel": "email", "status": "not-done (no consent)"}
+    try:
+        mail.send_email(p.email, _email_subject(category, lang), _email_body(body, case))
+        ok, content, err = True, body, None
+    except mail.MailError as e:
+        ok, content, err = False, f"(e-mail not sent: {e})", str(e)
+    com = Communication(case_id=case.id, patient_id=p.id, category=category, channel="email", language=lang,
+                        template_key=category, template_variant=variant, content=content,
+                        status="completed" if ok else "failed", simulated=False, attempt_no=attempt, sent_at=now)
+    db.add(com)
+    db.flush()
+    out = {"channel": "email", "status": com.status, "communication_id": com.id, "simulated": False}
+    if err:
+        out["error"] = err
+    return out
 
 
 def _ensure_call_task(db: Session, case: Case, actor: Actor, now: datetime, *, reason: str = "digital_channels_failed") -> CallTask:

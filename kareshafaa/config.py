@@ -67,6 +67,27 @@ class Settings(BaseSettings):
     slm_model: str = "inclusionai/ling-3.0-flash-sante:free"
     slm_timeout_s: float = 12.0
     slm_rate_per_minute: int = 20  # suggestion requests per signed-in user per minute, per worker (free quota)
+    # --- outbound e-mail (kareshafaa/comms/mail.py, added 10 Nov 2026) ------------------------------------------
+    # Real e-mail from the app's own mailbox (stdlib only; no paid provider). OFF until a sign-in secret is set on the
+    # host: without it every patient message stays simulated, exactly as before.
+    mail_from: str = "kareshafaa_com@outlook.com"
+    # OAuth2 sign-in (needed for a personal Outlook.com mailbox, which refuses passwords): client id of a free Entra
+    # app registration + a refresh token from scripts/outlook_oauth_setup.py (the mailbox owner signs in once).
+    mail_oauth_client_id: str | None = None
+    mail_oauth_refresh_token: str | None = None  # secret (KARESHAFAA_MAIL_OAUTH_REFRESH_TOKEN); never commit or log it
+    mail_oauth_tenant: str = "consumers"  # "consumers" for outlook.com/hotmail; a tenant id or "organizations" for M365
+    # transport: "auto" = Microsoft Graph sendMail over HTTPS (443) with OAuth, SMTP with a password. "graph" / "smtp"
+    # force one. Render's FREE plan blocks outbound SMTP ports 25/465/587, so SMTP works only on a paid instance or
+    # elsewhere; Graph works on the free plan.
+    mail_transport: str = "auto"
+    smtp_username: str | None = None  # None = mail_from
+    smtp_password: str | None = None  # secret (KARESHAFAA_SMTP_PASSWORD); never commit, log, audit or show it
+    smtp_host: str | None = None  # None = smtp-mail.outlook.com for outlook/hotmail/live/msn, else smtp.office365.com
+    smtp_port: int = 587  # STARTTLS submission port (port 25 is refused)
+    smtp_timeout_s: float = 20.0
+    alert_to: str | None = None  # inbox that receives staff/operational escalation alerts; None = no alert e-mails
+    mail_allow_synthetic: bool = False  # True: SYN- / example.com sample records may be e-mailed (testing only)
+    mail_alerts_per_sweep: int = 20  # escalation alert e-mails per SLA sweep; the rest go in one summary e-mail
     # Re-opened case (CLOSED -> active): False (default, the safer choice) keeps the ORIGINAL pathway target, so a
     # case re-opened after its target is flagged breached at once and escalates (more alerts, not fewer). True gives
     # the re-opened episode a fresh target for its tier. CLINICAL LEAD TO CONFIRM (round 19/20 open question).

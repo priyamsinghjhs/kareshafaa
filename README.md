@@ -164,6 +164,48 @@ closure.
   switch (deployment or Admin → System); a failing or slow model just shows no draft. Requests are audited
   (`assist.suggestion_requested`: case, form, model, whether a draft came back; never the prompt or the text) and
   limited to 20 per user per minute. Drafts are not clinical advice: check them against the record.
+* **Outbound email (Nov 2026, `kareshafaa/comms/mail.py`):** the app sends real email from its own mailbox,
+  **`kareshafaa_com@outlook.com`** (Python standard library; no paid email provider). It is **off until the mailbox
+  sign-in is set on the host** (Render → Environment); until then every patient message stays simulated exactly as
+  before. Two facts shape the setup: a personal Outlook.com mailbox **refuses password sign-in** (Microsoft, since
+  Sept 2024; OAuth2 only), and **Render's free plan blocks outbound SMTP ports 25/465/587**. So by default the app
+  signs in with **OAuth2** and sends through **Microsoft Graph `sendMail` over HTTPS (port 443)**, which works on the
+  free plan. One-time setup by the mailbox owner:
+  1. Register a free app in the Microsoft Entra admin centre (App registrations → New registration → *Personal
+     Microsoft accounts*; Authentication → *Allow public client flows* = Yes; API permissions → Microsoft Graph →
+     Delegated → `Mail.Send` and `offline_access`). Copy the Application (client) ID.
+  2. On your own computer: `python scripts/outlook_oauth_setup.py --client-id <id> [--test-to you@example.org]`, open
+     the Microsoft page it shows, enter the code and **sign in as `kareshafaa_com@outlook.com`**.
+  3. Put the two printed values on Render: `KARESHAFAA_MAIL_OAUTH_CLIENT_ID` and `KARESHAFAA_MAIL_OAUTH_REFRESH_TOKEN`
+     (secret). Redeploy, then use **Send test email** on Admin → System.
+
+  The app swaps the refresh token for short-lived access tokens itself (memory only). If Microsoft later reports the
+  sign-in expired or revoked, the test send / failed email rows say so: run the script again. SMTP remains available
+  (`KARESHAFAA_MAIL_TRANSPORT=smtp` with OAuth XOAUTH2, or `KARESHAFAA_SMTP_PASSWORD` for providers that still allow
+  password SMTP) on a host that allows SMTP. When it is on:
+  * **Patient messages** (result notification, reminders, appointment booked / moved / cancelled / reminder) are tried
+    **by email first** for a patient with a valid email address who has not refused email (new consent scope
+    `comm_email`, shown in the patient app and on the case consent form). A sent email is stored as a Communication
+    with channel `email` and `simulated=false`; if the mail server refuses, a failed email row is stored (no
+    credentials in it) and the simulated app → SMS → WhatsApp → phone-task ladder continues. The toast on the case
+    page says “sent to the patient by email” only when it really was. The template's patient-app link points at
+    `KARESHAFAA_PUBLIC_BASE_URL/patient` in an email when that variable is set.
+  * **Staff alert copies:** each new escalation (L1–L4) is also emailed to `KARESHAFAA_ALERT_TO`
+    (subject `KareShafaa: case #<id> escalation L<n>`; case number, level, step, clock, tier and the escalation note;
+    no patient name or contact details). At most 20 single alerts per deadline check, the rest in one summary email. A
+    mail failure is audited (`escalation.alert_email_failed`) and never stops the escalation or its worklist alert.
+    Unset `KARESHAFAA_ALERT_TO` = no alert emails.
+  * **Synthetic records are never emailed:** patients whose MRN starts `SYN-`, and any address at `example.com`,
+    `example.org` or `example.net`, are skipped (so the ~2000 sample patients on the live site cannot flood or bounce
+    from the mailbox). `KARESHAFAA_MAIL_ALLOW_SYNTHETIC=true` lets `SYN-` records with a real address be emailed for
+    testing; example domains are always skipped.
+  * **Test send:** Admin → System shows **Email: Configured / Not configured**, the From address and how it sends
+    (Graph or SMTP host; never a secret) and, when configured, a **Send test email** box (`POST /api/admin/system/mail/test`
+    `{"to": "..."}`, admin only; 503 when not configured, 502 with a short reason when the mail server refuses; audited
+    as `mail.test` with the recipient's domain only). `/healthz` reports `mail: {configured, from}`.
+  * Email is **not end-to-end encrypted** (TLS protects it only in transit to Microsoft). Secrets (refresh token,
+    access tokens, password) are never logged, audited, shown or put in an error message. Sign-in help (forgot username / password) still does **not**
+    use email.
 * Transparency pages: **why this priority** (per case), **rule and model cards**, **override register**,
   **data protection** and **data retention** (Governance).
 * Lessons-learned engine proposes rule changes that a human must approve.
@@ -362,6 +404,13 @@ guide: [`DEPLOY.md`](DEPLOY.md). Environment variables (set in the Render dashbo
 | `KARESHAFAA_ML_ENABLED` | `false` switches the advisory outreach-priority model **and the note drafts** off at deployment (AI kill switch). The runtime switch on Admin → System does the same. |
 | `KARESHAFAA_SLM_API_KEY` | API key for the note-draft model provider (secret; default provider OpenRouter, free model). Unset = note drafts off. |
 | `KARESHAFAA_SLM_BASE_URL`, `KARESHAFAA_SLM_MODEL` | Optional: OpenAI-compatible base URL (default `https://openrouter.ai/api/v1`) and model (default `inclusionai/ling-3.0-flash-sante:free`). `KARESHAFAA_SLM_TIMEOUT_S` (default 12) and `KARESHAFAA_SLM_RATE_PER_MINUTE` (default 20 per user) are also optional. |
+| `KARESHAFAA_MAIL_OAUTH_CLIENT_ID`, `KARESHAFAA_MAIL_OAUTH_REFRESH_TOKEN` | Mailbox sign-in for Outlook.com (OAuth2): Entra app client id and the refresh token printed by `scripts/outlook_oauth_setup.py` (the token is a secret; never commit it). `KARESHAFAA_MAIL_OAUTH_TENANT` default `consumers`. Used when both are set; unset (and no password) = outbound email off. |
+| `KARESHAFAA_MAIL_TRANSPORT` | `auto` (default): Microsoft Graph over HTTPS with OAuth (works on Render's free plan, which blocks SMTP ports), SMTP with a password. `smtp` forces SMTP (XOAUTH2 with OAuth). |
+| `KARESHAFAA_SMTP_PASSWORD` | Alternative sign-in: SMTP password for mailboxes that still allow password SMTP AUTH (secret; never commit it). Outlook.com refuses this. With neither set, outbound email is off and every message stays simulated. |
+| `KARESHAFAA_MAIL_FROM`, `KARESHAFAA_SMTP_USERNAME` | From address (default `kareshafaa_com@outlook.com`) and SMTP sign-in name (default = the From address). |
+| `KARESHAFAA_SMTP_HOST`, `KARESHAFAA_SMTP_PORT` | SMTP only. Default `smtp-mail.outlook.com` for outlook.com / hotmail.com / live.com / msn.com addresses, else `smtp.office365.com`; port `587` (STARTTLS; port 25 is refused). `KARESHAFAA_SMTP_TIMEOUT_S` default 20. |
+| `KARESHAFAA_ALERT_TO` | Optional inbox for staff escalation alert emails. Unset = no alert emails. `KARESHAFAA_MAIL_ALERTS_PER_SWEEP` (default 20) caps single alerts per deadline check. |
+| `KARESHAFAA_MAIL_ALLOW_SYNTHETIC` | Default `false`: `SYN-` sample patients are never emailed (example.com/.org/.net never are). |
 | `WEB_WORKERS`, `KARESHAFAA_SWEEP_INTERVAL_SECONDS` | Worker count and SLA-sweep interval. |
 | `KARESHAFAA_WORKER_LOCK_DATABASE_URL` | Optional, PostgreSQL only: direct (unpooled) URL for the timed-jobs lock session when `DATABASE_URL` goes through PgBouncer or another pooler (secret). Neon `-pooler` hosts are mapped automatically. |
 
@@ -390,8 +439,8 @@ Start-up (`kareshafaa.bootstrap`) takes its **own** advisory lock (key 727003, o
 ## Limits and intellectual property
 
 * **Limits:** synthetic records only; free hosting outside the UAE that sleeps when idle (timed escalations pause;
-  the audit fallback file is lost on restart); no paging route ("by phone" escalation is a task); message delivery
-  simulated; clinical policy `2026.11-p1` is *placeholder, verify* with no named approver (`live` profile refused);
+  the audit fallback file is lost on restart); no paging route ("by phone" escalation is a task); app / SMS /
+  WhatsApp delivery simulated (email is real only once the mailbox sign-in is set on the host, and never for sample records); clinical policy `2026.11-p1` is *placeholder, verify* with no named approver (`live` profile refused);
   no Clinical Safety Officer, no accepted residual risk (`docs/clinical_safety_case.md` §3.1); usability test not
   run; baseline-vs-loop figures are synthetic.
 * **Intellectual property:** written for KareShafaa by its authors; ownership and licence terms are for the

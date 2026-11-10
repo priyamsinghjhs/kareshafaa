@@ -732,6 +732,13 @@ def create_app() -> FastAPI:
     def favicon() -> FileResponse:
         return FileResponse(HERE / "static" / "favicon.ico", media_type="image/x-icon", headers={"Cache-Control": "public, max-age=86400"})
 
+    def _mail_health() -> dict:
+        from .comms import mail
+        try:
+            return {"configured": mail.configured(), "from": mail.from_address() or None}  # never the password
+        except Exception:  # noqa: BLE001 - liveness must not fail on mail settings
+            return {"configured": None}
+
     @app.get("/healthz")
     def healthz() -> dict:
         db = session_factory()()
@@ -745,7 +752,7 @@ def create_app() -> FastAPI:
                 "clinical_policy": {"version": POLICY_VERSION, "status": POLICY_STATUS_NOTE},
                 "storage": "persistent" if storage_is_persistent(s) else "temporary",
                 "request_timeouts": TIMEOUTS["count"],
-                "slow_committing_requests": TIMEOUTS["slow_committing"]}
+                "slow_committing_requests": TIMEOUTS["slow_committing"], "mail": _mail_health()}
 
     @app.get("/readyz")
     def readyz() -> JSONResponse:

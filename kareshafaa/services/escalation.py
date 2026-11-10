@@ -85,6 +85,7 @@ def run_sweep(db: Session, now: datetime | None = None, actor: Actor = SYSTEM, c
     # and held only while the changed cases are processed (a 20k-open-case sweep used to hold it for the whole scan,
     # so request audit writes timed out behind it).
     todo = []
+    alerts: list[dict] = []  # staff alert e-mails, sent after the case loop (comms/mail.py; off without alert_to)
     for case in cases:
         out["checked"] += 1
         step = steps.get(case.id)
@@ -141,6 +142,8 @@ def run_sweep(db: Session, now: datetime | None = None, actor: Actor = SYSTEM, c
             audit.record(db, actor, "C", f"escalation.level{lvl}", entity_type="Escalation", entity_id=esc.id,
                          case_id=case.id, ts=now, detail={"target": target.id, "state": step.state, "clock": d.clock,
                                                           "fraction": round(d.frac, 3), "channel": channel})
+            alerts.append({"case_id": case.id, "level": lvl, "state": step.state, "clock": d.clock, "note": esc.note,
+                           "escalation_id": esc.id, "target": target.name, "tier": case.tier, "synthetic": _is_synthetic_case(case)})
             out[{1: "reminders", 2: "supervisor", 3: "clinical_lead", 4: "director"}[lvl]] += 1
             out["target_breach_alerts"] += int(d.clock == "pathway")
             if lvl == 1 and S(case.state) in PATIENT_FACING and not case.patient.deceased \
@@ -160,6 +163,10 @@ def run_sweep(db: Session, now: datetime | None = None, actor: Actor = SYSTEM, c
         else:
             case.escalation_level = max(case.escalation_level or 0, d.level)
     db.flush()
+    if alerts:
+        mailed = email_alerts(db, alerts, now, actor)
+        if mailed:
+            out["alert_emails"] = mailed
     if in_patient_window(now):
         out["reminders_sent_after_deferral"] = _send_deferred_reminders(db, now, actor, case_ids)
         n_appt = _appointment_reminders(db, now, actor, case_ids)
@@ -167,6 +174,67 @@ def run_sweep(db: Session, now: datetime | None = None, actor: Actor = SYSTEM, c
             out["appointment_reminders"] = n_appt
     audit.record(db, actor, "E", "sla.sweep", ts=now, detail=out)
     return out
+
+
+def _is_synthetic_case(case: Case) -> bool:
+    from ..comms.mail import is_synthetic_patient  # noqa: PLC0415
+
+    return is_synthetic_patient(case.patient)
+
+
+def _alert_body(a: dict) -> str:
+    from ..config import get_settings  # noqa: PLC0415
+
+    base = (get_settings().public_base_url or "").rstrip("/")
+    lines = [f"Case #{a['case_id']} has a new escalation: {LEVEL_NAMES.get(a['level'], 'L' + str(a['level']))}.", "",
+             f"Escalation: {a['note']}", f"Current step: {a['state']}", f"Clock: {a['clock']}", f"Tier: {a['tier']}"]
+    if a.get("target"):
+        lines.append(f"Alert sent to: {a['target']}")
+    if base:
+        lines += ["", f"Open the case: {base}/cases/{a['case_id']}"]
+    lines += ["", "Acknowledge the escalation on the case page in KareShafaa (sign-in required).",
+              "This e-mail holds no patient name or contact details. E-mail is not end-to-end encrypted."]
+    return "\n".join(lines)
+
+
+def email_alerts(db: Session, alerts: list[dict], now: datetime, actor: Actor = SYSTEM) -> int:
+    """E-mail staff/operational copies of new escalations to KARESHAFAA_ALERT_TO (from the app mailbox). Never raises:
+    the worklist escalation is already recorded; a mail failure is audited (no credentials). Synthetic SYN- cases are
+    skipped unless KARESHAFAA_MAIL_ALLOW_SYNTHETIC. At most mail_alerts_per_sweep single alerts; the rest go in one
+    summary e-mail."""
+    from ..comms import mail  # noqa: PLC0415
+
+    try:
+        if not mail.alerts_enabled():
+            return 0
+        s = get_settings()
+        todo = [a for a in alerts if s.mail_allow_synthetic or not a["synthetic"]]
+        if not todo:
+            return 0
+        cap = max(0, int(s.mail_alerts_per_sweep))
+        single, rest = todo[:cap], todo[cap:]
+        sent = 0
+        jobs = [(f"KareShafaa: case #{a['case_id']} escalation L{a['level']}", _alert_body(a), a) for a in single]
+        if rest:
+            ids = ", ".join(f"#{a['case_id']} L{a['level']}" for a in rest[:200])
+            jobs.append((f"KareShafaa: {len(rest)} more escalations", f"{len(rest)} more escalations were raised in "
+                         f"this deadline check:\n{ids}\n\nOpen the work queue in KareShafaa to act on them.", None))
+        for subject, body, a in jobs:
+            try:
+                mail.send_email(s.alert_to, subject, body)
+                sent += 1
+            except mail.MailError as e:
+                audit.record(db, actor, "E", "escalation.alert_email_failed", entity_type="Escalation",
+                             entity_id=a["escalation_id"] if a else None, case_id=a["case_id"] if a else None, ts=now,
+                             detail={"error": str(e)[:200]})
+                if "sign-in" in str(e) or "connect" in str(e):
+                    break  # wrong password: do not retry for every alert in this sweep
+        return sent
+    except Exception as e:  # noqa: BLE001 - an e-mail problem must never fail the escalation sweep
+        import logging  # noqa: PLC0415
+
+        logging.getLogger("kareshafaa.mail").warning("escalation alert e-mail skipped: %s", type(e).__name__)
+        return 0
 
 
 def remind_appointment(db: Session, case: Case, actor: Actor, now: datetime | None = None) -> dict:
