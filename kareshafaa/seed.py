@@ -18,7 +18,7 @@ from .comms.service import record_call, send_with_ladder
 from .config import get_settings
 from .db import init_db, session_scope
 from .ml import registry
-from .models import Case, ConsultRequest, Patient, Practitioner, SimulationRun, User, utcnow
+from .models import Case, Consent, ConsultRequest, Patient, Practitioner, SimulationRun, User, utcnow
 from .security import SYSTEM, Actor
 from .services import workflow as wf
 from .services.configstore import DEFAULT_CHANNEL_ORDER, set_config
@@ -192,6 +192,11 @@ def _demo_patients(db, d, rng, now, users_by_pid) -> list[str]:
                           prior_no_shows=0, prior_screens=2, responsiveness=1.0, programme=prog, share_consent=True,
                           analytics_consent=True)
         p = add_patient(db, sp, d, rng, now)
+        if lang == "en":  # patient.en (Emma Clarke): the one SYN- patient who may receive real mail
+            from .synth.test_mailboxes import patient_mailbox  # noqa: PLC0415
+            p.email = patient_mailbox("patient.en")
+            db.add(Consent(patient_id=p.id, scope="comm_email", decision="permit", recorded_at=now,
+                           note="Test inbox for the English-language patient account"))
         t = now - timedelta(hours=20)
         _, case = wf.ingest_result(db, p, prog, value=value, value_text=text, performer_org_id=d["lab"].id, now=t,
                                    unit={"colorectal_fit": "ug/g", "diabetes_hba1c": "%"}.get(prog))

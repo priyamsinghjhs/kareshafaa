@@ -66,6 +66,7 @@ class User(Base):
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
     site: Mapped[str | None] = mapped_column(String(120), nullable=True)
     team: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(200), nullable=True)  # staff contact; optional
     locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     password_changed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

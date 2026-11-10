@@ -73,12 +73,19 @@ def mail_on(monkeypatch, smtp):
     return smtp
 
 
+def _reset_mailbox():
+    """Drop messages sent while setting up a case (queue-owner mail on ingest) so later assertions
+    only see the action under test."""
+    FakeSMTP.sent, FakeSMTP.calls = [], []
+
+
 def _case(db, new_case, email="priya.test@realmail.ae", **kw):
     cid = new_case(**kw)["id"]
     db.expire_all()
     c = db.get(Case, cid)
     c.patient.email = email
     db.commit()
+    _reset_mailbox()
     return c
 
 
@@ -193,6 +200,7 @@ def test_escalation_alert_email(db, new_case, mail_on, monkeypatch):
     monkeypatch.setattr(get_settings(), "alert_to", "duty.team@clinic.ae")
     cid = new_case("diabetes_hba1c", 7.5)["id"]
     db.expire_all()
+    _reset_mailbox()
     out = _sweep_to_breach(db, cid)
     assert out.get("alert_emails", 0) >= 1
     subjects = [m["Subject"] for m in mail_on.sent]
@@ -220,6 +228,7 @@ def test_escalation_survives_smtp_failure(db, new_case, mail_on, monkeypatch):
 def test_escalation_alert_skipped_for_synthetic_and_without_alert_to(db, new_case, mail_on, monkeypatch):
     cid = new_case("diabetes_hba1c", 7.5)["id"]
     db.expire_all()
+    _reset_mailbox()
     _sweep_to_breach(db, cid)  # alert_to unset
     assert mail_on.sent == []
     db.rollback()
@@ -227,6 +236,7 @@ def test_escalation_alert_skipped_for_synthetic_and_without_alert_to(db, new_cas
     cid = new_case("diabetes_hba1c", 7.5)["id"]
     db.expire_all()
     db.get(Case, cid).patient.mrn = f"SYN-ESC-{cid}"
+    _reset_mailbox()
     _sweep_to_breach(db, cid)
     assert mail_on.sent == []
     db.rollback()
@@ -342,3 +352,142 @@ def test_outlook_password_refusal_explains_oauth(monkeypatch, mail_on):
     with pytest.raises(mail.MailError) as ei:
         mail.send_email("priyam.check@realmail.ae", "x", "y")
     assert "KARESHAFAA_MAIL_OAUTH_REFRESH_TOKEN" in str(ei.value) and "basic authentication" not in str(ei.value)
+
+
+
+# ------------------------------------------------------------------------------------------------ test inboxes + queue-owner mail
+from kareshafaa.synth.test_mailboxes import PATIENT_MAILBOXES, STAFF_MAILBOXES
+
+TEST_PATIENT_ADDR = PATIENT_MAILBOXES["patient.en"]
+
+
+def test_allowlisted_syn_patient_can_be_emailed(db, new_case, mail_on):
+    c = _case(db, new_case, email=TEST_PATIENT_ADDR)
+    c.patient.mrn = f"SYN-EN-{c.id}"
+    assert mail.can_send_to_patient(c.patient)
+    res = send_with_ladder(db, c, "result_notification")
+    assert res["email_sent"] is True and len(mail_on.sent) == 1
+    assert mail_on.sent[0]["To"] == TEST_PATIENT_ADDR
+    db.rollback()
+
+
+def test_allowlisted_does_not_override_example_domain(db, new_case, mail_on):
+    c = _case(db, new_case, email="someone@example.com")
+    c.patient.mrn = f"SYN-EN-{c.id}"
+    assert TEST_PATIENT_ADDR not in (c.patient.email or "")
+    assert not mail.can_send_to_patient(c.patient)
+    db.rollback()
+
+
+def test_seeded_test_mailboxes(db):
+    from kareshafaa.models import Patient, User
+
+    for uname, addr in STAFF_MAILBOXES.items():
+        u = db.scalar(select(User).where(User.username == uname))
+        assert u is not None and u.email == addr, uname
+    u = db.scalar(select(User).where(User.username == "patient.en"))
+    assert u is not None and u.patient_id
+    p = db.get(Patient, u.patient_id)
+    assert p.email == TEST_PATIENT_ADDR and p.mrn.upper().startswith("SYN-")
+    other = db.scalar(select(User).where(User.username == "patient.ar"))
+    if other and other.patient_id:
+        assert db.get(Patient, other.patient_id).email != TEST_PATIENT_ADDR
+
+
+def test_public_user_includes_email(client, as_user):
+    from kareshafaa.accounts import public_user
+    from kareshafaa.models import User
+    from kareshafaa.db import session_factory
+
+    s = session_factory()()
+    try:
+        u = s.scalar(select(User).where(User.username == "admin"))
+        pub = public_user(u)
+        assert pub["email"] == STAFF_MAILBOXES["admin"]
+        assert "password_hash" not in pub
+    finally:
+        s.close()
+    items = client.get("/api/admin/users", headers=as_user("admin")).json()["items"]
+    admin = next(x for x in items if x["username"] == "admin")
+    assert admin["email"] == STAFF_MAILBOXES["admin"]
+
+
+def test_admin_can_set_and_clear_staff_email(client, as_user):
+    h = as_user("admin")
+    name = "mail.tester." + str(id(h))[-6:]
+    r = client.post("/api/admin/users", headers=h,
+                    json={"username": name, "display_name": "Mail Tester", "role": "analyst",
+                          "email": "  Staff.Check@Realmail.ae "})
+    assert r.status_code == 200, r.text
+    assert r.json()["user"]["email"] == "staff.check@realmail.ae"
+    uid = r.json()["user"]["id"]
+    bad = client.post(f"/api/admin/users/{uid}/role", headers=h, json={"role": "analyst", "email": "not-an-address"})
+    assert bad.status_code in (400, 422)
+    r = client.post(f"/api/admin/users/{uid}/role", headers=h, json={"role": "analyst", "email": ""})
+    assert r.status_code == 200 and r.json()["user"]["email"] is None
+
+
+def _actor(db, username):
+    from kareshafaa.models import User
+    from kareshafaa.synth.history import actor_from_user
+    return actor_from_user(db.scalar(select(User).where(User.username == username)))
+
+
+def _owner_user(db, username):
+    from kareshafaa.models import User
+    return db.scalar(select(User).where(User.username == username))
+
+
+def test_assign_sample_syn_does_not_call_send_email(db, new_case, mail_on):
+    from kareshafaa.services import workflow as wf
+    c = _case(db, new_case, email="sample@example.com")
+    c.patient.mrn = f"SYN-SAMPLE-{c.id}"
+    dest = _owner_user(db, "omar.haddad")
+    wf.assign(db, c, dest.practitioner_id, _actor(db, "aisha.rahman"), "reassign for coverage")
+    assert mail_on.sent == []
+    db.rollback()
+
+
+def test_assign_allowlisted_patient_emails_owner_once(db, new_case, mail_on, monkeypatch):
+    from kareshafaa.services import workflow as wf
+    monkeypatch.setattr(get_settings(), "public_base_url", "https://kareshafaa.example")
+    c = _case(db, new_case, email=TEST_PATIENT_ADDR)
+    c.patient.mrn = f"SYN-EN-{c.id}"
+    dest = _owner_user(db, "omar.haddad")
+    assert dest.email == STAFF_MAILBOXES["omar.haddad"]
+    wf.assign(db, c, dest.practitioner_id, _actor(db, "aisha.rahman"), "reassign to the GP")
+    assert len(mail_on.sent) == 1
+    msg = mail_on.sent[0]
+    assert msg["To"] == STAFF_MAILBOXES["omar.haddad"]
+    assert msg["Subject"] == "KareShafaa: a case was added to your queue"
+    body = msg.get_content()
+    assert f"Case: #{c.id}" in body and "assigned to you" in body
+    assert c.patient.given_name in body and f"https://kareshafaa.example/cases/{c.id}" in body
+    assert "emirates" not in body.lower()
+    if c.patient.phone:
+        assert c.patient.phone not in body
+    db.rollback()
+
+
+def test_assign_to_pool_does_not_send(db, new_case, mail_on):
+    from kareshafaa.models import Practitioner
+    from kareshafaa.services import workflow as wf
+    c = _case(db, new_case, email=TEST_PATIENT_ADDR)
+    c.patient.mrn = f"SYN-EN-{c.id}"
+    pool = db.scalar(select(Practitioner).where(Practitioner.is_pool.is_(True),
+                                                Practitioner.programme == c.programme))
+    assert pool is not None
+    wf.assign(db, c, pool.id, _actor(db, "aisha.rahman"), "move to the team pool")
+    assert mail_on.sent == []
+    db.rollback()
+
+
+def test_assign_mail_error_does_not_raise(db, new_case, mail_on, monkeypatch):
+    from kareshafaa.services import workflow as wf
+    monkeypatch.setattr(mail, "send_email", lambda *a, **k: (_ for _ in ()).throw(mail.MailError("server refused")))
+    c = _case(db, new_case, email=TEST_PATIENT_ADDR)
+    c.patient.mrn = f"SYN-EN-{c.id}"
+    dest = _owner_user(db, "omar.haddad")
+    out = wf.assign(db, c, dest.practitioner_id, _actor(db, "aisha.rahman"), "reassign to the GP")
+    assert out.owner_id == dest.practitioner_id
+    db.rollback()

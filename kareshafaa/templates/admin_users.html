@@ -31,6 +31,7 @@
   <p class="small muted">They get a temporary password and must choose their own the first time they sign in.</p>
   <label for="f-name">Full name<input id="f-name" name="display_name" required minlength="2" autocomplete="off"></label>
   <label for="f-user">Username<input id="f-user" name="username" required pattern="[a-z0-9][a-z0-9._\-]{2,79}" autocapitalize="none" spellcheck="false" autocomplete="off" aria-describedby="f-user-h"><span class="field-hint" id="f-user-h">Lower-case letters, numbers, dots or dashes, e.g. sara.ali</span></label>
+  <label for="f-email">Email (optional)<input id="f-email" name="email" type="email" maxlength="200" autocomplete="off" aria-describedby="f-email-h"><span class="field-hint" id="f-email-h">Used for queue notifications when work is assigned to them.</span></label>
   <label for="f-role">Role<select id="f-role" name="role" required></select></label>
   <div id="f-staff"></div>
   <div class="grid-2" style="gap:var(--s-3)"><label for="f-site">Site (optional)<input id="f-site" name="site" autocomplete="off" list="f-site-list" aria-describedby="f-site-h"><span class="field-hint" id="f-site-h">Shown on the user list.</span></label>

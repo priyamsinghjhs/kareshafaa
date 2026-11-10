@@ -15,8 +15,8 @@ Safety rules:
 - Secrets (password, refresh/access tokens) are never logged, audited, returned by an API or put in an exception
   message; errors are reduced to a short reason without server reply text (which can echo the account name).
 - Synthetic sample records (MRN ``SYN-...``) and reserved example domains (example.com/.org/.net) are never e-mailed
-  (SYN- only with KARESHAFAA_MAIL_ALLOW_SYNTHETIC), so the ~2000 sample patients on the live site cannot flood the
-  mailbox or bounce.
+  (SYN- only with KARESHAFAA_MAIL_ALLOW_SYNTHETIC, or when the address is an allowlisted test inbox in
+  ``synth/test_mailboxes.py``), so the ~2000 sample patients on the live site cannot flood the mailbox or bounce.
 - E-mail is not end-to-end encrypted (TLS protects it only in transit to the mail service).
 
 Callers use ``send_email`` only (comms/service.py, services/escalation.py, the admin test send); the transports are
@@ -134,7 +134,7 @@ def is_synthetic_patient(patient) -> bool:
 
 def can_send_to_patient(patient) -> bool:
     """Configured, the patient has a valid e-mail, the domain is not a reserved example domain, and the record is not a
-    SYN- sample (unless KARESHAFAA_MAIL_ALLOW_SYNTHETIC)."""
+    SYN- sample (unless KARESHAFAA_MAIL_ALLOW_SYNTHETIC, or the address is an allowlisted test inbox)."""
     if not configured() or patient is None or not (getattr(patient, "email", None) or "").strip():
         return False
     try:
@@ -143,8 +143,12 @@ def can_send_to_patient(patient) -> bool:
         return False
     if is_synthetic_address(addr):
         return False
-    if (patient.mrn or "").upper().startswith("SYN-") and not get_settings().mail_allow_synthetic:
-        return False
+    if (patient.mrn or "").upper().startswith("SYN-"):
+        from ..synth.test_mailboxes import is_allowlisted_patient_address  # noqa: PLC0415
+        if is_allowlisted_patient_address(addr):
+            return True
+        if not get_settings().mail_allow_synthetic:
+            return False
     return True
 
 

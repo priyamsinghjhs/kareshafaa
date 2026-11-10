@@ -220,6 +220,7 @@ class UserCreateIn(_In):
     role: str = Field(min_length=2, max_length=40)
     site: str | None = Field(None, max_length=120)
     team: str | None = Field(None, max_length=120)
+    email: str | None = Field(None, max_length=200)  # optional staff contact address
     practitioner_id: int | None = None  # link an EXISTING staff directory record ...
     staff_record: StaffRecordIn | None = None  # ... or create a new one (clinical roles)
     temporary_password: str | None = Field(None, max_length=256)
@@ -229,6 +230,7 @@ class UserRoleIn(_In):
     role: str = Field(min_length=2, max_length=40)
     site: str | None = Field(None, max_length=120)
     team: str | None = Field(None, max_length=120)
+    email: str | None = Field(None, max_length=200)  # omit to leave unchanged; empty string clears
     practitioner_id: int | None = None  # when the new role needs a (different) staff directory record
     staff_record: StaffRecordIn | None = None
 

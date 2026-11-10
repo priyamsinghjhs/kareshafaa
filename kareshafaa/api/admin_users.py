@@ -1,4 +1,4 @@
-"""User administration (admin role only): list, create, change role/site/team, reset password, (de)activate.
+"""User administration (admin role only): list, create, change role/site/team/email, reset password, (de)activate.
 
 There is no hard delete: deactivation keeps the account (and every audit reference to it) and signs it out.
 In public demo mode every write here is refused by the public-demo guard (kareshafaa/public_demo.py); the list
@@ -27,6 +27,16 @@ def _get(db: Session, uid: int) -> User:
     if u is None:
         raise NotFound("user not found")
     return u
+
+
+def _staff_email(raw: str | None) -> str | None:
+    """Validate an optional staff contact address (empty/None is allowed). Invalid addresses raise Invalid."""
+    from ..services.patients import validate_email  # noqa: PLC0415
+
+    try:
+        return validate_email(raw)
+    except Invalid as e:
+        raise _bad(str(e), "email") from e
 
 
 ORG_KIND_LABELS = {"screening_programme": "Screening programme office", "primary_care": "GP practice (family health centre)",
@@ -189,7 +199,7 @@ def create_user(body: UserCreateIn, actor: Actor = Depends(require("user:admin")
     p = _staff_record(db, body.role, body.display_name, body.practitioner_id, body.staff_record)
     site = body.site or (p.org.name if p is not None and p.org else None)
     u = User(username=body.username, display_name=body.display_name, role=body.role, practitioner_id=p.id if p else None,
-             site=site, team=body.team, active=True)
+             site=site, team=body.team, email=_staff_email(body.email), active=True)
     accounts.set_password(u, temp, must_change=True)
     db.add(u)
     db.flush()
@@ -222,6 +232,8 @@ def change_role(uid: int, body: UserRoleIn, actor: Actor = Depends(require("user
     elif body.role in accounts.CLINICAL_ROLES and (cur is None or cur.role != body.role):
         _staff_record(db, body.role, u.display_name, None, None)  # raises the clear "needs a staff record" message
     u.role, u.site, u.team = body.role, body.site if body.site is not None else u.site, body.team if body.team is not None else u.team
+    if body.email is not None:
+        u.email = _staff_email(body.email)
     if before["role"] != u.role or before["practitioner_id"] != u.practitioner_id:
         accounts.revoke_user_sessions(db, u.id)  # new permissions take effect at next sign-in
     if new_rec is not None:

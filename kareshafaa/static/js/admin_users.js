@@ -6,7 +6,7 @@ function render() {
   const q = document.getElementById("uq").value.trim().toLowerCase(), r = document.getElementById("ur").value, st = document.getElementById("us").value;
   const rows = U.items.filter(u => (!q || (u.display_name + " " + u.username).toLowerCase().includes(q)) && (!r || u.role === r) && (!st || (st === "active") === u.active));
   document.getElementById("users").innerHTML = rows.length ? `<p class="small muted">${rows.length} of ${U.items.length} accounts</p><table class="compact"><thead><tr><th>Name</th><th>Role</th><th>Site / team</th><th>Status</th><th>Last sign-in</th><th>Actions</th></tr></thead><tbody>${rows.map(u => `<tr>
-    <td><b>${W.esc(u.display_name.split(" (")[0])}</b><span class="sub">${W.esc(u.username)}</span></td>
+    <td><b>${W.esc(u.display_name.split(" (")[0])}</b><span class="sub">${W.esc(u.username)}</span>${u.email ? `<span class="sub">${W.esc(u.email)}</span>` : ""}</td>
     <td>${W.esc(u.role_label)}</td><td class="small">${W.esc(u.site || "–")}${u.team ? `<span class="sub">${W.esc(u.team)}</span>` : ""}</td><td>${status(u)}${u.status_reason ? `<span class="sub">${u.active ? "Reactivated" : "Deactivated"}${u.status_changed_by ? " by " + W.esc(u.status_changed_by) : ""}${u.status_changed_at ? " · " + W.dt(u.status_changed_at) : ""}: ${W.esc(u.status_reason)}</span>` : ""}</td>
     <td class="small">${u.last_login_at ? W.dt(u.last_login_at) : "Never"}</td>
     <td>${PD ? '<span class="small muted">Read-only</span>' : `<div class="row">${u.role !== "patient" && u.id !== W.me.user_id ? `<button class="secondary sm" data-click="changeRole" data-args="[${u.id}]">Change role</button>` : ""}${u.role === "patient" ? "" : `<button class="secondary sm" data-click="resetPw" data-args="[${u.id}]">Reset password</button>`}${u.id === W.me.user_id ? "" : u.active ? `<button class="danger secondary sm" data-click="deact" data-args="[${u.id}]">Deactivate</button>` : `<button class="secondary sm" data-click="act" data-args="[${u.id}]">Reactivate</button>`}</div>`}</td></tr>`).join("")}</tbody></table>` : W.empty("No users match", "", "", "users");
@@ -113,11 +113,12 @@ window.changeRole = async id => { const u = byId(id);
   const cur = u.practitioner_id ? (U.practitioners_by_id || {})[u.practitioner_id] || { role: u.role, name: "linked record" } : null;
   const pr = W._dialog(`<h2 id="dlg-title">Change role for ${W.esc(u.display_name)}</h2><label for="dr">Role<select id="dr">${opts}</select></label>
     <div id="dr-staff-wrap"></div>
+    <label for="de">Email (optional)<input id="de" type="email" maxlength="200" value="${W.esc(u.email || "")}" autocomplete="off"></label>
     <label for="ds">Site<input id="ds" value="${W.esc(u.site || "")}" list="f-site-list"></label><label for="dt">Team<input id="dt" value="${W.esc(u.team || "")}"></label>
     <p class="small muted">A role change signs them out; the new permissions apply at their next sign-in.</p>
     <div class="dlg-buttons"><button type="button" class="secondary" data-cancel>Cancel</button><button type="submit" data-ok>Save</button></div>`,
     f => { clearFieldErrs(f); if (!checkStaff(f, "dr")) return false;
-      return { role: f.querySelector("#dr").value, site: f.querySelector("#ds").value.trim(), team: f.querySelector("#dt").value.trim(), ...staffBody(f, "dr") }; }, "",
+      return { role: f.querySelector("#dr").value, email: f.querySelector("#de").value.trim(), site: f.querySelector("#ds").value.trim(), team: f.querySelector("#dt").value.trim(), ...staffBody(f, "dr") }; }, "",
     async body => { try { await W.api(`/api/admin/users/${id}/role`, { method: "POST", body }); }
       catch (e) { const f = document.querySelector("dialog.dlg[open] form"); if (f && e.data && e.data.field) fieldErr(f, e.data.field, e.message); throw e; }
       W.toast("Saved", "ok"); await load(); });
@@ -148,7 +149,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     need.forEach(([k, m]) => fieldErr(f, k, m));
     if (need.length) { f.querySelector(`[name="${need[0][0]}"]`).focus(); return; }
     if (!checkStaff(f, "f")) return;
-    const body = { username: d.username.trim().toLowerCase(), display_name: d.display_name.trim(), role: d.role, site: d.site || null, team: d.team || null, ...staffBody(f, "f") };
+    const body = { username: d.username.trim().toLowerCase(), display_name: d.display_name.trim(), role: d.role, email: (d.email || "").trim() || null, site: d.site || null, team: d.team || null, ...staffBody(f, "f") };
     W.busy(sb, true);
     try { const r = await W.api("/api/admin/users", { method: "POST", body }); dlg.close(); showTemp(r.user, r.temporary_password, "Account created"); await load(); }
     catch (e) { if (!(e.data && e.data.field && fieldErr(f, e.data.field, e.message))) W.formError(f, e.message); else W.formError(f, "Please fix the field marked above."); W.toast(e.message, "err"); } finally { W.busy(sb, false); } };

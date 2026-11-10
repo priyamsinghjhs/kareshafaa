@@ -200,8 +200,25 @@ closure.
     Unset `KARESHAFAA_ALERT_TO` = no alert emails.
   * **Synthetic records are never emailed:** patients whose MRN starts `SYN-`, and any address at `example.com`,
     `example.org` or `example.net`, are skipped (so the ~2000 sample patients on the live site cannot flood or bounce
-    from the mailbox). `KARESHAFAA_MAIL_ALLOW_SYNTHETIC=true` lets `SYN-` records with a real address be emailed for
+    from the mailbox). One exception: the allowlisted test inbox on `patient.en` (Emma Clarke,
+    `testingkareshafaa+asimkhan123@gmail.com`, set in `kareshafaa/synth/test_mailboxes.py`).
+    `KARESHAFAA_MAIL_ALLOW_SYNTHETIC=true` lets other `SYN-` records with a real address be emailed for
     testing; example domains are always skipped.
+  * **Test inboxes:** one seeded account of each role has a test Gmail address (staff on `User.email`;
+    `patient.en` on `Patient.email`): admin `testingkareshafaa+calpha_admin@gmail.com`, clinical lead
+    Fatima Al Mansoori (`fatima.al.mansoori`) `+clead1234`, care coordinator Aisha Rahman (`aisha.rahman`)
+    `+ccalpha1234`, GP Omar Haddad (`omar.haddad`) `+rehmanmalik1234`, specialist Vikram Mehta
+    (`vikram.mehta`) `+splist123`, programme analyst `+program_analysts`, medical translator
+    `+medi_trans`, and `patient.en` as above. An administrator can also set or clear a staff email on
+    Admin → Users (create and edit). Those addresses are how appointment, result-ready and queue-owner
+    mail is tested without emailing the rest of the sample caseload.
+  * **Queue-owner emails:** when a new case is created with an owner, or when `assign` / an accepted
+    transfer actually changes `owner_id`, the new owner is emailed at their `User.email` (subject
+    `KareShafaa: a case was added to your queue`; case id, programme, state, tier, patient name, why,
+    and a `/cases/{id}` link when `KARESHAFAA_PUBLIC_BASE_URL` is set; no Emirates ID, phone, address or
+    raw result). Not sent on every state change, not sent to a team pool or an owner with no email, and
+    not sent for the sample `SYN-` caseload except the allowlisted test patient. A mail failure is logged
+    (no secrets) and never fails the clinical action. Mail off = nothing is sent.
   * **Test send:** Admin → System shows **Email: Configured / Not configured**, the From address and how it sends
     (Graph or SMTP host; never a secret) and, when configured, a **Send test email** box (`POST /api/admin/system/mail/test`
     `{"to": "..."}`, admin only; 503 when not configured, 502 with a short reason when the mail server refuses; audited
@@ -413,7 +430,7 @@ guide: [`DEPLOY.md`](DEPLOY.md). Environment variables (set in the Render dashbo
 | `KARESHAFAA_MAIL_FROM`, `KARESHAFAA_SMTP_USERNAME` | From address (default `kareshafaa_com@outlook.com`) and SMTP sign-in name (default = the From address). |
 | `KARESHAFAA_SMTP_HOST`, `KARESHAFAA_SMTP_PORT` | SMTP only. Default `smtp-mail.outlook.com` for outlook.com / hotmail.com / live.com / msn.com addresses, else `smtp.office365.com`; port `587` (STARTTLS; port 25 is refused). `KARESHAFAA_SMTP_TIMEOUT_S` default 20. |
 | `KARESHAFAA_ALERT_TO` | Optional inbox for staff escalation alert emails. Unset = no alert emails. `KARESHAFAA_MAIL_ALERTS_PER_SWEEP` (default 20) caps single alerts per deadline check. |
-| `KARESHAFAA_MAIL_ALLOW_SYNTHETIC` | Default `false`: `SYN-` sample patients are never emailed (example.com/.org/.net never are). |
+| `KARESHAFAA_MAIL_ALLOW_SYNTHETIC` | Default `false`: `SYN-` sample patients are never emailed (example.com/.org/.net never are), except the allowlisted `patient.en` test inbox. |
 | `WEB_WORKERS`, `KARESHAFAA_SWEEP_INTERVAL_SECONDS` | Worker count and SLA-sweep interval. |
 | `KARESHAFAA_WORKER_LOCK_DATABASE_URL` | Optional, PostgreSQL only: direct (unpooled) URL for the timed-jobs lock session when `DATABASE_URL` goes through PgBouncer or another pooler (secret). Neon `-pooler` hosts are mapped automatically. |
 

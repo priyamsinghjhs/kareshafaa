@@ -83,14 +83,19 @@ def build_directory(db: Session) -> dict:
 
 
 def build_users(db: Session, d: dict) -> list[User]:
+    from .test_mailboxes import staff_mailbox  # noqa: PLC0415
+
     users = []
     for p in db.query(Practitioner).filter(Practitioner.is_pool.is_(False)).all():
         uname = p.name.split(" (")[0].lower().replace("dr. ", "").replace("'", "").replace(" ", ".")
-        users.append(User(username=uname, display_name=p.name, role=p.role, practitioner_id=p.id))
-    users.append(User(username="analyst", display_name="Dana Analyst (Programme Analytics)", role="analyst"))
-    users.append(User(username="admin", display_name="Sam Admin (System Administrator)", role="admin"))
-    users.append(User(username="translator", display_name="Layla Haddad (Medical translation reviewer)",
-                      role="translator"))
+        users.append(User(username=uname, display_name=p.name, role=p.role, practitioner_id=p.id,
+                          email=staff_mailbox(uname)))
+    for uname, display, role in (
+        ("analyst", "Dana Analyst (Programme Analytics)", "analyst"),
+        ("admin", "Sam Admin (System Administrator)", "admin"),
+        ("translator", "Layla Haddad (Medical translation reviewer)", "translator"),
+    ):
+        users.append(User(username=uname, display_name=display, role=role, email=staff_mailbox(uname)))
     db.add_all(users)
     db.flush()
     return users

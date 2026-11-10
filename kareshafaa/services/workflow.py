@@ -337,6 +337,8 @@ def ingest_result(db: Session, patient: Patient, programme: str, *, value: float
                  detail={"programme": programme, "tier": tier, "owner_id": case.owner_id, "rule": dec.rule_id,
                          "review": review, "reasons": reasons, "previous_closed_case": recent})
     _recall.link_case(db, rep, case)
+    from ..comms.queue_notify import notify_queue_owner  # noqa: PLC0415
+    notify_queue_owner(db, case, reason="new result in your queue")
     return rep, case
 
 
@@ -379,6 +381,8 @@ def open_case_for_orphan_report(db: Session, rep: DiagnosticReport, actor: Actor
     audit.record(db, actor, "C", "case.created", entity_type="Task", entity_id=case.id, case_id=case.id, ts=now,
                  detail={"programme": rep.programme, "tier": tier, "owner_id": owner.id, "review": True,
                          "reasons": reasons, "via": "reconciliation", "report_id": rep.id})
+    from ..comms.queue_notify import notify_queue_owner  # noqa: PLC0415
+    notify_queue_owner(db, case, reason="new result in your queue")
     return case
 
 
@@ -718,6 +722,9 @@ def assign(db: Session, case: Case, new_owner_id: int, actor: Actor, reason: str
                           at=now, by_user_id=actor.user_id))
     audit.record(db, actor, "U", "case.reassigned", entity_type="Task", entity_id=case.id, case_id=case.id, ts=now,
                  detail={"from_owner": old, "to_owner": new.id, "reason": reason})
+    if old != new.id:
+        from ..comms.queue_notify import notify_queue_owner  # noqa: PLC0415
+        notify_queue_owner(db, case, reason="assigned to you")
     return case
 
 
@@ -775,6 +782,9 @@ def decide_transfer(db: Session, case: Case, actor: Actor, accept: bool, note: s
                           by_user_id=actor.user_id))
     audit.record(db, actor, "U", "case.transfer_" + ("accepted" if accept else "declined"), entity_type="Task",
                  entity_id=case.id, case_id=case.id, ts=now, detail={"from_owner": old, "to_owner": to.id})
+    if accept and old != to.id:
+        from ..comms.queue_notify import notify_queue_owner  # noqa: PLC0415
+        notify_queue_owner(db, case, reason="assigned to you")
     return case
 
 

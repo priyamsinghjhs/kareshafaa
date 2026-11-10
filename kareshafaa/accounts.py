@@ -300,7 +300,8 @@ def authenticate(db: Session, username: str, password: str, ip: str | None) -> L
 def public_user(u: User) -> dict:
     """The ONLY serialisation of a user for APIs: never includes the password hash."""
     return {"id": u.id, "username": u.username, "display_name": u.display_name, "role": u.role,
-            "role_label": ROLE_LABELS.get(u.role, u.role), "site": u.site, "team": u.team, "active": bool(u.active),
+            "role_label": ROLE_LABELS.get(u.role, u.role), "site": u.site, "team": u.team, "email": u.email,
+            "active": bool(u.active),
             "must_change_password": bool(u.must_change_password), "has_password": bool(u.password_hash),
             "locked": bool(u.locked_until and u.locked_until > utcnow()),
             "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
