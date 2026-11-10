@@ -324,6 +324,21 @@ On first start against an empty database, `python -m kareshafaa.bootstrap` creat
 * [`docs/architecture.md`](docs/architecture.md) · [`docs/synthetic_data.md`](docs/synthetic_data.md) ·
   [`docs/alert_precision.md`](docs/alert_precision.md) · [`docs/ml_calibration.md`](docs/ml_calibration.md)
 * [`docs/deployment_uae.md`](docs/deployment_uae.md) · [`docs/BRAND.md`](docs/BRAND.md) · [`ITERATIONS.md`](ITERATIONS.md) (build log)
+* [`docs/operating_modes.md`](docs/operating_modes.md) (software modes, shadow → assisted → live with stop rules, data
+  classification, residency/DPIA items to confirm) · [`docs/runbook_downtime_and_drills.md`](docs/runbook_downtime_and_drills.md)
+  (downtime procedure, monthly critical-result drill, honest free-hosting limits) ·
+  [`docs/usability_test_plan.md`](docs/usability_test_plan.md) (English and Arabic; planned, not run)
+
+## Limits and intellectual property
+
+* **Limits:** synthetic records only; free hosting outside the UAE that sleeps when idle (timed escalations pause;
+  the audit fallback file is lost on restart); no paging route ("by phone" escalation is a task); message delivery
+  simulated; clinical policy `2026.11-p1` is *placeholder, verify* with no named approver (`live` profile refused);
+  no Clinical Safety Officer, no accepted residual risk (`docs/clinical_safety_case.md` §3.1); usability test not
+  run; baseline-vs-loop figures are synthetic.
+* **Intellectual property:** written for KareShafaa by its authors; ownership and licence terms are for the
+  repository owner to confirm. There is no LICENSE file, so no open-source licence is granted. Third-party packages
+  and the Figtree font (SIL OFL 1.1) keep their own licences. No real or de-identified patient data is in the repo.
 
 ## Keeping this README current
 

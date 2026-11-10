@@ -7,7 +7,8 @@ months after a positive FIT is linked to higher odds of advanced-stage cancer (O
 https://jamanetwork.com/journals/jama/fullarticle/2620087).
 
 **What KareShafaa does.** Every abnormal result (bowel, cervical, breast, diabetes) becomes a case with one
-accountable owner, a clinical urgency tier set by signed-off rules, a pathway target date and escalation when a step
+accountable owner, a clinical urgency tier set by deterministic rules (policy `2026.11-p1`, placeholder awaiting
+clinical sign-off), a pathway target date and escalation when a step
 is late. Patients get messages in Arabic, English, Hindi or Urdu with a check that they understood. A case closes only
 when the specialist visit is recorded or a clinician signs a decision.
 
@@ -37,8 +38,18 @@ Today these figures come from synthetic records and are labelled so.
 screened patient, per case or per facility, with an ROI method based on published cost-by-stage data
 (`docs/business_model.md`).
 
-**Honest limits.** Synthetic data only; the free hosting is outside the UAE; no connection to Malaffi yet; message
-delivery is simulated; rule thresholds marked CONFIRM await clinical sign-off; no partner has agreed to a pilot yet.
+**Honest limits.** Synthetic data only; the free hosting is outside the UAE and sleeps when idle, so timed
+escalations pause and the audit fallback file does not survive a restart; no paging route, so "escalate by phone"
+is a task, not a call; no connection to Malaffi yet; message delivery is simulated; the clinical policy is a
+placeholder (no named approver; `live` profile refused); no Clinical Safety Officer and no accepted residual risk;
+the usability test is planned, not run; baseline-vs-loop figures are synthetic and reflect generator assumptions;
+no partner has agreed to a pilot yet. See `docs/operating_modes.md` and `docs/runbook_downtime_and_drills.md`.
+
+**Intellectual property.** The code, rule documents and content were written for KareShafaa by its authors;
+ownership and licence terms are for the repository owner to confirm. There is no LICENSE file, so no open-source
+licence is granted. Third-party parts keep their own licences (Python
+packages per `requirements*.txt`; Figtree font, SIL OFL 1.1, `docs/BRAND.md`). Clinical thresholds cite published
+guidelines, which remain their publishers' work. No patient data, real or de-identified, is in the repository.
 
 | Look at | Where |
 |---|---|

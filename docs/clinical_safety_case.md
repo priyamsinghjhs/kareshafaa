@@ -68,7 +68,32 @@ clinical leads, directors, analysts, patients (portal).
 | H-34 | Patient dies mid-pathway: outreach continues, or a living patient is closed as deceased | death registry/family notification not recordable; closure reason chosen by mistake | distress to family; follow-up of a living patient silently ended | 4 | 2 | `record_death` (named clinician, rationale, audited): all messaging stops, call tasks and queued reminders cancelled, every open case reviewed; closure reason `deceased` requires the recorded death | `tests/test_deceased.py`; invariant `closure.deceased_reason_requires_deceased_patient` | 1 | 4 |
 | H-35 | Appointment booked far beyond the pathway target, or with a year typo | capacity, or date entry error | delayed diagnosis noticed only when the target alert fires | 3 | 3 | bookings > 365 days ahead refused; after-target bookings need a stated reason (audited) | `test_booking_beyond_target_needs_reason_and_year_typo_refused` | 2 | 3 |
 | H-36 | Non-English patient receives a half-translated message | result wording signed off in English only (no translation sign-off yet) spliced into the Arabic/Hindi/Urdu template | the next step and timeframe are in a language the patient may not read: delayed follow-up, distress | 3 | 4 | the whole message is sent in the signed-off English wording and an interpreter-supported navigator call task is created (one per case, phone consent honoured); reminder templates split the next step and the timeframe into short sentences | `tests/test_patient_messages.py` (every rendered template x programme x pathway x tier x sign-off state in 4 languages); invariant `comms.sent_message_single_language` (637 / 3,177 / 2,197 mixed messages found pre-fix on demo / 10k / 20k) | 1 | 3 |
+| H-38 | Critical result not communicated directly to a clinician | critical tier handled like any other queue item; message-only contact; closed as "unable to contact" | missed critical hyperglycaemia or malignancy, no named receiver | 5 | 3 | fast lane: triage refused until a read-back is recorded (method, who reported, receiving active clinician, time, confirmed); "Critical: read-back needed" queue view; escalation by phone from level 2; "unable to contact" never allowed for critical | `tests/test_critical_fast_lane.py`, `test_critical_read_back_is_all_or_nothing`, property op `read_back` + invariant | 2 | 10 **unacceptable until** a real paging route and the monthly drill exist (`docs/runbook_downtime_and_drills.md`) |
+| H-39 | Result needing action never reaches the loop | case creation fails after the report is stored, or a processed message files nothing | positive screen with no owner | 4 | 2 | timed result-to-case reconciliation; owned list "Results not in the loop" (coordinator); open a clinician-review case (urgent floor) or written note; Monitoring count on Admin → System | `tests/test_reconciliation.py`, `test_reconciliation_open_case_is_all_or_nothing`; safety invariant (no actionable report without a case) | 1 | 4 |
+| H-40 | Timed jobs silently stop | free instance asleep, worker lock lost, repeated exceptions | no escalations, no reconciliation | 4 | 3 | job health table and Monitoring card (last success, failures); downtime runbook | `test_job_health_records_success_and_failure` | 3 | 12 **unacceptable on free hosting**; needs always-on hosting and external alerting before a pilot |
 | H-37 | Re-opened case moved on or closed on evidence from its closed episode | case re-opened (closed -> triaged); old care plan, fulfilled appointment or negative confirmatory result still on the case | treatment marked started without the careplan.start sign-off, or the case closed again before the new result: follow-up silently ends | 4 | 2 | pathway guards, the surveillance-plan check and closure-evidence checks accept only evidence recorded since the last re-open (`workflow.episode_start`), round 19 | `tests/test_signoff_round19.py`; fault injection F57, F58 | 1 | 4 |
+
+### 3.1 Hazard owners and residual-risk acceptance
+
+Owners are **roles**; the deploying organisation fills in names. **No residual risk has been accepted**: there is
+no Clinical Safety Officer and no clinical-lead sign-off yet. The "proposed" column is what the team proposes to
+ask for, not a decision.
+
+| Hazards | Owner (role) | Proposed acceptance | Accepted by |
+|---|---|---|---|
+| H-01, H-26, H-27, H-33, H-39 (results in, nothing dropped) | integration lead | acceptable at residual 4 after interface testing with the real LIS/RIS | – (not accepted) |
+| H-02, H-06, H-08, H-18, H-20, H-21 (rules and thresholds) | clinical lead | H-18 unacceptable until every CONFIRM item is signed off; others acceptable after sign-off | – |
+| H-03, H-04, H-25 (tier and model) | clinical lead (model: also data science owner) | acceptable at residual 3–4 | – |
+| H-05, H-07, H-30 (identity, duplicates) | health information manager | tolerable (5) until EMPI integration is tested | – |
+| H-09, H-10, H-11, H-37 (pathway and closure) | clinical lead | acceptable at residual 3–4 | – |
+| H-12, H-14, H-19, H-22, H-29, H-35 (time, capacity, alert load) | programme operations lead | tolerable; capacity outside the software | – |
+| H-13, H-28 (ownership, concurrency) | programme operations lead | acceptable | – |
+| H-15, H-24 (audit, automation) | system administrator / security officer | acceptable | – |
+| H-16, H-23, H-36 (patient wording, translation) | patient communication lead with a medical translator | tolerable until translations are signed off | – |
+| H-17 (synthetic data) | clinical safety officer (to be named) | tolerable only until real-data validation | – |
+| H-31, H-32, H-34 (contact, consent, death) | programme operations lead | acceptable | – |
+| H-38 (critical results) | clinical lead | **unacceptable** until paging route and drill exist | – |
+| H-40 (timed jobs) | system administrator | **unacceptable** on free hosting | – |
 
 ## 4. Verification summary (Iteration 6, updated Iteration 7)
 
@@ -101,6 +126,9 @@ clinical leads, directors, analysts, patients (portal).
    medical translator and clinician sign-off; the older prototype content must also be signed off.
 7. Bulk database updates outside the application bypass the ORM tier interlock (H-03) - production should add
    a database trigger or row-level constraint.
+8. **Critical results and timed jobs** (H-38, H-40): a real paging route, always-on UAE hosting and external
+   alerting; the monthly critical-result drill.
+9. **Named owners** for every hazard (section 3.1) and a Clinical Safety Officer to accept or reject residual risk.
 
 ## 6. Round 2 change review (4 Nov 2026)
 

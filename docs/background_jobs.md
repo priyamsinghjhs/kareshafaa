@@ -13,7 +13,7 @@ server without doing the work twice.
 | Result-to-case reconciliation | with the deadline check (and **Admin → System → Check results now**, **Results inbox → Check now**) | Lists screening results that need action but have no case, and processed lab messages that filed no result, in `result_reconciliation_items` (owner: care coordination) | One open item per source row; re-runs only update `last_seen_at`; an item whose result now has a case is closed as `linked_later` |
 | One-time data steps | after start-up | Small additive updates to sample (SYN-) records, in small batches in a worker thread | Never blocks serving; never resets data |
 
-Only **one process** runs the timed jobs (deadline check, retention purge, audit-fallback reconciliation),
+Only **one process** runs the timed jobs (deadline check, retention purge, audit-fallback and result reconciliation),
 however many workers and containers there are (`kareshafaa/worker_lock.py`):
 
 * **PostgreSQL:** a session-level advisory lock, `pg_try_advisory_lock(727001)`, taken on a dedicated connection
