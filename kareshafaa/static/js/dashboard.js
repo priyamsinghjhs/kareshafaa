@@ -15,6 +15,7 @@ const KLABEL = { median_days_to_notification: "Median days to notification", med
 const TIERWORD = { critical: "T0", urgent: "T1", high: "T2", routine: "T3" };
 function impactCard(l, v, hint) { return `<div class="card kpi"><div class="l">${l}</div><div class="v">${v ?? "–"}</div>${hint ? `<div class="l">${hint}</div>` : ""}</div>`; }
 const supp = v => v === "suppressed" ? '<span class="muted" title="fewer than 5 – hidden to protect privacy">&lt;5</span>' : v;
+const ci = (lo, hi) => lo == null ? "" : ` · 95% CI ${W.pct(lo)}–${W.pct(hi)}`;
 const tabs = {
   async impact(el) {
     const prog = new URLSearchParams(location.search).get("programme") || "";
@@ -26,10 +27,10 @@ const tabs = {
     el.innerHTML = `<div class="card notice" id="impact-data-label" role="note"><b>${W.esc(r.data.label)}.</b> <span class="small">Generated ${W.dt(r.generated_at)}. Groups smaller than ${st.suppression_threshold} are hidden. Patients who opted out of analytics are not counted.</span></div>
      ${sel}
      <div class="grid-4" id="impact-headline">
-      ${impactCard("Loop closed", W.pct(supp(h.loop_closure_rate)), `of ${supp(h.mature_cases)} cases at least ${st.loop_maturity_days} days old`)}
+      ${impactCard("Loop closed", W.pct(supp(h.loop_closure_rate)), `${supp(h.loop_closed)} of ${supp(h.mature_cases)} cases ≥${st.loop_maturity_days} days old${ci(h.loop_closure_ci_low, h.loop_closure_ci_high)}`)}
       ${impactCard("Lost to follow-up", W.pct(supp(h.lost_to_follow_up_rate)), `${supp(h.lost_to_follow_up_now)} open cases lost now`)}
-      ${impactCard("First specialist contact", h.median_days_to_specialist == null ? "–" : h.median_days_to_specialist + " days", "median, from result to attended appointment")}
-      ${impactCard("Seen within pathway target", W.pct(supp(h.within_target_rate)), `${supp(h.waiting_past_target_now)} still waiting past target`)}
+      ${impactCard("First specialist contact", h.median_days_to_specialist == null ? "–" : h.median_days_to_specialist + " days", "median of cases seen so far")}
+      ${impactCard("Seen within pathway target", W.pct(supp(h.within_target_rate_all)), `all mature cases, unfinished = not met${ci(h.within_target_all_ci_low, h.within_target_all_ci_high)}`)}
       ${impactCard("Closed by clinician decision", W.pct(supp(h.closed_by_decision_rate)), "informed decline, care elsewhere and similar")}
       ${impactCard("Recall uptake", W.pct(supp(h.recall_uptake_rate)), `screened within ${h.recall_uptake_window_days} days of the due date`)}</div>
      <div class="card"><h4>Time to first specialist contact, by urgency tier</h4><div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact" id="impact-tiers"><thead><tr><th>Tier</th><th>Cases</th><th>Seen</th><th>Median days</th><th>90th percentile</th><th>Default target</th><th>Seen within target</th><th>Waiting past target</th></tr></thead><tbody>
@@ -37,8 +38,8 @@ const tabs = {
       <p class="small muted">Each case has its own end-to-end target from its pathway (for example colonoscopy within 31 days of a positive FIT); the default column shows the fallback per tier.</p></div>
      <div class="card"><h4>By screening programme</h4><div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><thead><tr><th>Programme</th><th>Cases</th><th>Loop closed</th><th>Lost to follow-up</th><th>Median days to specialist</th></tr></thead><tbody>
       ${r.by_programme.map(p => `<tr><td>${W.esc(p.label)}</td><td>${supp(p.cases)}</td><td>${W.pct(supp(p.loop_closure_rate))}</td><td>${W.pct(supp(p.lost_rate))}</td><td>${p.median_days_to_specialist ?? "–"}</td></tr>`).join("")}</tbody></table></div></div>
-     <div class="grid-3" id="impact-equity">${Object.entries(r.equity).map(([k, e]) => `<div class="card"><h4>Equity by ${W.esc(e.label.toLowerCase())}</h4><div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><thead><tr><th>Group</th><th>n</th><th>Loop closed</th><th>Gap</th></tr></thead><tbody>
-      ${e.rows.map(g => `<tr ${g.flag ? 'class="row-flag"' : ""}><td>${W.esc(g.group)}</td><td>${supp(g.n)}</td><td>${W.pct(supp(g.loop_closure_rate))}</td><td>${g.gap_pp == null ? "–" : (g.gap_pp > 0 ? `${g.gap_pp} pts below` : `${Math.abs(g.gap_pp)} pts above`)}${g.flag ? ' <span class="chip sla-red">▲ check</span>' : ""}</td></tr>`).join("")}</tbody></table></div></div>`).join("")}</div>
+     <div class="grid-3" id="impact-equity">${Object.entries(r.equity).map(([k, e]) => `<div class="card"><h4>Equity by ${W.esc(e.label.toLowerCase())}</h4><div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways"><table class="compact"><thead><tr><th>Group</th><th>n</th><th>Loop closed</th><th>95% CI</th><th>Gap</th></tr></thead><tbody>
+      ${e.rows.map(g => `<tr ${g.flag ? 'class="row-flag"' : ""}><td>${W.esc(g.group)}</td><td>${supp(g.n)}</td><td>${W.pct(supp(g.loop_closure_rate))}</td><td class="small nowrap">${g.ci_low == null ? "–" : W.pct(g.ci_low) + "–" + W.pct(g.ci_high)}</td><td>${g.gap_pp == null ? "–" : (g.gap_pp > 0 ? `${g.gap_pp} pts below` : `${Math.abs(g.gap_pp)} pts above`)}${g.flag ? ' <span class="chip sla-red">▲ check</span>' : ""}</td></tr>`).join("")}</tbody></table></div>${e.gap ? `<p class="equity-gap small" data-gap="${e.gap.gap_pp}"><b>${e.gap.gap_pp} pts</b> best–worst (${W.esc(e.gap.best_group)} vs ${W.esc(e.gap.worst_group)})</p>` : ""}</div>`).join("")}</div>
      <p class="small muted">A group is marked “check” when its loop-closure rate is ${st.equity_gap_pp} or more percentage points below the overall rate.</p>
      ${r.barriers ? barrierCard(r.barriers, supp) : ""}
      <details class="card"><summary>How each figure is defined</summary><dl class="facts">${Object.entries(d).map(([k, v]) => `<div><dt>${W.esc(k.replaceAll("_", " "))}</dt><dd>${W.esc(v)}</dd></div>`).join("")}</dl></details>`;

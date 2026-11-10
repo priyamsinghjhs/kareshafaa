@@ -25,14 +25,15 @@ from sqlalchemy.orm import Session
 
 from ..clinical_rules import TIER_TARGET_DAYS
 from ..models import Appointment, Case, utcnow
-from .analytics import _frames, _thr, suppress_count, suppress_rate
+from .analytics import _frames, _thr, prop, suppress_count, suppress_rate
 from .patients import LANGUAGES
 
 LOOP_MATURITY_DAYS = 90   # CONFIRM: a case counts in closure / lost rates once it is 90 days old
 LOST_GRACE_DAYS = 30      # CONFIRM: open and more than 30 days past its pathway target ...
 LOST_STALE_DAYS = 30      # CONFIRM: ... with no step change for 30 days = lost to follow-up
 EQUITY_GAP_PP = 10.0      # CONFIRM: flag a group whose loop-closure rate is 10+ percentage points below the overall rate
-EQUITY_SLICES = (("language", "Language"), ("nationality_group", "Nationality group"), ("region", "Region"))
+EQUITY_SLICES = (("language", "Language"), ("nationality_group", "Nationality group"), ("region", "Region"),
+                 ("age_band", "Age band"))
 TIER_LABEL = {"critical": "Critical (T0)", "urgent": "Urgent (T1)", "high": "Soon (T2)", "routine": "Routine (T3)"}
 PROGRAMME_LABEL = {"colorectal_fit": "Bowel (FIT)", "cervical": "Cervical (HPV)", "breast": "Breast (mammogram)",
                    "diabetes_hba1c": "Diabetes (HbA1c)"}
@@ -44,6 +45,13 @@ DEFINITIONS = {
     "first_specialist_contact": "first attended appointment of the case, counted from the day the result arrived",
     "within_target": "first specialist contact on or before the case's end-to-end pathway target date",
     "recall_uptake": "of recalls due long enough ago, the share screened within the uptake window",
+    "unfinished_cases": "a mature case that has not reached care counts as NOT closed / NOT within target (never left out)",
+    "within_target_all": "of mature cases, the share whose first specialist contact was within the pathway target "
+                         "(unfinished cases count as not met)",
+    "median_days_to_specialist": "conditional median: only cases that HAVE had a first specialist contact; read it "
+                                 "with the loop-closure rate, not alone",
+    "interval": "95% Wilson score interval for each proportion; no rate or interval is shown for a suppressed cell",
+    "equity_gap": "best-to-worst gap: highest minus lowest loop-closure rate among the groups that are not suppressed",
 }
 
 
@@ -103,14 +111,29 @@ def _group_rows(m: pd.DataFrame, overall: float | None, col: str) -> list[dict]:
     rows = []
     for grp, g in m.groupby(col):
         n = len(g)
-        rate = suppress_rate(int(g.loop_closed.sum()), n)
+        pr = prop(int(g.loop_closed.sum()), n)
+        rate = pr["rate"]
         gap = round((overall - rate) * 100, 1) if isinstance(rate, float) and isinstance(overall, float) else None
         label = LANGUAGES.get(str(grp), str(grp)) if col == "language" else str(grp)
         rows.append({"group": label, "code": str(grp), "n": suppress_count(n), "loop_closure_rate": rate,
+                     "loop_closed": pr["num"], "ci_low": pr["ci_low"], "ci_high": pr["ci_high"],
                      "lost_rate": suppress_rate(int(g.lost.sum()), n),
                      "median_days_to_specialist": _median(g.days_to_contact),
                      "gap_pp": gap, "flag": bool(gap is not None and gap >= EQUITY_GAP_PP)})
     return sorted(rows, key=lambda r: -(r["n"] if isinstance(r["n"], int) else 0))
+
+
+def best_worst_gap(rows: list[dict]) -> dict | None:
+    """Best-to-worst loop-closure gap among the groups with a shown rate (None with fewer than two)."""
+    shown = [r for r in rows if isinstance(r.get("loop_closure_rate"), float)]
+    if len(shown) < 2:
+        return None
+    best = max(shown, key=lambda r: r["loop_closure_rate"])
+    worst = min(shown, key=lambda r: r["loop_closure_rate"])
+    return {"best_group": best["group"], "best_rate": best["loop_closure_rate"],
+            "worst_group": worst["group"], "worst_rate": worst["loop_closure_rate"],
+            "gap_pp": round((best["loop_closure_rate"] - worst["loop_closure_rate"]) * 100, 1),
+            "groups_compared": len(shown), "groups_suppressed": len(rows) - len(shown)}
 
 
 BARRIER_LABEL = {
@@ -210,11 +233,17 @@ def impact_report(db: Session, programme: str | None = None, now=None) -> dict[s
         return base | {"headline": {}, "by_tier": [], "by_programme": [], "equity": {}}
     m = c[c.mature]
     nm = len(m)
-    overall = suppress_rate(int(m.loop_closed.sum()), nm)
+    lc = prop(int(m.loop_closed.sum()), nm)
+    overall = lc["rate"]
+    wt = prop(int(m.met_target.sum()), nm)
     u = uptake(db, now)
     headline = {
         "mature_cases": suppress_count(nm),
         "loop_closure_rate": overall,
+        "loop_closed": lc["num"], "loop_closure_ci_low": lc["ci_low"], "loop_closure_ci_high": lc["ci_high"],
+        "within_target_rate_all": wt["rate"], "within_target_all_ci_low": wt["ci_low"],
+        "within_target_all_ci_high": wt["ci_high"],
+        "median_days_to_specialist_is_conditional": True,
         "closed_by_decision_rate": _rate(m.by_decision.sum(), nm),
         "lost_to_follow_up_rate": _rate(m.lost.sum(), nm),
         "lost_to_follow_up_now": suppress_count(int(c.lost.sum())),
@@ -241,7 +270,10 @@ def impact_report(db: Session, programme: str | None = None, now=None) -> dict[s
         by_prog.append({"programme": prog, "label": PROGRAMME_LABEL.get(prog, prog), "cases": suppress_count(len(g)),
                         "loop_closure_rate": _rate(gm.loop_closed.sum(), len(gm)), "lost_rate": _rate(gm.lost.sum(), len(gm)),
                         "median_days_to_specialist": _median(g.days_to_contact)})
-    equity = {col: {"label": lab, "rows": _group_rows(m, overall if isinstance(overall, float) else None, col)} for col, lab in EQUITY_SLICES}
+    equity = {}
+    for col, lab in EQUITY_SLICES:
+        rows = _group_rows(m, overall if isinstance(overall, float) else None, col)
+        equity[col] = {"label": lab, "rows": rows, "gap": best_worst_gap(rows)}
     barriers = barrier_analysis(db, set(int(x) for x in c.id))
     return base | {"headline": headline, "by_tier": by_tier, "by_programme": by_prog, "equity": equity,
                    "barriers": barriers}
@@ -267,8 +299,12 @@ def impact_csv(rep: dict) -> str:
             w.writerow(["programme", "programme", r["label"], k, r[k]])
     for col, e in rep.get("equity", {}).items():
         for r in e["rows"]:
-            for k in ("n", "loop_closure_rate", "lost_rate", "median_days_to_specialist", "gap_pp", "flag"):
+            for k in ("n", "loop_closed", "loop_closure_rate", "ci_low", "ci_high", "lost_rate",
+                      "median_days_to_specialist", "gap_pp", "flag"):
                 w.writerow(["equity", col, r["group"], k, r[k]])
+        if e.get("gap"):
+            for k, v in e["gap"].items():
+                w.writerow(["equity_gap", col, "best_to_worst", k, v])
     b = rep.get("barriers") or {}
     for r in b.get("patient_reported", []):
         w.writerow(["barrier", "patient_reported", r["label"], "events", r["events"]])

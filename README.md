@@ -103,7 +103,10 @@ closure.
 
 **Impact and responsible AI**
 * Outcomes dashboard and **loop impact report**, including **“Why loops fail”** (patient-reported vs service-side
-  barriers, small cells suppressed, CSV export).
+  barriers, small cells suppressed, CSV export). **Equity figures** by language, nationality group, region and age
+  band carry numerator, denominator and a **Wilson 95% interval**; a suppressed cell shows no rate and no interval;
+  unfinished cases count as not closed / not within target; each slice shows the **best-to-worst gap**; the median
+  days to specialist is labelled as conditional on being seen (`kareshafaa/services/impact.py`).
 * Governed ML (scikit-learn) used only to order outreach within a tier — never for triage, tier or closure. The
   model actor is refused by the workflow for every case or patient action (move, close, file a result, contact),
   checked by the property test. **AI kill switch:** `KARESHAFAA_ML_ENABLED=false` at deployment, or **Admin → System →

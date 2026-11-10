@@ -1,6 +1,8 @@
 """Aggregate KPIs with small-cell suppression. Analysts only ever receive outputs of this module."""
 from __future__ import annotations
 
+import math
+
 from typing import Any
 
 import numpy as np
@@ -30,6 +32,31 @@ def suppress_rate(num: int, den: int, thr: int | None = None) -> float | str | N
     if den < thr or 0 < num < thr or 0 < den - num < thr:
         return "suppressed"
     return round(num / den, 3)
+
+
+Z95 = 1.96
+
+
+def wilson(k: int, n: int, z: float = Z95) -> tuple[float, float] | None:
+    """Wilson score 95% interval for k of n (None when n == 0)."""
+    if n <= 0:
+        return None
+    p = k / n
+    d = 1 + z * z / n
+    c = (p + z * z / (2 * n)) / d
+    h = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d
+    return max(0.0, c - h), min(1.0, c + h)
+
+
+def prop(num: int, den: int, thr: int | None = None) -> dict[str, Any]:
+    """A proportion as numerator, denominator, rate and Wilson 95% interval, with the same small-cell suppression as
+    suppress_rate: a suppressed cell has no rate and no interval (never an unstable figure)."""
+    num, den = int(num), int(den)
+    rate = suppress_rate(num, den, thr)
+    if not isinstance(rate, float):
+        return {"num": suppress_count(num, thr), "den": suppress_count(den, thr), "rate": rate, "ci_low": None, "ci_high": None}
+    lo, hi = wilson(num, den)
+    return {"num": num, "den": den, "rate": rate, "ci_low": round(lo, 3), "ci_high": round(hi, 3)}
 
 
 def secondary_suppress(cells: dict[str, int], thr: int | None = None) -> dict[str, int | str]:

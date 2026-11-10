@@ -23,7 +23,7 @@ def test_impact_report_figures_and_synthetic_label(client, as_user, new_case):
             "recall_uptake_rate"} <= set(d["headline"])
     assert "synthetic" in d["data"]["label"].lower()
     assert [t["tier"] for t in d["by_tier"]] == [t for t in ("critical", "urgent", "high", "routine") if t in {x["tier"] for x in d["by_tier"]}]
-    assert set(d["equity"]) == {"language", "nationality_group", "region"}
+    assert set(d["equity"]) == {"language", "nationality_group", "region", "age_band"}
     for e in d["equity"].values():
         for row in e["rows"]:
             assert row["loop_closure_rate"] is None or row["loop_closure_rate"] == "suppressed" or 0 <= row["loop_closure_rate"] <= 1
