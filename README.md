@@ -289,6 +289,13 @@ database flush hook keeps them current on every case, step and SLA-rule change, 
 idempotently (additive migration). Proposal generation reads pending proposals and configuration once per run.
 `scripts/loadtest/queue_equivalence.py` checks the SQL queue against the former Python ordering on any database.
 
+**Migration rehearsal (before every deploy that adds tables or columns):** `python scripts/migration_rehearsal.py
+--base-ref master` seeds a throw-away SQLite database with the code at that ref (synthetic data), upgrades it with
+the current `init_db` twice and fails if any table, column, row or append-only trigger is lost, the audit chain
+breaks, or the second run changes anything; `--db-copy FILE` rehearses on a copy of an existing SQLite file. For
+PostgreSQL, `--postgres-env NAME --wipe-postgres` uses the URL in the environment variable `NAME` (a throwaway
+database only: refused if it equals `DATABASE_URL`; the URL is never printed).
+
 **CI:** the workflow (tests + coverage, pip-audit, bandit, axe accessibility) is kept at `ci/github-actions-ci.yml`;
 copy it to `.github/workflows/` to enable it on GitHub.
 
