@@ -864,6 +864,26 @@ def create_referral(db: Session, case: Case, actor: Actor, performer_org_id: int
     return sr
 
 
+def _referral_decision_refusal(actor: Actor, sr: ServiceRequest) -> str | None:
+    """Why this actor may not accept / reject this referral, or None if they may. The receiving specialist (own
+    organisation) decides; a clinical lead may decide for oversight, but never the clinician who sent the referral."""
+    if not actor.can("referral:decide"):
+        return "role lacks referral:decide"
+    if actor.practitioner_id is not None and actor.practitioner_id == sr.requester_id:
+        return "the clinician who sent this referral cannot accept or reject it"
+    if actor.role == "specialist" and actor.org_id != sr.performer_org_id:
+        return "only the receiving organisation can decide this referral"
+    return None
+
+
+def can_decide_referral(db: Session, case: Case, actor: Actor) -> bool:
+    """Single source of truth for showing 'Accept / reject referral' (actions panel) and allowing decide_referral."""
+    if S(case.state) != S.REFERRAL_SENT:
+        return False
+    sr = _latest(db, ServiceRequest, case.id, kind="referral", status="requested")
+    return sr is not None and _referral_decision_refusal(actor, sr) is None
+
+
 def decide_referral(db: Session, case: Case, actor: Actor, accept: bool, *, reason_code: str | None = None,
                     note: str | None = None, performer_id: int | None = None, now: datetime | None = None) -> ServiceRequest:
     _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
@@ -872,8 +892,9 @@ def decide_referral(db: Session, case: Case, actor: Actor, accept: bool, *, reas
     sr = _latest(db, ServiceRequest, case.id, kind="referral", status="requested")
     if sr is None or S(case.state) != S.REFERRAL_SENT:
         raise DomainError("no referral awaiting a decision")
-    if actor.role == "specialist" and actor.org_id != sr.performer_org_id:
-        raise Forbidden("only the receiving organisation can decide this referral")
+    refusal = _referral_decision_refusal(actor, sr)
+    if refusal:
+        raise Forbidden(refusal)
     if not accept:
         if reason_code not in REJECT_REASONS:
             raise Invalid(f"reject reason_code must be one of {sorted(REJECT_REASONS)}")

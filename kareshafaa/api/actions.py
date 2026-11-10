@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ..models import CallTask, Case, QuestionnaireResponse, ServiceRequest
 from ..security import Actor
 from ..services.access import consent_status
+from ..services.workflow import can_decide_referral
 from ..statemachine import S
 
 
@@ -79,7 +80,7 @@ def available_actions(db: Session, actor: Actor, c: Case) -> list[dict]:
         add("consultation", "Alternative plan: back to consultation", "case:write")
     if st in (S.CONSULTATION, S.APPOINTMENT_ATTENDED):
         add("start_care", "Record treatment / surveillance plan", "careplan:write", st == S.APPOINTMENT_ATTENDED)
-    if st == S.REFERRAL_SENT:
+    if st == S.REFERRAL_SENT and can_decide_referral(db, c, actor):  # never the clinician who sent it
         add("decide_referral", "Accept / reject referral", "referral:decide", True)
     if st in (S.REFERRAL_ACCEPTED, S.NO_SHOW):
         add("book", "Book appointment" if st == S.REFERRAL_ACCEPTED else "Rebook appointment", "appointment:write", True)

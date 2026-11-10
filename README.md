@@ -307,6 +307,9 @@ usernames come from the staff directory (`kareshafaa/synth/directory.py`, `kares
 | Patient | `patient.en` (also `patient.ar`, `.hi`, `.ur`, `.tl`) | Own results, journey, appointments, requests, messages and consent. |
 
 Coordinators and clinical leads see programme-wide; other clinical roles see cases their organisation is involved in.
+**Accept / reject referral** is for the receiving side: a specialist at the organisation the referral was sent to, or
+a clinical lead (oversight). The clinician who sent the referral never sees the button and the server refuses it
+from them, even a clinical lead who holds both permissions. GPs and coordinators send referrals but never decide them.
 The results inbox (raw lab messages, unmatched results, patient matching) belongs to care coordination
 (`results:inbox`); GPs add a result only for a patient they may see, and import clinical history only into such a
 record. The guided walkthrough is an administrator tool, on the page and at the API. Work queue, case list, patient

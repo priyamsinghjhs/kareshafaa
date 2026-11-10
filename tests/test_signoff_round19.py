@@ -171,7 +171,14 @@ def test_reopened_case_cannot_be_marked_attended_on_the_old_appointment(db):
     old_ref = db.scalar(select(ServiceRequest).where(ServiceRequest.case_id == c.id, ServiceRequest.kind == "referral")
                         .order_by(ServiceRequest.id.desc()).limit(1))
     wf.create_referral(db, c, lead, old_ref.performer_org_id, summary="Re-referral after re-opening: " + "x" * 60)
-    wf.decide_referral(db, c, lead, True, note="accepted for re-assessment")
+    from kareshafaa.models import Practitioner
+
+    # the clinician who sent the referral cannot accept it: the receiving organisation's specialist does
+    sp_user = db.scalar(select(User).join(Practitioner, User.practitioner_id == Practitioner.id).where(
+        User.role == "specialist", User.active.is_(True), Practitioner.org_id == old_ref.performer_org_id)
+        .order_by(User.id).limit(1))
+    sp = _user(db, sp_user.username) if sp_user else _user(db, "layla.al.hashimi")  # else another clinical lead
+    wf.decide_referral(db, c, sp, True, note="accepted for re-assessment")
     wf.book_appointment(db, c, lead, utcnow() + timedelta(days=2), beyond_target_reason="earliest slot after re-opening")
     assert c.state == "appointment_booked"
     with pytest.raises(TransitionError, match="since the last re-open"):
