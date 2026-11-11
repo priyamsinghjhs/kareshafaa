@@ -100,6 +100,15 @@ def seed(n_patients: int | None = None, seed_value: int | None = None, *, train:
         if simulate:
             sim = run_simulation(n=n, seed=sv)
             db.add(SimulationRun(params={"n": n, "seed": sv, "replications": sim["replications"]}, results=sim))
+        from sqlalchemy import func, or_
+        from .services.email_backfill import backfill_missing_emails
+
+        stats["email_placeholders"] = backfill_missing_emails(db)
+        def _blank(model):
+            return or_(model.email.is_(None), func.trim(model.email) == "")
+        stats["patients_without_email"] = int(db.scalar(select(func.count(Patient.id)).where(_blank(Patient))) or 0)
+        stats["users_without_email"] = int(db.scalar(select(func.count(User.id)).where(_blank(User))) or 0)
+        db.commit()
         audit.record(db, SEED_ACTOR, "C", "seed.finished", detail={"seconds": round(time.time() - t_start, 1)})
         stats["cases"] = db.query(Case).count()
         stats["open"] = db.query(Case).filter(Case.state != S.CLOSED).count()

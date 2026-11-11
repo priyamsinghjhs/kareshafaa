@@ -922,7 +922,7 @@ def create_app() -> FastAPI:
                     t=t, lang=lang, rtl=lang in RTL_LANGUAGES, langs=inv.ACTIVATE_LANGS, mode=mode,
                     action="/reset-password" if mode == "reset" else "/activate",
                     token=token or "", login_csrf=tok, code=ctx.pop("code", ""), birth_date=ctx.pop("birth_date", ""),
-                    **ctx)
+                    username=ctx.pop("username", ""), **ctx)
         resp.headers["Referrer-Policy"] = "no-referrer"  # the link token never leaks to other sites
         ensure_login_csrf(request, resp, tok)
         return resp
@@ -971,7 +971,8 @@ def create_app() -> FastAPI:
         code = str(form.get("code", ""))[:20]
         dob_raw = str(form.get("birth_date", ""))[:10]
         pw, confirm = str(form.get("password", ""))[:256], str(form.get("confirm", ""))[:256]
-        keep = {"code": code, "birth_date": dob_raw}
+        username = str(form.get("username", ""))[:80]
+        keep = {"code": code, "birth_date": dob_raw, "username": username}
         if not login_csrf_ok(request, str(form.get("csrf_token", ""))):
             return activate_page(request, lang, token, 403, mode=mode, error=inv.error_text(lang, "expired_page"), **keep)
         try:
@@ -986,7 +987,8 @@ def create_app() -> FastAPI:
             db = session_factory()()
             try:
                 u, reason = inv.activate(db, code=code, token=token, birth_date=dob, password=pw, confirm=confirm,
-                                         ip=auth.client_ip(request), purpose="reset" if mode == "reset" else None)
+                                         ip=auth.client_ip(request), purpose="reset" if mode == "reset" else None,
+                                         username=None if mode == "reset" else username)
                 if u is None:
                     db.rollback() if reason in ("mismatch",) or reason.startswith("weak:") else None
                     return reason, None, None
@@ -998,8 +1000,10 @@ def create_app() -> FastAPI:
 
         reason, resp, _u = await asyncio.to_thread(_work)
         if resp is None:
-            field = {"wrong_dob": "dob", "mismatch": "pw"}.get(reason, "pw" if reason.startswith("weak:") else "code")
-            status = 429 if reason == "rate_limited" else (422 if field == "pw" else 400)
+            field = {"wrong_dob": "dob", "mismatch": "pw", "username_taken": "username",
+                     "username_invalid": "username"}.get(
+                reason, "pw" if reason.startswith("weak:") else "code")
+            status = 429 if reason == "rate_limited" else (422 if field in ("pw", "username") else 400)
             return activate_page(request, lang, token, status, mode=mode, error_reason=reason, error_field=field, **keep)
         resp.delete_cookie(auth.CSRF_COOKIE, path="/")
         return resp

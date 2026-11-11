@@ -60,7 +60,7 @@ def prefill(message_id: int, actor: Actor = Depends(require("patient:register"))
 
 
 @router.post("")
-def register(body: sch.PatientCreateIn, actor: Actor = Depends(require("patient:register")),
+def register(body: sch.PatientCreateIn, request: Request, actor: Actor = Depends(require("patient:register")),
              db: Session = Depends(get_db)) -> dict:
     from ..models import utcnow
     from ..services import coverage
@@ -96,6 +96,10 @@ def register(body: sch.PatientCreateIn, actor: Actor = Depends(require("patient:
         m = resolve_match(db, msg.id, p.id, actor)
         out["case_id"] = m.case_id
         out["report_id"] = m.report_id
+    from ..services import invites
+
+    signup = invites.invite_after_registration(db, actor, p, base_url=base_url(request))
+    out.update(signup)
     db.commit()
     return out
 
@@ -176,7 +180,9 @@ def account_invite(patient_id: int, body: sch.AccountInviteIn, request: Request,
     db.commit()
     return {"ok": True, "username": new.user.username, "code": invites.fmt_code(new.code), "link": new.link,
             "expires_at": new.invite.expires_at.isoformat(), "purpose": new.invite.purpose, "channel": new.invite.channel,
-            "sms": new.sms.content if new.sms else None, "account": invites.account_status(db, p)}
+            "sms": new.sms.content if new.sms else None,
+            "email_sent": new.email_sent, "email_content": new.email.content if new.email else None,
+            "account": invites.account_status(db, p)}
 
 
 @router.post("/{patient_id}/account-invite/revoke")

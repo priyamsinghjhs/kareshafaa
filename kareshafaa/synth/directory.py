@@ -98,4 +98,10 @@ def build_users(db: Session, d: dict) -> list[User]:
         users.append(User(username=uname, display_name=display, role=role, email=staff_mailbox(uname)))
     db.add_all(users)
     db.flush()
+    from ..services.email_backfill import address_for_user, _taken  # noqa: PLC0415
+
+    taken = _taken(db)
+    for u in users:
+        if not (u.email or "").strip():
+            u.email = address_for_user(u, taken)
     return users

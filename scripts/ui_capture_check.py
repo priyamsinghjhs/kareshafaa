@@ -562,7 +562,10 @@ def run():
             ctx = pw.ctx_browser.new_context(**VIEWS[VIEW], locale="ar-AE", timezone_id="Asia/Dubai"); a = ctx.new_page()
             errs = []; a.on("pageerror", lambda e: errs.append("JS " + str(e)))
             a.goto(BASE + "/activate?lang=ar"); a.wait_for_selector("#act-form")
-            a.fill("#code", "ZZZZ-ZZZZ"); a.fill("#birth_date", "1979-09-21"); a.fill("#password", "Lantern-Orbit-Cobalt-77"); a.fill("#confirm", "Lantern-Orbit-Cobalt-77")
+            a.fill("#code", "ZZZZ-ZZZZ"); a.fill("#birth_date", "1979-09-21")
+            if a.locator("#username").count():
+                a.fill("#username", uname)
+            a.fill("#password", "Lantern-Orbit-Cobalt-77"); a.fill("#confirm", "Lantern-Orbit-Cobalt-77")
             a.click("#act-form button[type=submit]"); a.wait_for_selector("#act-error")
             kept = a.input_value("#code") == "ZZZZ-ZZZZ" and a.input_value("#birth_date") == "1979-09-21"
             sw, iw = a.evaluate("[document.documentElement.scrollWidth, window.innerWidth]")

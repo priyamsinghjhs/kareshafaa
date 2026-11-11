@@ -29,6 +29,12 @@
         <label for="birth_date">{{ t.dob }}
           <input id="birth_date" name="birth_date" type="date" value="{{ birth_date }}" dir="ltr" min="1900-01-01" required {% if error_field == 'dob' %}aria-invalid="true" aria-describedby="act-error"{% endif %}>
         </label>
+        {% if mode != "reset" %}
+        <label for="username">{{ t.un }}
+          <input id="username" name="username" type="text" value="{{ username or '' }}" dir="ltr" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="3" maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9._\-]{2,79}" required {% if error_field == 'username' %}aria-invalid="true" aria-describedby="act-error"{% endif %}>
+          <span class="hint small muted">{{ t.un_hint }}</span>
+        </label>
+        {% endif %}
         <label for="password">{{ t.pw }}
           <span class="pw-field"><input id="password" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required dir="ltr" {% if error_field == 'pw' %}aria-invalid="true" aria-describedby="act-error"{% endif %}>
           <button type="button" class="reveal" data-reveal="password" aria-controls="password" aria-pressed="false">{{ t.show }}</button></span>

@@ -41,6 +41,7 @@ def notify_queue_owner(db: Session, case: Case, *, reason: str) -> bool:
         except Exception:  # noqa: BLE001 - a bad stored address is not emailed
             return False
         if mail.is_synthetic_address(to):
+            log.info("queue-owner e-mail skipped: reserved example domain placeholder (RFC 2606)")
             return False
         prog = PROGRAMMES.get(case.programme)
         prog_name = prog.name if prog else (case.programme or "")

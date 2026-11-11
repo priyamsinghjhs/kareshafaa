@@ -50,7 +50,9 @@ async function submit(form, anyway = false) {
     const r = await W.api("/api/patients", { method: "POST", body });
     W.toast(`Patient registered (${r.mrn})` + (r.case_id ? ` – result filed, case #${r.case_id}` : ""), "ok");
     if (r.warnings && r.warnings.length) W.toast(r.warnings.join(" "), "");
-    location.href = `/patients/${r.patient_id}?registered=1`;
+    const q = new URLSearchParams({registered: "1"});
+    if (r.signup_email) q.set("signup", r.signup_email);
+    location.href = `/patients/${r.patient_id}?${q}`;
   } catch (e) { W.busy(b, false); if (e.status === 409) showDup(e, form); else W.formError(form, e.message); }
 }
 

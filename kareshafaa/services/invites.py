@@ -1,16 +1,24 @@
 """Patient account invites: staff create the patient's login from the patient record with a one-time code.
 
 * The account (role patient, linked to the patient record) is created with NO password: nobody can sign in
-  until the patient chooses one on /activate with the code, their date of birth and a new password.
-* Code: 8 characters (no look-alike letters), shown ONCE to staff and sent in a SIMULATED SMS. Only HMAC hashes
-  are stored (code and link token), plus the last 4 characters so staff can tell invites apart.
+  until the patient chooses a username and password on /activate with the code (or the emailed link), their
+  date of birth, and a new password. A suggested username is assigned at invite time; the patient may choose
+  their own (unique, same rules as staff usernames) when activating.
+* Code: 8 characters (no look-alike letters), shown ONCE to staff (SMS / in person). An email invite sends a
+  single-use link (the token is not stored in the Communication body). Only HMAC hashes are stored (code and
+  link token), plus the last 4 characters so staff can tell invites apart.
+* Channels: sms (simulated), in_person, email (real mail when the mailbox is configured; see comms/mail.py).
+  A new invite revokes any earlier open token, so a resend replaces the previous link.
 * Single use, expires after INVITE_TTL_HOURS, revoked by a new invite or by staff, and after
-  MAX_FAILED_ATTEMPTS wrong dates of birth. Every step is audited.
+  MAX_FAILED_ATTEMPTS wrong dates of birth. Every step is audited. Mail failures are stored and never block
+  registration (invite_after_registration).
 """
 from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
+import re
 import secrets
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -23,6 +31,8 @@ from ..config import get_settings
 from ..models import Communication, LoginAttempt, Patient, PatientInvite, User, utcnow
 from ..security import Actor
 from .errors import DomainError, Forbidden, Invalid
+
+log = logging.getLogger("kareshafaa.mail")
 
 INVITE_TTL_HOURS = 72          # time to activate (operational setting, not clinical)
 RESET_TTL_HOURS = 24           # CONFIRM (security): a password-RESET code (account already active) expires sooner
@@ -39,6 +49,52 @@ SMS_TEXT = {
     "ur": "کیئر شفاء: آپ کا مریض اکاؤنٹ تیار ہے۔ {link} کھولیں اور ایکٹیویشن کوڈ {code} اور اپنی تاریخ پیدائش درج کریں۔ کوڈ ایک بار کام کرتا ہے اور {expires} کو ختم ہو جاتا ہے۔",
 }
 
+
+
+
+# Real e-mail (token is in the live message only; the stored Communication uses the page URL without ?t=)
+EMAIL_TEXT = {
+    "en": {"subject": "KareShafaa: set up your patient app account",
+           "body": ("Hello {name},\n\nYour care team has registered you with KareShafaa. "
+                    "Open this link to choose your username and password (it works once and expires at {expires}):\n\n"
+                    "{link}\n\nYou will be asked to confirm your date of birth. Do not share this link. "
+                    "If you were not expecting this message, you can ignore it.\n\nKareShafaa")},
+    "ar": {"subject": "كير شفاء: إعداد حسابك في تطبيق المريض",
+           "body": ("مرحباً {name},\n\nسجّلك فريق الرعاية في كير شفاء. "
+                    "افتح هذا الرابط لاختيار اسم المستخدم وكلمة المرور (يعمل مرة واحدة وينتهي في {expires}):\n\n"
+                    "{link}\n\nسيُطلب منك تأكيد تاريخ ميلادك. لا تشارك هذا الرابط. "
+                    "إذا لم تكن تتوقع هذه الرسالة يمكنك تجاهلها.\n\nكير شفاء")},
+    "hi": {"subject": "केयरशफ़ा: अपना मरीज़ ऐप खाता बनाएँ",
+           "body": ("नमस्ते {name},\n\nआपकी देखभाल टीम ने आपको केयरशफ़ा में पंजीकृत किया है। "
+                    "अपना यूज़रनेम और पासवर्ड चुनने के लिए यह लिंक खोलें (यह एक बार काम करता है और {expires} को समाप्त होता है):\n\n"
+                    "{link}\n\nआपसे जन्मतिथि की पुष्टि पूछी जाएगी। इस लिंक को साझा न करें। "
+                    "यदि आप इस संदेश की प्रतीक्षा नहीं कर रहे थे तो इसे अनदेखा कर सकते हैं।\n\nकेयरशफ़ा")},
+    "ur": {"subject": "کیئر شفاء: اپنا مریض ایپ اکاؤنٹ بنائیں",
+           "body": ("السلام علیکم {name},\n\nآپ کی نگہداشت ٹیم نے آپ کو کیئر شفاء میں رجسٹر کیا ہے۔ "
+                    "اپنا یوزر نیم اور پاس ورڈ منتخب کرنے کے لیے یہ لنک کھولیں (یہ ایک بار کام کرتا ہے اور {expires} کو ختم ہو جاتا ہے):\n\n"
+                    "{link}\n\nآپ سے تاریخ پیدائش کی تصدیق پوچھی جائے گی۔ یہ لنک شیئر نہ کریں۔ "
+                    "اگر آپ اس پیغام کے منتظر نہیں تھے تو اسے نظرانداز کر سکتے ہیں۔\n\nکیئر شفاء")},
+}
+EMAIL_RESET_TEXT = {
+    "en": {"subject": "KareShafaa: reset your patient app password",
+           "body": ("Hello {name},\n\nYour care team sent a password reset link. "
+                    "Open it to choose a new password (it works once and expires at {expires}):\n\n"
+                    "{link}\n\nYou will be asked to confirm your date of birth. Do not share this link.\n\nKareShafaa")},
+    "ar": {"subject": "كير شفاء: إعادة تعيين كلمة مرور تطبيق المريض",
+           "body": ("مرحباً {name},\n\nأرسل فريق الرعاية رابطاً لإعادة تعيين كلمة المرور. "
+                    "افتحه لاختيار كلمة مرور جديدة (يعمل مرة واحدة وينتهي في {expires}):\n\n"
+                    "{link}\n\nسيُطلب منك تأكيد تاريخ ميلادك. لا تشارك هذا الرابط.\n\nكير شفاء")},
+    "hi": {"subject": "केयरशफ़ा: मरीज़ ऐप पासवर्ड रीसेट करें",
+           "body": ("नमस्ते {name},\n\nआपकी देखभाल टीम ने पासवर्ड रीसेट लिंक भेजा है। "
+                    "नया पासवर्ड चुनने के लिए इसे खोलें (यह एक बार काम करता है और {expires} को समाप्त होता है):\n\n"
+                    "{link}\n\nआपसे जन्मतिथि की पुष्टि पूछी जाएगी। इस लिंक को साझा न करें।\n\nकेयरशफ़ा")},
+    "ur": {"subject": "کیئر شفاء: مریض ایپ پاس ورڈ ری سیٹ کریں",
+           "body": ("السلام علیکم {name},\n\nآپ کی نگہداشت ٹیم نے پاس ورڈ ری سیٹ لنک بھیجا ہے۔ "
+                    "نیا پاس ورڈ منتخب کرنے کے لیے اسے کھولیں (یہ ایک بار کام کرتا ہے اور {expires} کو ختم ہو جاتا ہے):\n\n"
+                    "{link}\n\nآپ سے تاریخ پیدائش کی تصدیق پوچھی جائے گی۔ یہ لنک شیئر نہ کریں۔\n\nکیئر شفاء")},
+}
+
+USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,79}$")
 
 class InviteError(DomainError):
     def __init__(self, message: str, code: str):
@@ -119,6 +175,8 @@ class NewInvite:
     code: str
     link: str
     sms: Communication | None
+    email: Communication | None = None
+    email_sent: bool = False
 
 
 def create_invite(db: Session, actor: Actor, p: Patient, *, channel: str, base_url: str,
@@ -135,8 +193,8 @@ def create_invite(db: Session, actor: Actor, p: Patient, *, channel: str, base_u
         raise Forbidden("you can only invite patients you care for")
     if p.deceased:
         raise Invalid("this patient is recorded as deceased - no account can be created")
-    if channel not in ("sms", "in_person"):
-        raise Invalid("channel must be sms or in_person")
+    if channel not in ("sms", "in_person", "email"):
+        raise Invalid("channel must be sms, email or in_person")
     if channel == "sms" and not (p.phone and p.phone_valid):
         raise Invalid("no valid mobile number on the record - add one under Contact details, or give the code in person")
     if channel == "sms":
@@ -145,6 +203,20 @@ def create_invite(db: Session, actor: Actor, p: Patient, *, channel: str, base_u
         if consent_status(db, p.id, "comm_sms") == "deny":
             # the patient refused SMS: no text message of any kind, sign-in codes included
             raise Invalid("the patient has not agreed to SMS messages - give the code in person")
+    if channel == "email":
+        from ..comms import mail
+        from .access import consent_status
+
+        if not (p.email or "").strip():
+            raise Invalid("no email on the record - add one under Contact details, or give the code in person")
+        try:
+            mail.validate_address(p.email)
+        except Exception:  # noqa: BLE001 - Invalid or a bad stored value
+            raise Invalid("the email on the record is not valid") from None
+        if consent_status(db, p.id, "comm_email") == "deny":
+            raise Invalid("the patient has not agreed to email messages - give the code in person")
+        if not mail.can_send_to_patient(p):
+            raise Invalid("this address cannot be emailed (mailbox not configured, or the address is not eligible)")
     if p.birth_date is None:
         raise Invalid("add the full date of birth under Personal details first - the patient confirms it when activating")
     u = db.scalar(select(User).where(User.patient_id == p.id, User.role == "patient").order_by(User.id).limit(1))
@@ -195,15 +267,42 @@ def create_invite(db: Session, actor: Actor, p: Patient, *, channel: str, base_u
         db.add(sms)
         db.flush()
         inv.communication_id = sms.id
+    email_comm, email_sent, email_err = None, False, None
+    if channel == "email":
+        from ..calendar_uae import to_local
+        from ..comms import mail
+        from ..comms.service import comm_language
+
+        lang = comm_language(p)
+        lang = lang if lang in EMAIL_TEXT else "en"
+        exp = to_local(inv.expires_at).strftime("%d/%m/%Y %H:%M") + " UAE"
+        texts = EMAIL_RESET_TEXT if purpose == "reset" else EMAIL_TEXT
+        subject, tmpl = texts[lang]["subject"], texts[lang]["body"]
+        stored = tmpl.format(name=p.given_name or "", link=base_url.rstrip("/") + page_path, expires=exp)
+        try:
+            mail.send_email(p.email, subject, tmpl.format(name=p.given_name or "", link=link, expires=exp))
+            ok, content, email_err = True, stored, None
+        except mail.MailError as e:
+            ok, content, email_err = False, f"(e-mail not sent: {e})", str(e)
+        email_comm = Communication(patient_id=p.id, direction="outbound", category="account_invite", channel="email",
+                                   language=lang, template_key="account_reset" if purpose == "reset" else "account_invite",
+                                   template_variant="standard", content=content,
+                                   status="completed" if ok else "failed", simulated=False, sent_at=now)
+        db.add(email_comm)
+        db.flush()
+        inv.communication_id = email_comm.id
+        email_sent = ok
     audit.record(db, actor, "C", "patient.account_invited", entity_type="Patient", entity_id=p.id, ts=now,
                  detail={"invite_id": inv.id, "user_id": u.id, "username": u.username, "account_created": created,
                          "purpose": purpose, "channel": channel, "expires_at": inv.expires_at.isoformat(),
-                         "verify_method": verify_method if purpose == "reset" else None})
+                         "verify_method": verify_method if purpose == "reset" else None,
+                         "email_sent": email_sent if channel == "email" else None,
+                         "email_error": email_err})
     if purpose == "reset":
         from .signin_help import reset_code_issued
 
         reset_code_issued(db, actor, p.id, inv.id, verify_method, now)  # type: ignore[arg-type]
-    return NewInvite(inv, u, code, link, sms)
+    return NewInvite(inv, u, code, link, sms, email_comm, email_sent)
 
 
 def revoke_invite(db: Session, actor: Actor, p: Patient, reason: str, now: datetime | None = None) -> PatientInvite:
@@ -240,11 +339,73 @@ def find_invite(db: Session, *, code: str | None = None, token: str | None = Non
     return db.scalar(select(PatientInvite).where(PatientInvite.code_hash == _h("code", c)).order_by(PatientInvite.id.desc()).limit(1))
 
 
+def normalise_username(raw: str | None) -> str:
+    return (raw or "").strip().lower()[:80]
+
+
+def username_problem(db: Session, raw: str | None, *, current_user_id: int | None = None) -> str | None:
+    """None if the username may be used, else 'username_invalid' or 'username_taken'."""
+    u = normalise_username(raw)
+    if not u or not USERNAME_RE.fullmatch(u):
+        return "username_invalid"
+    q = select(User.id).where(User.username == u)
+    if current_user_id is not None:
+        q = q.where(User.id != current_user_id)
+    if db.scalar(q.limit(1)) is not None:
+        return "username_taken"
+    return None
+
+
+def mask_email(addr: str | None) -> str | None:
+    """First character of the local part, then bullets, then @domain (for staff banners). None if empty."""
+    raw = (addr or "").strip()
+    if "@" not in raw:
+        return None
+    local, _, domain = raw.partition("@")
+    if not local or not domain:
+        return None
+    return f"{local[0]}{'•' * max(2, min(6, len(local) - 1))}@{domain.lower()}"
+
+
+def invite_after_registration(db: Session, actor, p: Patient, *, base_url: str,
+                              now: datetime | None = None) -> dict:
+    """After a successful staff registration: email a sign-up link when the patient has an eligible address.
+    Never raises (mail or invite failures must not undo registration). Returns status keys for the API/banner:
+    sent, no_email, refused, not_sent, failed. One active token: a later staff invite replaces this one."""
+    masked = mask_email(getattr(p, "email", None))
+    out = {"signup_email": "not_sent", "signup_email_masked": masked}
+    try:
+        if not (getattr(p, "email", None) or "").strip():
+            out["signup_email"] = "no_email"
+            out["signup_email_masked"] = None
+            return out
+        if getattr(p, "deceased", False) or p.birth_date is None:
+            return out
+        from .access import consent_status
+
+        if consent_status(db, p.id, "comm_email") == "deny" or consent_status(db, p.id, "care_coordination") == "deny":
+            out["signup_email"] = "refused"
+            return out
+        from ..comms import mail
+
+        if not mail.can_send_to_patient(p):
+            return out
+        with db.begin_nested():
+            new = create_invite(db, actor, p, channel="email", base_url=base_url, now=now)
+        out["signup_email"] = "sent" if new.email_sent else "failed"
+        return out
+    except Exception as e:  # noqa: BLE001 - registration must succeed even if the invite cannot be created
+        log.warning("registration sign-up email skipped: %s", type(e).__name__)
+        out["signup_email"] = "failed"
+        return out
+
+
 def activate(db: Session, *, code: str | None, token: str | None, birth_date: date | None, password: str,
-             confirm: str, ip: str | None, purpose: str | None = None,
+             confirm: str, ip: str | None, purpose: str | None = None, username: str | None = None,
              now: datetime | None = None) -> tuple[User | None, str]:
     """Returns (user, "ok") or (None, reason). reason in: rate_limited, invalid, expired, used, revoked,
-    wrong_dob, locked, mismatch, weak:<problem>. Failed attempts are recorded for rate limiting."""
+    wrong_dob, locked, mismatch, weak:<problem>, username_invalid, username_taken.
+    Failed attempts are recorded for rate limiting. An omitted username keeps the invite-time suggestion."""
     now = now or utcnow()
     actor = Actor(user_id=None, role="anonymous", display="patient (activation page)", is_human=True)
 
@@ -282,6 +443,11 @@ def activate(db: Session, *, code: str | None, token: str | None, birth_date: da
         return fail("wrong_dob", inv)
     if password != confirm:
         return None, "mismatch"
+    if inv.purpose != "reset" and (username or "").strip():
+        problem = username_problem(db, username, current_user_id=u.id)
+        if problem:
+            return None, problem
+        u.username = normalise_username(username)
     probs = accounts.password_problems(password, u.username, u.display_name)
     if probs:
         return None, "weak:" + probs[0]
@@ -299,9 +465,11 @@ def activate(db: Session, *, code: str | None, token: str | None, birth_date: da
 
 # ------------------------------------------------------------------------------ activation page wording
 ACTIVATE_TEXT = {
-    "en": {"title": "Activate your patient account", "intro": "Enter the activation code from your text message or from the care team, your date of birth, and choose a password.",
+    "en": {"title": "Activate your patient account", "intro": "Enter the activation code from your email, text message or care team, your date of birth, and choose a username and password.",
            "code": "Activation code", "code_hint": "8 letters and numbers, for example ABCD-2345", "code_from_link": "The code from your link is filled in for you.",
-           "dob": "Your date of birth", "pw": "Choose a password", "pw_hint": "At least 12 characters. Three or four unrelated words are easy to remember.",
+           "dob": "Your date of birth",
+           "un": "Choose a username", "un_hint": "3–80 characters: letters, numbers, dots, hyphens or underscores. You will use this to sign in.",
+           "pw": "Choose a password", "pw_hint": "At least 12 characters. Three or four unrelated words are easy to remember.",
            "pw2": "Type the password again", "submit": "Activate my account", "show": "Show", "hide": "Hide",
            "done_title": "Your account is ready", "done_body": "Your username is", "done_keep": "Keep it safe - you will need it with your password to sign in.",
            "go": "Open my page", "have_account": "Already activated?", "sign_in": "Sign in",
@@ -312,12 +480,16 @@ ACTIVATE_TEXT = {
                    "locked": "Too many wrong attempts. This code is blocked - please ask your care team for a new one.",
                    "wrong_dob": "The date of birth does not match our record. Please check it and try again.",
                    "mismatch": "The two passwords do not match.",
+                   "username_taken": "That username is already taken. Please choose another.",
+                   "username_invalid": "Usernames must be 3–80 characters, start with a letter or number, and use only letters, numbers, dots, hyphens or underscores.",
                    "weak": "Please choose a stronger password: at least 12 characters, not a common password, and not your name.",
                    "rate_limited": "Too many attempts from this device. Please wait 15 minutes and try again.",
                    "missing": "Please fill in every field.", "expired_page": "The page expired. Please try again."}},
-    "ar": {"title": "تفعيل حسابك", "intro": "أدخل رمز التفعيل من رسالتك النصية أو من فريق الرعاية، وتاريخ ميلادك، ثم اختر كلمة مرور.",
+    "ar": {"title": "تفعيل حسابك", "intro": "أدخل رمز التفعيل من بريدك أو رسالتك النصية أو من فريق الرعاية، وتاريخ ميلادك، ثم اختر اسم مستخدم وكلمة مرور.",
            "code": "رمز التفعيل", "code_hint": "8 أحرف وأرقام، مثل ABCD-2345", "code_from_link": "تمت تعبئة الرمز من الرابط تلقائياً.",
-           "dob": "تاريخ ميلادك", "pw": "اختر كلمة مرور", "pw_hint": "12 حرفاً على الأقل. ثلاث أو أربع كلمات غير مترابطة يسهل تذكرها.",
+           "dob": "تاريخ ميلادك",
+           "un": "اختر اسم مستخدم", "un_hint": "3 إلى 80 حرفاً: حروف وأرقام ونقاط وشرطات وشرطات سفلية. ستستخدمه لتسجيل الدخول.",
+           "pw": "اختر كلمة مرور", "pw_hint": "12 حرفاً على الأقل. ثلاث أو أربع كلمات غير مترابطة يسهل تذكرها.",
            "pw2": "اكتب كلمة المرور مرة أخرى", "submit": "تفعيل حسابي", "show": "إظهار", "hide": "إخفاء",
            "done_title": "حسابك جاهز", "done_body": "اسم المستخدم الخاص بك هو", "done_keep": "احتفظ به في مكان آمن - ستحتاجه مع كلمة المرور لتسجيل الدخول.",
            "go": "افتح صفحتي", "have_account": "هل فعّلت حسابك من قبل؟", "sign_in": "تسجيل الدخول",
@@ -328,12 +500,16 @@ ACTIVATE_TEXT = {
                    "locked": "محاولات خاطئة كثيرة. تم إيقاف هذا الرمز - يرجى طلب رمز جديد من فريق الرعاية.",
                    "wrong_dob": "تاريخ الميلاد لا يطابق سجلنا. يرجى التحقق منه والمحاولة مرة أخرى.",
                    "mismatch": "كلمتا المرور غير متطابقتين.",
+                   "username_taken": "اسم المستخدم هذا مستخدم من قبل. يرجى اختيار اسم آخر.",
+                   "username_invalid": "يجب أن يتكون اسم المستخدم من 3 إلى 80 حرفاً، يبدأ بحرف أو رقم، ويستخدم فقط الحروف والأرقام والنقاط والشرطات والشرطات السفلية.",
                    "weak": "يرجى اختيار كلمة مرور أقوى: 12 حرفاً على الأقل، وليست شائعة، ولا تحتوي على اسمك.",
                    "rate_limited": "محاولات كثيرة من هذا الجهاز. يرجى الانتظار 15 دقيقة ثم المحاولة مرة أخرى.",
                    "missing": "يرجى تعبئة جميع الحقول.", "expired_page": "انتهت صلاحية الصفحة. يرجى المحاولة مرة أخرى."}},
-    "hi": {"title": "अपना मरीज़ खाता सक्रिय करें", "intro": "अपने टेक्स्ट संदेश या देखभाल टीम से मिला सक्रियण कोड, अपनी जन्मतिथि दर्ज करें और एक पासवर्ड चुनें।",
+    "hi": {"title": "अपना मरीज़ खाता सक्रिय करें", "intro": "अपने ईमेल, टेक्स्ट संदेश या देखभाल टीम से मिला सक्रियण कोड, अपनी जन्मतिथि दर्ज करें और एक यूज़रनेम तथा पासवर्ड चुनें।",
            "code": "सक्रियण कोड", "code_hint": "8 अक्षर और अंक, जैसे ABCD-2345", "code_from_link": "आपके लिंक से कोड अपने-आप भर दिया गया है।",
-           "dob": "आपकी जन्मतिथि", "pw": "पासवर्ड चुनें", "pw_hint": "कम से कम 12 अक्षर। तीन या चार अलग-अलग शब्द याद रखना आसान होता है।",
+           "dob": "आपकी जन्मतिथि",
+           "un": "यूज़रनेम चुनें", "un_hint": "3–80 अक्षर: अक्षर, अंक, बिंदु, हाइफ़न या अंडरस्कोर। साइन इन के लिए यही इस्तेमाल होगा।",
+           "pw": "पासवर्ड चुनें", "pw_hint": "कम से कम 12 अक्षर। तीन या चार अलग-अलग शब्द याद रखना आसान होता है।",
            "pw2": "पासवर्ड फिर से लिखें", "submit": "मेरा खाता सक्रिय करें", "show": "दिखाएं", "hide": "छिपाएं",
            "done_title": "आपका खाता तैयार है", "done_body": "आपका यूज़रनेम है", "done_keep": "इसे सुरक्षित रखें - साइन इन करने के लिए पासवर्ड के साथ इसकी ज़रूरत होगी।",
            "go": "मेरा पेज खोलें", "have_account": "पहले ही सक्रिय कर चुके हैं?", "sign_in": "साइन इन करें",
@@ -344,12 +520,16 @@ ACTIVATE_TEXT = {
                    "locked": "बहुत सारी गलत कोशिशें। यह कोड रोक दिया गया है - कृपया अपनी देखभाल टीम से नया कोड मांगें।",
                    "wrong_dob": "जन्मतिथि हमारे रिकॉर्ड से मेल नहीं खाती। कृपया जांचें और फिर से कोशिश करें।",
                    "mismatch": "दोनों पासवर्ड एक जैसे नहीं हैं।",
+                   "username_taken": "यह यूज़रनेम पहले से लिया जा चुका है। कृपया दूसरा चुनें।",
+                   "username_invalid": "यूज़रनेम 3–80 अक्षर का होना चाहिए, अक्षर या अंक से शुरू हो, और इसमें केवल अक्षर, अंक, बिंदु, हाइफ़न या अंडरस्कोर हों।",
                    "weak": "कृपया मज़बूत पासवर्ड चुनें: कम से कम 12 अक्षर, आम पासवर्ड नहीं, और आपका नाम नहीं।",
                    "rate_limited": "इस डिवाइस से बहुत सारी कोशिशें। कृपया 15 मिनट रुककर फिर से कोशिश करें।",
                    "missing": "कृपया हर जानकारी भरें।", "expired_page": "पेज की समय-सीमा खत्म हो गई। कृपया फिर से कोशिश करें।"}},
-    "ur": {"title": "اپنا مریض اکاؤنٹ فعال کریں", "intro": "اپنے ٹیکسٹ پیغام یا نگہداشت ٹیم سے ملا ایکٹیویشن کوڈ اور اپنی تاریخ پیدائش درج کریں، پھر پاس ورڈ منتخب کریں۔",
+    "ur": {"title": "اپنا مریض اکاؤنٹ فعال کریں", "intro": "اپنے ای میل، ٹیکسٹ پیغام یا نگہداشت ٹیم سے ملا ایکٹیویشن کوڈ اور اپنی تاریخ پیدائش درج کریں، پھر یوزر نیم اور پاس ورڈ منتخب کریں۔",
            "code": "ایکٹیویشن کوڈ", "code_hint": "8 حروف اور ہندسے، جیسے ABCD-2345", "code_from_link": "آپ کے لنک سے کوڈ خود بخود بھر دیا گیا ہے۔",
-           "dob": "آپ کی تاریخ پیدائش", "pw": "پاس ورڈ منتخب کریں", "pw_hint": "کم از کم 12 حروف۔ تین یا چار غیر متعلق الفاظ یاد رکھنا آسان ہوتا ہے۔",
+           "dob": "آپ کی تاریخ پیدائش",
+           "un": "یوزر نیم منتخب کریں", "un_hint": "3 تا 80 حروف: حروف، اعداد، نقطے، ہائفن یا انڈر سکور۔ سائن ان کے لیے یہی استعمال ہوگا۔",
+           "pw": "پاس ورڈ منتخب کریں", "pw_hint": "کم از کم 12 حروف۔ تین یا چار غیر متعلق الفاظ یاد رکھنا آسان ہوتا ہے۔",
            "pw2": "پاس ورڈ دوبارہ لکھیں", "submit": "میرا اکاؤنٹ فعال کریں", "show": "دکھائیں", "hide": "چھپائیں",
            "done_title": "آپ کا اکاؤنٹ تیار ہے", "done_body": "آپ کا یوزر نیم ہے", "done_keep": "اسے محفوظ رکھیں - سائن ان کے لیے پاس ورڈ کے ساتھ اس کی ضرورت ہوگی۔",
            "go": "میرا صفحہ کھولیں", "have_account": "پہلے ہی فعال کر چکے ہیں؟", "sign_in": "سائن ان کریں",
@@ -360,6 +540,8 @@ ACTIVATE_TEXT = {
                    "locked": "بہت زیادہ غلط کوششیں۔ یہ کوڈ روک دیا گیا ہے - براہ کرم اپنی نگہداشت ٹیم سے نیا کوڈ مانگیں۔",
                    "wrong_dob": "تاریخ پیدائش ہمارے ریکارڈ سے مطابقت نہیں رکھتی۔ براہ کرم چیک کریں اور دوبارہ کوشش کریں۔",
                    "mismatch": "دونوں پاس ورڈ ایک جیسے نہیں ہیں۔",
+                   "username_taken": "یہ یوزر نیم پہلے سے استعمال میں ہے۔ براہ کرم دوسرا منتخب کریں۔",
+                   "username_invalid": "یوزر نیم 3 تا 80 حروف کا ہونا چاہیے، حرف یا عدد سے شروع ہو، اور اس میں صرف حروف، اعداد، نقطے، ہائفن یا انڈر سکور ہوں۔",
                    "weak": "براہ کرم مضبوط پاس ورڈ منتخب کریں: کم از کم 12 حروف، عام پاس ورڈ نہیں، اور آپ کا نام نہیں۔",
                    "rate_limited": "اس ڈیوائس سے بہت زیادہ کوششیں۔ براہ کرم 15 منٹ انتظار کر کے دوبارہ کوشش کریں۔",
                    "missing": "براہ کرم ہر خانہ پُر کریں۔", "expired_page": "صفحے کی میعاد ختم ہو گئی۔ براہ کرم دوبارہ کوشش کریں۔"}},

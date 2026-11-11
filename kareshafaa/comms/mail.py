@@ -142,6 +142,7 @@ def can_send_to_patient(patient) -> bool:
     except Exception:  # noqa: BLE001 - an invalid stored address is simply not e-mailed
         return False
     if is_synthetic_address(addr):
+        log.info("e-mail skipped: reserved example domain placeholder (RFC 2606)")
         return False
     if (patient.mrn or "").upper().startswith("SYN-"):
         from ..synth.test_mailboxes import is_allowlisted_patient_address  # noqa: PLC0415

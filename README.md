@@ -209,10 +209,15 @@ closure.
     Unset `KARESHAFAA_ALERT_TO` = no alert emails.
   * **Synthetic records are never emailed:** patients whose MRN starts `SYN-`, and any address at `example.com`,
     `example.org` or `example.net`, are skipped (so the ~2000 sample patients on the live site cannot flood or bounce
-    from the mailbox). One exception: the allowlisted test inbox on `patient.en` (Emma Clarke,
+    from the mailbox; a skip is logged, with no address). One exception: the allowlisted test inbox on `patient.en` (Emma Clarke,
     `testingkareshafaa+asimkhan123@gmail.com`, set in `kareshafaa/synth/test_mailboxes.py`).
     `KARESHAFAA_MAIL_ALLOW_SYNTHETIC=true` lets other `SYN-` records with a real address be emailed for
     testing; example domains are always skipped.
+  * **Placeholder emails for empty records:** a start-up backfill (`bootstrap.backfill_missing_emails`, also run at
+    the end of seed) gives every patient and user still missing an e-mail a unique `firstname.lastname.<id>@example.com`
+    address (RFC 2606 reserved domain; never a real mailbox). Existing addresses are never overwritten, including the
+    allowlisted test inboxes. The step is idempotent; a failure is logged and never stops the server. Outbound mail
+    will not send to these placeholders. Audited as `directory.email_placeholders_backfilled`.
   * **Test inboxes:** one seeded account of each role has a test Gmail address (staff on `User.email`;
     `patient.en` on `Patient.email`): admin `testingkareshafaa+calpha_admin@gmail.com`, clinical lead
     Fatima Al Mansoori (`fatima.al.mansoori`) `+clead1234`, care coordinator Aisha Rahman (`aisha.rahman`)
@@ -228,6 +233,18 @@ closure.
     raw result). Not sent on every state change, not sent to a team pool or an owner with no email, and
     not sent for the sample `SYN-` caseload except the allowlisted test patient. A mail failure is logged
     (no secrets) and never fails the clinical action. Mail off = nothing is sent.
+  * **Patient sign-up emails:** when a care coordinator or GP registers a patient who has an email
+    address, the app creates the patient-app invitation (same single-use, expiring token as a manual
+    invite) and emails an absolute link (`KARESHAFAA_PUBLIC_BASE_URL/activate?t=…`, or this server's
+    URL if that variable is unset) where the patient confirms their date of birth and chooses a
+    username and password. The registration banner then says “Sign-up link emailed to {masked address}.”
+    No email on the record, a refused `comm_email` / care-coordination consent, an ineligible address
+    (including `SYN-` / example.com samples, or mail not configured) or a send failure does not block
+    registration; the banner says so and staff can still invite by email, SMS or in person from the
+    patient record. A mail failure is stored as a failed Communication and audited
+    (`patient.account_invited` with `email_sent`); the open invite is kept so staff can resend. Resending
+    replaces the previous token (the earlier link stops working). The raw token and activation code are
+    not stored in the Communication body. Expiry is shown in UAE time.
   * **Test send:** Admin → System shows **Email: Configured / Not configured**, the From address and how it sends
     (Graph or SMTP host; never a secret) and, when configured, a **Send test email** box (`POST /api/admin/system/mail/test`
     `{"to": "..."}`, admin only; 503 when not configured, 502 with a short reason when the mail server refuses; audited

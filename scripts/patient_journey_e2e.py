@@ -177,7 +177,10 @@ def main() -> int:
 
         def activate(code, birth, lang="en", password=PATIENT_PW):
             a.goto(f"{base}/activate?lang={lang}"); a.wait_for_selector("#act-form")
-            a.fill("#code", code); a.fill("#birth_date", birth); a.fill("#password", password); a.fill("#confirm", password)
+            a.fill("#code", code); a.fill("#birth_date", birth)
+            if a.locator("#username").count():
+                a.fill("#username", uname)
+            a.fill("#password", password); a.fill("#confirm", password)
             a.click("#act-form button[type=submit]"); a.wait_for_load_state("networkidle")
             return a.inner_text("#act-error") if a.locator("#act-error").count() else None
 

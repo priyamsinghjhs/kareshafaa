@@ -900,7 +900,7 @@ class SimulationRun(Base):
 
 class PatientInvite(Base):
     """One-time activation code for a patient account (created by staff from the patient record).
-    Only hashes are stored; the code is shown once to staff and sent in a SIMULATED SMS. Single use, expires."""
+    Only hashes are stored; the code is shown once to staff (SMS is simulated; email sends a real one-time link). Single use, expires."""
     __tablename__ = "patient_invites"
     id: Mapped[int] = mapped_column(primary_key=True)
     patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
@@ -909,7 +909,7 @@ class PatientInvite(Base):
     link_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     code_last4: Mapped[str] = mapped_column(String(4))
     purpose: Mapped[str] = mapped_column(String(20), default="activate")  # activate | reset (account already active)
-    channel: Mapped[str] = mapped_column(String(20), default="sms")  # sms | in_person
+    channel: Mapped[str] = mapped_column(String(20), default="sms")  # sms | in_person | email
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     created_by: Mapped[str] = mapped_column(String(200))
     expires_at: Mapped[datetime] = mapped_column(DateTime)

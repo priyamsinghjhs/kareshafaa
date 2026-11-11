@@ -18,10 +18,11 @@ function accountSection(R) {
   const code = SHOWN_CODE ? `<div class="card ok" role="status" id="new-code"><b>${isReset ? "Password reset code" : "Activation code"} (shown once):</b>
       <p class="code-big" dir="ltr">${W.esc(SHOWN_CODE.code)}</p>
       <p class="small">Username <b dir="ltr">${W.esc(SHOWN_CODE.username)}</b> · expires ${W.dt(SHOWN_CODE.expires_at)} · single use.
-      ${SHOWN_CODE.channel === "sms" ? "Sent by simulated SMS (code masked in the stored message)." : "Give it to the patient in person; they open the address below, enter the code and their date of birth, and choose a password."}${isReset ? " Their other sessions end when they set the new password." : ""}</p>
-      <p class="small">${isReset ? "Reset page" : "Activation page"}: <a href="${W.esc(SHOWN_CODE.link)}" target="_blank" rel="noopener noreferrer">${W.esc(SHOWN_CODE.link.split("?")[0])}</a> ${SHOWN_CODE.channel === "sms" ? " (the SMS holds the full personal link)" : ""}</p>
+      ${SHOWN_CODE.channel === "sms" ? "Sent by simulated SMS (code masked in the stored message)." : SHOWN_CODE.channel === "email" ? (SHOWN_CODE.email_sent ? "Sign-up link emailed to the patient (the previous link no longer works)." : "The email could not be sent; give the patient the link or code below.") : "Give it to the patient in person; they open the address below, enter the code and their date of birth, and choose a username and password."}${isReset ? " Their other sessions end when they set the new password." : ""}</p>
+      <p class="small">${isReset ? "Reset page" : "Activation page"}: <a href="${W.esc(SHOWN_CODE.link)}" target="_blank" rel="noopener noreferrer">${W.esc(SHOWN_CODE.link.split("?")[0])}</a> ${SHOWN_CODE.channel === "sms" ? " (the SMS holds the full personal link)" : SHOWN_CODE.channel === "email" ? " (the email holds the full personal link)" : ""}</p>
       <div class="row"><button class="secondary sm" id="copy-code">Copy code</button><button class="ghost sm" id="hide-code">Done</button></div></div>` : "";
-  const inv = A.invite ? `<p class="small">Open code …${W.esc(A.invite.code_hint.slice(-4))} created ${W.dt(A.invite.created_at)} by ${W.esc(A.invite.created_by)} (${A.invite.channel === "sms" ? "SMS" : "in person"}), expires ${W.dt(A.invite.expires_at)}.</p>` : "";
+  const chLabel = {sms: "SMS", in_person: "in person", email: "email"}[A.invite && A.invite.channel] || (A.invite && A.invite.channel) || "";
+  const inv = A.invite ? `<p class="small">Open code …${W.esc(A.invite.code_hint.slice(-4))} created ${W.dt(A.invite.created_at)} by ${W.esc(A.invite.created_by)} (${W.esc(chLabel)}), expires ${W.dt(A.invite.expires_at)}.</p>` : "";
   const last = !A.invite && A.last_invite && A.last_invite.revoked_at ? `<p class="small muted">Last code cancelled ${W.dt(A.last_invite.revoked_at)}${A.last_invite.revoke_reason ? ": " + W.esc(A.last_invite.revoke_reason) : ""}.</p>` : "";
   const can = A.can_invite && A.state !== "inactive" && (A.state !== "active" || A.can_reset);
   const RR = A.reset_request;
@@ -32,15 +33,18 @@ function accountSection(R) {
         <option value="phone_call_checks">Phone call to the registered mobile: date of birth, ID number and address checked</option>
         <option value="video_call_id">Video call with photo ID</option></select></label>` : "";
   const smsOk = C.phone && C.phone_valid;
+  const emailOk = !!(C.email && String(C.email).includes("@"));
   const btnText = A.state === "none" ? "Create account and send code" : A.state === "active" ? "Send a new code (forgotten password)" : "Send a new code";
+  const defaultCh = emailOk ? "email" : (smsOk ? "sms" : "in_person");
   return `<section class="card pr-sec" id="sec-account"><h2 class="sec-title">Patient app account</h2>
     ${facts([["Status", `<span class="chip ${cls}">${W.esc(label)}</span>`], ["Username", A.username ? `<span dir="ltr">${W.esc(A.username)}</span>` : NR],
       ["Activated", A.activated_at ? W.dt(A.activated_at) : '<span class="muted">Not yet</span>'], ["Last sign-in", A.last_login_at ? W.dt(A.last_login_at) : '<span class="muted">Never</span>']])}
     ${rr}${code}${inv}${last}
     ${can ? `<form class="action-form" id="invite-form" aria-label="Patient app account" novalidate>
       <fieldset class="checks" style="border:0;padding:0;margin:0 0 var(--s-2)"><legend class="small"><b>How should the patient get the code?</b></legend>
-        <label class="check"><input type="radio" name="channel" value="sms" ${smsOk ? "checked" : "disabled"}> By SMS to ${smsOk ? W.esc(C.phone) : "(no valid mobile number)"}</label>
-        <label class="check"><input type="radio" name="channel" value="in_person" ${smsOk ? "" : "checked"}> I will give it in person</label></fieldset>
+        <label class="check"><input type="radio" name="channel" value="email" ${emailOk ? (defaultCh === "email" ? "checked" : "") : "disabled"}> By email to ${emailOk ? W.esc(C.email) : "(no email on the record)"}</label>
+        <label class="check"><input type="radio" name="channel" value="sms" ${smsOk ? (defaultCh === "sms" ? "checked" : "") : "disabled"}> By SMS to ${smsOk ? W.esc(C.phone) : "(no valid mobile number)"}</label>
+        <label class="check"><input type="radio" name="channel" value="in_person" ${defaultCh === "in_person" ? "checked" : ""}> I will give it in person</label></fieldset>
       ${verify}
       ${R.demographics.birth_date ? "" : `<p class="notice-inline err small">Add the full date of birth first – the patient confirms it when activating.</p>`}
       <div class="form-buttons"><button type="submit" ${R.demographics.birth_date ? "" : "disabled"}>${btnText}</button>${A.invite ? `<button type="button" class="secondary" id="revoke-code">Cancel the open code</button>` : ""}${RR && A.can_reset ? `<button type="button" class="secondary" id="close-reset">Close the request without a code</button>` : ""}</div></form>` :
@@ -58,7 +62,7 @@ function wireAccount() {
     if (vm && !vm.value) { vm.setAttribute("aria-invalid", "true"); W.formError(f, "Say how you checked who the patient is before sending a reset code."); vm.focus(); return; }
     const b = f.querySelector("button[type=submit]"); W.busy(b, true);
     try { const r = await W.api(`/api/patients/${PID}/account-invite`, { method: "POST", body: { channel: ch, verify_method: vm ? vm.value : null } });
-      SHOWN_CODE = r; W.toast(ch === "sms" ? "Account ready – code sent (simulated SMS)" : "Account ready – give the code to the patient", "ok"); await load();
+      SHOWN_CODE = r; W.toast(ch === "sms" ? "Account ready – code sent (simulated SMS)" : ch === "email" ? (r.email_sent ? "Sign-up link emailed (any previous link no longer works)" : "Account ready – the email could not be sent; give the patient the link or code") : "Account ready – give the code to the patient", "ok"); await load();
       document.getElementById("new-code")?.scrollIntoView({ block: "center" }); }
     catch (e) { W.busy(b, false); W.formError(f, e.message); } };
   const rv = document.getElementById("revoke-code");
@@ -85,6 +89,25 @@ function editable(id, title, view, formHtml) {
     ${open ? `<form class="action-form" data-form="${id}" novalidate aria-label="Edit ${W.esc(title)}">${formHtml}<div class="form-buttons"><button type="submit">Save changes</button><button type="button" class="secondary" data-cancel="${id}">Cancel</button></div></form>` : view}</section>`;
 }
 
+
+function maskEmail(addr) {
+  const s = (addr || "").trim();
+  const at = s.indexOf("@");
+  if (at < 1) return "";
+  return s[0] + "•".repeat(Math.max(2, Math.min(6, at - 1))) + "@" + s.slice(at + 1).toLowerCase();
+}
+function registeredBanner(R) {
+  if (!new URLSearchParams(location.search).get("registered")) return "";
+  const kind = new URLSearchParams(location.search).get("signup") || "";
+  const masked = maskEmail((R.contact && R.contact.email) || "");
+  let msg = "Patient registered. Next: invite them to the patient app, or add a screening result.";
+  if (kind === "sent" && masked) msg = `Patient registered. Sign-up link emailed to ${masked}.`;
+  else if (kind === "no_email") msg = "Patient registered. No email on the record, so no sign-up link was sent. Invite them to the patient app, or add a screening result.";
+  else if (kind === "refused") msg = "Patient registered. No sign-up email was sent (the patient has not agreed to email). Invite them to the patient app, or add a screening result.";
+  else if (kind === "failed" || kind === "not_sent") msg = "Patient registered. The sign-up link could not be emailed. Invite them to the patient app, or add a screening result.";
+  return `<div class="card ok" role="status">${W.esc(msg)}</div>`;
+}
+
 function render() {
   const D = R.demographics, C = R.contact, K = R.care, O = PF.opts;
   const gender = PF.label(O.genders, D.gender), lang = PF.label(O.languages, D.language);
@@ -93,7 +116,7 @@ function render() {
   const head = `<a class="back-link" href="/patients"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Back to patients</a>
     <div class="case-head"><h1>${W.esc(D.given_name)} ${W.esc(D.family_name)}</h1>
     <p class="muted small" style="margin:0">${W.esc(R.mrn)} · ${D.age_estimated ? "about " : ""}${D.age} years · ${W.esc(gender)}${R.sample ? ' · <span class="chip">Sample record</span>' : ""}${R.deceased ? ' · <span class="chip sla-none">Deceased</span>' : ""}</p></div>
-    ${new URLSearchParams(location.search).get("registered") ? `<div class="card ok" role="status">Patient registered. Next: invite them to the patient app, or add a screening result.</div>` : ""}`;
+    ${registeredBanner(R)}`;
   const personal = editable("demographics", "Personal details", facts([["Name", W.esc(D.given_name + " " + D.family_name)], ["Date of birth", D.birth_date ? dday(D.birth_date) : (D.birth_year ? W.esc(D.birth_year) + " (year only)" : NR)],
       ["Sex", W.esc(gender)], ["Emirates ID", v(D.national_id)], ...(D.other_document ? [[D.other_document.label, `<span dir="ltr">${W.esc(D.other_document.number)}</span>`]] : []), ["Nationality", v(D.nationality || D.nationality_group)], ["Preferred language", W.esc(lang)]]), PF.demographics(draft("demographics")));
   const chan = [C.has_smartphone ? "App" : "", C.whatsapp ? "WhatsApp" : "", C.phone_valid ? "SMS / phone" : ""].filter(Boolean).join(", ");

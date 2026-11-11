@@ -467,6 +467,10 @@ def add_patient(db: Session, sp: SynthPatient, d: dict, rng: random.Random, now:
     p.managing_org = org
     db.add(p)
     db.flush()
+    if not (p.email or "").strip():
+        from ..services.email_backfill import placeholder_address  # noqa: PLC0415
+
+        p.email = placeholder_address(rec_id=p.id, given=p.given_name, family=p.family_name)
     db.add(Consent(patient_id=p.id, scope="care_coordination", decision="permit", recorded_at=now - timedelta(days=400),
                    note="Programme enrolment"))
     if not sp.share_consent:

@@ -187,6 +187,19 @@ def backfill_booked_appointment_due() -> dict:
         return {"error": type(e).__name__}
 
 
+def backfill_missing_emails() -> dict:
+    """Every patient and user with no e-mail gets a unique @example.com placeholder (RFC 2606, never delivered).
+    Existing addresses are never overwritten. Idempotent; a failure is logged and never stops start-up."""
+    from .services.email_backfill import backfill_missing_emails as fix
+
+    try:
+        with session_scope() as db:
+            return fix(db)
+    except Exception as e:  # noqa: BLE001 - a missing placeholder must never stop the service from starting
+        log.warning("placeholder email backfill skipped: %s", type(e).__name__)
+        return {"error": type(e).__name__}
+
+
 def _prepare(s) -> dict:
     init_db()
     eng = get_engine()
@@ -208,6 +221,7 @@ def _prepare(s) -> dict:
         init_db()  # indexes/triggers after a bulk copy (idempotent)
     out["model_files_saved_to_database"] = backfill_model_artifacts()
     out["booked_appointment_due"] = backfill_booked_appointment_due()
+    out["email_placeholders"] = backfill_missing_emails()
     # one-time data steps for SYN- sample patients only (guarded by data_migrations; never real records)
     if s.data_steps == "startup":
         from .db import session_factory

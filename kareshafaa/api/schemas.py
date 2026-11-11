@@ -377,7 +377,7 @@ class SelfContactIn(_In):  # patient app: own contact details (same rules as the
 
 
 class AccountInviteIn(_In):
-    channel: Literal["sms", "in_person"] = "sms"
+    channel: Literal["sms", "in_person", "email"] = "sms"
     verify_method: str | None = Field(default=None, max_length=30)  # needed for a password RESET (coordinators)
 
 
