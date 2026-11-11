@@ -45,3 +45,47 @@ def test_cut_helper_copy_is_gone_in_every_language(client):
         assert 'id="login-form"' in html and "Sessions end after" not in html
     tour = (ROOT / "static" / "js" / "tour.js").read_text(encoding="utf-8")
     assert "!localStorage.getItem" not in tour  # the page guide is never inserted above the work by itself
+
+
+def _media_blocks(css: str, query: str) -> list[str]:
+    """Return the body of every @media <query> { ... } block, nested-brace aware."""
+    out, i, q = [], 0, f"@media {query}"
+    while True:
+        j = css.find(q, i)
+        if j < 0:
+            return out
+        k = css.find("{", j)
+        depth, p = 1, k + 1
+        while p < len(css) and depth:
+            if css[p] == "{":
+                depth += 1
+            elif css[p] == "}":
+                depth -= 1
+            p += 1
+        out.append(css[k + 1:p - 1])
+        i = p
+
+
+def test_stacked_table_labels_sit_in_flow_above_the_value():
+    """On phones, column labels (td::before from data-label) are an in-flow block above the
+    cell value. They must never be position:absolute — that is what put DATE on top of
+    '05 Aug 2026' on ~390 px Android Chrome after the 11 Nov token pass (the absolute label
+    and the 34% left gutter drifted apart)."""
+    phone = _media_blocks(CSS, "(max-width: 599px)")
+    assert phone, "expected a phone breakpoint for stacked tables"
+    before_rules = []
+    for block in phone:
+        for m in re.finditer(r"table\.compact\s+td::before\s*\{([^}]*)\}", block):
+            before_rules.append(m.group(1))
+    assert before_rules, "table.compact td::before must be defined at the phone breakpoint"
+    for body in before_rules:
+        assert "content: attr(data-label)" in body
+        assert "display: block" in body
+        assert "position: absolute" not in body
+        assert "position: fixed" not in body
+        # in-flow (static is the default; we set it so a later absolute cannot sneak in unnoticed)
+        assert "position: static" in body
+    # and no later / wider rule may put the stacked label back on top of the value
+    for m in re.finditer(r"table\.compact\s+td::before\s*\{([^}]*)\}", CSS):
+        assert "position: absolute" not in m.group(1)
+        assert "position: fixed" not in m.group(1)

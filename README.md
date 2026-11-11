@@ -57,6 +57,16 @@ closure.
   case-screen helper text was shortened (the outreach-model and medical-device safety lines stay). Admin user rows keep
   their action buttons side by side, and the translator's sign-off table no longer scrolls sideways on phones.
 
+* **Stacked tables on phones (12 Nov 2026):** on viewports under 600 px, `table.compact` rows become
+  cards with the column heading (`td::before` from `data-label`) as an in-flow block *above* the
+  cell value — never `position: absolute`. The earlier absolute label plus a 34% left gutter put
+  labels such as DATE on top of values such as "05 Aug 2026" on ~390 px Android Chrome, and the
+  same collision showed up on every stacked table (admin users, audit, recalls, translator
+  content, dashboards, the patient record). Labels wrap for long headings and for Arabic, Urdu
+  and Devanagari, in both LTR and RTL. `tests/test_ui_design_tokens.py` fails if the stacked
+  label is absolutely positioned again; `tests/test_stacked_table_overlap.py` is a Playwright
+  bounding-box check (skipped when a browser is not installed).
+
 **Patient summary: contact details and insurance**
 * The case screen's **Patient summary** shows phone (tap to call, WhatsApp flag), email, address, preferred language,
   contact preference and **contact consent** (care-coordination consent plus any refused channels) to the roles that

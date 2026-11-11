@@ -263,9 +263,10 @@ td .sub { display: block; color: var(--c-muted); font-size: var(--fs-xs); }
   table.compact { background: transparent; border: 0 !important; }
   table.compact thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   table.compact tr { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-lg); padding: var(--s-2) var(--s-3); margin-bottom: var(--s-3); box-shadow: var(--shadow-sm); }
-  table.compact td { border: 0; padding: 6px 0 6px calc(34% + var(--s-2)); position: relative; overflow-wrap: anywhere; min-height: 32px; }
-  table.compact td::before { content: attr(data-label); position: absolute; inset-inline-start: 0; top: 8px; width: 34%; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--c-muted); text-transform: uppercase; letter-spacing: .03em; }
-  table.compact td:not([data-label]), table.compact td[data-label=""] { padding-inline-start: 0; }
+  /* stacked cell: the column label is an in-flow block ABOVE its value, so it can never sit on top of the value,
+     whatever the label length, script (Arabic, Urdu, Devanagari) or direction. Never position this label absolutely. */
+  table.compact td { border: 0; padding: var(--s-1) 0; overflow-wrap: anywhere; max-width: 100%; }
+  table.compact td::before { content: attr(data-label); display: block; position: static; margin-bottom: var(--s-1); font-size: var(--fs-xs); font-weight: var(--fw-semibold); line-height: 1.3; color: var(--c-muted); text-transform: uppercase; letter-spacing: .03em; overflow-wrap: anywhere; }
   table.compact td:not([data-label])::before, table.compact td[data-label=""]::before { content: none; }
   table.compact td:empty { display: none; }
   table.striped tbody tr:nth-child(even) td { background: transparent; }
@@ -850,9 +851,9 @@ button.sm, .btn.sm, a[role="button"].sm { font-size: var(--fs-sm); }
 
 /* tables: one density everywhere; action buttons stay on one line on wide screens */
 th, td { padding: var(--s-2) var(--s-3); }
-table.compact th, table.compact td { padding: var(--s-2) var(--s-3); }
+@media (min-width: 600px) { table.compact th, table.compact td { padding: var(--s-2) var(--s-3); } }  /* phones keep the stacked-card padding above */
 @media (min-width: 900px) { td > .row { gap: var(--s-2); } td > .row > button { white-space: nowrap; } #users td > .row { min-width: 16rem; } }
-@media (max-width: 599px) { table.compact td .chip { white-space: normal; } table.compact td { max-width: 100%; } }
+@media (max-width: 599px) { table.compact td .chip { white-space: normal; } }
 
 /* utility classes that replace one-off inline styles */
 .m-0 { margin: 0 !important; } .mt-1 { margin-top: var(--s-1); } .mt-2 { margin-top: var(--s-2); } .mt-3 { margin-top: var(--s-3); }
