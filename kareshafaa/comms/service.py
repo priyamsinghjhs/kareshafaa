@@ -172,6 +172,12 @@ def send_with_ladder(db: Session, case: Case, category: str, actor: Actor = SYST
         # may not progress a flagged case; this used to fail the whole send with 403)
         transition(db, case, S.PATIENT_NOTIFIED, actor if actor.is_human else SYSTEM, now=now,
                    note=f"delivery confirmed via {delivered}" + ("" if delivered == "email" else " (simulated)"))
+    elif actor.is_human:
+        # A send that does not itself move the case (no channel delivered, or a reminder) still
+        # claims it when it was unassigned, so it leaves the No owner tile.
+        from ..services.workflow import claim_if_unowned
+
+        claim_if_unowned(db, case, actor, now, reason="contacted the patient on an unassigned case")
     return {"delivered_channel": delivered, "attempts": attempts, "language": lang, "variant": variant,
             "email_sent": delivered == "email", "simulated": delivered != "email",
             "requested_language": requested_lang,
@@ -266,11 +272,14 @@ def record_call(db: Session, case: Case, actor: Actor, outcome: str, *, note: st
         from ..services.workflow import transition
 
         transition(db, case, S.PATIENT_NOTIFIED, actor, now=now, note="patient reached by phone")
-    elif outcome != "reached":
-        from ..services.workflow import add_lesson
+    else:
+        from ..services.workflow import add_lesson, claim_if_unowned
 
-        add_lesson(db, case, "unreachable", "contact_details_wrong" if outcome == "wrong_number" else "patient_not_responding",
-                   actor, channel="phone", now=now)
+        # A call that does not itself move the case still claims it when it was unassigned.
+        claim_if_unowned(db, case, actor, now, reason="recorded a call on an unassigned case")
+        if outcome != "reached":
+            add_lesson(db, case, "unreachable", "contact_details_wrong" if outcome == "wrong_number" else "patient_not_responding",
+                       actor, channel="phone", now=now)
     return task
 
 

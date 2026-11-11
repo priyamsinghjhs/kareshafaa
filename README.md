@@ -23,7 +23,7 @@ closure.
 * Every clinical home starts with **“Needs you now”**: the five most urgent cases in your scope (overdue first, then
   T0→T3), each with the time left in plain words (“Overdue by 3 days”, “5 h left”), the patient's name and preferred
   language, and **one button** for the next step (e.g. “Tell the patient their result”, “Book appointment”). The button
-  opens the case; every existing check and confirmation still applies. For a GP or specialist, only cases with a next
+  opens the case; every existing check and confirmation still applies. For a GP, specialist or coordinator, only cases with a next
   step for that role are listed (see **Role work queues** below).
 * The case screen opens with a **“Now:” bar** — current step, time left, owner and the one next action — above the
   clinical record. Escalations, critical tiers and clinical-review alerts stay visible; nothing safety-relevant is folded away.
@@ -103,13 +103,18 @@ closure.
 
 **Case loop**
 * Exactly one accountable owner per open case (enforced in the DB and service layer).
-* **Role work queues (GP and specialist):** a case whose next step has nothing for your role — the same rule as
-  “Nothing for your role now” on the case page (no primary action in `available_actions`) — is hidden from that
-  role's work queue, including “Needs you now”, the overdue / mine / review and other view filters, and the count
-  tiles, which match the filtered list. Coordinator and clinical-lead overviews still list every in-scope open case,
-  including ones waiting on another role. The case stays openable by its URL, and searching the work queue by **case
-  number** (`1395` or `#1395`) still returns it; a name or MRN search does not. Organisation scope and sharing
+* **Role work queues (GP, specialist and coordinator):** a case whose next step has nothing for your role — the same
+  rule as “Nothing for your role now” on the case page (no primary action in `available_actions`) — is hidden from
+  that role's work queue, including “Needs you now”, the overdue / mine / review / no-owner and other view filters,
+  and the count tiles, which match the filtered list. The clinical-lead overview still lists every in-scope open
+  case, including ones waiting on another role. The case stays openable by its URL, and searching the work queue by
+  **case number** (`1395` or `#1395`) still returns it; a name or MRN search does not. Organisation scope and sharing
   consent are unchanged. Tests: `tests/test_role_queue_filter.py`.
+* **Taking action claims an unassigned case:** when a staff member acts on a case whose owner is the team pool (or
+  is inactive) — a transition, a notification, or a call that does not itself move the case — and the usual next
+  owner would also be unassigned, they become the named owner (audited `case.claimed`, ownership event kind
+  `claim`). Viewing the case does not claim it. Counts on the work queue follow the new owner as soon as the
+  action commits (the per-process queue cache is dropped on commit).
 * Deterministic state machine with **SLA tiers T0–T3** (T0 critical, T1 urgent, T2 soon, T3 routine; T0/T1 clocks
   run 24/7, T2/T3 count UAE working days) and an L1–L4 escalation ladder. Handles no-shows, rejected referrals,
   unreachable patients, transfers (two-key), declines and deaths.
@@ -515,8 +520,8 @@ orders and pages in SQL (SQLite and PostgreSQL), so only the requested page is r
 database flush hook keeps them current on every case, step and SLA-rule change, and start-up recomputes them
 idempotently (additive migration). Proposal generation reads pending proposals and configuration once per run.
 `scripts/loadtest/queue_equivalence.py` checks the SQL queue against the former Python ordering on any database.
-GP and specialist queues add a small, set-based pass over in-scope open cases so that counts and pages exclude
-cases with no primary action for that role; coordinator and clinical-lead overviews stay on the original SQL path.
+GP, specialist and coordinator queues add a small, set-based pass over in-scope open cases so that counts and
+pages exclude cases with no primary action for that role; the clinical-lead overview stays on the original SQL path.
 
 **Migration rehearsal (before every deploy that adds tables or columns):** `python scripts/migration_rehearsal.py
 --base-ref master` seeds a throw-away SQLite database with the code at that ref (synthetic data), upgrades it with

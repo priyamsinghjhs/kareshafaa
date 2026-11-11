@@ -14,11 +14,11 @@ from .access import sharing_denied_select
 from ..sla import SlaLookup, rag_reminder_fraction, rag_status
 from ..statemachine import LABELS, S
 
-# GP and specialist work queues are action lists: hide cases whose next step has nothing for
-# this role (same rule as the case page "Nothing for your role now"). Coordinator and clinical
-# lead keep a programme-wide overview of every in-scope open case, including ones waiting on
+# GP, specialist and coordinator work queues are action lists: hide cases whose next step has
+# nothing for this role (same rule as the case page "Nothing for your role now"). Clinical lead
+# keeps a programme-wide overview of every in-scope open case, including ones waiting on
 # another role.
-ACTION_QUEUE_ROLES = frozenset({"gp", "specialist"})
+ACTION_QUEUE_ROLES = frozenset({"gp", "specialist", "coordinator"})
 
 RAG_RANK = {"red": 0, "amber": 1, "green": 2, "none": 3}
 TIER_RANK = {"critical": 0, "urgent": 1, "high": 2, "routine": 3}
@@ -144,7 +144,7 @@ def case_number_query(search: str | None) -> int | None:
 
 
 def action_queue_case_ids(db: Session, actor: Actor, case_ids: list[int], search: str | None = None) -> set[int]:
-    """Ids a GP/specialist should see in the work queue. Oversight roles keep every given id.
+    """Ids a GP, specialist or coordinator should see in the work queue. Clinical lead keeps every given id.
 
     Hidden cases still appear when the search is that case's number (and the case is already in
     the given, already-scoped set). Name or MRN search does not reveal them.
@@ -164,9 +164,9 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
     """Filtering, counts, ordering and paging in SQL (SQLite and PostgreSQL alike).
 
     RAG comes from the stored per-case thresholds (sla_amber_at / sla_red_at) compared with `now`, so only the page
-    is transferred and decoded: 4 statements whatever the number of open cases. For GP and specialist queues, cases
-    with no primary action for that role are dropped first (same rule as the case page), and counts follow the
-    filtered list; a case-number search still returns a hidden case. Same visible result as the former Python path
+    is transferred and decoded: 4 statements whatever the number of open cases. For GP, specialist and coordinator
+    queues, cases with no primary action for that role are dropped first (same rule as the case page), and counts
+    follow the filtered list; a case-number search still returns a hidden case. Same visible result as the former Python path
     (tests/queue_oracle.py, tests/test_queue_sql.py); exact ties are broken by case id."""
     now = now or utcnow()
     owner = aliased(Practitioner)

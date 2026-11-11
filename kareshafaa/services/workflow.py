@@ -184,6 +184,51 @@ def default_owner(db: Session, case: Case, state: S) -> Practitioner:
     return owner
 
 
+def named_staff_practitioner(db: Session, actor: Actor) -> Practitioner | None:
+    """The actor's named, active practitioner record, or None for patients, the system, a pool, or inactive staff."""
+    if not actor.is_human or actor.role == "patient" or not actor.practitioner_id:
+        return None
+    p = db.get(Practitioner, actor.practitioner_id)
+    if p is None or not p.active or p.is_pool:
+        return None
+    return p
+
+
+def owner_is_unassigned(owner: Practitioner | None) -> bool:
+    """True when there is no named, active owner (team pool, inactive, or missing). Same rule as the No owner tile."""
+    return owner is None or owner.is_pool or not owner.active
+
+
+def claim_if_unowned(db: Session, case: Case, actor: Actor, now: datetime | None = None, *,
+                     reason: str = "took action on an unassigned case") -> bool:
+    """If the case sits on the team pool (or an inactive owner), the staff member who acts becomes the owner.
+
+    Only viewing the case does not claim it. Closed cases are left alone. Returns True when ownership changed.
+    """
+    if S(case.state) == S.CLOSED:
+        return False
+    staff = named_staff_practitioner(db, actor)
+    if staff is None:
+        return False
+    cur = case.owner
+    if cur is None and case.owner_id is not None:
+        cur = db.get(Practitioner, case.owner_id)
+    if not owner_is_unassigned(cur) or (cur is not None and cur.id == staff.id):
+        return False
+    now = _now(now)
+    _claim(case)  # optimistic lock: a concurrent change to this case fails with 409
+    old = case.owner_id
+    case.owner_id = staff.id
+    step = current_step(db, case)
+    if step:
+        step.owner_id = staff.id
+    db.add(OwnershipEvent(case_id=case.id, from_owner_id=old, to_owner_id=staff.id, kind="claim",
+                          reason=reason, at=now, by_user_id=actor.user_id))
+    audit.record(db, actor, "U", "case.claimed", entity_type="Task", entity_id=case.id, case_id=case.id, ts=now,
+                 detail={"from_owner": old, "to_owner": staff.id, "reason": reason})
+    return True
+
+
 # ------------------------------------------------------------------ creation
 RECENT_CLOSURE_DAYS = 180  # a result for a programme closed within this window goes to human review
 
@@ -590,12 +635,20 @@ def transition(db: Session, case: Case, dst: S | str, actor: Actor, *, owner_id:
             raise Forbidden("urgent cases must be triaged (confirmed) by a clinician")
     if src != S.CLOSED:
         _guard(db, case, dst)
+    claimed = False
     if owner_id is not None:
         owner = db.get(Practitioner, owner_id)
         if owner is None or not owner.active:
             raise Invalid("owner must be an active practitioner")
     else:
         owner = default_owner(db, case, dst)
+        # When the usual owner would be the team pool (or is inactive), the staff member doing
+        # the work becomes the named owner so the case leaves the No owner tile.
+        staff = named_staff_practitioner(db, actor)
+        if staff is not None and owner_is_unassigned(owner):
+            owner = staff
+            claimed = True
+    from_owner_id = case.owner_id
     _close_step(db, case, now)
     if src == S.CLOSED:
         for f in ("closed_at", "closure_type", "closure_reason", "closure_note", "closure_evidence_type",
@@ -619,6 +672,12 @@ def transition(db: Session, case: Case, dst: S | str, actor: Actor, *, owner_id:
     if dst == S.TREATMENT_STARTED and case.care_reached_at is None:
         case.care_reached_at = now  # BEFORE the step opens: the pathway target is met, so no target cap applies
     _open_step(db, case, dst, owner.id, actor, now, note)
+    if claimed and from_owner_id != owner.id:
+        db.add(OwnershipEvent(case_id=case.id, from_owner_id=from_owner_id, to_owner_id=owner.id, kind="claim",
+                              reason="took action on an unassigned case", at=now, by_user_id=actor.user_id))
+        audit.record(db, actor, "U", "case.claimed", entity_type="Task", entity_id=case.id, case_id=case.id, ts=now,
+                     detail={"from_owner": from_owner_id, "to_owner": owner.id,
+                             "reason": "took action on an unassigned case", "via": "transition", "to_state": dst.value})
     audit.record(db, actor, "U", "case.transition", entity_type="Task", entity_id=case.id, case_id=case.id, ts=now,
                  detail={"from": src.value, "to": dst.value, "owner_id": owner.id, "note": note})
     return case

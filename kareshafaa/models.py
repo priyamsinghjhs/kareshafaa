@@ -319,7 +319,7 @@ class OwnershipEvent(Base):  # reassignment / two-key transfer history (FHIR Pro
     case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
     from_owner_id: Mapped[int | None] = mapped_column(ForeignKey("practitioners.id"), nullable=True)
     to_owner_id: Mapped[int] = mapped_column(ForeignKey("practitioners.id"))
-    kind: Mapped[str] = mapped_column(String(30))  # assign | reassign | transfer_requested | transfer_accepted | transfer_declined | auto_pool
+    kind: Mapped[str] = mapped_column(String(30))  # assign | claim | reassign | transfer_requested | transfer_accepted | transfer_declined | auto_pool
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
