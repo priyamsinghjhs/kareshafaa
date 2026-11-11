@@ -221,10 +221,34 @@ def _http_post_json(url: str, payload: dict, token: str, timeout: float) -> int:
         raise _GraphError(e.code, code) from None
 
 
+def plain_content(msg: EmailMessage) -> str:
+    """The text/plain body, whether the message is a single part or a plain+HTML alternative."""
+    if not msg.is_multipart():
+        return msg.get_content()
+    for part in msg.iter_parts():
+        if part.get_content_type() == "text/plain":
+            return part.get_content()
+    return ""
+
+
+def html_content(msg: EmailMessage) -> str | None:
+    if not msg.is_multipart():
+        return None
+    for part in msg.iter_parts():
+        if part.get_content_type() == "text/html":
+            return part.get_content()
+    return None
+
+
 def _graph_send(msg: EmailMessage) -> None:
-    """Microsoft Graph sendMail (HTTPS 443) as the signed-in mailbox; saved to its Sent Items."""
+    """Microsoft Graph sendMail (HTTPS 443) as the signed-in mailbox; saved to its Sent Items.
+
+    Graph accepts a single body. When an HTML alternative is present that is what is sent (HTML
+    mail clients also have a text fallback in the MIME message for SMTP)."""
     s = get_settings()
-    m = {"subject": str(msg["Subject"] or ""), "body": {"contentType": "Text", "content": msg.get_content()},
+    html = html_content(msg)
+    body = {"contentType": "HTML", "content": html} if html else {"contentType": "Text", "content": plain_content(msg)}
+    m = {"subject": str(msg["Subject"] or ""), "body": body,
          "toRecipients": [{"emailAddress": {"address": str(msg["To"])}}]}
     if msg["Reply-To"]:
         m["replyTo"] = [{"emailAddress": {"address": str(msg["Reply-To"])}}]
@@ -292,7 +316,8 @@ def _safe_reason(e: BaseException) -> str:
     return f"sending failed ({type(e).__name__})"
 
 
-def build_message(to: str, subject: str, body: str, *, reply_to: str | None = None) -> EmailMessage:
+def build_message(to: str, subject: str, body: str, *, reply_to: str | None = None,
+                  html_body: str | None = None) -> EmailMessage:
     msg = EmailMessage()
     sender = from_address()
     msg["From"] = formataddr((FROM_NAME, sender))
@@ -302,17 +327,20 @@ def build_message(to: str, subject: str, body: str, *, reply_to: str | None = No
     if reply_to:
         msg["Reply-To"] = validate_address(reply_to)
     msg.set_content(body)
+    if html_body:
+        msg.add_alternative(html_body, subtype="html")
     return msg
 
 
-def send_email(to: str, subject: str, body: str, *, reply_to: str | None = None) -> None:
-    """Send one plain-text e-mail from the configured mailbox. Raises MailNotConfigured / MailError (secret-free
-    messages) on failure."""
+def send_email(to: str, subject: str, body: str, *, reply_to: str | None = None,
+               html_body: str | None = None) -> None:
+    """Send one e-mail from the configured mailbox (plain text, optional HTML alternative). Raises
+    MailNotConfigured / MailError (secret-free messages) on failure."""
     if not configured():
         raise MailNotConfigured("e-mail is not configured (set KARESHAFAA_MAIL_OAUTH_CLIENT_ID + "
                                 "KARESHAFAA_MAIL_OAUTH_REFRESH_TOKEN, or KARESHAFAA_SMTP_PASSWORD, on the server)")
     addr = validate_address(to)
-    msg = build_message(addr, subject, body, reply_to=reply_to)
+    msg = build_message(addr, subject, body, reply_to=reply_to, html_body=html_body)
     try:
         (_graph_send if transport() == "graph" else _smtp_send)(msg)
     except MailError:

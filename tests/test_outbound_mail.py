@@ -133,7 +133,7 @@ def test_real_email_sent_and_stored(db, new_case, mail_on, client, as_user):
     db.expire_all()
     com = db.scalar(select(Communication).where(Communication.case_id == c.id, Communication.channel == "email"))
     assert com.simulated is False and com.status == "completed" and not com.content.startswith(SIM_PREFIX)
-    assert com.content.split()[0] in msg.get_content()
+    assert com.content.split()[0] in mail.plain_content(msg)
     ev = db.scalars(select(AuditEvent).where(AuditEvent.case_id == c.id,
                                              AuditEvent.event == "communication.result_notification")).all()[-1]
     assert ev.detail["simulated"] is False and ev.detail["delivered"] == "email"

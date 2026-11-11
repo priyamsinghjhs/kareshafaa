@@ -436,6 +436,20 @@ def confirm(db: Session, actor: Actor, request_id: int, *, start: datetime | Non
                                                     "answered_late": bool(r.due_at and now > r.due_at)})
     m = _notify(db, r, p, "confirmed", actor, now, when=local_display(r.confirmed_start), place=place.name if place else "")
     r.notified_comm_id = m.id
+    # Real e-mail with the appointment details (time, clinician, hospital). A mail failure never
+    # undoes the confirmation. Follow-up bookings also run the usual channel ladder.
+    from ..comms import service as comms  # noqa: PLC0415
+    from ..comms import event_mail  # noqa: PLC0415
+    from ..comms.service import comm_language  # noqa: PLC0415
+
+    lang = r.language or comm_language(p)
+    if r.kind == "follow_up" and r.case_id:
+        c = db.get(Case, r.case_id)
+        if c is not None:
+            comms.safe_send_with_ladder(db, c, "appointment_confirmation", actor,
+                                        date=local_display(r.confirmed_start), max_channels=3, now=now)
+    else:
+        event_mail.send_for_request(db, r, p, lang, actor=actor, now=now)
     return r
 
 

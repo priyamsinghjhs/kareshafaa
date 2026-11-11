@@ -206,21 +206,34 @@ def _try_email(db: Session, case: Case, p: Patient, category: str, lang: str, va
                now: datetime) -> dict | None:
     """Real e-mail first, when it can be sent (mail configured, real address, not a SYN- sample, e-mail not refused).
     None = e-mail not applicable (the simulated ladder runs exactly as before). A failure is stored (no credentials
-    in it) and the ladder continues."""
+    in it) and the ladder continues. Appointment and result emails use the rich HTML+text templates
+    (comms/event_mail.py); other categories keep the short ladder wording, wrapped in the same brand HTML
+    when a rich template is not used. A completed e-mail for the same event (same appointment or report)
+    is not sent again."""
     from . import mail  # noqa: PLC0415
+    from . import event_mail  # noqa: PLC0415
 
     if not mail.can_send_to_patient(p):
         return None
     attempt = _attempt_no(db, case, category)
     if not has_consent(db, p.id, "comm_email"):
         return {"channel": "email", "status": "not-done (no consent)"}
+    subject = _email_subject(category, lang)
+    plain = _email_body(body, case)
+    html = None
+    key = category
+    packed = event_mail.render_for_case(db, case, category, lang)
+    if packed is not None:
+        subject, plain, html, key = packed
+        if event_mail.already_sent(db, p.id, key):
+            return {"channel": "email", "status": "completed", "already_sent": True, "simulated": False}
     try:
-        mail.send_email(p.email, _email_subject(category, lang), _email_body(body, case))
-        ok, content, err = True, body, None
+        mail.send_email(p.email, subject, plain, html_body=html)
+        ok, content, err = True, plain, None
     except mail.MailError as e:
         ok, content, err = False, f"(e-mail not sent: {e})", str(e)
     com = Communication(case_id=case.id, patient_id=p.id, category=category, channel="email", language=lang,
-                        template_key=category, template_variant=variant, content=content,
+                        template_key=key, template_variant=variant, content=content,
                         status="completed" if ok else "failed", simulated=False, attempt_no=attempt, sent_at=now)
     db.add(com)
     db.flush()
@@ -228,6 +241,28 @@ def _try_email(db: Session, case: Case, p: Patient, category: str, lang: str, va
     if err:
         out["error"] = err
     return out
+
+
+def safe_send_with_ladder(db: Session, case: Case, category: str, actor: Actor = SYSTEM, **kwargs) -> dict:
+    """send_with_ladder after a clinical write (booking, confirmation, attendance). Expected messaging
+    refusals (deceased, consent withdrawn, awaiting review) are logged and never raised, so they do not
+    roll back the write. A mail-server refusal is already caught inside send_with_ladder. Unexpected
+    faults (a crashed simulated gateway) still propagate, so the request stays all-or-nothing
+    (tests/test_fail_closed.py)."""
+    try:
+        return send_with_ladder(db, case, category, actor, **kwargs)
+    except (DomainError, Forbidden, Invalid) as e:
+        import logging  # noqa: PLC0415
+
+        logging.getLogger("kareshafaa.mail").warning("patient message not sent (%s): %s",
+                                                      category, type(e).__name__)
+        try:
+            audit.record(db, actor, "C", f"communication.{category}_failed", entity_type="Communication",
+                         case_id=case.id, detail={"reason": type(e).__name__})
+        except Exception:  # noqa: BLE001
+            pass
+        return {"delivered_channel": None, "attempts": [], "email_sent": False, "failed": True,
+                "error": type(e).__name__}
 
 
 def _ensure_call_task(db: Session, case: Case, actor: Actor, now: datetime, *, reason: str = "digital_channels_failed") -> CallTask:

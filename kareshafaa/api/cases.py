@@ -233,7 +233,7 @@ def appointment(case_id: int, body: sch.AppointmentIn, actor: Actor = Depends(re
     a = wf.book_appointment(db, c, actor, start, org_id=body.org_id, practitioner_id=body.practitioner_id,
                             beyond_target_reason=body.beyond_target_reason)
     # the patient sees UAE local time (was UTC: a 09:00 appointment was confirmed as 05:00)
-    res = comms.send_with_ladder(db, c, "appointment_confirmation", actor, date=local_display(start), max_channels=3)
+    res = comms.safe_send_with_ladder(db, c, "appointment_confirmation", actor, date=local_display(start), max_channels=3)
     return _done(db, c, actor, appointment_id=a.id, result=res)
 
 
@@ -246,7 +246,7 @@ def appointment_reschedule(case_id: int, body: sch.RescheduleIn, actor: Actor = 
     start = as_utc_naive(body.start)
     a = wf.reschedule_appointment(db, c, actor, start, body.reason_code, barrier_code=body.barrier_code or None,
                                   note=body.note, beyond_target_reason=body.beyond_target_reason)
-    res = comms.send_with_ladder(db, c, "appointment_changed", actor, date=local_display(start), max_channels=3)
+    res = comms.safe_send_with_ladder(db, c, "appointment_changed", actor, date=local_display(start), max_channels=3)
     return _done(db, c, actor, appointment_id=a.id, result=res)
 
 
@@ -257,7 +257,7 @@ def appointment_cancel(case_id: int, body: sch.AppointmentChangeIn, actor: Actor
     from ..calendar_uae import local_display
 
     a = wf.cancel_appointment(db, c, actor, body.reason_code, barrier_code=body.barrier_code or None, note=body.note)
-    res = comms.send_with_ladder(db, c, "appointment_cancelled", actor, date=local_display(a.start), max_channels=3)
+    res = comms.safe_send_with_ladder(db, c, "appointment_cancelled", actor, date=local_display(a.start), max_channels=3)
     return _done(db, c, actor, appointment_id=a.id, result=res)
 
 
@@ -287,7 +287,7 @@ def attendance(case_id: int, body: sch.AttendanceIn, actor: Actor = Depends(requ
     c = _load(db, actor, case_id)
     wf.record_attendance(db, c, actor, body.attended, barrier_code=body.barrier_code)
     if not body.attended:
-        comms.send_with_ladder(db, c, "no_show", actor, max_channels=3)
+        comms.safe_send_with_ladder(db, c, "no_show", actor, max_channels=3)
     return _done(db, c, actor)
 
 

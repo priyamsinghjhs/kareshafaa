@@ -356,6 +356,15 @@ def ingest_result(db: Session, patient: Patient, programme: str, *, value: float
     if not dec.creates_case:
         if rep.conclusion == "negative":
             _recall.after_negative(db, patient, rep, actor, now)
+            # Negative results are visible in the patient app immediately (there is no staff-release
+            # step). E-mail the patient the result details; skip for seed/synth (SYSTEM) so sample
+            # runs never write to a mailbox. A mail failure never blocks filing the result.
+            if getattr(actor, "is_human", False):
+                from ..comms import event_mail  # noqa: PLC0415
+                from ..comms.service import comm_language  # noqa: PLC0415
+
+                event_mail.send_for_result(db, report=rep, patient=patient,
+                                           lang=comm_language(patient), actor=actor, now=now)
         return rep, None
     reasons = list(dec.reasons)
     if len(group) > 1:

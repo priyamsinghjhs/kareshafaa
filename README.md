@@ -174,7 +174,9 @@ closure.
   screening** at a time: the patient app then hides “Request an appointment” and shows the existing request or
   booking (times in UAE). They can withdraw a waiting request to ask again; after a decline, a withdrawal, or once
   a booked screening has passed, the option returns. The server refuses a second request (409, in the patient's
-  language). Staff do not create these requests on the patient's behalf.
+  language). Staff do not create these requests on the patient's behalf. When a coordinator confirms a
+  request, the patient is emailed the appointment details (time in UAE, clinic, clinician when known) as
+  well as the existing in-app message.
 * Patient messages in English, Arabic, Hindi and Urdu (signed-off wording only; otherwise English plus an
   interpreter-supported call).
 
@@ -263,8 +265,31 @@ closure.
     `comm_email`, shown in the patient app and on the case consent form). A sent email is stored as a Communication
     with channel `email` and `simulated=false`; if the mail server refuses, a failed email row is stored (no
     credentials in it) and the simulated app → SMS → WhatsApp → phone-task ladder continues. The toast on the case
-    page says “sent to the patient by email” only when it really was. The template's patient-app link points at
-    `KARESHAFAA_PUBLIC_BASE_URL/patient` in an email when that variable is set.
+    page says “sent to the patient by email” only when it really was. The patient-app link points at
+    `KARESHAFAA_PUBLIC_BASE_URL/patient` when that variable is set. Appointment and result emails are **plain text
+    plus an HTML alternative** (Logo B navy header and mint rule, RTL for Arabic and Urdu, the patient's language
+    of English, Arabic, Hindi or Urdu), from `kareshafaa/comms/event_mail.py`.
+    **Appointment confirmation** (also moved, cancelled and reminder) includes the programme, the date and time in
+    **UAE time (Asia/Dubai)** and labelled as such, the clinician's name and role or specialty, the hospital or
+    clinic name and the region (address and phone are included when the organisation record has them), the
+    service or department when known, a short “what to bring” line (photo ID and Emirates ID only; no medical
+    prep is invented), how to reschedule or cancel through the patient app, and the case or request number.
+    These go out when staff book, reschedule or cancel on the case (`/api/cases/{id}/appointment*`), when a
+    coordinator confirms a patient's screening, recall or follow-up request (`/api/patient-requests/{id}/confirm`
+    — that path previously left only a simulated in-app message), and on the existing appointment-reminder sweep.
+    **Result emails** include the test name, the dates the sample was collected and the result was reported (UAE
+    time), the value with units and the usual screening range where there is one, a plain-language flag, what
+    happens next and who will contact them, the ordering clinician and laboratory, and a link to the patient
+    app. **Clinical safety:** actionable and review results are emailed only when the care team **releases** them
+    (staff “Tell the patient their result”, which already refuses messaging while a case is `issued` and
+    `review_required`). Critical and actionable emails lead with “your care team will contact you” / “will go
+    through this result with you” and do not use alarming words as a flag; they still include the result
+    details. Negative results, which the patient app already shows immediately (there is no staff-release step),
+    are emailed when a person files them (manual entry or lab ingest as a staff actor); seed and synthetic runs
+    (`SYSTEM`) do not send. A completed email for the same appointment or the same report is not sent again.
+    A mail failure is audited and **never rolls back** the clinical action (booking, a confirmation, filing a
+    result). The same consent, deceased, `can_send_to_patient` and example-domain gates as other patient mail
+    still apply.
   * **Staff alert copies:** each new escalation (L1–L4) is also emailed to `KARESHAFAA_ALERT_TO`
     (subject `KareShafaa: case #<id> escalation L<n>`; case number, level, step, clock, tier and the escalation note;
     no patient name or contact details). At most 20 single alerts per deadline check, the rest in one summary email. A
