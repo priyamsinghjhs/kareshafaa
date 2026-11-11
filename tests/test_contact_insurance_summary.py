@@ -119,8 +119,9 @@ def test_self_pay_coverage_is_valid_fhir():
 def test_backfill_fills_only_empty_fields_of_syn_sample_patients(db):
     from sqlalchemy import select
 
-    from kareshafaa.models import Patient
+    from kareshafaa.models import Patient, User
     from kareshafaa.services import sample_data as sd
+    from kareshafaa.synth.test_mailboxes import ALLOWLISTED_PATIENT_ADDRESSES, PATIENT_MAILBOXES
 
     assert "backfill_sample_contact_insurance_v1" in [n for n, _ in sd.MIGRATIONS]
     real = Patient(mrn="REAL-0001", given_name="Real", family_name="Person", gender="female", birth_year=1975,
@@ -130,7 +131,13 @@ def test_backfill_fills_only_empty_fields_of_syn_sample_patients(db):
                        age_band="50-59", nationality_group="Emirati", language="ar", region="Abu Dhabi",
                        managing_org_id=1, synthetic=False)  # SYN- prefix but not flagged synthetic: untouched
     db.add_all([real, fake_syn])
-    kept = db.scalars(select(Patient).where(Patient.mrn.like("SYN-%"), Patient.synthetic.is_(True))).first()
+    inbox = PATIENT_MAILBOXES["patient.en"]
+    demo_user = db.scalar(select(User).where(User.username == "patient.en"))
+    assert demo_user and demo_user.patient_id
+    demo = db.get(Patient, demo_user.patient_id)
+    assert demo is not None and (demo.email or "").lower() == inbox.lower()
+    kept = next(p for p in db.scalars(select(Patient).where(Patient.mrn.like("SYN-%"), Patient.synthetic.is_(True)))
+                if p is not demo)
     kept.email, kept.insurance_payer, kept.insurance_member_id = "kept@example.com", "adnic", "KEEP-1"
     db.flush()
     out = sd.backfill_sample_contact_insurance(db)
@@ -138,11 +145,18 @@ def test_backfill_fills_only_empty_fields_of_syn_sample_patients(db):
     for p in (real, fake_syn):
         assert (p.phone, p.email, p.address_line, p.insurance_payer) == (None, None, None, None), p.mrn
     assert (kept.email, kept.insurance_payer, kept.insurance_member_id) == ("kept@example.com", "adnic", "KEEP-1")
+    # patient.en keeps the allowlisted test inbox (set at seed); backfill must not overwrite it
+    assert (demo.email or "").lower() == inbox.lower()
     samples = db.scalars(select(Patient).where(Patient.mrn.like("SYN-%"), Patient.synthetic.is_(True))).all()
     assert all(p.address_line and p.city for p in samples)
     phones = [p.phone for p in samples if p.phone]
     assert phones and len(phones) == len(set(phones)) and all(x.startswith("+9715") for x in phones)
-    assert all(p.email.endswith("@example.com") for p in samples if p.email and p is not kept)
+    assert all(
+        p.email.endswith("@example.com") or (p.email or "").lower() in ALLOWLISTED_PATIENT_ADDRESSES
+        for p in samples if p.email and p is not kept
+    )
+    assert all(p.email.endswith("@example.com") for p in samples
+               if p.email and p is not kept and p is not demo)
     insured = [p for p in samples if p.insurance_payer and p is not kept]
     assert insured and all("synthetic" in (p.insurance_plan or "") and p.insurance_member_id.startswith("SYN-")
                            for p in insured)

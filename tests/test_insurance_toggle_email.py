@@ -202,24 +202,35 @@ def test_patient_can_update_own_email(client, as_user):
 def test_backfill_fills_every_empty_syn_email_and_the_insurance_answer(db):
     from sqlalchemy import select
 
-    from kareshafaa.models import Patient
+    from kareshafaa.models import Patient, User
     from kareshafaa.services import sample_data as sd
+    from kareshafaa.synth.test_mailboxes import ALLOWLISTED_PATIENT_ADDRESSES, PATIENT_MAILBOXES
 
     assert "backfill_sample_email_insurance_answer_v1" in [n for n, _ in sd.MIGRATIONS]
     real = Patient(mrn="REAL-0002", given_name="Real", family_name="Person", gender="female", birth_year=1975,
                    age_band="50-59", nationality_group="Emirati", language="ar", region="Abu Dhabi", managing_org_id=1,
                    synthetic=False, insurance_payer="thiqa", insurance_member_id="THQ-1")
     db.add(real)
+    inbox = PATIENT_MAILBOXES["patient.en"]
+    demo_user = db.scalar(select(User).where(User.username == "patient.en"))
+    assert demo_user and demo_user.patient_id
+    demo = db.get(Patient, demo_user.patient_id)
+    assert demo is not None and (demo.email or "").lower() == inbox.lower()
     samples = db.scalars(select(Patient).where(Patient.mrn.like("SYN-%"), Patient.synthetic.is_(True))).all()
     no_phone = [p for p in samples if not p.has_smartphone]
     for p in no_phone[:5]:
         p.email = None  # the case that showed 'None recorded' (step 4 only gave smartphone users an email)
-    kept = samples[0]
+    kept = next(p for p in samples if p is not demo)
     kept.email, kept.has_insurance, kept.insurance_payer = "kept@example.com", None, "self_pay"
     db.flush()
     out = sd.backfill_sample_email_insurance_answer(db)
     assert out["emails"] >= min(5, len(no_phone))
-    assert all(p.email and p.email.endswith("@example.com") for p in samples)
+    assert all(p.email for p in samples)
+    # most SYN- emails are example.com; patient.en keeps the allowlisted test inbox and is not overwritten
+    assert (demo.email or "").lower() == inbox.lower()
+    assert all(p.email.endswith("@example.com") or (p.email or "").lower() in ALLOWLISTED_PATIENT_ADDRESSES
+               for p in samples)
+    assert all(p.email.endswith("@example.com") for p in samples if p is not demo)
     assert kept.email == "kept@example.com" and kept.has_insurance is False
     assert all(p.has_insurance is (p.insurance_payer != "self_pay") for p in samples if p.insurance_payer)
     assert all(p.has_insurance is None for p in samples if not p.insurance_payer)
