@@ -254,6 +254,117 @@ W.attachSuggest = (root, meta = {}) => {
   document.addEventListener("focusin", e => { const ta = e.target; if (ta && ta.matches && ta.matches("textarea[data-suggest-case]")) schedule(ta, DEBOUNCE); });
   document.addEventListener("input", e => { const ta = e.target; if (ta && ta.matches && ta.matches("textarea[data-suggest-case]") && ta.value.trim() !== ta._sgLast) schedule(ta, DEBOUNCE); });
 })();
+
+// Record-sourced note suggestion (POST /api/assist/record-note; kareshafaa/services/record_note.py).
+// Deterministic: every sentence is a fixed template filled from the case record, not a model.
+// A "Suggest note" button fills the textarea; nothing is submitted; the clinician may edit.
+// Clinical closure notes use this only (the SLM draft is not attached on those forms).
+W.RECORD_NOTE_ACTIONS = new Set(["close_evidence", "close_authorised", "unreachable", "lesson"]);
+W.RECORD_NOTE_MARK = { en: "Suggested from the record — review before saving",
+  ar: "مقترحة من السجل — يُرجى المراجعة قبل الحفظ" };
+W.attachRecordNote = (root, meta = {}) => {
+  if (!root || !meta.caseId || !meta.action) return;
+  const field = meta.field || "note";
+  const ta = root.querySelector(`textarea[name="${field}"], input[name="${field}"]`);
+  if (!ta) return;
+  ta.dataset.recordNote = "1";
+  ta.dataset.rnCase = String(meta.caseId);
+  ta.dataset.rnAction = meta.action;
+  ta.dataset.rnField = field;
+  if (meta.evidenceType) ta.dataset.rnEvidence = meta.evidenceType;
+  if (meta.optionFrom) ta.dataset.rnOption = [].concat(meta.optionFrom).join(",");
+  // do not also attach the SLM draft on this field
+  ta.removeAttribute("data-suggest-case");
+  ta.setAttribute("data-no-suggest", "");
+  if (ta._rnWrap && ta._rnWrap.isConnected) return;
+  const wrap = document.createElement("div");
+  wrap.className = "record-note";
+  wrap.innerHTML = `<div class="rn-actions">
+      <button type="button" class="secondary sm" data-rn-suggest data-lang="en">Suggest note</button>
+      <button type="button" class="ghost sm" data-rn-suggest data-lang="ar" lang="ar" dir="rtl">اقتراح ملاحظة</button>
+    </div>
+    <div class="rn-panel" hidden></div>`;
+  (ta.closest("label") || ta).after(wrap);
+  ta._rnWrap = wrap;
+  const optionOf = () => {
+    if (!ta.dataset.rnOption) return null;
+    const f = ta.form || ta.closest("form");
+    if (!f) return null;
+    for (const n of ta.dataset.rnOption.split(",")) {
+      const s = f.querySelector(`select[name="${n}"]`);
+      if (s && s.value) return s.value;
+    }
+    return null;
+  };
+  const fill = (text) => {
+    const max = ta.maxLength > 0 ? ta.maxLength : 0;
+    const v = max ? String(text).slice(0, max) : String(text);
+    ta.focus();
+    ta.value = v;
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    ta._rnOriginal = v;
+  };
+  const show = (s, lang) => {
+    const panel = wrap.querySelector(".rn-panel");
+    const mark = (s && s.disclaimer) || W.RECORD_NOTE_MARK[lang] || W.RECORD_NOTE_MARK.en;
+    const srcs = (s && s.sources) || [];
+    const srcH = lang === "ar" ? "المصادر" : "Sources";
+    panel.hidden = false;
+    panel.setAttribute("dir", lang === "ar" ? "rtl" : "ltr");
+    panel.innerHTML = `<p class="rn-mark">${W.esc(mark)}</p>
+      ${srcs.length ? `<h4 class="rn-src-h">${W.esc(srcH)}</h4>
+        <ul class="rn-src">${srcs.map(x => `<li><a class="rn-field" href="${W.esc(x.href || "#")}">${W.esc(x.field)}</a>: <span>${W.esc(x.value)}</span></li>`).join("")}</ul>` : ""}`;
+    wrap.classList.add("has-suggestion");
+    ta._rnSuggestion = s;
+  };
+  const fail = (msg) => {
+    const panel = wrap.querySelector(".rn-panel");
+    panel.hidden = false;
+    panel.removeAttribute("dir");
+    panel.innerHTML = `<p class="rn-mark">${W.esc(msg)}</p>`;
+  };
+  wrap.querySelectorAll("[data-rn-suggest]").forEach(btn => {
+    btn.addEventListener("click", async ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const lang = btn.getAttribute("data-lang") || "en";
+      W.busy(btn, true);
+      try {
+        const body = { case_id: +ta.dataset.rnCase, action: ta.dataset.rnAction, lang };
+        if (ta.dataset.rnEvidence) body.evidence_type = ta.dataset.rnEvidence;
+        const opt = optionOf();
+        if (opt && /^[a-z0-9_]{1,40}$/.test(opt)) body.option = opt;
+        const r = await W.api("/api/assist/record-note", { method: "POST", body });
+        if (!r || !r.suggestion) { fail(lang === "ar" ? "لا توجد حقائق كافية في السجل لاقتراح ملاحظة." : "Nothing on the record to suggest a note from."); return; }
+        fill(r.suggestion);
+        if (lang === "ar") ta.setAttribute("dir", "rtl"); else ta.setAttribute("dir", "ltr");
+        show(r, lang);
+      } catch (e) {
+        fail((e && e.message) || (lang === "ar" ? "تعذر اقتراح الملاحظة." : "Could not suggest a note."));
+      } finally { W.busy(btn, false); }
+    });
+  });
+};
+W.recordNoteAuditPayload = (root) => {
+  if (!root) return null;
+  const ta = root.querySelector("textarea[data-record-note], input[data-record-note]");
+  if (!ta || !ta._rnSuggestion || ta._rnOriginal == null) return null;
+  const current = (ta.value || "").trim();
+  if (!current) return null;
+  return {
+    case_id: +ta.dataset.rnCase,
+    action: ta.dataset.rnAction,
+    fingerprint: ta._rnSuggestion.fingerprint,
+    edited: current !== String(ta._rnOriginal).trim(),
+    facts: ta._rnSuggestion.facts || [],
+  };
+};
+W.reportRecordNote = async (payload) => {
+  if (!payload) return;
+  try { await W.api("/api/assist/record-note/used", { method: "POST", body: payload }); }
+  catch (e) { /* audit only: never block saving the clinical action */ }
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   // after a cold start the "starting" page reopens this page with ?ks_wait=1: tidy the address bar
   if (new URLSearchParams(location.search).has("ks_wait")) { const u = new URL(location.href); u.searchParams.delete("ks_wait"); history.replaceState(null, "", u); }

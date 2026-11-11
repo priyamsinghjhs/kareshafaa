@@ -368,10 +368,17 @@ async function openForm(key, evidenceType) {
     el.innerHTML = `<form class="action-form" aria-label="${W.esc(TITLE[key] || "Action")}"><h3>${W.esc(TITLE[key] || "Action")}</h3>${html}<div class="form-buttons"><button type="submit">${submit}</button><button type="button" class="secondary" id="cancel">Cancel</button></div></form>`;
     el.querySelector("#cancel").onclick = () => { el.innerHTML = ""; };
     const fm = el.querySelector("form");
-    W.attachSuggest(fm, { caseId: CASE_ID, action: key, evidenceType, optionFrom: ["reason", "outcome", "accept", "kind", "decision", "tier", "reason_code", "scope"] });
+    if (W.RECORD_NOTE_ACTIONS && W.RECORD_NOTE_ACTIONS.has(key)) {
+      W.attachRecordNote(fm, { caseId: CASE_ID, action: key, evidenceType,
+        optionFrom: key === "close_authorised" ? "reason" : null, field: key === "lesson" ? "detail" : "note" });
+    } else {
+      W.attachSuggest(fm, { caseId: CASE_ID, action: key, evidenceType, optionFrom: ["reason", "outcome", "accept", "kind", "decision", "tier", "reason_code", "scope"] });
+    }
     const first = fm.querySelector("select, input:not([type=hidden]), textarea"); if (first) first.focus(); fm.scrollIntoView({ block: "nearest", behavior: "smooth" });
     fm.onsubmit = async ev => { ev.preventDefault(); const b = fm.querySelector("button[type=submit]"); W.busy(b, true); W.formError(fm, "");
-      try { const fd = Object.fromEntries(new FormData(ev.target)); await onsubmit(fd); }
+      try { const fd = Object.fromEntries(new FormData(ev.target)); const pending = W.recordNoteAuditPayload && W.recordNoteAuditPayload(fm);
+        const result = await onsubmit(fd);
+        if (pending && result !== false && W.reportRecordNote) await W.reportRecordNote(pending); }
       catch (e) { const msg = (e && e.message) || "Could not save. Please try again."; W.formError(fm, msg); W.toast(msg, "err"); }
       finally { W.busy(b, false); } };
   };
@@ -474,7 +481,7 @@ async function openForm(key, evidenceType) {
     case "consult": return form(F.sel("target", "Ask clinician", opts(d.prac.filter(p => ["gp", "specialist", "clinical_lead"].includes(p.role) && p.id !== W.me.practitioner_id), p => p.id, p => p.name)) +
       F.sel("urgency", "Urgency", kv({ [C.tier]: C.tier, urgent: "urgent (4h)", high: "high (24h)", routine: "routine (72h)" })) + `<label>Question<textarea name="question" rows="3" required></textarea></label>`,
       fd => post(`${u}/consults`, { target_practitioner_id: +fd.target, urgency: fd.urgency, question: fd.question }, "Consultation requested"));
-    case "lesson": return form(F.sel("kind", "Type", kv({ overdue: "Overdue / delay", drop_off: "Drop-off", incident: "Incident / near miss" })) + F.sel("reason_code", "Reason", META.delay_reasons.map(r => `<option>${r}</option>`).join("")) + `<label>Detail<input name="detail"></label>`,
+    case "lesson": return form(F.sel("kind", "Type", kv({ overdue: "Overdue / delay", drop_off: "Drop-off", incident: "Incident / near miss" })) + F.sel("reason_code", "Reason", META.delay_reasons.map(r => `<option>${r}</option>`).join("")) + `<label>Detail<textarea name="detail" rows="2"></textarea></label>`,
       fd => post(`${u}/lessons`, { kind: fd.kind, reason_code: fd.reason_code, detail: fd.detail || null }, "Lesson recorded"));
     case "consent": return form(F.sel("scope", "Scope", ["share_external", "comm_app", "comm_sms", "comm_whatsapp", "comm_phone", "comm_email", "alt_contact", "analytics"].map(s => `<option>${s}</option>`).join("")) + F.sel("decision", "Decision", kv({ permit: "Permit", deny: "Deny" })) + F.note("How did the patient give this decision? (≥10 characters, recorded with your name)", true),
       fd => post(`${u}/consent`, { scope: fd.scope, decision: fd.decision, note: fd.note || null }, "Consent recorded"));

@@ -46,8 +46,7 @@ def no_http(monkeypatch):
 
 
 def _body(case_id, **kw):
-    return {"case_id": case_id, "action": "close_evidence", "field": "note", "evidence_type": "care_plan",
-            "draft": "", **kw}
+    return {"case_id": case_id, "action": "call", "field": "note", "draft": "", **kw}
 
 
 def test_anonymous_401(client, new_case):
@@ -118,13 +117,13 @@ def test_suggestion_returned_audited_without_text(client, as_user, new_case, slm
     assert headers["X-Title"] == "KareShafaa" and headers["Authorization"] == "Bearer test-key-not-real"
     assert payload["model"] == "inclusionai/ling-3.0-flash-sante:free"
     sent = json.dumps(payload)
-    assert "Colonoscopy booked" in sent and "care_plan" in sent and "Closing with" in sent
+    assert "Closing with" in sent
     # advisory only: the case did not move
     db.expire_all()
     assert db.get(Case, c["id"]).state == state_before
     ev = db.scalar(select(AuditEvent).where(AuditEvent.event == "assist.suggestion_requested",
                                             AuditEvent.case_id == c["id"]).order_by(AuditEvent.id.desc()).limit(1))
-    assert ev is not None and ev.detail["returned"] is True and ev.detail["action"] == "close_evidence"
+    assert ev is not None and ev.detail["returned"] is True and ev.detail["action"] == "call"
     assert "Care plan recorded" not in json.dumps(ev.detail) and "Colonoscopy" not in json.dumps(ev.detail)
 
 
@@ -156,7 +155,7 @@ def test_build_context_redacts(db, new_case):
     db.add(CarePlan(case_id=case.id, kind="surveillance", description="Huda Karimi to repeat HbA1c; call +971509998877",
                     recorded_by_id=case.owner_id, created_at=utcnow()))
     db.flush()
-    ctx = assist.build_context(db, case, action="close_evidence", field="note", evidence_type="care_plan",
+    ctx = assist.build_context(db, case, action="start_care", field="description", evidence_type="care_plan",
                                draft="Huda agreed", staff_names=["Dr. Omar Haddad"])
     txt = json.dumps(ctx)
     for secret in ("Huda", "Karimi", p.mrn, "1111111", "+971509998877", "huda@example.org", "Corniche", "Haddad",
@@ -215,3 +214,16 @@ def test_close_endpoint_unchanged_by_suggestions(client, as_user, new_case, slm)
     r = client.post(f"/api/cases/{c['id']}/close", headers=as_user("aisha.rahman"),
                     json={"closure_type": "evidence", "evidence_type": "care_plan", "note": "draft text"})
     assert r.status_code in (400, 409, 422)  # no care plan on this case: refused exactly as before
+
+
+def test_slm_not_offered_on_clinical_closure_notes(client, as_user, new_case, slm):
+    """Closure notes use the record-sourced suggestion, not the language model."""
+    c = new_case()
+    h = as_user("aisha.rahman")
+    for action, extra in (("close_evidence", {"evidence_type": "care_plan"}),
+                          ("close_authorised", {})):
+        r = client.post(URL, headers=h, json=_body(c["id"], action=action, **extra))
+        assert r.status_code == 422, r.text
+        assert "not offered" in r.json()["detail"]
+    assert slm["calls"] == []
+

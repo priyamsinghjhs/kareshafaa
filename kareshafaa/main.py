@@ -24,7 +24,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 
 from . import __version__, accounts, audit, public_demo, pwa, ui
-from .api import about, admin_users, assist, auth, cases, demo_api, governance, ingest, me, ops, patient_requests, patients, recalls, gp_summaries, signin_help
+from .api import about, admin_users, assist, auth, cases, demo_api, governance, ingest, me, ops, patient_requests, patients, recalls, gp_summaries, signin_help, record_note
 from .api.deps import COOKIE, resolve_actor, resolve_user
 from .assets import asset, cache_control
 from .config import get_settings, storage_is_persistent
@@ -708,7 +708,7 @@ def create_app() -> FastAPI:
 
     for r in (auth.router, admin_users.router, admin_users.system_router, cases.router, me.router, ops.router, governance.router, ingest.router, demo_api.router,
               pwa.router, patients.router, recalls.router, gp_summaries.router, patient_requests.router, signin_help.router,
-              about.router, assist.router):
+              about.router, assist.router, record_note.router):
         app.include_router(r)
     # gzip text responses over 1 KB (pages, CSS, JS, JSON): the outermost layer, so it also covers refusals
     @app.middleware("http")

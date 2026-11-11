@@ -788,6 +788,25 @@ a.stat[aria-current="true"] { outline: 2px solid var(--c-primary); outline-offse
 .suggest .sg-actions button { min-height: var(--tap); }
 .suggest .sg-note { margin: var(--s-1) 0 0; font-size: var(--fs-xs); color: var(--c-muted); }
 
+/* Record-sourced note suggestion (common.js W.attachRecordNote): button, disclaimer, sources list.
+   Block layout only — no absolute positioning, so labels and values cannot overlap on a phone. */
+.record-note { margin: var(--s-2) 0 0; }
+.record-note .rn-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; margin: var(--s-2) 0; }
+.record-note .rn-actions button { min-height: var(--tap); }
+.record-note .rn-panel { margin: var(--s-2) 0 0; padding: var(--s-2) var(--s-3); border: 1px solid var(--c-border);
+  border-inline-start: 3px solid var(--c-border-strong); border-radius: var(--r-sm); background: var(--c-surface-2); }
+.record-note .rn-mark { margin: 0 0 var(--s-2); font-size: var(--fs-xs); color: var(--c-muted); }
+.record-note .rn-src-h { margin: 0 0 var(--s-1); font-size: var(--fs-sm); font-weight: var(--fw-semibold); }
+.record-note .rn-src { margin: 0; padding-inline-start: var(--s-4); overflow-wrap: anywhere; }
+.record-note .rn-src li { margin: var(--s-1) 0; font-size: var(--fs-sm); }
+.record-note .rn-field { font-weight: var(--fw-semibold); }
+@media (max-width: 599px) {
+  .record-note .rn-actions { flex-direction: column; align-items: stretch; }
+  .record-note .rn-actions button { width: 100%; }
+  .record-note .rn-src { padding-inline-start: var(--s-3); }
+}
+
+
 /* ================================================================ type scale + rhythm (Nov 11 2026 design pass)
    One font stack (--font; Arabic/Urdu and Devanagari stacks only switch script), six sizes, three weights.
    Heading ladder used on EVERY page:

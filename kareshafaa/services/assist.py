@@ -4,6 +4,9 @@ A small LangGraph graph - build prompt -> generate -> post-check - asks a free h
 (default: InclusionAI Ling 3.0 Flash Sante on OpenRouter, an OpenAI-compatible chat-completions API) for a short draft
 the staff member can insert, edit or dismiss.
 
+Clinical closure notes (close with evidence, authorised closure) are NOT offered here: they use a
+deterministic record-sourced suggestion (kareshafaa/services/record_note.py) instead of a model.
+
 Rules (docs/clinical_safety_case.md H-41, docs/operating_modes.md):
   * advisory text only: nothing here closes, moves, assigns, files or sends anything - it returns a string or None;
   * off unless KARESHAFAA_SLM_API_KEY is set, and off whenever the AI kill switch is off (kareshafaa/ml/switch.py);
@@ -47,8 +50,7 @@ ACTIONS: dict[str, str] = {
     "reschedule": "note on why the appointment is being moved",
     "cancel_appointment": "note on why the appointment is being cancelled",
     "start_care": "description of the care plan (treatment or surveillance) that has started",
-    "close_evidence": "closure note when closing the case with linked evidence that care was reached",
-    "close_authorised": "rationale for an authorised closure decision",
+    # close_evidence / close_authorised: record-sourced suggestion only (kareshafaa/services/record_note.py)
     "decline": "note recording what the patient said when declining further follow-up",
     "reconsider": "note on why follow-up is being resumed",
     "transfer": "reason and summary for the clinician receiving the case transfer",

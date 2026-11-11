@@ -227,20 +227,38 @@ closure.
   reason required, audited `ml.switched_off` / `ml.switched_on`). Off clears every open case's score at once and the
   work queue falls back to deadline order; clinical work is not affected.
   Registry with AUC, calibration and fairness gates; promotion needs clinical-lead approval; drift and rollback.
-* **Note drafts (advisory):** staff clinical note fields (close with evidence, authorised-closure rationale, care-plan
-  description, clinical review, call notes, decline / reconsider / transfer notes, referral summary, consult question
-  and answer, consultation notes, escalation and summary acknowledgements, patient-request decline notes) can show a
-  short draft from a free hosted healthcare small language model (default InclusionAI Ling 3.0 Flash Sante on
-  OpenRouter), run as a small LangGraph graph (build prompt → generate → post-check; `kareshafaa/services/assist.py`,
-  `POST /api/assist/suggest`, staff with `case:read` who can open the case; patients 403). The draft appears under
-  the field with **Use** (inserts it, editable) or **Dismiss**; nothing is inserted or submitted on its own, and the
-  model cannot close, move, assign or message a case. Not offered for patient-app fields, names, contact details,
-  IDs, dates, results or medicine name/dose/frequency/route. Only a minimised case context is sent (programme,
-  result, urgency, step, the form and its evidence, the typed draft); patient name, MRN, Emirates ID, phone, email,
-  address, birth year and staff names are stripped. Off without `KARESHAFAA_SLM_API_KEY`, and off with the AI kill
-  switch (deployment or Admin → System); a failing or slow model just shows no draft. Requests are audited
-  (`assist.suggestion_requested`: case, form, model, whether a draft came back; never the prompt or the text) and
-  limited to 20 per user per minute. Drafts are not clinical advice: check them against the record.
+* **Closure notes (from the record, not AI):** closing a case is health-critical, so the note is **not** drafted
+  by a language model — no model can honestly promise 100% accuracy on clinical facts. On closure forms (close with
+  evidence: care plan, attended appointment / referral outcome, or negative confirmatory result; authorised closure,
+  including unable-to-contact) and on mark-unreachable and delay/incident (lesson) notes, a **Suggest note** button
+  fills the field from a deterministic template (`kareshafaa/services/record_note.py`, `POST /api/assist/record-note`).
+  Each sentence is generated from a fixed English or Arabic template and only from structured data already on the
+  case: linked evidence (care-plan id, title, date, author; appointment; confirmatory result), screening programme,
+  triggering result (test, value, units, flag, date), loop milestones (notified, teach-back, referral sent or
+  accepted, appointment attended, treatment or surveillance started), current owner, and the closure type. If a fact
+  is missing, that sentence is omitted; nothing is guessed. Dates are shown in UAE time (Asia/Dubai) and labelled.
+  A **Sources** list under the field (field → value, linked to the record) lets the clinician verify, and the note
+  is marked *Suggested from the record — review before saving*. The button never submits the form; the clinician may
+  edit before saving. Requests are audited (`note.suggested`: facts used, fingerprint, and, when the form is saved,
+  whether the clinician edited the text). The endpoint uses the same role permissions as the action itself; the AI
+  kill switch does not apply (this is not a model). Exhaustive tests walk every seeded case and check that every
+  sentence has a source, that every number, unit and date equals the stored value, and that missing facts are
+  omitted (`tests/test_record_note.py`).
+* **Note drafts (advisory, non-closure):** other staff clinical note fields (care-plan description, clinical review,
+  call notes, decline / reconsider / transfer notes, referral summary, consult question and answer, consultation
+  notes, escalation and summary acknowledgements, patient-request decline notes) can still show a short draft from a
+  free hosted healthcare small language model (default InclusionAI Ling 3.0 Flash Sante on OpenRouter), run as a
+  small LangGraph graph (build prompt → generate → post-check; `kareshafaa/services/assist.py`,
+  `POST /api/assist/suggest`, staff with `case:read` who can open the case; patients 403). **Clinical closure notes
+  no longer use this path** (see above). The draft appears under the field with **Use** (inserts it, editable) or
+  **Dismiss**; nothing is inserted or submitted on its own, and the model cannot close, move, assign or message a
+  case. Not offered for patient-app fields, names, contact details, IDs, dates, results or medicine
+  name/dose/frequency/route. Only a minimised case context is sent (programme, result, urgency, step, the form and
+  its evidence, the typed draft); patient name, MRN, Emirates ID, phone, email, address, birth year and staff names
+  are stripped. Off without `KARESHAFAA_SLM_API_KEY`, and off with the AI kill switch (deployment or Admin → System);
+  a failing or slow model just shows no draft. Requests are audited (`assist.suggestion_requested`: case, form,
+  model, whether a draft came back; never the prompt or the text) and limited to 20 per user per minute. Drafts are
+  not clinical advice: check them against the record.
 * **Outbound email (Nov 2026, `kareshafaa/comms/mail.py`):** the app sends real email from its own mailbox,
   **`kareshafaa_com@outlook.com`** (Python standard library; no paid email provider). It is **off until the mailbox
   sign-in is set on the host** (Render → Environment); until then every patient message stays simulated exactly as
