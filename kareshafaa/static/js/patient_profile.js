@@ -213,7 +213,7 @@
     const actions = showForm ? "" : (reqBtn ? `<div class="tb-actions">${reqBtn}</div>` : "");
     const block = blockNote ? `<p class="small" data-request-blocked="${W.esc(O.block_reason || "")}">${W.esc(blockNote)}</p>` : "";
     const appts = (H.appointments.length ? `<ul class="hist">${H.appointments.map(a => apptItem(a, T, lang)).join("")}</ul>${block}${actions}`
-      : `<div class="empty-req" data-empty-appts>${canReq ? `<p>${W.esc(RQ.request_intro)}</p>` : block}${actions}</div>`)
+      : `<div class="empty-req" data-empty-appts>${canReq ? "" : block}${actions}</div>`)
       + (showForm ? requestForm(T) : "");
     const results = H.results.length ? `<ul class="hist">${H.results.map(r => `<li class="hist-item"><div><b>${W.esc(when(r.date, lang, false))}</b> · ${W.esc(cap(r.programme))} <span class="small muted">(${W.esc(r.kind)})</span></div><div><span class="chip ${r.outcome === "normal" ? "sla-green" : r.outcome === "follow_up" ? "sla-amber" : ""}" data-outcome="${r.outcome}">${W.esc(r.outcome_text)}</span>${r.site ? ` <span class="small muted">${W.esc(r.site)}</span>` : ""}</div></li>`).join("")}</ul>` : `<p class="small muted">${W.esc(T.no_results)}</p>`;
     box.innerHTML = `<div class="card" id="self-appts"><h4 class="p-sec-h">${W.ic("calendar")}${W.esc(T.appts_title)}</h4>${appts}</div>${requestsCard(T, lang)}
@@ -239,7 +239,7 @@
     const item = m => `<li class="hist-item msg-item" data-msg="${m.id}"><div class="small"><b>${W.esc(T.msg_kind[m.category] || T.msg_kind.other)}</b> · ${W.esc(when(m.at, lang))} · ${W.esc(T.via[m.channel] || m.channel)}
         ${m.simulated ? `<span class="chip sim-chip" title="${W.esc(T.msgs_note)}">${W.esc(T.msgs_sim)}</span>` : ""}</div>
       <div ${m.language ? `lang="${W.esc(m.language)}" dir="auto"` : ""}>${W.esc(m.kind === "call" ? T.msg_call : m.kind === "account" ? T.msg_account : m.text)}</div></li>`;
-    box.innerHTML = `<div class="card" id="pmsgs-card"><h4 class="p-sec-h">${W.ic("chat")}${W.esc(T.msgs_title)}</h4><p class="xs muted" role="note">${W.esc(T.msgs_note)}</p>
+    box.innerHTML = `<div class="card" id="pmsgs-card"><h4 class="p-sec-h">${W.ic("chat")}${W.esc(T.msgs_title)}</h4>
       ${M.length ? `<ul class="hist msgs">${M.slice(0, 8).map(item).join("")}</ul>${M.length > 8 ? `<details class="small"><summary>+${M.length - 8}</summary><ul class="hist msgs">${M.slice(8).map(item).join("")}</ul></details>` : ""}` : `<p class="small muted">${W.esc(T.no_msgs)}</p>`}</div>`;
   }
 
@@ -251,7 +251,7 @@
         <span class="chip ${on ? "sla-green" : "sla-red"}">${W.esc(on ? T.allowed : T.not_allowed)}</span>${c.since ? `<span class="xs muted">${W.esc(fill(T.since, { date: day(c.since, lang) }))}</span>` : ""}
         <button type="button" class="secondary outline sm" data-consent="${sc}" data-to="${on ? "deny" : "permit"}">${W.esc(on ? T.stop : T.allow)}</button></li>`; };
     const cc = C.care_coordination || {}, ccOn = cc.decision !== "deny";
-    return `<div class="card" id="p-consent"><h4 class="p-sec-h">${W.ic("shield")}${W.esc(T.consent_title)}</h4><p class="small muted">${W.esc(T.consent_intro)}</p>
+    return `<div class="card" id="p-consent"><h4 class="p-sec-h">${W.ic("shield")}${W.esc(T.consent_title)}</h4>
       <ul class="consent-list">${["comm_app", "comm_sms", "comm_whatsapp", "comm_phone", "comm_email"].map(row).join("")}</ul>
       <h4>${W.esc(T.care_title)}</h4><p class="small" data-care="${ccOn ? "permit" : "deny"}">${W.esc(ccOn ? T.care_on : T.care_off)}</p>
       <p class="small muted">${W.esc(T.duty)}</p>

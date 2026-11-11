@@ -31,7 +31,7 @@ function header() {
   const owner = `${C.owner_is_pool ? '<span class="chip pool">Team pool – needs a named owner</span> ' : ""}${W.esc(C.owner)}`;
   return `<a class="back-link" href="/queue"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Back to queue</a>
    <div class="case-head"><h1>${W.esc(C.patient.name)}</h1>
-   <p class="muted small" style="margin:0">Case #${C.id} · ${W.esc(C.patient.mrn)} · ${W.prog(C.programme)} screening</p>
+   <p class="muted small m-0">Case #${C.id} · ${W.esc(C.patient.mrn)} · ${W.prog(C.programme)} screening</p>
    <div class="case-meta">${W.tier(C.tier)} ${W.sla(C.sla.status, C.sla.fraction)} ${C.sla.escalation_level ? `<span class="chip sla-red">Escalated (level ${C.sla.escalation_level})</span>` : ""}</div></div>
    ${loopStrip()}${nextBar()}${fastLane()}${teachBackCard()}${coverage()}${record()}
    <h2 class="sec-title" id="step-h">This step</h2>
@@ -43,7 +43,7 @@ function header() {
    </dl>
    <details class="help-more all-steps"><summary>All steps · ${Math.max(1, C.journey.findIndex(j => j.status === "current") + 1)} of ${C.journey.filter(j => j.status !== "side").length}</summary>
    <ol class="stepper" aria-label="Care pathway progress">${C.journey.map(j => `<li class="st ${j.status}" ${j.status === "current" ? 'aria-current="step"' : ""}>${W.esc(j.label)}</li>`).join("")}</ol></details>
-   ${C.review_required ? `<div class="card alert" role="alert"><h3>Clinical review needed</h3><p>This result cannot move on automatically until a clinician reviews it: ${(C.review_reasons || []).map(x => `<span class="chip sla-red">${W.esc(x.replace(/_/g, " "))}</span>`).join(" ")}</p><p class="small" style="margin:0">Rule ${W.esc(C.rule_id || "–")} · pathway <b>${W.esc((C.pathway || "–").replace(/_/g, " "))}</b>${C.target ? " · target " + W.esc(C.target) : ""}. Urgency was set to the safer level; lowering it needs a clinician's reason (recorded).</p></div>` : (C.rule_id ? `<p class="small muted">Clinical rule ${W.esc(C.rule_id)} · pathway ${W.esc((C.pathway || "").replace(/_/g, " "))}${C.target ? " · target " + W.esc(C.target) : ""}${C.target_due_at ? ` · pathway target date <b>${W.dt(C.target_due_at)}</b>` : ""}</p>` : "")}
+   ${C.review_required ? `<div class="card alert" role="alert"><h3>Clinical review needed</h3><p>This result cannot move on automatically until a clinician reviews it: ${(C.review_reasons || []).map(x => `<span class="chip sla-red">${W.esc(x.replace(/_/g, " "))}</span>`).join(" ")}</p><p class="small m-0">Rule ${W.esc(C.rule_id || "–")} · pathway <b>${W.esc((C.pathway || "–").replace(/_/g, " "))}</b>${C.target ? " · target " + W.esc(C.target) : ""}. Urgency was set to the safer level; lowering it needs a clinician's reason (recorded).</p></div>` : (C.rule_id ? `<p class="small muted">Clinical rule ${W.esc(C.rule_id)} · pathway ${W.esc((C.pathway || "").replace(/_/g, " "))}${C.target ? " · target " + W.esc(C.target) : ""}${C.target_due_at ? ` · pathway target date <b>${W.dt(C.target_due_at)}</b>` : ""}</p>` : "")}
    ${C.transfer_pending ? `<div class="card notice">Transfer waiting for <b>${W.esc(C.transfer_pending.to_owner)}</b> to accept. The current owner stays accountable until then. <span class="small muted">${W.esc(C.transfer_pending.note || "")}</span></div>` : ""}
    ${C.closure ? `<div class="card ok"><b>Closed</b> (${W.esc(C.closure.type.replace(/_/g, " "))}: <b>${W.esc(C.closure.reason)}</b>) on ${W.dt(C.closure.closed_at)}. ${W.esc(C.closure.note || "")} ${C.closure.evidence_id ? `· evidence #${C.closure.evidence_id}` : ""}
      <br><span class="small">${C.recall && C.recall.next_screening_due ? `Next screening due <b>${W.esc(C.recall.next_screening_due)}</b>${C.recall.recall ? ` (recall ${W.esc(C.recall.recall.status)})` : ""}.` : "No automatic recall for this closure (follow-up set by the treating team, or the person left the programme)."}</span></div>` : ""}`;
@@ -78,7 +78,7 @@ function nextBar() {
   const when = appt ? "Appointment " + W.esc(W.dt(appt.start)) + " · record attendance after the visit"
     : C.sla.due_at ? W.leftHtml(C.sla.due_at, C.sla.status) + " · due " + W.esc(W.dt(C.sla.due_at)) : "No deadline on this step";
   return `<section class="card next-bar ${W.esc(C.sla.status)}" aria-labelledby="nb-h"><div><h2 id="nb-h" class="nb-title">${W.ic("arrow", "nb-ic")}Now: ${W.esc(C.state_label)}</h2>
-    <p class="small" style="margin:0">${when} · owner ${W.esc(String(C.owner || "").split(" (")[0])}</p></div>
+    <p class="small m-0">${when} · owner ${W.esc(String(C.owner || "").split(" (")[0])}</p></div>
     ${primary ? `<button class="nb-go" data-k="${primary.key}" data-ev="${primary.evidence_type || ""}" data-scroll>${W.esc(primary.label)}</button>` : `<span class="small muted">Nothing for your role now</span>`}</section>`;
 }
 
@@ -100,17 +100,17 @@ function teachBackCard() {
   const chip = x => x.passed ? '<span class="chip sla-green"><span class="shape" aria-hidden="true">✓</span>Understood</span>' : '<span class="chip sla-red"><span class="shape" aria-hidden="true">!</span>Not yet clear</span>';
   const ans = (t.answers_text || []).map(a => `<li><span class="muted">${W.esc(a.question)}</span> ${W.esc(a.answer)}</li>`).join("");
   const older = all.slice(1);
-  return `<div class="card flat" data-teach-back="${t.passed ? "passed" : "failed"}"><p class="small" style="margin:0">${chip(t)} <b>Teach-back ${t.score}/${t.total}</b> · ${W.esc(TB_MODE[t.mode] || t.mode)} · ${W.esc(String(t.language || "").toUpperCase())} · ${W.dt(t.at)}${t.confidence ? ` · confidence ${t.confidence}/5` : ""}</p>
-    ${ans ? `<ul class="small tb-ans">${ans}</ul>` : ""}
-    ${older.length ? `<p class="small muted" style="margin:0">Earlier: ${older.map(o => `${W.dt(o.at)} ${W.esc(tbResult(o))}`).join(" · ")}</p>` : ""}
-    ${ok ? `<p class="small muted" style="margin:0">${t.passed ? "The patient understood." : "An earlier check passed."} Teach-back is complete for this case.</p>` : retry ? `<p class="small muted" style="margin:0">Not yet clear. Explain again, then use “Try teach-back again”.</p>` : ""}</div>`;
+  return `<div class="card flat" data-teach-back="${t.passed ? "passed" : "failed"}"><p class="small m-0">${chip(t)} <b>Teach-back ${t.score}/${t.total}</b> · ${W.esc(TB_MODE[t.mode] || t.mode)} · ${W.esc(String(t.language || "").toUpperCase())} · ${W.dt(t.at)}${t.confidence ? ` · confidence ${t.confidence}/5` : ""}</p>
+    ${ans ? `<details class="help-more"><summary>Answers</summary><ul class="small tb-ans">${ans}</ul></details>` : ""}
+    ${older.length ? `<p class="small muted m-0">Earlier: ${older.map(o => `${W.dt(o.at)} ${W.esc(tbResult(o))}`).join(" · ")}</p>` : ""}
+    ${ok ? (t.passed ? "" : `<p class="small muted m-0">An earlier check passed. Teach-back is complete for this case.</p>`) : retry ? `<p class="small muted m-0">Not yet clear. Explain again, then use “Try teach-back again”.</p>` : ""}</div>`;
 }
 
 function coverage() {
   const V = C.coverage; if (!V) return "";
   const e = V.eligibility, k = V.nok;
   const nok = k ? `Next of kin: <b>${W.esc(k.name)}</b>${k.relationship ? ` (${W.esc(k.relationship)})` : ""}${k.guardian ? ' <span class="chip sla-amber">Guardian</span>' : ""}${k.phone ? " · " + W.esc(k.phone) : ""} · ${k.proxy_consent === "permit" ? '<span class="chip sla-green">May be contacted about care</span>' : k.proxy_consent === "deny" ? '<span class="chip sla-red">Do not discuss care</span>' : '<span class="chip">Proxy consent not asked</span>'}` : '<span class="muted">No next of kin recorded</span>';
-  return `<div class="card ${e.warn ? "notice" : "flat"} cov-banner" data-coverage="${W.esc(e.status)}"><p class="small" style="margin:0">${e.warn ? '<span class="shape" aria-hidden="true">!</span> ' : ""}<b>${W.esc(V.payer || "Insurance")}</b>: ${W.esc(e.message)} <a href="/patients/${C.patient.id}#sec-insurance">Update</a></p><p class="small" style="margin:.25rem 0 0">${nok}</p></div>`;
+  return `<div class="card ${e.warn ? "notice" : "flat"} cov-banner" data-coverage="${W.esc(e.status)}"><p class="small m-0">${e.warn ? '<span class="shape" aria-hidden="true">!</span> ' : ""}<b>${W.esc(V.payer || "Insurance")}</b>: ${W.esc(e.message)} <a href="/patients/${C.patient.id}#sec-insurance">Update</a></p><p class="small mt-1">${nok}</p></div>`;
 }
 
 function deadline() {
@@ -239,8 +239,8 @@ function wireRecord() {
 function whyCard() {
   const w = C.why; if (!w) return "";
   const r = w.rule || {}, rev = w.review || {}, link = W.can("model:read") && r.id ? ` · <a href="/governance?tab=decisions#rule-${encodeURIComponent(r.id)}">rule card</a>` : "";
-  return `<section class="card flat" id="why-priority" aria-labelledby="why-h"><h2 id="why-h" class="small" style="font-size:var(--fs-base)">Why this priority</h2>
-   <p style="margin-bottom:var(--s-2)"><span class="chip">${W.esc(w.tier_label)}</span> <span class="small muted">set by the ${W.esc(w.decided_by)}</span></p>
+  return `<section class="card flat" id="why-priority" aria-labelledby="why-h"><h2 id="why-h" class="card-h">Why this priority</h2>
+   <p class="mb-2"><span class="chip">${W.esc(w.tier_label)}</span> <span class="small muted">set by the ${W.esc(w.decided_by)}</span></p>
    <ol class="small" id="why-steps">${(w.steps.length ? w.steps : ["Tier set when the result arrived."]).map(t => `<li>${W.esc(t)}</li>`).join("")}</ol>
    <dl class="facts small">${r.id ? `<div><dt>Rule</dt><dd><code>${W.esc(r.id)}</code>${link}</dd></div>` : ""}${r.source ? `<div><dt>Source</dt><dd>${W.esc(r.source)}</dd></div>` : ""}
     ${w.target_text ? `<div><dt>Pathway target</dt><dd>${W.esc(w.target_text)}${w.target_due_at ? ` – by ${W.dt(w.target_due_at)}` : ""}</dd></div>` : ""}
@@ -250,16 +250,16 @@ function whyCard() {
 function patientCard() {
   const p = C.patient, o = C.result, r = C.risk;
   const ch = [p.channels.smartphone ? "App" : "", p.channels.whatsapp ? "WhatsApp" : "", p.channels.phone_valid ? "Phone" : ""].filter(Boolean);
-  return `<section class="card" aria-labelledby="pt-h"><h2 id="pt-h" class="small" style="font-size:var(--fs-base)">Patient</h2>
+  return `<section class="card" aria-labelledby="pt-h"><h2 id="pt-h" class="card-h">Patient</h2>
    <p class="small">${W.esc(p.name)} · ${W.esc(p.gender)} · age ${W.esc(p.age_band)} · speaks <b>${W.esc(p.language)}</b> · ${W.esc(p.region)}</p>
    <p class="small">Family doctor (GP): ${W.esc(p.gp || "–")}<br>${W.esc(p.managing_org)}</p>
    <p class="small">Can be reached by: ${ch.length ? ch.join(", ") : "<b>no valid phone or app</b>"}</p>
-   <h3 class="small" style="font-size:var(--fs-base)">Screening result</h3>${o ? `<p class="small">${W.esc(o.display)}: ${o.observations.map(x => `<b>${W.esc(x.value ?? x.value_text)}</b> ${W.esc(x.unit || "")}`).join(", ")}<br><span class="muted">issued ${W.dt(o.issued_at)}</span></p>
+   <h3 class="card-h">Screening result</h3>${o ? `<p class="small">${W.esc(o.display)}: ${o.observations.map(x => `<b>${W.esc(x.value ?? x.value_text)}</b> ${W.esc(x.unit || "")}`).join(", ")}<br><span class="muted">issued ${W.dt(o.issued_at)}</span></p>
      <dl class="facts result-meta" data-result-meta><div><dt>Ordered by</dt><dd>${o.ordering_clinician ? W.esc(o.ordering_clinician) : '<span class="muted">Not recorded</span>'}</dd></div><div><dt>Screening site</dt><dd>${o.screening_site ? W.esc(o.screening_site) : '<span class="muted">Not recorded</span>'}</dd></div><div><dt>Specimen taken</dt><dd>${o.specimen_collected_at ? W.dt(o.specimen_collected_at) : '<span class="muted">Not recorded</span>'}</dd></div></dl>` : "<p class='small muted'>–</p>"}
-   <h3 class="small" style="font-size:var(--fs-base)">Consent</h3><p class="small">${C.consents.filter(c => c.status === "active").map(c => `<span class="chip ${c.decision === "permit" ? "sla-green" : "sla-red"}">${c.decision === "permit" ? "✓" : "✕"} ${W.esc(c.scope.replace(/_/g, " "))}: ${c.decision === "permit" ? "yes" : "no"}</span>${c.note ? ` <span class="small muted">${W.esc(c.note)}</span>` : ""}`).join(" ") || "–"}</p></section>
+   <h3 class="card-h">Consent</h3><p class="small">${C.consents.filter(c => c.status === "active").map(c => `<span class="chip ${c.decision === "permit" ? "sla-green" : "sla-red"}">${c.decision === "permit" ? "✓" : "✕"} ${W.esc(c.scope.replace(/_/g, " "))}: ${c.decision === "permit" ? "yes" : "no"}</span>${c.note ? ` <span class="small muted">${W.esc(c.note)}</span>` : ""}`).join(" ") || "–"}</p></section>
    ${whyCard()}
-   <section class="card flat" aria-labelledby="ml-h"><h2 id="ml-h" class="small" style="font-size:var(--fs-base)">Outreach priority <span class="muted xs">(model v${r.model_version ?? "–"}, ordering only)</span></h2>
-   <p style="margin-bottom:var(--s-2)"><b>${r.score == null ? "–" : Math.round(r.score * 100) + "%"}</b> <span class="small muted">chance of missing the next step</span></p>
+   <section class="card flat" aria-labelledby="ml-h"><h2 id="ml-h" class="card-h">Outreach priority <span class="muted xs">(model v${r.model_version ?? "–"}, ordering only)</span></h2>
+   <p class="mb-2"><b>${r.score == null ? "–" : Math.round(r.score * 100) + "%"}</b> <span class="small muted">chance of missing the next step</span></p>
    ${r.score == null ? "" : `<details class="small"><summary>Why this estimate</summary>${(r.rationale || []).length ? `<ul>${r.rationale.map(w => `<li>${W.esc(w.text)} – <b>${w.direction}</b> the chance (${w.effect > 0 ? "+" : ""}${Math.round(w.effect * 100)} points)</li>`).join("")}</ul>` : "<p>No single factor stands out.</p>"}<p class="muted">${W.esc(r.ordering)}. ${W.esc(r.use)}.</p></details>`}</section>`;
 }
 
@@ -270,7 +270,7 @@ function patientRequests() {
   const R = (C.patient_requests || []).filter(r => r.kind === "change" && r.status === "open"), can = (W.me.permissions || []).includes("appointment:write");
   const conf = (C.patient_requests || []).find(r => r.kind === "confirm" && C.appointments.some(a => a.id === r.appointment_id && a.status === "booked"));
   if (!R.length && !conf) return "";
-  return `<section class="card notice" id="patient-requests" aria-labelledby="preq-h"><h2 id="preq-h" class="small" style="font-size:var(--fs-base)">From the patient app</h2>
+  return `<section class="card notice" id="patient-requests" aria-labelledby="preq-h"><h2 id="preq-h" class="card-h">From the patient app</h2>
     ${R.map(r => `<div class="msg" data-req="${r.id}"><b>Asks to change the appointment</b> <span class="small muted">${W.dt(r.at)}</span>
       <div class="small">What gets in the way: <b>${W.esc(BARRIER_TEXT[r.barrier_code] || r.barrier_code || "–")}</b></div>
       ${r.preferred_times ? `<div class="small">Suits better: ${W.esc(r.preferred_times)}</div>` : ""}${r.note ? `<div class="small">“${W.esc(r.note)}”</div>` : ""}

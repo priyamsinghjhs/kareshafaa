@@ -52,7 +52,7 @@ async function load() {
    <div class="card" id="p-ask"><h4 class="p-sec-h">${W.ic("chat")}${W.esc(tb.labels.talk)}</h4>${d.consults.map(c => `<div class="msg"><b>?</b> ${W.esc(c.question)}${c.response ? `<br><b>↳</b> ${W.esc(c.response)}` : ` <span class="chip sla-amber">…</span>`}</div>`).join("")}
      <label for="q">${x.ask}<textarea id="q" rows="3" minlength="5" maxlength="4000"></textarea></label><div class="tb-actions"><button id="ask">${x.send}</button></div></div>
    <div id="pprofile"></div>
-   ${d.can_decline ? `<details class="p-decline"><summary class="small">${W.esc(tb.labels.decline)}</summary><label>${x.declineNote}<textarea id="dn" rows="2" maxlength="2000"></textarea></label><button class="secondary outline" id="decline" style="width:auto">${W.esc(tb.labels.decline)}</button></details>` : ""}`;
+   ${d.can_decline ? `<details class="p-decline"><summary class="small">${W.esc(tb.labels.decline)}</summary><label>${x.declineNote}<textarea id="dn" rows="2" maxlength="2000"></textarea></label><button class="secondary outline w-auto" id="decline">${W.esc(tb.labels.decline)}</button></details>` : ""}`;
   document.getElementById("q").value = draftQ; const dn0 = document.getElementById("dn"); if (dn0) dn0.value = draftDn;
   // the chosen language is saved for the next visit (messages and calls keep the recorded language)
   wireLang(el); window.renderProfile(d);
@@ -64,7 +64,7 @@ async function load() {
   const confRow = (v, ro) => `<div class="q"><b>${W.esc(tb.confidence)}</b><div>${[1, 2, 3, 4, 5].map(n => `<label class="inline${ro && v === n ? " chosen" : ""}"><input type="radio" name="conf" value="${n}"${v === n ? " checked" : ""}${ro ? " disabled" : " required"}> ${n}</label>`).join("")}</div></div>`;
   if (d.can_teach_back) {
     const prev = L.reopened && sub ? sub.answers : null;  // changing: start from the saved answers
-    tbEl.innerHTML = `<h4 class="p-sec-h tb-step">${W.ic("check")}${W.esc(tb.title)}</h4>${L.reopened ? `<div class="notice-inline info" role="status">${W.esc(u.reopened)}</div>` : ""}<p class="small muted">${W.esc(tb.intro)}</p><form id="tbf">${tb.questions.map(q => `<div class="q"><b>${W.esc(q.text)}</b>${opts(q, prev, false)}</div>`).join("")}
+    tbEl.innerHTML = `<h4 class="p-sec-h tb-step">${W.ic("check")}${W.esc(tb.title)}</h4>${L.reopened ? `<div class="notice-inline info" role="status">${W.esc(u.reopened)}</div>` : ""}<form id="tbf">${tb.questions.map(q => `<div class="q"><b>${W.esc(q.text)}</b>${opts(q, prev, false)}</div>`).join("")}
       ${confRow(prev ? sub.confidence : null, false)}
       <div class="tb-actions"><button type="submit">${W.esc(tb.labels.submit)} – ${W.esc(tb.labels.understand)}</button>${L.reopened ? `<button type="button" class="secondary outline" id="tb-keep">${W.esc(u.keep)}</button>` : ""}</div></form>`;
     const f0 = document.getElementById("tbf");

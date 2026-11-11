@@ -184,7 +184,7 @@ const W = {
   },
   bars(el, rows, labels = ["Baseline", "With KareShafaa"], fmt = v => v) {
     const max = Math.max(1e-9, ...rows.flatMap(r => [r.a || 0, r.b || 0]));
-    el.innerHTML = `<div class="legend small"><span class="b0" style="background:#9aaab3"></span>${labels[0]}<span style="background:#0a6b66"></span>${labels[1]}</div>` +
+    el.innerHTML = `<div class="legend small"><span class="b0"></span>${labels[0]}<span class="b1"></span>${labels[1]}</div>` +
       rows.map(r => `<div class="row"><div>${W.esc(r.label)}</div><div>
         <div class="bar b0" style="width:${(100 * (r.a || 0) / max).toFixed(1)}%" title="${labels[0]}: ${fmt(r.a)}"></div>
         <div class="bar b1" style="width:${(100 * (r.b || 0) / max).toFixed(1)}%" title="${labels[1]}: ${fmt(r.b)}"></div>

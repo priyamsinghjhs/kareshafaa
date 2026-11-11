@@ -43,6 +43,20 @@ closure.
   “More” (en/ar/hi/ur, RTL). Icons come from the inline SVG sprite (`templates/_icons.html`); no webfonts or icon CDNs.
   The footer is one line: KareShafaa is not a certified medical device; clinical decisions stay with the treating clinician.
 
+* **Design system (11 Nov 2026):** one stylesheet with strict tokens. One system font stack (Arabic/Urdu and
+  Devanagari stacks only switch script; code font only for hashes and API paths), **six type sizes**
+  (12 / 14 / 16 / 18 / 22 / 28 px: `--fs-xs` … `--fs-2xl`, no fluid sizes) and **three weights** (400 / 600 / 700).
+  One heading ladder on every page: page title 28 px, section heading 18 px (one style, no uppercase variants), card
+  title 16 px, micro labels (table heads, fact labels) 12 px. Spacing only from the 4 px scale (`--s-1` … `--s-8`), with
+  `--card-pad`, `--stack-gap` and `--section-gap` for card padding and section rhythm; one table density; two button
+  sizes. One-off `style=""` attributes were replaced by utility classes (`.m-0`, `.mt-3`, `.fs-lg`, `.maxw-sm`, …);
+  `tests/test_ui_design_tokens.py` fails if a raw font size, weight or inline style comes back.
+  Copy cut: the "How this page works" guide is no longer inserted above the work (it opens from "Show the guide" in the
+  footer); the sign-in idle note, the patient app's consent and appointment-request intros, the messages note (now a
+  tooltip on the "Simulated" chip) and the teach-back intro paragraph are gone in every language; queue, admin and
+  case-screen helper text was shortened (the outreach-model and medical-device safety lines stay). Admin user rows keep
+  their action buttons side by side, and the translator's sign-off table no longer scrolls sideways on phones.
+
 **Patient summary: contact details and insurance**
 * The case screen's **Patient summary** shows phone (tap to call, WhatsApp flag), email, address, preferred language,
   contact preference and **contact consent** (care-coordination consent plus any refused channels) to the roles that

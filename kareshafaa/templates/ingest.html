@@ -9,7 +9,7 @@
   <summary><b>Add a result by hand (HL7 v2)</b></summary>
   <p class="small muted row-gap-top">Sending the same message twice is safe (matched by message ID).</p>
   <label for="msg">HL7 v2 ORU^R01 message, one segment per line
-  <textarea id="msg" rows="7" style="font-family:var(--mono);font-size:max(16px,.85rem)" spellcheck="false" autocapitalize="none"></textarea></label>
+  <textarea id="msg" rows="7" class="mono-lg" spellcheck="false" autocapitalize="none"></textarea></label>
   <div class="row"><button data-click="send" data-args='["$el"]'>Add result</button><button class="secondary" data-click="sample">Insert example (positive FIT)</button></div>
   <pre id="ack" class="small" aria-live="polite" hidden></pre>
 </details>

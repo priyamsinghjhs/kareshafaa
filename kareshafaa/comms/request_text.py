@@ -6,7 +6,7 @@ from __future__ import annotations
 
 REQ_TEXT: dict[str, dict] = {
     "en": {
-        "request_btn": "Request an appointment", "request_intro": "Ask for a screening appointment. Your care team will confirm a time with you.",
+        "request_btn": "Request an appointment",
         "none_yet": "You have no appointments yet.",
         "form_title": "Request a screening appointment", "programme": "Which screening?", "choose": "Choose…",
         "site": "Where would you like to go?", "days": "Which days suit you?", "times": "What time of day?",
@@ -35,7 +35,7 @@ REQ_TEXT: dict[str, dict] = {
                            "clinical_review": "A doctor needs to look at this first", "other": "Your care team will explain"},
     },
     "ar": {
-        "request_btn": "طلب موعد", "request_intro": "اطلب موعد فحص. سيؤكد فريق الرعاية الوقت معك.",
+        "request_btn": "طلب موعد",
         "none_yet": "لا توجد لديك مواعيد بعد.",
         "form_title": "طلب موعد فحص", "programme": "أي فحص؟", "choose": "اختر…",
         "site": "أين تفضّل الذهاب؟", "days": "ما الأيام المناسبة لك؟", "times": "أي وقت من اليوم؟",
@@ -64,7 +64,7 @@ REQ_TEXT: dict[str, dict] = {
                            "clinical_review": "يجب أن يراجع الطبيب هذا أولًا", "other": "سيشرح لك فريق الرعاية"},
     },
     "hi": {
-        "request_btn": "अपॉइंटमेंट का अनुरोध करें", "request_intro": "स्क्रीनिंग अपॉइंटमेंट के लिए अनुरोध करें। आपकी देखभाल टीम आपके साथ समय पक्का करेगी।",
+        "request_btn": "अपॉइंटमेंट का अनुरोध करें",
         "none_yet": "अभी आपकी कोई अपॉइंटमेंट नहीं है।",
         "form_title": "स्क्रीनिंग अपॉइंटमेंट का अनुरोध", "programme": "कौन-सी स्क्रीनिंग?", "choose": "चुनें…",
         "site": "आप कहाँ जाना चाहेंगे?", "days": "कौन-से दिन आपके लिए ठीक हैं?", "times": "दिन का कौन-सा समय?",
@@ -93,7 +93,7 @@ REQ_TEXT: dict[str, dict] = {
                            "clinical_review": "पहले डॉक्टर को इसे देखना होगा", "other": "आपकी देखभाल टीम आपको समझाएगी"},
     },
     "ur": {
-        "request_btn": "اپوائنٹمنٹ کی درخواست کریں", "request_intro": "اسکریننگ اپوائنٹمنٹ کی درخواست کریں۔ آپ کی نگہداشت ٹیم آپ کے ساتھ وقت طے کرے گی۔",
+        "request_btn": "اپوائنٹمنٹ کی درخواست کریں",
         "none_yet": "ابھی آپ کی کوئی اپوائنٹمنٹ نہیں ہے۔",
         "form_title": "اسکریننگ اپوائنٹمنٹ کی درخواست", "programme": "کون سی اسکریننگ؟", "choose": "منتخب کریں…",
         "site": "آپ کہاں جانا چاہیں گے؟", "days": "کون سے دن آپ کے لیے ٹھیک ہیں؟", "times": "دن کا کون سا وقت؟",

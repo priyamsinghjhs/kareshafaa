@@ -9,12 +9,12 @@
 </section>
 <section class="card preq" id="preq" hidden aria-labelledby="preq-h">
   <div class="preq-head"><h2 id="preq-h">Patient appointment requests</h2><span id="preq-count" class="small muted"></span></div>
-  <details class="help-more"><summary>How requests work</summary><p class="small muted">Sent from the patient app. Nothing is booked until you confirm. Answer-by times: T0 2 h, T1 8 h, T2 24 h, T3 and screening 48 h. If you decline, the patient is told the reason in their language.</p></details>
+  <details class="help-more"><summary>How requests work</summary><p class="small muted">Nothing is booked until you confirm. Answer by: T0 2 h · T1 8 h · T2 24 h · T3 / screening 48 h.</p></details>
   <div id="preq-list" aria-live="polite"></div>
 </section>
 <section class="card preq" id="preset" hidden aria-labelledby="preset-h">
   <div class="preq-head"><h2 id="preset-h">Patient password reset requests</h2><span id="preset-count" class="small muted"></span></div>
-  <details class="help-more"><summary>Before you send a code</summary><p class="small muted">From "Forgot password?" on the sign-in page, after the patient's date of birth, ID ending and mobile matched. Check who the patient is (in person with photo ID, or a call to the registered mobile), then send a one-time reset code from the patient record.</p></details>
+  <details class="help-more"><summary>Before you send a code</summary><p class="small muted">Confirm identity (photo ID or a call to the registered mobile), then send a reset code from the patient record.</p></details>
   <div id="preset-list" aria-live="polite"></div>
 </section>
 <div class="section-title all-cases"><h2 id="all-h">All open cases</h2></div>
@@ -35,7 +35,7 @@
     <li><span class="chip sla-red"><span class="shape" aria-hidden="true">▲</span>Overdue</span> the current step is past its deadline</li>
     <li><span class="chip sla-amber"><span class="shape" aria-hidden="true">●</span>Due soon</span> more than half the time allowed has passed</li>
   </ul>
-  <p class="footnote">Order: overdue and due-soon steps first, then urgency (T0 to T3), then results flagged for review, then outreach priority, then deadline. Later steps have their own deadlines (set by the clinical lead). "Outreach priority" is a model estimate of the chance the patient misses the next step; it only orders patients within the same urgency and never changes a case.</p>
+  <p class="footnote">Order: overdue → due soon → urgency → review flags → outreach priority (ordering only; never changes a case) → deadline.</p>
 </details>
 <dialog id="preq-dlg" class="dlg" aria-labelledby="preq-dlg-h"><form id="preq-form" method="dialog" novalidate>
   <h2 id="preq-dlg-h"></h2><div id="preq-dlg-body"></div><p class="form-error" role="alert" hidden></p>

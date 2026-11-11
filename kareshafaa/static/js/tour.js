@@ -1,5 +1,5 @@
-// First-run guide: a closed "How this page works" disclosure on each role's home page until it has been opened once on
-// this device (localStorage); "Show the guide" in the page footer or ?guide=1 opens it again. No data is sent anywhere.
+// Page guide: "Show the guide" in the page footer (or ?guide=1) opens a short "How this page works" list on each role's
+// home page. It is no longer inserted automatically above the work. No data is sent anywhere.
 (function () {
   const GUIDES = {
     coordinator: { home: "/queue", title: "Your work queue", steps: [
@@ -55,6 +55,7 @@
     const g = GUIDES[me.role]; if (!g) return;
     footLink(g, me.role);
     const force = new URLSearchParams(location.search).get("guide") === "1";
-    if (location.pathname === g.home && (force || !localStorage.getItem(key(me.role)))) render(g, me.role, force);
+    // never auto-inserted above the work (Nov 11 design pass): opened from "Show the guide" in the footer or ?guide=1
+    if (location.pathname === g.home && force) render(g, me.role, force);
   });
 })();

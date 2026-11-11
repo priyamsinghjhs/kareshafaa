@@ -25,7 +25,7 @@ let H = null, HELP_FOR = null;
 const NEED = { username: "Forgot username", password: "Needs a new password" };
 async function loadHelp() {
   H = await W.api("/api/signin-help?audience=staff&status=open");
-  const box = document.getElementById("help-reqs"); box.hidden = false;
+  const box = document.getElementById("help-reqs"); box.hidden = !H.items.length;  // no empty card when nothing is waiting
   document.getElementById("help-count").textContent = H.open ? `${H.open} waiting${H.overdue ? ` · ${H.overdue} past reply-due time` : ""}` : "none waiting";
   const roleLabel = k => (U && (U.roles || []).find(r => r.key === k) || {}).label || (k === "other" ? "Other" : k);
   document.getElementById("help-list").innerHTML = H.items.length ? `<ul class="preq-list">${H.items.map(r => `<li class="preq-item" data-help-request="${r.id}">
@@ -55,12 +55,12 @@ function staffBlock(px, role, { current = null } = {}) {  // px: id prefix so tw
   const specOpts = opt("", "Choose the specialty…") + U.specialties.map(x => opt(x.key, x.label)).join("");
   const pracOpts = opt("", `Choose a ${noun} record…`) + free.map(p => opt(p.id, p.name + (p.org ? ` – ${p.org}` : ""))).join("");
   return `<fieldset class="staff-rec" id="${px}-rec"><legend>Staff directory record</legend>
-    <p class="small muted" style="margin:0">Needed so cases can be assigned to this ${W.esc(noun)}; it also sets which ${rule.org_kinds.includes("primary_care") ? "practice's" : rule.org_kinds.includes("hospital") ? "hospital's" : "programme's"} patients they see.</p>
+    <p class="small muted m-0">Needed so cases can be assigned to this ${W.esc(noun)}; it also sets which ${rule.org_kinds.includes("primary_care") ? "practice's" : rule.org_kinds.includes("hospital") ? "hospital's" : "programme's"} patients they see.</p>
     <div class="sr-mode" role="radiogroup" aria-label="Staff directory record">
       <label><input type="radio" name="${px}-mode" value="new" ${free.length ? "" : "checked"}> Create a new staff record</label>
       <label class="${free.length ? "" : "off"}"><input type="radio" name="${px}-mode" value="link" ${free.length ? "checked" : "disabled"}> Link an existing record ${free.length ? `(${free.length} without an account)` : "(none without an account)"}</label></div>
     <div id="${px}-link" ${free.length ? "" : "hidden"}><label for="${px}-prac">Existing ${W.esc(noun)} record<select id="${px}-prac" data-field="practitioner_id" data-what="existing ${W.esc(noun)} record" required>${pracOpts}</select></label></div>
-    <div id="${px}-new" class="grid-2" style="gap:var(--s-2) var(--s-3)" ${free.length ? "hidden" : ""}>
+    <div id="${px}-new" class="grid-2 gap-3" ${free.length ? "hidden" : ""}>
       <label for="${px}-org">${W.esc(rule.org_label)}<select id="${px}-org" data-field="org_id" data-what="${W.esc(rule.org_noun)}" required>${orgOpts}</select></label>
       ${rule.specialty ? `<label for="${px}-spec">Specialty<select id="${px}-spec" data-field="specialty" data-what="specialty" required>${specOpts}</select></label>` : ""}
       ${rule.programme ? `<label for="${px}-prog">Screening programme${rule.programme === "optional" ? " (optional)" : ""}<select id="${px}-prog" data-field="programme" data-what="screening programme" ${rule.programme === "required" ? "required" : ""}>${progOpts}</select></label>` : ""}
@@ -93,9 +93,9 @@ function checkStaff(root, px) {  // clear messages before anything is sent
   if (first) { first.focus(); return false; } return true;
 }
 function showTemp(u, pw, what) {
-  document.getElementById("created").innerHTML = `<div class="card ok" role="status"><h2 style="font-size:var(--fs-lg)">${what} for ${W.esc(u.display_name)}</h2>
+  document.getElementById("created").innerHTML = `<div class="card ok" role="status"><h2 class="fs-lg">${what} for ${W.esc(u.display_name)}</h2>
    <p>Temporary password (shown once - give it to them privately; they must change it when they sign in):</p>
-   <p><code style="font-size:var(--fs-lg)" id="tmp-pw">${W.esc(pw)}</code></p><div class="row"><button class="secondary sm" data-click="copyTmpPw">Copy</button><button class="ghost sm" data-click="clearCreated">Done</button></div></div>`;
+   <p><code class="fs-lg" id="tmp-pw">${W.esc(pw)}</code></p><div class="row"><button class="secondary sm" data-click="copyTmpPw">Copy</button><button class="ghost sm" data-click="clearCreated">Done</button></div></div>`;
   document.getElementById("created").scrollIntoView({ behavior: "smooth" });
 }
 window.resetPw = async id => { const u = byId(id), hr = HELP_FOR && H ? H.items.find(x => x.id === HELP_FOR) : null;

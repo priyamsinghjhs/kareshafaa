@@ -5,8 +5,8 @@ function card(s) {
   const c = s.content || {}, r = c.result || {}, o = c.outcome;
   const li = a => (a || []).length ? `<ul class="small">${a.map(x => `<li>${W.esc(x)}</li>`).join("")}</ul>` : `<p class="small muted">None recorded</p>`;
   return `<article class="card sum-card${s.acknowledged_at ? "" : " unread"}" id="s-${s.id}">
-    <div class="row" style="justify-content:space-between;align-items:flex-start"><div><h2 class="sec-title" style="margin:0">${W.esc(s.title)}</h2>
-      <p class="small muted" style="margin:2px 0 0">${W.dt(s.created_at)} · from ${W.esc(s.created_by)} · to ${W.esc(s.to || "–")}${s.addressed_to_me === false ? " (your practice)" : ""}</p></div>
+    <div class="row between top"><div><h2 class="sec-title m-0">${W.esc(s.title)}</h2>
+      <p class="small muted mt-1">${W.dt(s.created_at)} · from ${W.esc(s.created_by)} · to ${W.esc(s.to || "–")}${s.addressed_to_me === false ? " (your practice)" : ""}</p></div>
       <div>${s.acknowledged_at ? `<span class="chip sla-green">Acknowledged</span>` : (s.overdue ? `<span class="chip sla-red">Not acknowledged · overdue</span>` : `<span class="chip sla-amber">${KIND[s.kind] || ""} · to acknowledge</span>`)}</div></div>
     <dl class="facts"><div><dt>Patient</dt><dd><a href="/patients/${s.patient_id}">${W.esc((c.patient || {}).name || "")}</a> <span class="small muted">${W.esc((c.patient || {}).mrn || "")}</span></dd></div>
       <div><dt>Screening result</dt><dd>${W.esc(r.test || "–")} ${r.date ? "· " + W.esc(r.date) : ""}<div class="small">${W.esc((r.values || []).join("; "))}</div></dd></div>

@@ -41,7 +41,7 @@ function accountSection(R) {
       ["Activated", A.activated_at ? W.dt(A.activated_at) : '<span class="muted">Not yet</span>'], ["Last sign-in", A.last_login_at ? W.dt(A.last_login_at) : '<span class="muted">Never</span>']])}
     ${rr}${code}${inv}${last}
     ${can ? `<form class="action-form" id="invite-form" aria-label="Patient app account" novalidate>
-      <fieldset class="checks" style="border:0;padding:0;margin:0 0 var(--s-2)"><legend class="small"><b>How should the patient get the code?</b></legend>
+      <fieldset class="checks bare mb-2"><legend class="small"><b>How should the patient get the code?</b></legend>
         <label class="check"><input type="radio" name="channel" value="email" ${emailOk ? (defaultCh === "email" ? "checked" : "") : "disabled"}> By email to ${emailOk ? W.esc(C.email) : "(no email on the record)"}</label>
         <label class="check"><input type="radio" name="channel" value="sms" ${smsOk ? (defaultCh === "sms" ? "checked" : "") : "disabled"}> By SMS to ${smsOk ? W.esc(C.phone) : "(no valid mobile number)"}</label>
         <label class="check"><input type="radio" name="channel" value="in_person" ${defaultCh === "in_person" ? "checked" : ""}> I will give it in person</label></fieldset>
@@ -85,7 +85,7 @@ function facts(pairs) { return `<dl class="facts">${pairs.map(([k, x, wide]) => 
 
 function editable(id, title, view, formHtml) {
   const open = OPEN.has(id) && R.can_write;
-  return `<section class="card pr-sec" id="sec-${id}"><div class="row between"><h2 class="sec-title" style="margin:0">${W.esc(title)}</h2>${R.can_write ? `<button class="secondary sm" data-edit="${id}" aria-expanded="${open}">${open ? "Close" : "Edit"}</button>` : ""}</div>
+  return `<section class="card pr-sec" id="sec-${id}"><div class="row between"><h2 class="sec-title m-0">${W.esc(title)}</h2>${R.can_write ? `<button class="secondary sm" data-edit="${id}" aria-expanded="${open}">${open ? "Close" : "Edit"}</button>` : ""}</div>
     ${open ? `<form class="action-form" data-form="${id}" novalidate aria-label="Edit ${W.esc(title)}">${formHtml}<div class="form-buttons"><button type="submit">Save changes</button><button type="button" class="secondary" data-cancel="${id}">Cancel</button></div></form>` : view}</section>`;
 }
 
@@ -115,7 +115,7 @@ function render() {
   const draft = id => ({ ...({ demographics: D, contact: C, care: K, insurance: I, contacts: N }[id]), ...(DRAFT[id] || {}) });
   const head = `<a class="back-link" href="/patients"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Back to patients</a>
     <div class="case-head"><h1>${W.esc(D.given_name)} ${W.esc(D.family_name)}</h1>
-    <p class="muted small" style="margin:0">${W.esc(R.mrn)} · ${D.age_estimated ? "about " : ""}${D.age} years · ${W.esc(gender)}${R.sample ? ' · <span class="chip">Sample record</span>' : ""}${R.deceased ? ' · <span class="chip sla-none">Deceased</span>' : ""}</p></div>
+    <p class="muted small m-0">${W.esc(R.mrn)} · ${D.age_estimated ? "about " : ""}${D.age} years · ${W.esc(gender)}${R.sample ? ' · <span class="chip">Sample record</span>' : ""}${R.deceased ? ' · <span class="chip sla-none">Deceased</span>' : ""}</p></div>
     ${registeredBanner(R)}`;
   const personal = editable("demographics", "Personal details", facts([["Name", W.esc(D.given_name + " " + D.family_name)], ["Date of birth", D.birth_date ? dday(D.birth_date) : (D.birth_year ? W.esc(D.birth_year) + " (year only)" : NR)],
       ["Sex", W.esc(gender)], ["Emirates ID", v(D.national_id)], ...(D.other_document ? [[D.other_document.label, `<span dir="ltr">${W.esc(D.other_document.number)}</span>`]] : []), ["Nationality", v(D.nationality || D.nationality_group)], ["Preferred language", W.esc(lang)]]), PF.demographics(draft("demographics")));

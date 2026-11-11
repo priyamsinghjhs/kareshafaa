@@ -34,7 +34,7 @@ const tabs = {
     const r = await W.api("/api/analytics/impact" + (prog ? `?programme=${encodeURIComponent(prog)}` : ""));
     const h = r.headline || {}, d = r.definitions, st = r.settings;
     document.getElementById("impact-csv").href = "/api/analytics/impact?format=csv" + (prog ? `&programme=${encodeURIComponent(prog)}` : "");
-    const sel = `<label for="imp-prog" class="small" style="max-width:20rem">Screening programme<select id="imp-prog"><option value="">All programmes</option>${Object.entries(r.programmes).map(([k, l]) => `<option value="${k}" ${k === prog ? "selected" : ""}>${W.esc(l)}</option>`).join("")}</select></label>`;
+    const sel = `<label for="imp-prog" class="small maxw-xs">Screening programme<select id="imp-prog"><option value="">All programmes</option>${Object.entries(r.programmes).map(([k, l]) => `<option value="${k}" ${k === prog ? "selected" : ""}>${W.esc(l)}</option>`).join("")}</select></label>`;
     if (!h.mature_cases && h.mature_cases !== "suppressed") { el.innerHTML = sel + W.empty("No cases yet", "", "", "chart"); wireProg(); return; }
     el.innerHTML = `<div class="card notice" id="impact-data-label" role="note"><b>${W.esc(r.data.label)}.</b> <span class="small">${W.dt(r.generated_at)} · groups under ${st.suppression_threshold} hidden · analytics opt-outs excluded</span></div>
      ${sel}
