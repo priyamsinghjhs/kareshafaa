@@ -187,6 +187,21 @@ def backfill_booked_appointment_due() -> dict:
         return {"error": type(e).__name__}
 
 
+def apply_live_test_inboxes() -> dict:
+    """Map the allowlisted role test inboxes onto the matching User (and patient.en Patient) rows.
+    Replaces an empty address, an @example.com placeholder, or any other value already on that account.
+    Never steals an inbox held by a different row. Runs before the placeholder backfill. Idempotent;
+    a failure is logged and never stops start-up."""
+    from .services.email_backfill import apply_test_mailboxes as fix
+
+    try:
+        with session_scope() as db:
+            return fix(db)
+    except Exception as e:  # noqa: BLE001 - a missing test inbox must never stop the service from starting
+        log.warning("test inbox assignment skipped: %s", type(e).__name__)
+        return {"error": type(e).__name__}
+
+
 def backfill_missing_emails() -> dict:
     """Every patient and user with no e-mail gets a unique @example.com placeholder (RFC 2606, never delivered).
     Existing addresses are never overwritten. Idempotent; a failure is logged and never stops start-up."""
@@ -221,6 +236,7 @@ def _prepare(s) -> dict:
         init_db()  # indexes/triggers after a bulk copy (idempotent)
     out["model_files_saved_to_database"] = backfill_model_artifacts()
     out["booked_appointment_due"] = backfill_booked_appointment_due()
+    out["test_inboxes"] = apply_live_test_inboxes()
     out["email_placeholders"] = backfill_missing_emails()
     # one-time data steps for SYN- sample patients only (guarded by data_migrations; never real records)
     if s.data_steps == "startup":

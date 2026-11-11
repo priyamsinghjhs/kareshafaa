@@ -234,13 +234,21 @@ closure.
     allowlisted test inboxes. The step is idempotent; a failure is logged and never stops the server. Outbound mail
     will not send to these placeholders. Audited as `directory.email_placeholders_backfilled`.
   * **Test inboxes:** one seeded account of each role has a test Gmail address (staff on `User.email`;
-    `patient.en` on `Patient.email`): admin `testingkareshafaa+calpha_admin@gmail.com`, clinical lead
+    `patient.en` on `Patient.email` as well): admin `testingkareshafaa+calpha_admin@gmail.com`, clinical lead
     Fatima Al Mansoori (`fatima.al.mansoori`) `+clead1234`, care coordinator Aisha Rahman (`aisha.rahman`)
     `+ccalpha1234`, GP Omar Haddad (`omar.haddad`) `+rehmanmalik1234`, specialist Vikram Mehta
     (`vikram.mehta`) `+splist123`, programme analyst `+program_analysts`, medical translator
-    `+medi_trans`, and `patient.en` as above. An administrator can also set or clear a staff email on
-    Admin → Users (create and edit). Those addresses are how appointment, result-ready and queue-owner
-    mail is tested without emailing the rest of the sample caseload.
+    `+medi_trans`, and Emma Clarke (`patient.en`) `+asimkhan123` as above (map in
+    `kareshafaa/synth/test_mailboxes.py`). On a live database that already has data (where seed does not
+    run), a start-up step (`bootstrap.apply_live_test_inboxes`) runs **before** the placeholder backfill
+    and assigns those mapped inboxes to the matching accounts — including replacing an `@example.com`
+    placeholder or any other address already on that account — so staff reset and queue-owner mail reach
+    the test mailboxes. If another row already holds the inbox, that username is skipped and a warning is
+    logged. Other accounts are not touched. Each change is audited as `directory.test_inboxes_applied`
+    (previous address masked; the new address is not stored). Idempotent; a failure is logged and never
+    stops the server. An administrator can also set or clear a staff email on Admin → Users (create and
+    edit). Those addresses are how appointment, result-ready, queue-owner and staff password-reset mail
+    is tested without emailing the rest of the sample caseload.
   * **Queue-owner emails:** when a new case is created with an owner, or when `assign` / an accepted
     transfer actually changes `owner_id`, the new owner is emailed at their `User.email` (subject
     `KareShafaa: a case was added to your queue`; case id, programme, state, tier, patient name, why,
@@ -455,7 +463,11 @@ idempotently (additive migration). Proposal generation reads pending proposals a
 the current `init_db` twice and fails if any table, column, row or append-only trigger is lost, the audit chain
 breaks, or the second run changes anything; `--db-copy FILE` rehearses on a copy of an existing SQLite file. For
 PostgreSQL, `--postgres-env NAME --wipe-postgres` uses the URL in the environment variable `NAME` (a throwaway
-database only: refused if it equals `DATABASE_URL`; the URL is never printed).
+database only: refused if it equals `DATABASE_URL`; the URL is never printed). Start-up also lengthens VARCHAR
+columns when the model is wider than the live table (never shortens): `audit_events.entity_id` and
+`audit_fallback_events.entity_id` are 80 characters so a data-migration name such as
+`backfill_sample_email_insurance_answer_v1` can be audited on PostgreSQL (the previous VARCHAR(40) raised
+`DataError` and the step retried at every start).
 
 **CI:** the workflow (tests + coverage, pip-audit, bandit, axe accessibility) is kept at `ci/github-actions-ci.yml`;
 copy it to `.github/workflows/` to enable it on GitHub.

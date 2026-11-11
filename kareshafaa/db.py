@@ -143,6 +143,7 @@ def _init_db(drop: bool) -> None:
             Base.metadata.drop_all(eng)
     Base.metadata.create_all(eng)
     _add_missing_columns(eng)
+    _widen_string_columns(eng)
     # create_all skips indexes added later to existing tables: add any that are missing (idempotent)
     for table in Base.metadata.sorted_tables:
         for idx in table.indexes:
@@ -176,3 +177,28 @@ def _add_missing_columns(eng: Engine) -> None:
                 default = f" DEFAULT {('TRUE' if v else 'FALSE') if isinstance(v, bool) else repr(v)}"
             with eng.begin() as conn:
                 conn.execute(text(f'ALTER TABLE {table.name} ADD COLUMN {col.name} {ddl_type}{default}'))
+
+
+def _widen_string_columns(eng: Engine) -> None:
+    """Lengthen VARCHAR/CHAR columns when the model is wider than the live table. Idempotent;
+    only ever lengthens, never shortens or drops. PostgreSQL only: SQLite does not enforce
+    VARCHAR length, so the production DataError (a value longer than the typemod) cannot occur there."""
+    if eng.dialect.name != "postgresql":
+        return
+    with eng.begin() as conn:
+        rows = conn.execute(text(
+            "SELECT table_name, column_name, character_maximum_length FROM information_schema.columns "
+            "WHERE table_schema = current_schema() AND character_maximum_length IS NOT NULL"
+        )).all()
+        have = {(r[0], r[1]): int(r[2]) for r in rows if r[2] is not None}
+        prep = eng.dialect.identifier_preparer
+        for table in Base.metadata.sorted_tables:
+            for col in table.columns:
+                length = getattr(col.type, "length", None)
+                current = have.get((table.name, col.name))
+                if not length or current is None or int(length) <= current:
+                    continue
+                qtable, qcol = prep.quote(table.name), prep.quote(col.name)
+                conn.execute(text(
+                    f"ALTER TABLE {qtable} ALTER COLUMN {qcol} TYPE VARCHAR({int(length)})"  # nosec B608
+                ))

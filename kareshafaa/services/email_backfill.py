@@ -1,8 +1,10 @@
-"""Idempotent placeholder e-mail backfill for any Patient or User still missing an address.
+"""Idempotent placeholder e-mail backfill, and live assignment of allowlisted role test inboxes.
 
-Uses the reserved RFC 2606 domain example.com (never a real mailbox). Existing addresses, including the
-allowlisted test inboxes in synth/test_mailboxes.py, are never overwritten. comms/mail.py already refuses
-to send to example.com / .org / .net. A failure here must not stop the server (bootstrap warns and continues).
+Uses the reserved RFC 2606 domain example.com (never a real mailbox) for empty Patient and User addresses.
+Existing addresses, including the allowlisted test inboxes in synth/test_mailboxes.py, are never overwritten
+by the placeholder step. apply_test_mailboxes assigns those mapped inboxes on a live database (including
+replacing a placeholder or another address already on that account). comms/mail.py already refuses to send
+to example.com / .org / .net. A failure here must not stop the server (bootstrap warns and continues).
 """
 from __future__ import annotations
 
@@ -102,3 +104,105 @@ def backfill_missing_emails(db: Session, now: datetime | None = None) -> dict:
         log.info("filled %s empty patient and %s empty user e-mail(s) with @%s placeholders",
                  n_pat, n_user, PLACEHOLDER_DOMAIN)
     return {"patients": n_pat, "users": n_user, "overwrites": 0, "domain": PLACEHOLDER_DOMAIN}
+
+
+def _norm(addr: str | None) -> str:
+    return (addr or "").strip().lower()
+
+
+def _inbox_taken(db: Session, addr: str, *, exclude_user_id: int | None = None,
+                 exclude_patient_id: int | None = None) -> bool:
+    """True when another User or Patient row already holds this address (case-insensitive)."""
+    addr = _norm(addr)
+    if not addr:
+        return False
+    q = select(User.id).where(func.lower(func.trim(User.email)) == addr)
+    if exclude_user_id is not None:
+        q = q.where(User.id != exclude_user_id)
+    if db.scalar(q.limit(1)) is not None:
+        return True
+    q = select(Patient.id).where(func.lower(func.trim(Patient.email)) == addr)
+    if exclude_patient_id is not None:
+        q = q.where(Patient.id != exclude_patient_id)
+    return db.scalar(q.limit(1)) is not None
+
+
+def apply_test_mailboxes(db: Session, now: datetime | None = None) -> dict:
+    """Assign the allowlisted role test inboxes on a live database (idempotent).
+
+    For each username in synth/test_mailboxes.py, if the User exists, set User.email to the mapped
+    inbox — even when a different address is already stored (placeholders and other values). For
+    patient-role mappings, also set the linked Patient.email the same way. Never overwrites a
+    different row that already holds the inbox (skipped with a warning). A missing username is
+    skipped with a warning. Audits each change with the previous address masked.
+    """
+    from ..comms import mail
+    from .invites import mask_email
+    from ..synth.test_mailboxes import PATIENT_MAILBOXES, STAFF_MAILBOXES
+
+    now = now or utcnow()
+    n_user = n_pat = n_over = n_already = n_conflict = n_missing = 0
+    changes: list[dict] = []
+
+    def _assign(row, *, field: str, username: str, target: str, exclude_user_id: int | None,
+                exclude_patient_id: int | None) -> str:
+        nonlocal n_over, n_already, n_conflict
+        target_l = _norm(target)
+        current = (getattr(row, "email", None) or "").strip()
+        if _norm(current) == target_l:
+            n_already += 1
+            return "already"
+        if _inbox_taken(db, target, exclude_user_id=exclude_user_id, exclude_patient_id=exclude_patient_id):
+            n_conflict += 1
+            log.warning("test inbox for %s not applied to %s: already held by another record", username, field)
+            return "conflict"
+        if current:
+            n_over += 1
+        row.email = target
+        changes.append({
+            "username": username,
+            "field": field,
+            "old_masked": mask_email(current) if current else None,
+            "was_placeholder": mail.is_synthetic_address(current) if current else False,
+        })
+        return "set"
+
+    mapping: list[tuple[str, str, bool]] = (
+        [(u, a, False) for u, a in STAFF_MAILBOXES.items()]
+        + [(u, a, True) for u, a in PATIENT_MAILBOXES.items()]
+    )
+    for username, inbox, is_patient in mapping:
+        target = (inbox or "").strip()
+        if not target:
+            continue
+        u = db.scalar(select(User).where(func.lower(User.username) == username))
+        if u is None:
+            n_missing += 1
+            log.warning("test inbox for %s not applied: user not found", username)
+            continue
+        linked_pid = u.patient_id if is_patient else None
+        status = _assign(u, field="user", username=username, target=target,
+                         exclude_user_id=u.id, exclude_patient_id=linked_pid)
+        if status == "set":
+            n_user += 1
+        if not is_patient:
+            continue
+        p = db.get(Patient, linked_pid) if linked_pid else None
+        if p is None:
+            log.warning("test inbox for %s not applied to patient: no linked patient record", username)
+            continue
+        status = _assign(p, field="patient", username=username, target=target,
+                         exclude_user_id=u.id, exclude_patient_id=p.id)
+        if status == "set":
+            n_pat += 1
+
+    db.flush()
+    out = {"users": n_user, "patients": n_pat, "overwrites": n_over, "already": n_already,
+           "conflicts": n_conflict, "missing": n_missing}
+    if n_user or n_pat:
+        audit.record(db, SYSTEM, "U", "directory.test_inboxes_applied", entity_type="Directory",
+                     entity_id="email", ts=now, detail={**out, "changes": changes})
+        log.info("applied test inboxes to %s user and %s patient record(s) "
+                 "(%s overwritten, %s already set, %s conflict, %s missing)",
+                 n_user, n_pat, n_over, n_already, n_conflict, n_missing)
+    return out
