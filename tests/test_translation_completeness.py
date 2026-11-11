@@ -8,7 +8,7 @@ import pytest
 
 LANGS = ("en", "ar", "hi", "ur")
 MODULES = ["kareshafaa.comms.content", "kareshafaa.comms.request_text", "kareshafaa.comms.self_service_text",
-           "kareshafaa.comms.signin_text"]
+           "kareshafaa.comms.signin_text", "kareshafaa.comms.event_text"]
 
 
 def _lang_tables(obj, path=""):

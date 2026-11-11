@@ -34,9 +34,12 @@ no blame for missed appointments; an offer to talk to a clinician.
 The five pathway texts added in Iteration 6 (repeat_fit, repeat_sample, prediabetes_gp, surveillance_1y,
 colposcopy_urgent) now have Arabic, Hindi and Urdu drafts (`PATHWAY_TEXT` in `kareshafaa/comms/content.py`), marked
 `TRANSLATION_STATUS = "draft - needs professional medical translator review"`. Numbers and test names (12 months,
-2 weeks, HPV) are checked to survive translation. **They are not shown to patients** until signed off (below);
-until then those patients receive the English wording plus an interpreter-supported navigator call - never an
-unreviewed translation.
+2 weeks, HPV) are checked to survive translation. **Outbound gated result notifications** (SMS, WhatsApp, in-app)
+still do not send an unreviewed translation: those patients receive the English wording plus an
+interpreter-supported navigator call. **Display surfaces** (the teach-back understanding check, the patient-app
+pathway) use the draft in the selected language, marked `translation_pending`, so a quiz is never mixed-language.
+The drafts remain not live until the clinical lead and the medical translator both sign off the exact wording
+(below).
 
 ## Human sign-off (the content gate)
 

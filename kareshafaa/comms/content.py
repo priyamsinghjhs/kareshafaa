@@ -36,7 +36,7 @@ PROGRAMME_TEXT: dict[str, dict[str, dict[str, str]]] = {
         "cervical": {
             "name": "فحص عنق الرحم (فيروس الورم الحليمي)",
             "meaning": "وجد الفحص فيروس الورم الحليمي البشري، وهو فيروس شائع جداً. معظم الحالات تزول من تلقاء نفسها، لكن بعضها قد يسبب تغيرات في الخلايا، لذلك نحتاج إلى فحص إضافي.",
-            "next_step": "فحص متابعة، وإذا لزم الأمر فحص عنق الرحم بالمنظار المكبّر"},
+            "next_step": "فحص متابعة، وإذا لزم الأمر فحص عنق الرحم بالمنظار (تنظير المهبل/عنق الرحم)"},
         "breast": {
             "name": "فحص الثدي (الماموغرام)",
             "meaning": "تحتاج صورة الثدي الشعاعية إلى صور أو فحوصات إضافية للحصول على نتيجة واضحة. معظم النساء اللواتي يتم استدعاؤهن لا يكون لديهن سرطان.",
@@ -72,7 +72,7 @@ PROGRAMME_TEXT: dict[str, dict[str, dict[str, str]]] = {
         "cervical": {
             "name": "سروائیکل اسکریننگ (HPV)",
             "meaning": "آپ کے ٹیسٹ میں HPV پایا گیا ہے، جو ایک بہت عام وائرس ہے۔ زیادہ تر HPV انفیکشن خود ہی ختم ہو جاتے ہیں، لیکن کچھ خلیوں میں تبدیلی کر سکتے ہیں، اس لیے مزید معائنہ ضروری ہے۔",
-            "next_step": "ایک اور ٹیسٹ اور ضرورت ہو تو سروکس کا قریبی معائنہ (کولپوسکوپی)"},
+            "next_step": "ایک اور ٹیسٹ اور ضرورت ہو تو گردنِ رحم کا قریبی معائنہ (کولپوسکوپی)"},
         "breast": {
             "name": "چھاتی کی اسکریننگ (میموگرام)",
             "meaning": "واضح نتیجے کے لیے آپ کے میموگرام کو کچھ مزید تصاویر یا ٹیسٹ کی ضرورت ہے۔ دوبارہ بلائی جانے والی زیادہ تر خواتین کو کینسر نہیں ہوتا۔",
@@ -376,7 +376,7 @@ DIRECT_PATHWAY_TEXT: dict[str, dict[str, dict[str, str]]] = {
     },
     "ar": {
         "cervical": {"meaning": "وجد فحص عنق الرحم نوعاً من فيروس الورم الحليمي (16 أو 18) أكثر احتمالاً لإحداث تغيرات في الخلايا. هذا لا يعني أنك مصابة بالسرطان، لكنه يحتاج إلى فحص دقيق قريباً.",
-                     "next_step": "فحص عنق الرحم بالمنظار المكبّر في عيادة المستشفى"},
+                     "next_step": "فحص عنق الرحم بالمنظار (تنظير المهبل/عنق الرحم) في عيادة المستشفى"},
         "breast": {"meaning": "أظهرت صورة الثدي منطقة تحتاج إلى فحص أدق. كثير من هذه المناطق لا تكون سرطاناً، لكن أخذ عينة صغيرة من النسيج هو الطريقة الوحيدة للتأكد.",
                    "next_step": "زيارة عيادة الثدي لأخذ عينة صغيرة من النسيج (خزعة)"},
         "diabetes_hba1c": {"meaning": "كانت نتيجة فحص السكر التراكمي مرتفعة جداً. يجب أن يراك الطبيب بسرعة. يمكن علاج ذلك بشكل جيد.",
@@ -392,7 +392,7 @@ DIRECT_PATHWAY_TEXT: dict[str, dict[str, dict[str, str]]] = {
     },
     "ur": {
         "cervical": {"meaning": "آپ کے ٹیسٹ میں HPV کی ایک قسم (16 یا 18) ملی ہے جس سے خلیوں میں تبدیلی کا امکان زیادہ ہوتا ہے۔ اس کا مطلب کینسر نہیں، لیکن جلد قریبی معائنہ ضروری ہے۔",
-                     "next_step": "ہسپتال کلینک میں سروکس کا قریبی معائنہ (کولپوسکوپی)"},
+                     "next_step": "ہسپتال کے کلینک میں گردنِ رحم کا قریبی معائنہ (کولپوسکوپی)"},
         "breast": {"meaning": "آپ کے میموگرام میں ایک حصہ نظر آیا ہے جس کا قریبی معائنہ ضروری ہے۔ ایسے کئی حصے کینسر نہیں ہوتے، لیکن یقین کا واحد طریقہ ٹشو کا چھوٹا نمونہ ہے۔",
                    "next_step": "ٹشو کے چھوٹے نمونے (بایوپسی) کے لیے بریسٹ کلینک کا دورہ"},
         "diabetes_hba1c": {"meaning": "آپ کے خون میں شوگر (HbA1c) کا ٹیسٹ بہت زیادہ آیا ہے۔ ڈاکٹر کو جلد دکھانا ضروری ہے۔ اس کا اچھا علاج ممکن ہے۔",
@@ -409,10 +409,14 @@ INTERPRETER_NOTICE: dict[str, str] = {
 
 
 # Result-specific wording keyed by clinical pathway (Iteration 6; translations Iteration 7).
-# GOVERNED CONTENT: a pathway text is used for a patient only when its exact current wording (sha256) has a
-# clinical sign-off and - for Arabic, Hindi and Urdu - also a professional translator's sign-off, by two different
-# people (see kareshafaa/comms/governance.py). Until then: English text + navigator call with an interpreter for other
-# languages, or a neutral "your team will call you" message if even the English wording is not signed off.
+# GOVERNED CONTENT: a pathway text is "live" (used in outbound gated result notifications) only when its exact
+# current wording (sha256) has a clinical sign-off and - for Arabic, Hindi and Urdu - also a professional
+# translator's sign-off, by two different people (see kareshafaa/comms/governance.py). Until then, those
+# notifications are sent wholly in the signed-off English, plus an interpreter-supported navigator call
+# (or a neutral "your team will call you" message if even the English wording is not signed off).
+# Display surfaces (teach-back, patient app, event emails' programme-level wording) use the draft
+# translation when one exists, marked translation_pending, so a quiz or page in Arabic is not mixed
+# with an English next-step. Drafts stay pending translator and clinical review.
 PATHWAY_TEXT: dict[str, dict[str, dict[str, str]]] = {
     "en": {
         "repeat_fit": {"meaning": "Your bowel screening kit could not be tested (for example the sample was spoilt or "
@@ -432,8 +436,10 @@ PATHWAY_TEXT: dict[str, dict[str, dict[str, str]]] = {
                                          "This does NOT mean you have cancer.",
                               "next_step": "a closer look at the cervix (colposcopy) at a hospital clinic, within 2 weeks"},
     },
-    # DRAFT translations (Iteration 7): NOT reviewed by a professional medical translator. They stay unused until a
-    # translator and a clinician have both signed off the exact wording.
+    # DRAFT translations (Iteration 7): NOT reviewed by a professional medical translator. They are shown
+    # on display surfaces (teach-back, patient app) and marked pending review. They are not used in
+    # outbound gated result notifications until a translator and a clinician have both signed off the
+    # exact wording.
     "ar": {
         "repeat_fit": {"meaning": "لم نتمكن من فحص عينة اختبار القولون (مثلاً لأن العينة تلفت أو لم تكن واضحة). هذه ليست نتيجة عن صحتك. نحتاج إلى عينة جديدة.",
                        "next_step": "مجموعة اختبار منزلية جديدة سنرسلها إليك"},
@@ -444,7 +450,7 @@ PATHWAY_TEXT: dict[str, dict[str, dict[str, str]]] = {
         "surveillance_1y": {"meaning": "وجد فحص عنق الرحم فيروس الورم الحليمي البشري (HPV)، وهو فيروس شائع جداً، لكن خلاياك بدت طبيعية. معظم هذه العدوى تزول من تلقاء نفسها.",
                             "next_step": "إعادة فحص فيروس الورم الحليمي (HPV) بعد 12 شهراً (سنذكّرك بذلك)"},
         "colposcopy_urgent": {"meaning": "وجد فحص عنق الرحم تغيرات في الخلايا تحتاج إلى فحص أدق قريباً. هذا لا يعني أنك مصابة بالسرطان.",
-                              "next_step": "فحص عنق الرحم بالمنظار المكبّر في عيادة المستشفى، خلال أسبوعين"},
+                              "next_step": "فحص عنق الرحم بالمنظار (تنظير المهبل/عنق الرحم) في عيادة المستشفى، خلال أسبوعين"},
     },
     "hi": {
         "repeat_fit": {"meaning": "आपकी आंत की जांच की किट की जांच नहीं हो सकी (जैसे नमूना ख़राब हो गया या साफ़ नहीं था)। यह आपकी सेहत के बारे में कोई नतीजा नहीं है। हमें एक नया नमूना चाहिए।",
@@ -468,16 +474,25 @@ PATHWAY_TEXT: dict[str, dict[str, dict[str, str]]] = {
         "surveillance_1y": {"meaning": "آپ کے ٹیسٹ میں HPV پایا گیا ہے، جو ایک بہت عام وائرس ہے، لیکن آپ کے خلیے نارمل نظر آئے۔ زیادہ تر HPV انفیکشن خود ہی ختم ہو جاتے ہیں۔",
                             "next_step": "12 مہینے بعد دوبارہ HPV ٹیسٹ (ہم آپ کو یاد دلائیں گے)"},
         "colposcopy_urgent": {"meaning": "آپ کے ٹیسٹ میں خلیوں میں کچھ تبدیلیاں ملی ہیں، جن کا جلد قریبی معائنہ ضروری ہے۔ اس کا مطلب یہ نہیں کہ آپ کو کینسر ہے۔",
-                              "next_step": "ہسپتال کلینک میں سروکس کا قریبی معائنہ (کولپوسکوپی)، 2 ہفتوں کے اندر"},
+                              "next_step": "ہسپتال کے کلینک میں گردنِ رحم کا قریبی معائنہ (کولپوسکوپی)، 2 ہفتوں کے اندر"},
     },
 }
 PATHWAY_TEXT_EN = PATHWAY_TEXT["en"]
 TRANSLATION_STATUS = {lang: "draft - needs professional medical translator review" for lang in ("ar", "hi", "ur")}
 
 # Used when the pathway wording itself has no current clinical sign-off: never guess, ask the team to call.
-NEUTRAL_PATHWAY_TEXT = {"meaning": "Your screening result is ready. Your care team will call you to explain what it "
-                                   "means for you and to answer your questions.",
-                        "next_step": "a call from your care team to explain your result and the next step"}
+NEUTRAL_PATHWAY_I18N: dict[str, dict[str, str]] = {
+    "en": {"meaning": "Your screening result is ready. Your care team will call you to explain what it "
+                      "means for you and to answer your questions.",
+           "next_step": "a call from your care team to explain your result and the next step"},
+    "ar": {"meaning": "نتيجة فحصك جاهزة. سيتصل بك فريق الرعاية ليشرح لك ماذا تعني ويجيب عن أسئلتك.",
+           "next_step": "اتصال من فريق الرعاية لشرح نتيجتك والخطوة التالية"},
+    "hi": {"meaning": "आपकी जांच का नतीजा तैयार है। आपकी देखभाल टीम आपको फ़ोन करके समझाएगी कि इसका क्या मतलब है, और आपके सवालों के जवाब देगी।",
+           "next_step": "आपकी देखभाल टीम का फ़ोन, जो नतीजा और अगला कदम समझाएगी"},
+    "ur": {"meaning": "آپ کی اسکریننگ کا نتیجہ تیار ہے۔ آپ کی نگہداشت ٹیم آپ کو فون کر کے سمجھائے گی کہ اس کا کیا مطلب ہے، اور آپ کے سوالات کے جواب دے گی۔",
+           "next_step": "آپ کی نگہداشت ٹیم کا فون، جو نتیجہ اور اگلا قدم سمجھائے گی"},
+}
+NEUTRAL_PATHWAY_TEXT = NEUTRAL_PATHWAY_I18N["en"]
 
 
 def _direct_applies(case) -> bool:
@@ -488,9 +503,21 @@ def _direct_applies(case) -> bool:
             "diabetes_hba1c": rid.endswith("-CRIT")}.get(case.programme, False)
 
 
-def programme_text(lang: str, case, live: set[str] | None = None) -> dict[str, str]:
-    """Patient-facing wording for this case: programme text, overridden for result-specific direct pathways and
-    for governed pathway wording (only versions with the required human sign-offs are used; see governance.py)."""
+def _neutral(lang: str) -> dict[str, str]:
+    return dict(NEUTRAL_PATHWAY_I18N.get(lang) or NEUTRAL_PATHWAY_TEXT)
+
+
+def programme_text(lang: str, case, live: set[str] | None = None, *, use_draft: bool = False) -> dict[str, str]:
+    """Patient-facing wording for this case: programme text, overridden for result-specific direct pathways
+    and for governed pathway wording.
+
+    Outbound gated result notifications (render_message) use only live, signed-off wording: if the
+    translation is not signed off they switch the whole message to signed English and book an
+    interpreter (see comms/service.py). Display surfaces (teach-back, the patient app) pass
+    use_draft=True so a translation is shown when one exists, marked translation_pending, instead
+    of splicing English into an otherwise-translated page. Drafts remain pending translator and
+    clinical review; they are not marked live.
+    """
     lang = lang if lang in PROGRAMME_TEXT else "en"
     base = dict(PROGRAMME_TEXT[lang][case.programme])
     if case.needs_confirmation is False and _direct_applies(case):
@@ -501,15 +528,26 @@ def programme_text(lang: str, case, live: set[str] | None = None) -> dict[str, s
             from .governance import live_content  # noqa: PLC0415 - avoid an import cycle
 
             live = live_content(case)
-        if lang != "en" and f"pathway:{pw}:{lang}" in live:
+        translated = lang != "en" and pw in PATHWAY_TEXT.get(lang, {})
+        tr_live = translated and f"pathway:{pw}:{lang}" in live
+        en_live = f"pathway:{pw}:en" in live
+        if tr_live:
             base.update(PATHWAY_TEXT[lang][pw])
-        elif f"pathway:{pw}:en" in live:
+        elif use_draft and translated:
+            base.update(PATHWAY_TEXT[lang][pw])
+            base["translation_pending"] = "true"
+            if not en_live:
+                base["content_pending_approval"] = "true"
+        elif en_live:
             base.update(PATHWAY_TEXT_EN[pw])
             if lang != "en":
                 base["translation_pending"] = "true"
+                base["translation_fallback"] = "true"
         else:
-            base.update(NEUTRAL_PATHWAY_TEXT)
+            base.update(_neutral("en" if not use_draft else lang))
             base["content_pending_approval"] = "true"
             if lang != "en":
                 base["translation_pending"] = "true"
+                if not use_draft:
+                    base["translation_fallback"] = "true"
     return base

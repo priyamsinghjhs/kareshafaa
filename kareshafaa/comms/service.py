@@ -321,7 +321,7 @@ def record_call(db: Session, case: Case, actor: Actor, outcome: str, *, note: st
 def teach_back_form(case: Case, lang: str) -> dict:
     lang = lang if lang in TEACH_BACK else "en"
     tb = TEACH_BACK[lang]
-    prog = programme_text(lang, case)
+    prog = programme_text(lang, case, use_draft=True)
     fill = {"next_step": prog["next_step"], "timeframe": TIMEFRAME[lang][case.tier]}
     qs = []
     for q in ("q1", "q2", "q3"):

@@ -19,6 +19,7 @@ import json
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, object_session
+from sqlalchemy.orm.exc import UnmappedInstanceError
 
 from .. import audit
 from ..models import ContentApproval
@@ -59,8 +60,9 @@ def catalogue() -> dict[str, dict]:
     for lang, tb in C.TEACH_BACK.items():
         for k in ("intro", "passed", "failed"):
             add("teach_back", k, lang, tb[k], tb[k])
-    add("pathway_fallback", "neutral", "en", json.dumps(C.NEUTRAL_PATHWAY_TEXT, sort_keys=True),
-        C.NEUTRAL_PATHWAY_TEXT["meaning"])
+    for lang, neu in C.NEUTRAL_PATHWAY_I18N.items():
+        add("pathway_fallback", "neutral", lang, json.dumps(neu, ensure_ascii=False, sort_keys=True),
+            neu["meaning"])
     return items
 
 
@@ -103,7 +105,10 @@ def live_ids(db: Session) -> set[str]:
 
 def live_content(case) -> set[str]:
     """Live (fully signed-off) content ids, cached per DB session; empty set if the case is not session-bound."""
-    db = object_session(case)
+    try:
+        db = object_session(case)
+    except UnmappedInstanceError:
+        return set()
     if db is None:
         return set()
     cached = db.info.get("content_live")

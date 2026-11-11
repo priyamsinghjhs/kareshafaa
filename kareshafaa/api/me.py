@@ -62,7 +62,7 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
                 "patient": {"given_name": p0.given_name, "preferred_language": p0.language}}
     p: Patient = c.patient
     lang = lang if lang in SUPPORTED_LANGUAGES else (saved or comms.comm_language(p))
-    prog = programme_text(lang, c)
+    prog = programme_text(lang, c, use_draft=True)
     coord = db.get(Practitioner, c.owner_id)
     tb = db.scalars(select(QuestionnaireResponse).where(QuestionnaireResponse.case_id == c.id)
                     .order_by(QuestionnaireResponse.id.desc())).first()
@@ -85,7 +85,7 @@ def my_case(lang: str | None = Query(None, max_length=5), actor: Actor = Depends
         "patient": {"given_name": p.given_name, "preferred_language": p.language},
         "interpreter_notice": INTERPRETER_NOTICE.get(p.language) or (
             "This explanation is not yet available in your language. A navigator will call you with an interpreter."
-            if prog.get("translation_pending") else None),
+            if prog.get("translation_fallback") else None),
         "programme": prog["name"], "meaning": prog["meaning"] if told else None,
         "next_step": prog["next_step"] if told and not closed else None,
         "timeframe": TIMEFRAME[lang][c.tier] if told and not closed else None,

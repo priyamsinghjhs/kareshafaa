@@ -158,6 +158,14 @@ closure.
 * **Recall invitations (Due for recall):** a recall invitation cannot be sent again for 24 hours. Staff who try see a
   popup asking them to wait (“Please wait 24 hours before sending the invite again.”); the server refuses the send too,
   and “Invite selected” skips anyone invited in the last 24 hours without blocking the others.
+* **Teach-back stays in one language (12 Nov 2026):** the correct answer to “What is your next step?” is the
+  pathway’s next-step text in the selected language (Arabic, Hindi or Urdu), not the English source.
+  For cervical HPV urgent colposcopy that is, in Arabic, “فحص عنق الرحم بالمنظار (تنظير المهبل/عنق الرحم)
+  في عيادة المستشفى، خلال أسبوعين”. The same glossary term is used in the programme and direct-pathway
+  wording. `tests/test_teach_back_language.py` renders the understanding check for every programme,
+  result branch and language and fails if Latin-script prose appears in a non-English form; it also
+  scans other patient-facing tables and appointment/result email wording. Appointment emails translate
+  stored service and test names (“Colonoscopy”, “HPV high-risk DNA”, …) the same way.
 * **Recorded teach-back stays visible:** once a teach-back is saved it is shown in a card at the top of the case
   (score, understood or not yet clear, by the patient or with a navigator, language, time and the answers). A passed
   check is never offered again, and the server refuses another staff entry (“Teach-back already recorded: the patient
@@ -177,8 +185,14 @@ closure.
   language). Staff do not create these requests on the patient's behalf. When a coordinator confirms a
   request, the patient is emailed the appointment details (time in UAE, clinic, clinician when known) as
   well as the existing in-app message.
-* Patient messages in English, Arabic, Hindi and Urdu (signed-off wording only; otherwise English plus an
-  interpreter-supported call).
+* Patient messages in English, Arabic, Hindi and Urdu. Outbound gated result notifications (SMS, WhatsApp,
+  in-app) use **signed-off wording only**; otherwise the whole message is sent in English plus an
+  interpreter-supported call. The **teach-back understanding check**, the patient-app pathway and the
+  programme-level wording on appointment and result emails use a translation when one exists, even if
+  the translator has not yet signed it off (it is marked pending review, not live). That way a quiz in
+  Arabic is not mixed with an English correct answer. New and updated strings stay in
+  `TRANSLATION_STATUS` as drafts until the clinical lead and the medical translator both sign off the
+  exact wording (existing sign-off flow; display is not blocked).
 
 **Sign-in and accounts**
 * Username + password (argon2id), server-side sessions (HttpOnly, SameSite, Secure on HTTPS), CSRF tokens, idle

@@ -18,8 +18,8 @@ from ..config import get_settings
 from ..models import (Appointment, Case, Communication, DiagnosticReport, Observation, Organization,
                       Patient, PatientRequest, Practitioner, ServiceRequest)
 from .event_text import (ALARM_WORDS, DATE_FMT, MONTHS, NEGATIVE_MEANING, RANGE, ROLES, SPECIALTIES,
-                         WEEKDAYS, is_rtl, texts)
-from .content import programme_text
+                         WEEKDAYS, clinical_name, is_rtl, texts)
+from .content import DIRECT_PATHWAY_TEXT, PROGRAMME_TEXT, _direct_applies, programme_text
 
 log = logging.getLogger("kareshafaa.mail")
 
@@ -334,12 +334,20 @@ def _meaning_and_next(lang: str, ctx: dict) -> tuple[str, str]:
     if case is not None:
         try:
             prog = programme_text(lang, case)
-            meaning, next_step = prog.get("meaning") or "", prog.get("next_step") or next_step
+            # Do not splice unsigned English pathway wording into a non-English email.
+            # Unreviewed pathway drafts are also not used here (validator:
+            # content.no_unapproved_translation_sent). Fall back to the ungated
+            # programme / direct-pathway text, which is already in this language.
+            if lang != "en" and prog.get("translation_fallback"):
+                pack = dict((PROGRAMME_TEXT.get(lang) or PROGRAMME_TEXT["en"]).get(case.programme) or {})
+                if case.needs_confirmation is False and _direct_applies(case):
+                    pack.update((DIRECT_PATHWAY_TEXT.get(lang) or {}).get(case.programme, {}))
+                meaning, next_step = pack.get("meaning") or "", pack.get("next_step") or next_step
+            else:
+                meaning, next_step = prog.get("meaning") or "", prog.get("next_step") or next_step
         except Exception:  # noqa: BLE001
             pass
     if not meaning:
-        from .content import PROGRAMME_TEXT  # noqa: PLC0415
-
         pack = (PROGRAMME_TEXT.get(lang) or PROGRAMME_TEXT["en"]).get(programme) or {}
         meaning = pack.get("meaning") or ""
         next_step = pack.get("next_step") or next_step
@@ -387,7 +395,7 @@ def render_appointment(lang: str, ctx: dict) -> tuple[str, str, str]:
     labels = t["labels"]
     rows.append((labels["programme"], _programme_name(lang, ctx.get("programme") or "", ctx.get("case"))))
     if ctx.get("service"):
-        rows.append((labels["service"], ctx["service"]))
+        rows.append((labels["service"], clinical_name(lang, ctx["service"]) or ctx["service"]))
     if ctx.get("start") is not None:
         rows.append((labels["when"], format_uae(ctx["start"], lang)))
     if ctx.get("previous_start") is not None and cat == "appointment_changed":
@@ -402,7 +410,7 @@ def render_appointment(lang: str, ctx: dict) -> tuple[str, str, str]:
     if ctx.get("phone"):
         rows.append((labels["phone"], ctx["phone"]))
     if ctx.get("department") and ctx.get("department") != ctx.get("service"):
-        rows.append((labels["department"], ctx["department"]))
+        rows.append((labels["department"], clinical_name(lang, ctx["department"]) or ctx["department"]))
     rows.append((labels["bring"], ctx.get("bring") or t["bring_default"]))
     if cat != "appointment_cancelled":
         rows.append((labels["change"], t["change_how"]))
@@ -437,7 +445,7 @@ def render_result(lang: str, ctx: dict) -> tuple[str, str, str]:
     elif report is not None and (report.display or "").strip():
         test_name = report.display.strip()
     if test_name:
-        rows.append((labels["test"], test_name))
+        rows.append((labels["test"], clinical_name(lang, test_name) or test_name))
     if ctx.get("collected_at") is not None:
         rows.append((labels["collected"], format_uae(ctx["collected_at"], lang)))
     if ctx.get("issued_at") is not None:

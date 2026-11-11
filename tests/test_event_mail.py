@@ -161,8 +161,13 @@ def test_uae_time_is_asia_dubai_and_labelled():
 def test_appointment_email_has_the_important_details(lang):
     sub, plain, html = render_appointment(lang, _appt_ctx(lang))
     assert sub.startswith("KareShafaa:")
-    for needle in ("13:00", "Dr. Anjali Menon", "Cleveland Clinic Abu Dhabi", "1395", "Colonoscopy"):
+    from kareshafaa.comms.event_text import clinical_name
+
+    service = clinical_name(lang, "Colonoscopy")
+    for needle in ("13:00", "Dr. Anjali Menon", "Cleveland Clinic Abu Dhabi", "1395", service):
         assert needle in plain and needle in html
+    if lang != "en":
+        assert "Colonoscopy" not in plain and "Colonoscopy" not in html
     assert "demo" not in (plain + html + sub).lower() and "prototype" not in (plain + html + sub).lower()
     expected_dir = "rtl" if lang in ("ar", "ur") else "ltr"
     assert f'dir="{expected_dir}"' in html

@@ -63,6 +63,119 @@ SPECIALTIES = {
            "diabetes": "ذیابیطس"},
 }
 
+
+# English source names stored on ServiceRequest.code and Observation.display (programme catalogue).
+# Appointment and result emails look up the patient's language so those rows are not left in English.
+SERVICE_AND_TEST_NAMES = {
+    "en": {
+        "Colonoscopy": "Colonoscopy",
+        "Colposcopy": "Colposcopy",
+        "Cervical cytology (reflex)": "Cervical cytology (reflex)",
+        "Diagnostic imaging / biopsy": "Diagnostic imaging / biopsy",
+        "Breast clinic": "Breast clinic",
+        "Repeat HbA1c / fasting glucose": "Repeat HbA1c / fasting glucose",
+        "Diabetes clinic": "Diabetes clinic",
+        "Faecal immunochemical test (FIT) haemoglobin": "Faecal immunochemical test (FIT) haemoglobin",
+        "HPV high-risk DNA": "HPV high-risk DNA",
+        "Screening mammogram (BI-RADS)": "Screening mammogram (BI-RADS)",
+        "Haemoglobin A1c": "Haemoglobin A1c (HbA1c)",
+        "confirmatory": "Confirmatory test",
+        "specialist": "Specialist visit",
+        "colonoscopy": "Colonoscopy",
+        "colposcopy": "Colposcopy",
+        "breast_clinic": "Breast clinic",
+        "gp_visit": "Visit with your family doctor",
+        "specialist_visit": "Specialist visit",
+        "teleconsult": "Telephone or video consultation",
+        "diabetes_clinic": "Diabetes clinic",
+        "confirmatory_test": "Confirmatory test",
+    },
+    "ar": {
+        "Colonoscopy": "فحص القولون بالمنظار (تنظير القولون)",
+        "Colposcopy": "فحص عنق الرحم بالمنظار (تنظير المهبل/عنق الرحم)",
+        "Cervical cytology (reflex)": "فحص خلايا عنق الرحم (تحليل خلوي تكميلي)",
+        "Diagnostic imaging / biopsy": "تصوير تشخيصي / خزعة",
+        "Breast clinic": "عيادة الثدي",
+        "Repeat HbA1c / fasting glucose": "إعادة فحص السكر التراكمي (HbA1c) / سكر الصيام",
+        "Diabetes clinic": "عيادة السكري",
+        "Faecal immunochemical test (FIT) haemoglobin": "اختبار البراز المناعي (FIT) للهيموغلوبين",
+        "HPV high-risk DNA": "الحمض النووي لفيروس الورم الحليمي عالي الخطورة (HPV)",
+        "Screening mammogram (BI-RADS)": "صورة الثدي الشعاعية للفحص (BI-RADS)",
+        "Haemoglobin A1c": "السكر التراكمي (HbA1c)",
+        "confirmatory": "فحص تأكيدي",
+        "specialist": "زيارة أخصائي",
+        "colonoscopy": "فحص القولون بالمنظار (تنظير القولون)",
+        "colposcopy": "فحص عنق الرحم بالمنظار (تنظير المهبل/عنق الرحم)",
+        "breast_clinic": "عيادة الثدي",
+        "gp_visit": "زيارة طبيب الأسرة",
+        "specialist_visit": "زيارة أخصائي",
+        "teleconsult": "استشارة هاتفية أو عبر الفيديو",
+        "diabetes_clinic": "عيادة السكري",
+        "confirmatory_test": "فحص تأكيدي",
+    },
+    "hi": {
+        "Colonoscopy": "आंत की कैमरा जांच (कोलोनोस्कोपी)",
+        "Colposcopy": "गर्भाशय ग्रीवा की नज़दीकी जांच (कोल्पोस्कोपी)",
+        "Cervical cytology (reflex)": "गर्भाशय ग्रीवा की कोशिका जांच (पूरक साइटोलॉजी)",
+        "Diagnostic imaging / biopsy": "निदानात्मक इमेजिंग / बायोप्सी",
+        "Breast clinic": "स्तन क्लिनिक",
+        "Repeat HbA1c / fasting glucose": "दोबारा HbA1c / उपवास रक्त शर्करा की जांच",
+        "Diabetes clinic": "मधुमेह क्लिनिक",
+        "Faecal immunochemical test (FIT) haemoglobin": "मल की प्रतिरक्षा जांच (FIT) हीमोग्लोबिन",
+        "HPV high-risk DNA": "उच्च जोखिम वाले HPV का डीएनए",
+        "Screening mammogram (BI-RADS)": "स्तन की स्क्रीनिंग मैमोग्राम (BI-RADS)",
+        "Haemoglobin A1c": "हीमोग्लोबिन A1c (HbA1c)",
+        "confirmatory": "पुष्टि जांच",
+        "specialist": "विशेषज्ञ से मुलाक़ात",
+        "colonoscopy": "आंत की कैमरा जांच (कोलोनोस्कोपी)",
+        "colposcopy": "गर्भाशय ग्रीवा की नज़दीकी जांच (कोल्पोस्कोपी)",
+        "breast_clinic": "स्तन क्लिनिक",
+        "gp_visit": "फ़ैमिली डॉक्टर से मुलाक़ात",
+        "specialist_visit": "विशेषज्ञ से मुलाक़ात",
+        "teleconsult": "फ़ोन या वीडियो पर सलाह",
+        "diabetes_clinic": "मधुमेह क्लिनिक",
+        "confirmatory_test": "पुष्टि जांच",
+    },
+    "ur": {
+        "Colonoscopy": "آنت کا کیمرہ معائنہ (کولونوسکوپی)",
+        "Colposcopy": "گردنِ رحم کا قریبی معائنہ (کولپوسکوپی)",
+        "Cervical cytology (reflex)": "گردنِ رحم کی خلیاتی جانچ (تکمیلی سائٹولوجی)",
+        "Diagnostic imaging / biopsy": "تشخیصی امیجنگ / بایوپسی",
+        "Breast clinic": "چھاتی کا کلینک",
+        "Repeat HbA1c / fasting glucose": "دوبارہ HbA1c / خالی پیٹ شوگر کا ٹیسٹ",
+        "Diabetes clinic": "ذیابیطس کلینک",
+        "Faecal immunochemical test (FIT) haemoglobin": "پاخانے کا امیون ٹیسٹ (FIT) ہیموگلوبن",
+        "HPV high-risk DNA": "اعلی خطرے والے HPV کا ڈی این اے",
+        "Screening mammogram (BI-RADS)": "چھاتی کی اسکریننگ میموگرام (BI-RADS)",
+        "Haemoglobin A1c": "ہیموگلوبن A1c (HbA1c)",
+        "confirmatory": "تصدیقی ٹیسٹ",
+        "specialist": "ماہر سے ملاقات",
+        "colonoscopy": "آنت کا کیمرہ معائنہ (کولونوسکوپی)",
+        "colposcopy": "گردنِ رحم کا قریبی معائنہ (کولپوسکوپی)",
+        "breast_clinic": "چھاتی کا کلینک",
+        "gp_visit": "خاندانی معالج سے ملاقات",
+        "specialist_visit": "ماہر سے ملاقات",
+        "teleconsult": "فون یا ویڈیو پر مشورہ",
+        "diabetes_clinic": "ذیابیطس کلینک",
+        "confirmatory_test": "تصدیقی ٹیسٹ",
+    },
+}
+
+
+def clinical_name(lang: str, text: str | None) -> str | None:
+    """Translate a stored English service or test name; unknown names are returned unchanged."""
+    if not text:
+        return text
+    pack = SERVICE_AND_TEST_NAMES.get(lang) or SERVICE_AND_TEST_NAMES["en"]
+    if text in pack:
+        return pack[text]
+    key = text.replace("_", " ").strip()
+    if key in pack:
+        return pack[key]
+    # Case-insensitive fallback for codes stored in different casing.
+    lower = {k.lower(): v for k, v in pack.items()}
+    return lower.get(text.lower(), text)
+
 # Usual screening ranges, worded for the patient (not a diagnosis).
 RANGE = {
     "en": {
@@ -401,4 +514,5 @@ def is_rtl(lang: str) -> bool:
 
 
 __all__ = ["ALARM_WORDS", "DATE_FMT", "MONTHS", "NEGATIVE_MEANING", "RANGE", "ROLES", "RTL_LANGUAGES",
-           "SPECIALTIES", "SUPPORTED_LANGUAGES", "TEXT", "WEEKDAYS", "is_rtl", "texts"]
+           "SERVICE_AND_TEST_NAMES", "SPECIALTIES", "SUPPORTED_LANGUAGES", "TEXT", "WEEKDAYS",
+           "clinical_name", "is_rtl", "texts"]
