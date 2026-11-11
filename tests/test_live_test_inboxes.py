@@ -23,6 +23,7 @@ CONFIRMED = {
     "fatima.al.mansoori": "testingkareshafaa+clead1234@gmail.com",
     "aisha.rahman": "testingkareshafaa+ccalpha1234@gmail.com",
     "omar.haddad": "testingkareshafaa+rehmanmalik1234@gmail.com",
+    "ahmed.fathy": "testingkareshafaa+ahmedfathy@gmail.com",
     "vikram.mehta": "testingkareshafaa+splist123@gmail.com",
     "analyst": "testingkareshafaa+program_analysts@gmail.com",
     "translator": "testingkareshafaa+medi_trans@gmail.com",

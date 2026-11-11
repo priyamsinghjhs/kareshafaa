@@ -279,7 +279,7 @@ closure.
   * **Test inboxes:** one seeded account of each role has a test Gmail address (staff on `User.email`;
     `patient.en` on `Patient.email` as well): admin `testingkareshafaa+calpha_admin@gmail.com`, clinical lead
     Fatima Al Mansoori (`fatima.al.mansoori`) `+clead1234`, care coordinator Aisha Rahman (`aisha.rahman`)
-    `+ccalpha1234`, GP Omar Haddad (`omar.haddad`) `+rehmanmalik1234`, specialist Vikram Mehta
+    `+ccalpha1234`, GP Omar Haddad (`omar.haddad`) `+rehmanmalik1234`, GP Ahmed Fathy (`ahmed.fathy`) `+ahmedfathy`, specialist Vikram Mehta
     (`vikram.mehta`) `+splist123`, programme analyst `+program_analysts`, medical translator
     `+medi_trans`, and Emma Clarke (`patient.en`) `+asimkhan123` as above (map in
     `kareshafaa/synth/test_mailboxes.py`). On a live database that already has data (where seed does not
