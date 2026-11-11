@@ -83,7 +83,17 @@ HELP_TEXT = {
            "s_generic_reset": "If the account exists, a reset link has been sent to its email.",
            "s_ask_admin": "Can't access your email? Ask the administrator",
            "s_err_username": "Please enter your username.",
-           "s_use_email_instead": "Know your username? Send a reset link to your email instead."},
+           "s_use_email_instead": "Know your username? Send a reset link to your email instead.",
+           "p_pw_intro": "Enter your username. If the account exists, a reset link is sent to the email on the account. The link works once and expires in 30 minutes.",
+           "p_username": "Username",
+           "p_submit_reset": "Send a reset link",
+           "p_generic_reset": "If the account exists, a reset link has been sent to its email.",
+           "p_generic_reset_details": "If these details match a patient account, a reset link has been sent to its email. The message includes your username.",
+           "p_forgot_username": "Forgot your username? Confirm your details",
+           "p_ask_team": "Can't access your email? Ask your care team",
+           "p_use_email_instead": "Know your username? Send a reset link to your email instead.",
+           "p_details_intro": "Enter the details we hold for you. If they match your patient account, a reset link is sent to the email on the account, and the message includes your username. The link works once and expires in 30 minutes.",
+           "p_err_username": "Please enter your username."},
     "ar": {"title_username": "هل نسيت اسم المستخدم؟", "title_password": "هل نسيت كلمة المرور؟", "who_label": "من أنت؟",
            "who_patient": "أنا مريض", "who_staff": "أنا من الموظفين",
            "p_intro_username": "أدخل البيانات المسجلة لدينا. إذا طابقت حسابك، يظهر اسم المستخدم في هذه الصفحة.",
@@ -112,7 +122,17 @@ HELP_TEXT = {
            "s_generic_reset": "إذا كان الحساب موجوداً، فقد أُرسل رابط إعادة التعيين إلى بريده الإلكتروني.",
            "s_ask_admin": "لا يمكنك الوصول إلى بريدك؟ اطلب المساعدة من المسؤول",
            "s_err_username": "يرجى إدخال اسم المستخدم.",
-           "s_use_email_instead": "هل تعرف اسم المستخدم؟ أرسل رابط إعادة التعيين إلى بريدك بدلاً من ذلك."},
+           "s_use_email_instead": "هل تعرف اسم المستخدم؟ أرسل رابط إعادة التعيين إلى بريدك بدلاً من ذلك.",
+           "p_pw_intro": "أدخل اسم المستخدم. إذا كان الحساب موجوداً، يُرسل رابط إعادة التعيين إلى البريد الإلكتروني المسجّل. يعمل الرابط مرة واحدة وينتهي خلال 30 دقيقة.",
+           "p_username": "اسم المستخدم",
+           "p_submit_reset": "أرسل رابط إعادة التعيين",
+           "p_generic_reset": "إذا كان الحساب موجوداً، فقد أُرسل رابط إعادة التعيين إلى بريده الإلكتروني.",
+           "p_generic_reset_details": "إذا طابقت هذه البيانات حساب مريض، فقد أُرسل رابط إعادة التعيين إلى بريده الإلكتروني. تتضمن الرسالة اسم المستخدم.",
+           "p_forgot_username": "نسيت اسم المستخدم؟ أكّد بياناتك",
+           "p_ask_team": "لا يمكنك الوصول إلى بريدك؟ اطلب المساعدة من فريق الرعاية",
+           "p_use_email_instead": "هل تعرف اسم المستخدم؟ أرسل رابط إعادة التعيين إلى بريدك بدلاً من ذلك.",
+           "p_details_intro": "أدخل البيانات المسجلة لدينا. إذا طابقت حسابك، يُرسل رابط إعادة التعيين إلى البريد الإلكتروني المسجّل، وتتضمن الرسالة اسم المستخدم. يعمل الرابط مرة واحدة وينتهي خلال 30 دقيقة.",
+           "p_err_username": "يرجى إدخال اسم المستخدم."},
     "hi": {"title_username": "यूज़रनेम भूल गए?", "title_password": "पासवर्ड भूल गए?", "who_label": "आप कौन हैं?",
            "who_patient": "मैं मरीज़ हूँ", "who_staff": "मैं स्टाफ़ हूँ",
            "p_intro_username": "हमारे पास दर्ज अपनी जानकारी भरें। अगर यह आपके मरीज़ खाते से मेल खाती है, तो आपका यूज़रनेम इसी पेज पर दिखेगा।",
@@ -141,7 +161,17 @@ HELP_TEXT = {
            "s_generic_reset": "यदि खाता मौजूद है, तो उसके ईमेल पर एक रीसेट लिंक भेज दिया गया है।",
            "s_ask_admin": "ईमेल नहीं खोल सकते? प्रशासक से मदद मांगें",
            "s_err_username": "कृपया अपना यूज़रनेम दर्ज करें।",
-           "s_use_email_instead": "यूज़रनेम याद है? इसके बजाय अपने ईमेल पर रीसेट लिंक भेजें।"},
+           "s_use_email_instead": "यूज़रनेम याद है? इसके बजाय अपने ईमेल पर रीसेट लिंक भेजें।",
+           "p_pw_intro": "अपना यूज़रनेम दर्ज करें। यदि खाता मौजूद है, तो उस पर दर्ज ईमेल पर एक रीसेट लिंक भेजा जाएगा। लिंक एक बार काम करता है और 30 मिनट में समाप्त होता है।",
+           "p_username": "यूज़रनेम",
+           "p_submit_reset": "रीसेट लिंक भेजें",
+           "p_generic_reset": "यदि खाता मौजूद है, तो उसके ईमेल पर एक रीसेट लिंक भेज दिया गया है।",
+           "p_generic_reset_details": "अगर यह जानकारी किसी मरीज़ खाते से मेल खाती है, तो उसके ईमेल पर एक रीसेट लिंक भेज दिया गया है। संदेश में आपका यूज़रनेम भी होगा।",
+           "p_forgot_username": "यूज़रनेम भूल गए? अपनी जानकारी की पुष्टि करें",
+           "p_ask_team": "ईमेल नहीं खोल सकते? अपनी देखभाल टीम से मदद मांगें",
+           "p_use_email_instead": "यूज़रनेम याद है? इसके बजाय अपने ईमेल पर रीसेट लिंक भेजें।",
+           "p_details_intro": "हमारे पास दर्ज अपनी जानकारी भरें। अगर यह आपके मरीज़ खाते से मेल खाती है, तो उस पर दर्ज ईमेल पर रीसेट लिंक भेजा जाएगा, और संदेश में आपका यूज़रनेम भी होगा। लिंक एक बार काम करता है और 30 मिनट में समाप्त होता है।",
+           "p_err_username": "कृपया अपना यूज़रनेम दर्ज करें।"},
     "ur": {"title_username": "یوزر نیم بھول گئے؟", "title_password": "پاس ورڈ بھول گئے؟", "who_label": "آپ کون ہیں؟",
            "who_patient": "میں مریض ہوں", "who_staff": "میں عملے کا رکن ہوں",
            "p_intro_username": "ہمارے پاس درج اپنی معلومات لکھیں۔ اگر یہ آپ کے مریض اکاؤنٹ سے ملتی ہیں تو آپ کا یوزر نیم اسی صفحے پر دکھایا جائے گا۔",
@@ -170,7 +200,17 @@ HELP_TEXT = {
            "s_generic_reset": "اگر اکاؤنٹ موجود ہے تو اس کے ای میل پر ری سیٹ لنک بھیج دیا گیا ہے۔",
            "s_ask_admin": "ای میل نہیں کھول سکتے؟ ایڈمنسٹریٹر سے مدد مانگیں",
            "s_err_username": "براہ کرم اپنا یوزر نیم درج کریں۔",
-           "s_use_email_instead": "یوزر نیم یاد ہے؟ اس کے بجائے اپنے ای میل پر ری سیٹ لنک بھیجیں۔"},
+           "s_use_email_instead": "یوزر نیم یاد ہے؟ اس کے بجائے اپنے ای میل پر ری سیٹ لنک بھیجیں۔",
+           "p_pw_intro": "اپنا یوزر نیم درج کریں۔ اگر اکاؤنٹ موجود ہے تو اس پر درج ای میل پر ری سیٹ لنک بھیجا جائے گا۔ لنک ایک بار کام کرتا ہے اور 30 منٹ میں ختم ہو جاتا ہے۔",
+           "p_username": "یوزر نیم",
+           "p_submit_reset": "ری سیٹ لنک بھیجیں",
+           "p_generic_reset": "اگر اکاؤنٹ موجود ہے تو اس کے ای میل پر ری سیٹ لنک بھیج دیا گیا ہے۔",
+           "p_generic_reset_details": "اگر یہ معلومات کسی مریض اکاؤنٹ سے ملتی ہیں تو اس کے ای میل پر ری سیٹ لنک بھیج دیا گیا ہے۔ پیغام میں آپ کا یوزر نیم بھی ہوگا۔",
+           "p_forgot_username": "یوزر نیم بھول گئے؟ اپنی معلومات کی تصدیق کریں",
+           "p_ask_team": "ای میل نہیں کھول سکتے؟ اپنی نگہداشت ٹیم سے مدد مانگیں",
+           "p_use_email_instead": "یوزر نیم یاد ہے؟ اس کے بجائے اپنے ای میل پر ری سیٹ لنک بھیجیں۔",
+           "p_details_intro": "ہمارے پاس درج اپنی معلومات لکھیں۔ اگر یہ آپ کے مریض اکاؤنٹ سے ملتی ہیں تو اس پر درج ای میل پر ری سیٹ لنک بھیجا جائے گا، اور پیغام میں آپ کا یوزر نیم بھی ہوگا۔ لنک ایک بار کام کرتا ہے اور 30 منٹ میں ختم ہو جاتا ہے۔",
+           "p_err_username": "براہ کرم اپنا یوزر نیم درج کریں۔"},
 }
 
 # patient password-reset page: the activation page wording, with these replacements
@@ -309,6 +349,145 @@ STAFF_RESET_TEXT = {
            "changed_subject": "کیئر شفاء: آپ کا پاس ورڈ تبدیل ہو گیا",
            "changed_body": ("السلام علیکم {name},\n\nآپ کے کیئر شفاء عملے کے اکاؤنٹ ({username}) کا پاس ورڈ تبدیل کر دیا گیا ہے۔ "
                             "اگر یہ آپ نے نہیں کیا تو فوراً ایڈمنسٹریٹر سے رابطہ کریں۔\n\nکیئر شفاء"),
+           "err": {"invalid": "یہ ری سیٹ لنک درست نہیں ہے۔ سائن ان صفحے سے نیا لنک مانگیں۔",
+                   "expired": "اس ری سیٹ لنک کی میعاد ختم ہو گئی ہے۔ سائن ان صفحے سے نیا لنک مانگیں۔",
+                   "used": "یہ ری سیٹ لنک پہلے ہی استعمال ہو چکا ہے۔ نئے پاس ورڈ سے سائن ان کریں، یا نیا لنک مانگیں۔",
+                   "revoked": "یہ ری سیٹ لنک اب درست نہیں ہے۔ سائن ان صفحے سے نیا لنک مانگیں۔",
+                   "mismatch": "دونوں پاس ورڈ ایک جیسے نہیں ہیں۔",
+                   "weak": "براہ کرم مضبوط پاس ورڈ منتخب کریں: کم از کم 12 حروف، عام پاس ورڈ نہیں، اور آپ کا نام نہیں۔",
+                   "rate_limited": "اس ڈیوائس سے بہت زیادہ کوششیں۔ براہ کرم 15 منٹ انتظار کر کے دوبارہ کوشش کریں۔",
+                   "missing": "براہ کرم ہر خانہ پُر کریں۔", "expired_page": "صفحے کی میعاد ختم ہو گئی۔ براہ کرم دوبارہ کوشش کریں۔"}},
+}
+
+
+
+
+# patient self-service password reset (email link + /patient-reset-password)
+PATIENT_RESET_TEXT = {
+    "en": {"title": "Reset your password",
+           "intro": "Choose a new password. You will be signed out on every other device.",
+           "pw": "Choose a new password",
+           "pw_hint": "At least 12 characters. Three or four unrelated words are easy to remember.",
+           "pw2": "Type the password again", "submit": "Set my new password", "show": "Show", "hide": "Hide",
+           "done_title": "Your new password is set", "done_body": "Your username is",
+           "done_keep": "You were signed out on every other device. Keep your username and password private.",
+           "sign_in": "Sign in", "back": "Request a new link",
+           "mail_subject": "KareShafaa: reset your patient app password",
+           "mail_body": ("Hello {name},\n\nA password reset was requested for your KareShafaa patient app account ({username}). "
+                         "Open this link to choose a new password (it works once and expires at {expires}):\n\n"
+                         "{link}\n\nIf you did not ask for this, you can ignore this message. Do not share this link.\n\nKareShafaa"),
+           "mail_body_details": ("Hello {name},\n\nA password reset was requested for your KareShafaa patient app account. "
+                                 "Your username is {username}. Open this link to choose a new password (it works once and expires at {expires}):\n\n"
+                                 "{link}\n\nIf you did not ask for this, you can ignore this message. Do not share this link.\n\nKareShafaa"),
+           "changed_subject": "KareShafaa: your password was changed",
+           "changed_body": ("Hello {name},\n\nThe password for your KareShafaa patient app account ({username}) was changed. "
+                            "If you did not do this, contact your care team at once.\n\nKareShafaa"),
+           "signup_subject": "KareShafaa: set up your patient app account",
+           "signup_body": ("Hello {name},\n\nYou asked for help signing in to the KareShafaa patient app. "
+                           "This account does not have a password yet. Open this link to choose your username and password "
+                           "(it works once and expires at {expires}):\n\n{link}\n\n"
+                           "A suggested username is {username}; you can choose a different one when you open the link. "
+                           "You will be asked to confirm your date of birth. Do not share this link. "
+                           "If you did not ask for this, you can ignore this message.\n\nKareShafaa"),
+           "err": {"invalid": "This reset link is not valid. Request a new one from the sign-in page.",
+                   "expired": "This reset link has expired. Request a new one from the sign-in page.",
+                   "used": "This reset link has already been used. Sign in with your new password, or request a new link.",
+                   "revoked": "This reset link is no longer valid. Request a new one from the sign-in page.",
+                   "mismatch": "The two passwords do not match.",
+                   "weak": "Please choose a stronger password: at least 12 characters, not a common password, and not your name.",
+                   "rate_limited": "Too many attempts from this device. Please wait 15 minutes and try again.",
+                   "missing": "Please fill in every field.", "expired_page": "The page expired. Please try again."}},
+    "ar": {"title": "إعادة تعيين كلمة المرور",
+           "intro": "اختر كلمة مرور جديدة. سيتم تسجيل خروجك من جميع الأجهزة الأخرى.",
+           "pw": "اختر كلمة مرور جديدة",
+           "pw_hint": "12 حرفاً على الأقل. ثلاث أو أربع كلمات غير مترابطة يسهل تذكرها.",
+           "pw2": "اكتب كلمة المرور مرة أخرى", "submit": "حفظ كلمة المرور الجديدة", "show": "إظهار", "hide": "إخفاء",
+           "done_title": "تم حفظ كلمة المرور الجديدة", "done_body": "اسم المستخدم الخاص بك هو",
+           "done_keep": "تم تسجيل خروجك من جميع الأجهزة الأخرى. احتفظ باسم المستخدم وكلمة المرور لنفسك.",
+           "sign_in": "تسجيل الدخول", "back": "اطلب رابطاً جديداً",
+           "mail_subject": "كير شفاء: إعادة تعيين كلمة مرور تطبيق المريض",
+           "mail_body": ("مرحباً {name},\n\nتم طلب إعادة تعيين كلمة المرور لحسابك في تطبيق كير شفاء ({username}). "
+                         "افتح هذا الرابط لاختيار كلمة مرور جديدة (يعمل مرة واحدة وينتهي في {expires}):\n\n"
+                         "{link}\n\nإذا لم تطلب هذا يمكنك تجاهل الرسالة. لا تشارك هذا الرابط.\n\nكير شفاء"),
+           "mail_body_details": ("مرحباً {name},\n\nتم طلب إعادة تعيين كلمة المرور لحسابك في تطبيق كير شفاء. "
+                                 "اسم المستخدم الخاص بك هو {username}. افتح هذا الرابط لاختيار كلمة مرور جديدة (يعمل مرة واحدة وينتهي في {expires}):\n\n"
+                                 "{link}\n\nإذا لم تطلب هذا يمكنك تجاهل الرسالة. لا تشارك هذا الرابط.\n\nكير شفاء"),
+           "changed_subject": "كير شفاء: تم تغيير كلمة المرور",
+           "changed_body": ("مرحباً {name},\n\nتم تغيير كلمة مرور حسابك في تطبيق كير شفاء ({username}). "
+                            "إذا لم تقم بذلك، تواصل مع فريق الرعاية فوراً.\n\nكير شفاء"),
+           "signup_subject": "كير شفاء: إعداد حسابك في تطبيق المريض",
+           "signup_body": ("مرحباً {name},\n\nطلبت مساعدة لتسجيل الدخول إلى تطبيق كير شفاء. "
+                           "لا توجد كلمة مرور على هذا الحساب بعد. افتح هذا الرابط لاختيار اسم المستخدم وكلمة المرور "
+                           "(يعمل مرة واحدة وينتهي في {expires}):\n\n{link}\n\n"
+                           "اسم المستخدم المقترح هو {username}؛ يمكنك اختيار اسماً آخر عند فتح الرابط. "
+                           "سيُطلب منك تأكيد تاريخ ميلادك. لا تشارك هذا الرابط. "
+                           "إذا لم تطلب هذا يمكنك تجاهل الرسالة.\n\nكير شفاء"),
+           "err": {"invalid": "رابط إعادة التعيين غير صالح. اطلب رابطاً جديداً من صفحة تسجيل الدخول.",
+                   "expired": "انتهت صلاحية رابط إعادة التعيين. اطلب رابطاً جديداً من صفحة تسجيل الدخول.",
+                   "used": "تم استخدام رابط إعادة التعيين من قبل. سجّل الدخول بكلمة المرور الجديدة، أو اطلب رابطاً جديداً.",
+                   "revoked": "رابط إعادة التعيين لم يعد صالحاً. اطلب رابطاً جديداً من صفحة تسجيل الدخول.",
+                   "mismatch": "كلمتا المرور غير متطابقتين.",
+                   "weak": "يرجى اختيار كلمة مرور أقوى: 12 حرفاً على الأقل، وليست شائعة، ولا تحتوي على اسمك.",
+                   "rate_limited": "محاولات كثيرة من هذا الجهاز. يرجى الانتظار 15 دقيقة ثم المحاولة مرة أخرى.",
+                   "missing": "يرجى تعبئة جميع الحقول.", "expired_page": "انتهت صلاحية الصفحة. يرجى المحاولة مرة أخرى."}},
+    "hi": {"title": "अपना पासवर्ड रीसेट करें",
+           "intro": "नया पासवर्ड चुनें। बाकी सभी डिवाइस पर आप साइन आउट हो जाएंगे।",
+           "pw": "नया पासवर्ड चुनें",
+           "pw_hint": "कम से कम 12 अक्षर। तीन या चार अलग-अलग शब्द याद रखना आसान होता है।",
+           "pw2": "पासवर्ड फिर से लिखें", "submit": "मेरा नया पासवर्ड सेट करें", "show": "दिखाएं", "hide": "छिपाएं",
+           "done_title": "आपका नया पासवर्ड सेट हो गया", "done_body": "आपका यूज़रनेम है",
+           "done_keep": "बाकी सभी डिवाइस पर आप साइन आउट हो गए हैं। अपना यूज़रनेम और पासवर्ड निजी रखें।",
+           "sign_in": "साइन इन करें", "back": "नया लिंक मांगें",
+           "mail_subject": "केयरशफ़ा: मरीज़ ऐप पासवर्ड रीसेट करें",
+           "mail_body": ("नमस्ते {name},\n\nआपके केयरशफ़ा मरीज़ ऐप खाते ({username}) के लिए पासवर्ड रीसेट का अनुरोध आया है। "
+                         "नया पासवर्ड चुनने के लिए यह लिंक खोलें (यह एक बार काम करता है और {expires} को समाप्त होता है):\n\n"
+                         "{link}\n\nयदि आपने यह नहीं मांगा तो इस संदेश को अनदेखा कर सकते हैं। यह लिंक साझा न करें।\n\nकेयरशफ़ा"),
+           "mail_body_details": ("नमस्ते {name},\n\nआपके केयरशफ़ा मरीज़ ऐप खाते के लिए पासवर्ड रीसेट का अनुरोध आया है। "
+                                 "आपका यूज़रनेम {username} है। नया पासवर्ड चुनने के लिए यह लिंक खोलें (यह एक बार काम करता है और {expires} को समाप्त होता है):\n\n"
+                                 "{link}\n\nयदि आपने यह नहीं मांगा तो इस संदेश को अनदेखा कर सकते हैं। यह लिंक साझा न करें।\n\nकेयरशफ़ा"),
+           "changed_subject": "केयरशफ़ा: आपका पासवर्ड बदल दिया गया",
+           "changed_body": ("नमस्ते {name},\n\nआपके केयरशफ़ा मरीज़ ऐप खाते ({username}) का पासवर्ड बदल दिया गया है। "
+                            "यदि यह आपने नहीं किया, तो तुरंत अपनी देखभाल टीम से संपर्क करें।\n\nकेयरशफ़ा"),
+           "signup_subject": "केयरशफ़ा: अपना मरीज़ ऐप खाता बनाएँ",
+           "signup_body": ("नमस्ते {name},\n\nआपने केयरशफ़ा मरीज़ ऐप में साइन इन करने में मदद मांगी है। "
+                           "इस खाते पर अभी पासवर्ड नहीं है। अपना यूज़रनेम और पासवर्ड चुनने के लिए यह लिंक खोलें "
+                           "(यह एक बार काम करता है और {expires} को समाप्त होता है):\n\n{link}\n\n"
+                           "सुझाया गया यूज़रनेम {username} है; लिंक खोलने पर आप दूसरा चुन सकते हैं। "
+                           "आपसे जन्मतिथि की पुष्टि पूछी जाएगी। इस लिंक को साझा न करें। "
+                           "यदि आपने यह नहीं मांगा तो इस संदेश को अनदेखा कर सकते हैं।\n\nकेयरशफ़ा"),
+           "err": {"invalid": "यह रीसेट लिंक मान्य नहीं है। साइन-इन पेज से नया लिंक मांगें।",
+                   "expired": "इस रीसेट लिंक की समय-सीमा खत्म हो गई है। साइन-इन पेज से नया लिंक मांगें।",
+                   "used": "यह रीसेट लिंक पहले ही इस्तेमाल हो चुका है। नए पासवर्ड से साइन इन करें, या नया लिंक मांगें।",
+                   "revoked": "यह रीसेट लिंक अब मान्य नहीं है। साइन-इन पेज से नया लिंक मांगें।",
+                   "mismatch": "दोनों पासवर्ड एक जैसे नहीं हैं।",
+                   "weak": "कृपया मज़बूत पासवर्ड चुनें: कम से कम 12 अक्षर, आम पासवर्ड नहीं, और आपका नाम नहीं।",
+                   "rate_limited": "इस डिवाइस से बहुत सारी कोशिशें। कृपया 15 मिनट रुककर फिर से कोशिश करें।",
+                   "missing": "कृपया हर जानकारी भरें।", "expired_page": "पेज की समय-सीमा खत्म हो गई। कृपया फिर से कोशिश करें।"}},
+    "ur": {"title": "اپنا پاس ورڈ ری سیٹ کریں",
+           "intro": "نیا پاس ورڈ منتخب کریں۔ باقی تمام ڈیوائسز پر آپ سائن آؤٹ ہو جائیں گے۔",
+           "pw": "نیا پاس ورڈ منتخب کریں",
+           "pw_hint": "کم از کم 12 حروف۔ تین یا چار غیر متعلق الفاظ یاد رکھنا آسان ہوتا ہے۔",
+           "pw2": "پاس ورڈ دوبارہ لکھیں", "submit": "میرا نیا پاس ورڈ محفوظ کریں", "show": "دکھائیں", "hide": "چھپائیں",
+           "done_title": "آپ کا نیا پاس ورڈ محفوظ ہو گیا", "done_body": "آپ کا یوزر نیم ہے",
+           "done_keep": "باقی تمام ڈیوائسز پر آپ سائن آؤٹ ہو گئے ہیں۔ اپنا یوزر نیم اور پاس ورڈ نجی رکھیں۔",
+           "sign_in": "سائن ان کریں", "back": "نیا لنک مانگیں",
+           "mail_subject": "کیئر شفاء: مریض ایپ پاس ورڈ ری سیٹ کریں",
+           "mail_body": ("السلام علیکم {name},\n\nآپ کے کیئر شفاء مریض ایپ اکاؤنٹ ({username}) کے لیے پاس ورڈ ری سیٹ کی درخواست آئی ہے۔ "
+                         "نیا پاس ورڈ منتخب کرنے کے لیے یہ لنک کھولیں (یہ ایک بار کام کرتا ہے اور {expires} کو ختم ہو جاتا ہے):\n\n"
+                         "{link}\n\nاگر آپ نے یہ نہیں مانگا تو اس پیغام کو نظرانداز کر سکتے ہیں۔ یہ لنک شیئر نہ کریں۔\n\nکیئر شفاء"),
+           "mail_body_details": ("السلام علیکم {name},\n\nآپ کے کیئر شفاء مریض ایپ اکاؤنٹ کے لیے پاس ورڈ ری سیٹ کی درخواست آئی ہے۔ "
+                                 "آپ کا یوزر نیم {username} ہے۔ نیا پاس ورڈ منتخب کرنے کے لیے یہ لنک کھولیں (یہ ایک بار کام کرتا ہے اور {expires} کو ختم ہو جاتا ہے):\n\n"
+                                 "{link}\n\nاگر آپ نے یہ نہیں مانگا تو اس پیغام کو نظرانداز کر سکتے ہیں۔ یہ لنک شیئر نہ کریں۔\n\nکیئر شفاء"),
+           "changed_subject": "کیئر شفاء: آپ کا پاس ورڈ تبدیل ہو گیا",
+           "changed_body": ("السلام علیکم {name},\n\nآپ کے کیئر شفاء مریض ایپ اکاؤنٹ ({username}) کا پاس ورڈ تبدیل کر دیا گیا ہے۔ "
+                            "اگر یہ آپ نے نہیں کیا تو فوراً اپنی نگہداشت ٹیم سے رابطہ کریں۔\n\nکیئر شفاء"),
+           "signup_subject": "کیئر شفاء: اپنا مریض ایپ اکاؤنٹ بنائیں",
+           "signup_body": ("السلام علیکم {name},\n\nآپ نے کیئر شفاء مریض ایپ میں سائن ان کرنے میں مدد مانگی ہے۔ "
+                           "اس اکاؤنٹ پر ابھی پاس ورڈ نہیں ہے۔ اپنا یوزر نیم اور پاس ورڈ منتخب کرنے کے لیے یہ لنک کھولیں "
+                           "(یہ ایک بار کام کرتا ہے اور {expires} کو ختم ہو جاتا ہے):\n\n{link}\n\n"
+                           "تجویز کردہ یوزر نیم {username} ہے؛ لنک کھولنے پر آپ دوسرا منتخب کر سکتے ہیں۔ "
+                           "آپ سے تاریخ پیدائش کی تصدیق پوچھی جائے گی۔ یہ لنک شیئر نہ کریں۔ "
+                           "اگر آپ نے یہ نہیں مانگا تو اس پیغام کو نظرانداز کر سکتے ہیں۔\n\nکیئر شفاء"),
            "err": {"invalid": "یہ ری سیٹ لنک درست نہیں ہے۔ سائن ان صفحے سے نیا لنک مانگیں۔",
                    "expired": "اس ری سیٹ لنک کی میعاد ختم ہو گئی ہے۔ سائن ان صفحے سے نیا لنک مانگیں۔",
                    "used": "یہ ری سیٹ لنک پہلے ہی استعمال ہو چکا ہے۔ نئے پاس ورڈ سے سائن ان کریں، یا نیا لنک مانگیں۔",

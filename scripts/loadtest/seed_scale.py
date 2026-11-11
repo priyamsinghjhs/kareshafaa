@@ -26,7 +26,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ltenv  # noqa: E402
 
-EXCLUDE = {"users", "user_sessions", "signin_help_requests", "patient_invites", "staff_password_resets",
+EXCLUDE = {"users", "user_sessions", "signin_help_requests", "patient_invites", "staff_password_resets", "patient_password_resets",
            "ingest_messages", "audit_events", "login_attempts"}
 
 

@@ -255,9 +255,9 @@ def test_inactive_and_patient_accounts_do_not_get_mail(app, db, mail_on, pat):
     assert "inactive" in reasons and "patient_account" in reasons
 
 
-def test_patient_forgot_password_path_is_unchanged(app, db, pat):
+def test_patient_forgot_password_admin_path_still_opens_a_coordinator_request(app, db, pat):
     before = set(db.scalars(select(StaffPasswordReset.id)))
-    r = help_post(fresh(app), "password", **_f(pat))
+    r = help_post(fresh(app), "password", via="admin", **_f(pat))
     assert r.status_code == 200 and result(r.text) == HELP_TEXT["en"]["generic_password"]
     assert db.scalar(select(SigninHelpRequest.id).where(SigninHelpRequest.audience == "patient",
                                                         SigninHelpRequest.patient_id == pat["pid"]))

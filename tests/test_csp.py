@@ -48,7 +48,7 @@ def _executable_inline(html):
 
 
 @pytest.mark.parametrize("user,path", [
-    (None, "/login"), (None, "/login?lang=ar"), (None, "/forgot-username"), (None, "/forgot-password?lang=ar"), (None, "/activate"), (None, "/reset-password?lang=ar"), (None, "/staff-reset-password?lang=ar"), (None, "/offline"), (None, "/starting"),
+    (None, "/login"), (None, "/login?lang=ar"), (None, "/forgot-username"), (None, "/forgot-password?lang=ar"), (None, "/activate"), (None, "/reset-password?lang=ar"), (None, "/staff-reset-password?lang=ar"), (None, "/patient-reset-password?lang=ar"), (None, "/offline"), (None, "/starting"),
     ("aisha.rahman", "/queue"), ("aisha.rahman", "/patients"), ("aisha.rahman", "/cases/1"),
     ("omar.haddad", "/queue?view=review"), ("fatima.al.mansoori", "/overview"), ("fatima.al.mansoori", "/governance"),
     ("admin", "/admin/users"), ("admin", "/admin/system"), ("admin", "/walkthrough"), ("admin", "/audit"),

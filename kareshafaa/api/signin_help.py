@@ -1,6 +1,6 @@
-"""Sign-in help requests from the sign-in page: patient password resets (care coordinators) and staff requests
-(system administrators). The public pages are server-rendered forms in main.py (/forgot-username,
-/forgot-password, /reset-password)."""
+"""Sign-in help requests from the sign-in page: patient and staff email-reset fallbacks that still go to
+care coordinators or system administrators. The public pages are server-rendered forms in main.py
+(/forgot-username, /forgot-password, /reset-password, /patient-reset-password, /staff-reset-password)."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query

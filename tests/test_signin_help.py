@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from kareshafaa import accounts
-from kareshafaa.comms.signin_text import HELP_TEXT, LOGIN_TEXT, RESET_OVERRIDES, SMS_RESET_TEXT, STAFF_RESET_TEXT
+from kareshafaa.comms.signin_text import HELP_TEXT, LOGIN_TEXT, PATIENT_RESET_TEXT, RESET_OVERRIDES, SMS_RESET_TEXT, STAFF_RESET_TEXT
 from kareshafaa.models import AuditEvent, Communication, Patient, PatientInvite, SigninHelpRequest, User, utcnow
 from kareshafaa.services import invites as inv
 from kareshafaa.services import signin_help as sh
@@ -41,9 +41,16 @@ def csrf(c: TestClient, path: str) -> str:
     return re.search(r'name="csrf_token" value="([^"]+)"', html).group(1)
 
 
-def help_post(c, mode, lang="en", **data):
-    tok = csrf(c, f"/forgot-{mode}?lang={lang}&who={data.get('who', 'patient')}")
-    return c.post(f"/forgot-{mode}", data={"csrf_token": tok, "lang": lang, "who": "patient", **data})
+def help_post(c, mode, lang="en", via=None, **data):
+    who = data.get("who", "patient")
+    q = f"/forgot-{mode}?lang={lang}&who={who}"
+    if via:
+        q += f"&via={via}"
+    tok = csrf(c, q)
+    payload = {"csrf_token": tok, "lang": lang, "who": who, **data}
+    if via:
+        payload["via"] = via
+    return c.post(f"/forgot-{mode}", data=payload)
 
 
 def result(html: str) -> str:
@@ -76,7 +83,7 @@ def _f(pat, **kw):
 
 # ------------------------------------------------------------------ texts and pages
 def test_texts_have_the_same_keys_in_every_language_and_no_demo_wording():
-    for D in (LOGIN_TEXT, HELP_TEXT, RESET_OVERRIDES, SMS_RESET_TEXT, STAFF_RESET_TEXT):
+    for D in (LOGIN_TEXT, HELP_TEXT, RESET_OVERRIDES, SMS_RESET_TEXT, STAFF_RESET_TEXT, PATIENT_RESET_TEXT):
         assert set(D) == {"en", "ar", "hi", "ur"}
         for lang in D:
             if isinstance(D["en"], dict):
@@ -84,7 +91,8 @@ def test_texts_have_the_same_keys_in_every_language_and_no_demo_wording():
                 assert set(D[lang].get("roles", {})) == set(D["en"].get("roles", {}))
                 if "err" in D["en"]:
                     assert set(D[lang]["err"]) == set(D["en"]["err"]), lang
-    blob = repr(LOGIN_TEXT) + repr(HELP_TEXT) + repr(RESET_OVERRIDES) + repr(SMS_RESET_TEXT) + repr(STAFF_RESET_TEXT)
+    blob = (repr(LOGIN_TEXT) + repr(HELP_TEXT) + repr(RESET_OVERRIDES) + repr(SMS_RESET_TEXT)
+            + repr(STAFF_RESET_TEXT) + repr(PATIENT_RESET_TEXT))
     assert "demo" not in blob.lower()
     assert set(HELP_TEXT["en"]["roles"]) == set(sh.STAFF_ROLES)
 
@@ -101,15 +109,24 @@ def test_signin_page_has_forgot_links_in_each_language(app, lang):
         for who in ("patient", "staff"):
             r = c.get(f"/forgot-{mode}?lang={lang}&who={who}")
             assert r.status_code == 200 and HELP_TEXT[lang]["title_" + mode] in r.text
-            assert ('id="birth_date"' in r.text) == (who == "patient")
+            if who == "patient" and mode == "password":
+                assert 'id="username"' in r.text and 'id="birth_date"' not in r.text
+                assert 'id="help-confirm-details"' in r.text and 'id="help-ask-team"' in r.text
+                details = c.get(f"/forgot-password?lang={lang}&who=patient&via=details").text
+                assert 'id="birth_date"' in details and HELP_TEXT[lang]["p_details_intro"] in details
+                admin = c.get(f"/forgot-password?lang={lang}&who=patient&via=admin").text
+                assert 'id="birth_date"' in admin and HELP_TEXT[lang]["p_intro_password"] in admin
+            else:
+                assert ('id="birth_date"' in r.text) == (who == "patient")
             if who == "staff" and mode == "password":
                 assert 'id="username"' in r.text and 'id="full_name"' not in r.text
                 assert 'id="help-ask-admin"' in r.text
                 assert 'id="full_name"' in c.get(f"/forgot-password?lang={lang}&who=staff&via=admin").text
-            else:
+            elif not (who == "patient" and mode == "password"):
                 assert ('id="full_name"' in r.text) == (who == "staff")
     assert RESET_OVERRIDES[lang]["title"] in c.get(f"/reset-password?lang={lang}").text
     assert STAFF_RESET_TEXT[lang]["title"] in c.get(f"/staff-reset-password?lang={lang}").text
+    assert PATIENT_RESET_TEXT[lang]["title"] in c.get(f"/patient-reset-password?lang={lang}").text
 
 
 def test_signin_error_is_translated_and_keeps_language(app):
@@ -196,14 +213,14 @@ def test_record_stops_answering_after_near_misses(app, db, pat):
 
 # ------------------------------------------------------------------ patients: forgot password -> coordinator -> reset
 def test_forgot_password_same_answer_and_request_only_on_match(app, db, pat):
-    ok = help_post(fresh(app), "password", lang="ar", **_f(pat))
-    miss = help_post(fresh(app), "password", lang="ar", **_f(pat, phone="0500000000"))
+    ok = help_post(fresh(app), "password", lang="ar", via="admin", **_f(pat))
+    miss = help_post(fresh(app), "password", lang="ar", via="admin", **_f(pat, phone="0500000000"))
     assert ok.status_code == miss.status_code == 200
     assert result(ok.text) == result(miss.text) == HELP_TEXT["ar"]["generic_password"]
     db.expire_all()
     rows = db.scalars(select(SigninHelpRequest).where(SigninHelpRequest.patient_id == pat["pid"])).all()
     assert len(rows) == 1 and rows[0].status == "open" and rows[0].language == "ar" and rows[0].due_at > rows[0].created_at
-    help_post(fresh(app), "password", **_f(pat))  # asking again does not add a second request
+    help_post(fresh(app), "password", via="admin", **_f(pat))  # asking again does not add a second request
     db.expire_all()
     assert len(db.scalars(select(SigninHelpRequest).where(SigninHelpRequest.patient_id == pat["pid"])).all()) == 1
     assert db.scalar(select(AuditEvent.id).where(AuditEvent.event == "signin_help.reset_requested", AuditEvent.entity_id == str(pat["pid"])))
@@ -211,7 +228,7 @@ def test_forgot_password_same_answer_and_request_only_on_match(app, db, pat):
 
 
 def test_only_coordinators_see_and_handle_patient_resets(client, db, pat, as_user, app):
-    help_post(fresh(app), "password", **_f(pat))
+    help_post(fresh(app), "password", via="admin", **_f(pat))
     co = as_user(COORD)
     lst = client.get("/api/signin-help?audience=patient", headers=co).json()
     row = next(x for x in lst["items"] if x["patient"] and x["patient"]["id"] == pat["pid"])
@@ -246,7 +263,7 @@ def test_only_coordinators_see_and_handle_patient_resets(client, db, pat, as_use
 
 
 def test_coordinator_can_close_a_request_without_a_code(client, db, pat, as_user, app):
-    help_post(fresh(app), "password", **_f(pat))
+    help_post(fresh(app), "password", via="admin", **_f(pat))
     db.expire_all()
     rid = sh.open_patient_request(db, pat["pid"]).id
     co = as_user(COORD)

@@ -20,6 +20,8 @@
     {% elif sent %}
       <div class="notice-inline ok" role="status" id="help-result" data-result="sent">{{ t.generic_password }}</div>
       <p class="small">{{ t.have_code }} <a href="/reset-password?lang={{ lang }}" id="help-reset">{{ t.reset_link }}</a></p>
+    {% elif patient_reset_sent %}
+      <div class="notice-inline ok" role="status" id="help-result" data-result="patient_reset_sent">{{ t.p_generic_reset_details if via == 'details' else t.p_generic_reset }}</div>
     {% elif staff_reset_sent %}
       <div class="notice-inline ok" role="status" id="help-result" data-result="staff_reset_sent">{{ t.s_generic_reset }}</div>
     {% elif staff_sent %}
@@ -27,10 +29,21 @@
     {% else %}
       {% if error %}<div class="notice-inline err" role="alert" id="help-error">{{ error }}</div>{% endif %}
       {% if notice %}<div class="notice-inline info" role="status" id="help-result" data-result="no_match">{{ notice }}</div>{% endif %}
-      {% if who == 'patient' %}
-      <p class="small muted">{{ t['p_intro_' + mode] }}</p>
-      <form method="post" action="/forgot-{{ mode }}" id="help-form" data-who="patient" novalidate>
+      {% if who == 'patient' and mode == 'password' and via != 'admin' and via != 'details' %}
+      <p class="small muted" id="patient-intro">{{ t.p_pw_intro }}</p>
+      <form method="post" action="/forgot-{{ mode }}" id="help-form" data-who="patient" data-path="email" novalidate>
         <input type="hidden" name="csrf_token" value="{{ login_csrf }}"><input type="hidden" name="lang" value="{{ lang }}"><input type="hidden" name="who" value="patient">
+        <label for="username">{{ t.p_username }}
+          <input id="username" name="username" type="text" dir="ltr" maxlength="80" autocomplete="username" autocapitalize="none" spellcheck="false" value="{{ v.username or '' }}" required {% if 'username' in bad %}aria-invalid="true" aria-describedby="help-error"{% endif %}>
+        </label>
+        <button type="submit">{{ t.p_submit_reset }}</button>
+      </form>
+      <p class="small"><a href="/forgot-{{ mode }}?lang={{ lang }}&who=patient&via=details" id="help-confirm-details">{{ t.p_forgot_username }}</a></p>
+      <p class="small"><a href="/forgot-{{ mode }}?lang={{ lang }}&who=patient&via=admin" id="help-ask-team">{{ t.p_ask_team }}</a></p>
+      {% elif who == 'patient' %}
+      <p class="small muted">{{ t.p_details_intro if mode == 'password' and via == 'details' else t['p_intro_' + mode] }}</p>
+      <form method="post" action="/forgot-{{ mode }}" id="help-form" data-who="patient" data-path="{{ 'details' if via == 'details' else ('admin' if via == 'admin' else 'identity') }}" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ login_csrf }}"><input type="hidden" name="lang" value="{{ lang }}"><input type="hidden" name="who" value="patient">{% if mode == 'password' and via %}<input type="hidden" name="via" value="{{ via }}">{% endif %}
         <label for="birth_date">{{ t.dob }}
           <input id="birth_date" name="birth_date" type="date" dir="ltr" min="1900-01-01" value="{{ v.birth_date or '' }}" required {% if 'birth_date' in bad %}aria-invalid="true" aria-describedby="help-error"{% endif %}></label>
         <fieldset class="id-type"><legend>{{ t.id_type }}</legend>
@@ -43,8 +56,13 @@
         <label for="phone">{{ t.phone }}
           <input id="phone" name="phone" type="tel" dir="ltr" inputmode="tel" maxlength="30" autocomplete="tel" value="{{ v.phone or '' }}" required {% if 'phone' in bad %}aria-invalid="true" aria-describedby="help-error"{% endif %}>
           <span class="hint small muted">{{ t.phone_hint }}</span></label>
-        <button type="submit">{{ t['submit_' + mode] }}</button>
+        <button type="submit">{{ t.p_submit_reset if mode == 'password' and via == 'details' else t['submit_' + mode] }}</button>
       </form>
+      {% if mode == 'password' %}
+      <p class="small"><a href="/forgot-{{ mode }}?lang={{ lang }}&who=patient" id="help-use-email">{{ t.p_use_email_instead }}</a></p>
+      {% if via == 'details' %}<p class="small"><a href="/forgot-{{ mode }}?lang={{ lang }}&who=patient&via=admin" id="help-ask-team">{{ t.p_ask_team }}</a></p>
+      {% elif via == 'admin' %}<p class="small"><a href="/forgot-{{ mode }}?lang={{ lang }}&who=patient&via=details" id="help-confirm-details">{{ t.p_forgot_username }}</a></p>{% endif %}
+      {% endif %}
       {% elif who == 'staff' and mode == 'password' and via != 'admin' %}
       <p class="small muted" id="staff-intro">{{ t.s_pw_intro }}</p>
       <form method="post" action="/forgot-{{ mode }}" id="help-form" data-who="staff" data-path="email" novalidate>

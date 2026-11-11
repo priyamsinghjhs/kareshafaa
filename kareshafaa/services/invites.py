@@ -367,6 +367,72 @@ def mask_email(addr: str | None) -> str | None:
     return f"{local[0]}{'•' * max(2, min(6, len(local) - 1))}@{domain.lower()}"
 
 
+def issue_self_service_signup(db: Session, p: Patient, *, user: User | None, base_url: str,
+                              lang: str = "en", now: datetime | None = None, actor: Actor | None = None) -> bool:
+    """Email a sign-up / activation link when the patient themselves asked for sign-in help and has no
+    app password yet. Returns True if the email was sent. Does not require a staff actor (the patient
+    already proved their identity, or knew the username). Revokes any earlier open invite."""
+    from ..calendar_uae import to_local
+    from ..comms import mail
+    from ..comms.service import comm_language
+    from ..comms.signin_text import PATIENT_RESET_TEXT
+
+    now = now or utcnow()
+    actor = actor or Actor(user_id=None, role="anonymous", display="sign-in help page", is_human=True)
+    if p.deceased or p.birth_date is None:
+        return False
+    if not mail.can_send_to_patient(p):
+        return False
+    u, created = user, False
+    if u is None:
+        u = db.scalar(select(User).where(User.patient_id == p.id, User.role == "patient").order_by(User.id).limit(1))
+    if u is None:
+        u = User(username=_username(db, p), display_name=f"{p.given_name} {p.family_name}"[:200], role="patient",
+                 patient_id=p.id, active=True, password_hash=None, must_change_password=False, created_at=now)
+        db.add(u)
+        db.flush()
+        created = True
+    elif not u.active or u.password_hash:
+        return False
+    for old in db.scalars(select(PatientInvite).where(PatientInvite.patient_id == p.id, PatientInvite.used_at.is_(None),
+                                                      PatientInvite.revoked_at.is_(None))):
+        old.revoked_at, old.revoked_by, old.revoke_reason = now, actor.display, "replaced by a new code"
+    code, token = _new_code(), secrets.token_urlsafe(24)
+    inv = PatientInvite(patient_id=p.id, user_id=u.id, code_hash=_h("code", code), link_hash=_h("link", token),
+                        code_last4=code[-4:], purpose="activate", channel="email", created_at=now,
+                        created_by=actor.display,
+                        expires_at=now + timedelta(hours=INVITE_TTL_HOURS), failed_attempts=0)
+    db.add(inv)
+    db.flush()
+    page_path = "/activate"
+    link = (base_url or "").rstrip("/") + page_path + "?t=" + token
+    mail_lang = p.language if p.language in PATIENT_RESET_TEXT else (lang if lang in PATIENT_RESET_TEXT else comm_language(p))
+    if mail_lang not in PATIENT_RESET_TEXT:
+        mail_lang = "en"
+    texts = PATIENT_RESET_TEXT[mail_lang]
+    exp = to_local(inv.expires_at).strftime("%d/%m/%Y %H:%M") + " UAE"
+    subject, tmpl = texts["signup_subject"], texts["signup_body"]
+    stored_body = tmpl.format(name=p.given_name or "", link=(base_url or "").rstrip("/") + page_path,
+                              expires=exp, username=u.username)
+    try:
+        mail.send_email(p.email, subject, tmpl.format(name=p.given_name or "", link=link,
+                                                      expires=exp, username=u.username))
+        ok, content, email_err = True, stored_body, None
+    except mail.MailError as e:
+        ok, content, email_err = False, f"(e-mail not sent: {e})", str(e)
+    email_comm = Communication(patient_id=p.id, direction="outbound", category="account_invite", channel="email",
+                               language=mail_lang, template_key="account_invite", template_variant="standard",
+                               content=content, status="completed" if ok else "failed", simulated=False, sent_at=now)
+    db.add(email_comm)
+    db.flush()
+    inv.communication_id = email_comm.id
+    audit.record(db, actor, "C", "patient.account_invited", entity_type="Patient", entity_id=p.id, ts=now,
+                 detail={"invite_id": inv.id, "user_id": u.id, "username": u.username, "account_created": created,
+                         "purpose": "activate", "channel": "email", "expires_at": inv.expires_at.isoformat(),
+                         "source": "signin_help", "email_sent": ok, "email_error": email_err})
+    return ok
+
+
 def invite_after_registration(db: Session, actor, p: Patient, *, base_url: str,
                               now: datetime | None = None) -> dict:
     """After a successful staff registration: email a sign-up link when the patient has an eligible address.

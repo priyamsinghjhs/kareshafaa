@@ -152,20 +152,31 @@ closure.
 **Sign-in and accounts**
 * Username + password (argon2id), server-side sessions (HttpOnly, SameSite, Secure on HTTPS), CSRF tokens, idle
   timeout, rate limit and lockout, generic errors.
-* **Sign-in help:** `/forgot-username`, `/forgot-password`, `/reset-password` (patients) and
-  `/staff-reset-password` (staff). A staff member who knows their username asks for a reset on
-  `/forgot-password?who=staff`: if the account is active and has a deliverable email, a **single-use
-  link** (30 minutes, expiry shown in UAE time, absolute URL from `KARESHAFAA_PUBLIC_BASE_URL`) is
-  emailed from `kareshafaa_com@outlook.com`. The page always says “If the account exists, a reset
-  link has been sent to its email.” (no account enumeration). `@example.com` placeholders and an
-  unconfigured mailbox skip the send but still get that answer; a mail failure is logged and audited
-  and the page looks the same. The link opens `/staff-reset-password`, where they choose a new
-  password (existing policy); every other session ends and there is no forced change. A confirmation
-  email is sent after the change when the address is deliverable. Staff who cannot use email can
-  still **ask the administrator** (the previous request form). Patient forgot-password is unchanged
-  (coordinators issue a one-time code after an identity check). Requests for admin help still appear
-  in the **sign-in help panel** on Admin → Users. Admins can set a **temporary password**, which must
-  be changed at the next sign-in (`/account/password`).
+* **Sign-in help:** `/forgot-username`, `/forgot-password`, `/reset-password` and
+  `/patient-reset-password` (patients), and `/staff-reset-password` (staff). A staff member who knows
+  their username asks for a reset on `/forgot-password?who=staff`: if the account is active and has a
+  deliverable email, a **single-use link** (30 minutes, expiry shown in UAE time, absolute URL from
+  `KARESHAFAA_PUBLIC_BASE_URL`) is emailed from `kareshafaa_com@outlook.com`. The page always says
+  “If the account exists, a reset link has been sent to its email.” (no account enumeration).
+  `@example.com` placeholders and an unconfigured mailbox skip the send but still get that answer; a
+  mail failure is logged and audited and the page looks the same. The link opens
+  `/staff-reset-password`, where they choose a new password (existing policy); every other session
+  ends and there is no forced change. A confirmation email is sent after the change when the address
+  is deliverable. Staff who cannot use email can still **ask the administrator** (the previous
+  request form). A patient who knows their username asks for a reset on `/forgot-password`; if they
+  have forgotten it they confirm date of birth, the last 4 characters of their ID and their mobile
+  (`?via=details`). When the patient-app account exists and the address is deliverable
+  (`can_send_to_patient` / `can_send_to_address`, including the test-inbox allowlist), a **single-use
+  link** (30 minutes, UAE expiry, absolute URL) is emailed; the details path also reminds them of
+  their username in that email. Emails use the patient's stored language when it is one of English,
+  Arabic, Hindi or Urdu. The page always shows the same generic sentence (no account enumeration).
+  If the identity check matches a patient who has no app password yet, a sign-up / activation link
+  is emailed instead. The reset link opens `/patient-reset-password`; every other session ends and a
+  confirmation email is sent when the address is deliverable. Patients who cannot use email can
+  still **ask their care team** (`?via=admin`): coordinators issue a one-time code after an identity
+  check, and the patient sets a new password on `/reset-password`. Requests for admin or care-team
+  help still appear in the **sign-in help panel** on Admin → Users. Admins can set a **temporary
+  password**, which must be changed at the next sign-in (`/account/password`).
 * Admin user management: create, role, site/team, reset, deactivate/reactivate (never hard-deleted).
 
 **Impact and responsible AI**
@@ -255,7 +266,7 @@ closure.
     logged. Other accounts are not touched. Each change is audited as `directory.test_inboxes_applied`
     (previous address masked; the new address is not stored). Idempotent; a failure is logged and never
     stops the server. An administrator can also set or clear a staff email on Admin → Users (create and
-    edit). Those addresses are how appointment, result-ready, queue-owner and staff password-reset mail
+    edit). Those addresses are how appointment, result-ready, queue-owner, staff password-reset and patient password-reset mail
     is tested without emailing the rest of the sample caseload.
   * **Queue-owner emails:** when a new case is created with an owner, or when `assign` / an accepted
     transfer actually changes `owner_id`, the new owner is emailed at their `User.email` (subject
@@ -288,6 +299,21 @@ closure.
     page is always the same generic sentence, including for an unknown username, a skipped
     placeholder, or a mail failure (the failure is logged and audited, with no typed values or
     address). Rate limits reuse the sign-in-help windows (per device and per user).
+  * **Patient password-reset emails:** a patient who knows their username requests a reset from
+    `/forgot-password`; if they have forgotten it they confirm their date of birth, the last 4
+    characters of their ID and their mobile (`?via=details`). The app emails an absolute link
+    (`KARESHAFAA_PUBLIC_BASE_URL/patient-reset-password?t=…`) when the patient-app account exists
+    and `Patient.email` is deliverable (`can_send_to_patient`, including the test-inbox allowlist).
+    A details match also includes their username in the email. The token is hashed (HMAC); the raw
+    token is never stored. A new request replaces any earlier open token. Emails use the patient's
+    stored language when it is English, Arabic, Hindi or Urdu. If the identity check matches a
+    patient who has no app password yet, a sign-up / activation link is emailed instead (same
+    single-use invite as registration). Reserved example-domain placeholders and `SYN-` sample
+    records (except allowlisted test inboxes) are never emailed. The page always shows the same
+    generic sentence, including for no match, a skipped placeholder, or a mail failure (logged and
+    audited, with no typed values or address). Rate limits reuse the sign-in-help windows (5 per
+    device per 15 minutes, 3 per account per 24 hours). Patients without email can still ask the
+    care team (`?via=admin`).
   * Email is **not end-to-end encrypted** (TLS protects it only in transit to Microsoft). Secrets (refresh token,
     access tokens, password) are never logged, audited, shown or put in an error message.
 * Transparency pages: **why this priority** (per case), **rule and model cards**, **override register**,

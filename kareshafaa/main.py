@@ -498,7 +498,7 @@ def create_app() -> FastAPI:
     app.add_middleware(TimeBudgetMiddleware)
 
     CSRF_SELF_CHECKED = ("/login", "/logout", "/account/password", "/api/auth/login", "/activate", "/reset-password",
-                         "/forgot-username", "/forgot-password", "/staff-reset-password")
+                         "/forgot-username", "/forgot-password", "/staff-reset-password", "/patient-reset-password")
 
     @app.middleware("http")
     async def csrf_and_session_clock(request: Request, call_next):
@@ -1025,7 +1025,8 @@ def create_app() -> FastAPI:
 
     def _help_get(request: Request, mode: str):
         who = request.query_params.get("who")
-        via = "admin" if request.query_params.get("via") == "admin" else ""
+        via_raw = request.query_params.get("via")
+        via = via_raw if via_raw in ("admin", "details") else ""
         return help_page(request, mode, _page_lang(request.query_params.get("lang")),
                          who if who in ("patient", "staff") else "patient", via=via)
 
@@ -1097,10 +1098,35 @@ def create_app() -> FastAPI:
             if st == "paused":
                 return help_page(request, mode, lang, who, 429, error=t["s_paused"], v=v, via="admin")
             return help_page(request, mode, lang, who, 200, staff_sent=True, via="admin")
+        via_raw = g("via", 10)
+        via = via_raw if via_raw in ("admin", "details") else ""
+        if mode == "password" and via == "":
+            v = {"username": g("username", 80)}
+            if not login_csrf_ok(request, g("csrf_token", 100)):
+                return help_page(request, mode, lang, who, 403, error=t["expired_page"], v=v, via="")
+            if not v["username"].strip():
+                return help_page(request, mode, lang, who, 400, error=t["p_err_username"], bad=["username"], v=v, via="")
+            from .api.patients import base_url as public_base_url
+
+            base = public_base_url(request)
+
+            def _work_patient_reset():
+                db = session_factory()()
+                try:
+                    st = sh.patient_forgot_password_by_username(db, v["username"], ip, lang, base)
+                    db.commit()
+                    return st
+                finally:
+                    db.close()
+
+            st = await asyncio.to_thread(_work_patient_reset)
+            if st == "paused":
+                return help_page(request, mode, lang, who, 429, error=t["paused"], v=v, via="")
+            return help_page(request, mode, lang, who, 200, patient_reset_sent=True, via="")
         v = {"birth_date": g("birth_date", 10), "id_type": "passport" if g("id_type", 20) == "passport" else "emirates_id",
              "id_last4": g("id_last4", 12), "phone": g("phone", 30)}
         if not login_csrf_ok(request, g("csrf_token", 100)):
-            return help_page(request, mode, lang, who, 403, error=t["expired_page"], v=v)
+            return help_page(request, mode, lang, who, 403, error=t["expired_page"], v=v, via=via)
         try:
             dob = _date.fromisoformat(v["birth_date"])
         except ValueError:
@@ -1108,15 +1134,23 @@ def create_app() -> FastAPI:
         bad = [k for k, ok in (("birth_date", dob is not None), ("id_last4", bool(v["id_last4"].strip())),
                                ("phone", bool(v["phone"].strip()))) if not ok]
         if bad:
-            return help_page(request, mode, lang, who, 400, error=t["missing"], bad=bad, v=v)
+            return help_page(request, mode, lang, who, 400, error=t["missing"], bad=bad, v=v, via=via)
         if sh._last4(v["id_last4"]) is None:
-            return help_page(request, mode, lang, who, 400, error=t["bad_last4"], bad=["id_last4"], v=v)
+            return help_page(request, mode, lang, who, 400, error=t["bad_last4"], bad=["id_last4"], v=v, via=via)
+        details_base = ""
+        if mode == "password" and via == "details":
+            from .api.patients import base_url as public_base_url
+
+            details_base = public_base_url(request)
 
         def _work_patient():
             db = session_factory()()
             try:
                 if mode == "username":
                     st, uname = sh.forgot_username(db, dob, v["id_last4"], v["phone"], ip, lang)
+                elif via == "details":
+                    st, uname = sh.patient_forgot_password_by_details(
+                        db, dob, v["id_last4"], v["phone"], ip, lang, details_base), None
                 else:
                     st, uname = sh.forgot_password(db, dob, v["id_last4"], v["phone"], ip, lang), None
                 db.commit()
@@ -1126,12 +1160,14 @@ def create_app() -> FastAPI:
 
         st, uname = await asyncio.to_thread(_work_patient)
         if st == "paused":
-            return help_page(request, mode, lang, who, 429, error=t["paused"], v=v)
+            return help_page(request, mode, lang, who, 429, error=t["paused"], v=v, via=via)
         if mode == "username":
             if st == "ok":
                 return help_page(request, mode, lang, who, 200, found=uname)
             return help_page(request, mode, lang, who, 200, notice=t["generic_username"], v=v)
-        return help_page(request, mode, lang, who, 200, sent=True)
+        if via == "details":
+            return help_page(request, mode, lang, who, 200, patient_reset_sent=True, via="details")
+        return help_page(request, mode, lang, who, 200, sent=True, via="admin")
 
     @app.post("/forgot-username", response_class=HTMLResponse)
     async def forgot_username_post(request: Request):
@@ -1209,6 +1245,75 @@ def create_app() -> FastAPI:
             status = 429 if reason == "rate_limited" else (422 if field == "pw" else 400)
             return staff_reset_page(request, lang, token, status, error_reason=reason, error_field=field)
         return staff_reset_page(request, lang, None, 200, done=True, username=username)
+
+    def patient_reset_page(request: Request, lang: str, token: str | None, status_code: int = 200, **ctx):
+        from .comms.content import RTL_LANGUAGES
+        from .comms.signin_text import LANGS, PATIENT_RESET_TEXT
+
+        t = PATIENT_RESET_TEXT[lang if lang in PATIENT_RESET_TEXT else "en"]
+        if "error_reason" in ctx:
+            r = ctx.pop("error_reason")
+            ctx["error"] = (t["err"]["weak"] + ((" " + r[5:]) if lang == "en" else "")) if r.startswith("weak:") \
+                else t["err"].get(r, t["err"]["invalid"])
+        tok = auth.login_csrf_token(request)
+        resp = page("patient_reset.html", request, title=t["title"], status_code=status_code,
+                    t=t, lang=lang, rtl=lang in RTL_LANGUAGES, langs=LANGS, token=token or "",
+                    login_csrf=tok, **ctx)
+        resp.headers["Referrer-Policy"] = "no-referrer"
+        ensure_login_csrf(request, resp, tok)
+        return resp
+
+    @app.get("/patient-reset-password", response_class=HTMLResponse)
+    def patient_reset_get(request: Request):
+        from .services import signin_help as sh
+
+        token = _clean_token(request.query_params.get("t"))
+        lang = _page_lang(request.query_params.get("lang"))
+        db = session_factory()()
+        try:
+            status = sh.patient_reset_status(db, token)
+        finally:
+            db.close()
+        t_err = None
+        if status != "ok":
+            from .comms.signin_text import PATIENT_RESET_TEXT
+            t = PATIENT_RESET_TEXT[lang]
+            key = "invalid" if status in ("missing", "invalid") else status
+            t_err = t["err"].get(key, t["err"]["invalid"])
+        return patient_reset_page(request, lang, token, 200, link_error=t_err)
+
+    @app.post("/patient-reset-password", response_class=HTMLResponse)
+    async def patient_reset_post(request: Request):
+        from .comms.signin_text import PATIENT_RESET_TEXT
+        from .services import signin_help as sh
+
+        form = await request.form()
+        lang = _page_lang(form.get("lang"))
+        token = _clean_token(form.get("t"))
+        pw, confirm = str(form.get("password", ""))[:256], str(form.get("confirm", ""))[:256]
+        t = PATIENT_RESET_TEXT[lang]
+        if not login_csrf_ok(request, str(form.get("csrf_token", ""))):
+            return patient_reset_page(request, lang, token, 403, error=t["err"]["expired_page"])
+        if not token or not pw or not confirm:
+            return patient_reset_page(request, lang, token, 400, error=t["err"]["missing"],
+                                      error_field="pw" if token else "code")
+
+        def _work():
+            db = session_factory()()
+            try:
+                u, reason = sh.complete_patient_reset(db, token=token, password=pw, confirm=confirm,
+                                                      ip=auth.client_ip(request), lang=lang)
+                db.commit()
+                return u.username if u is not None else None, reason
+            finally:
+                db.close()
+
+        username, reason = await asyncio.to_thread(_work)
+        if username is None:
+            field = "pw" if reason == "mismatch" or reason.startswith("weak:") else "code"
+            status = 429 if reason == "rate_limited" else (422 if field == "pw" else 400)
+            return patient_reset_page(request, lang, token, status, error_reason=reason, error_field=field)
+        return patient_reset_page(request, lang, None, 200, done=True, username=username)
 
     @app.post("/logout")
     async def logout_post(request: Request):

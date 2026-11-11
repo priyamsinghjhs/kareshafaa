@@ -119,6 +119,7 @@ POLICY: dict[str, str] = {
     "GET /": "public", "GET /login": "public", "POST /login": "public", "GET /activate": "public",
     "GET /reset-password": "public", "POST /activate": "public", "POST /reset-password": "public",
     "GET /staff-reset-password": "public", "POST /staff-reset-password": "public",
+    "GET /patient-reset-password": "public", "POST /patient-reset-password": "public",
     "GET /forgot-username": "public", "GET /forgot-password": "public", "POST /forgot-username": "public",
     "POST /forgot-password": "public", "POST /logout": "public",
     "GET /account/password": "page:/account/password", "POST /account/password": "public",  # checks the session itself
