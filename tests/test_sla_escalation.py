@@ -76,9 +76,18 @@ def test_queue_views_and_order(client, as_user):
     h = as_user("aisha.rahman")
     q = client.get("/api/queue?view=all&limit=500", headers=h).json()
     assert q["counts"]["all"] > 0 and q["items"]
-    rank = {"red": 0, "amber": 1, "green": 2}
-    statuses = [rank.get(i["sla_status"], 3) for i in q["items"]]
-    assert statuses == sorted(statuses)  # breached first
+    # Default order is urgency first, then overdue status within a tier — a
+    # green critical case can sit above a red routine one.
+    rank = {"critical": 0, "urgent": 1, "high": 2, "routine": 3}
+    sla = {"red": 0, "amber": 1, "green": 2}
+    tiers = [rank.get(i["tier"], 9) for i in q["items"]]
+    assert tiers == sorted(tiers)
+    from collections import defaultdict
+    by_tier = defaultdict(list)
+    for i in q["items"]:
+        by_tier[i["tier"]].append(sla.get(i["sla_status"], 3))
+    for keys in by_tier.values():
+        assert keys == sorted(keys)
     for view in ("overdue", "unassigned", "rejected", "escalated", "calls", "transfers", "mine"):
         r = client.get(f"/api/queue?view={view}", headers=h)
         assert r.status_code == 200, view

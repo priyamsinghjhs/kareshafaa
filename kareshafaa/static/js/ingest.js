@@ -17,7 +17,16 @@ async function send(b) {
 async function load() {
   const d = await W.api("/api/ingest/messages");
   const pend = d.items.filter(m => m.status === "needs_match_review");
+  const cands = m => (m.candidates || []).length ? `<ul class="match-cands" aria-label="Suggested patients">${m.candidates.map(c => {
+    const cls = c.confidence === "high" ? "sla-green" : c.confidence === "medium" ? "sla-amber" : "sla-none";
+    const flags = (c.flags || []).includes("birth_year_differs") ? ' <span class="chip sla-red">Birth year differs — check carefully</span>' : "";
+    return `<li class="match-cand"><div class="row"><div class="grow"><b>${W.esc(c.name)}</b> <span class="chip ${cls}">${W.esc(c.confidence)} confidence</span>${flags}
+      <div class="small muted">#${c.id} · ${W.esc(c.mrn)}${c.birth_date ? " · born " + W.esc(c.birth_date) : c.birth_year ? " · year " + c.birth_year : ""}${c.emirates_id ? " · " + W.esc(c.emirates_id) : ""}</div>
+      <div class="small">${W.esc(c.why)}</div></div>
+      <button type="button" class="secondary sm self-end" data-click="resolveCandidate" data-args='[${m.id},${c.id},"$el"]'>Use this patient</button></div></li>`;
+  }).join("")}</ul><p class="xs muted">Suggestions only — a person must confirm. Nothing is linked automatically.</p>` : "";
   document.getElementById("review").innerHTML = pend.length ? pend.map(m => `<div class="card flat"><p class="small"><b>${W.esc(m.message_id)}</b> · ${W.esc(m.patient_identifier || "no patient ID")} · ${W.prog(m.programme)}<br><span class="muted">${W.esc(m.reason)}</span></p>
+    ${cands(m)}
     <div class="row"><label for="pid${m.id}" class="grow m-0">Confirmed patient number<input id="pid${m.id}" inputmode="numeric" pattern="[0-9]*"></label><button class="self-end" data-click="resolve" data-args='[${m.id},"$el"]'>Confirm match</button></div>
     ${W.can("patient:register") || W.can("patient:read") ? `<p class="small mt-2">${m.patient_name ? `Name in the message: <b>${W.esc(m.patient_name)}</b>${m.patient_birth_date ? ", born " + W.esc(m.patient_birth_date) : ""}. ` : ""}${W.can("patient:read") ? `<a href="/patients?q=${encodeURIComponent(m.patient_name || m.patient_identifier || "")}" target="_blank" rel="noopener">Search patients</a>` : ""}${W.can("patient:register") ? ` · Not registered yet? <a href="/patients/new?from_message=${m.id}">Register a new patient from this result</a>` : ""}</p>` : ""}</div>`).join("") : `<p class="ok-line small">${W.ic("ok")}All results matched</p>`;
   document.getElementById("recent").innerHTML = d.items.length ? `<table class="compact"><thead><tr><th>Received</th><th>Source</th><th>Message</th><th>Programme</th><th>Status</th><th>Case</th></tr></thead><tbody>${d.items.slice(0, 30).map(m => `<tr><td class="small nowrap">${W.dt(m.received_at)}</td><td>${W.esc(m.source)}</td><td class="small">${W.esc(m.message_id)}</td><td>${W.prog(m.programme)}</td><td><span class="chip ${m.status === "needs_match_review" ? "sla-amber" : "sla-green"}">${m.status === "needs_match_review" ? "● Needs match" : "✓ " + W.esc(m.status.replace(/_/g, " "))}</span></td><td>${m.case_id ? `<a href="/cases/${m.case_id}">Case #${m.case_id}</a>` : "–"}</td></tr>`).join("")}</tbody></table>` : W.empty("No results yet", "", "", "inbox");
@@ -36,8 +45,12 @@ window.reconcileOpen = async (id, b) => { W.busy(b, true);
   try { const r = await W.api(`/api/ingest/reconciliation/${id}/resolve`, { method: "POST", body: { action: "open_case" } }); W.toast("Case #" + r.item.resolution_case_id + " opened for clinician review", "ok"); await loadReconcile(); } catch (e) { W.toast(e.message, "err"); W.busy(b, false); } };
 window.reconcileNote = async (id, b) => { const v = document.getElementById("rn" + id).value.trim(); W.busy(b, true);
   try { await W.api(`/api/ingest/reconciliation/${id}/resolve`, { method: "POST", body: { action: "note", note: v } }); W.toast("Saved", "ok"); await loadReconcile(); } catch (e) { W.toast(e.message, "err"); W.busy(b, false); } };
+window.resolveCandidate = async (msgId, patientId, b) => {
+  document.getElementById("pid" + msgId).value = patientId;
+  return window.resolve(msgId, b);
+};
 window.resolve = async (id, b) => { const v = +document.getElementById("pid" + id).value; if (!v) { W.toast("Enter the patient number first.", "err"); return; }
-  if (!(await W.confirm("Confirm this patient match?", "The result will be filed to patient #" + v + ". Check the identity first.", { ok: "Confirm match" }))) return;
+  if (!(await W.confirm("Confirm this patient match?", "The result will be filed to patient #" + v + ". Check the identity first. Suggestions are not linked automatically.", { ok: "Confirm match" }))) return;
   W.busy(b, true);
   try { const r = await W.api(`/api/ingest/messages/${id}/resolve`, { method: "POST", body: { patient_id: v } }); W.toast("Matched – case " + (r.case ? "#" + r.case.id : "n/a"), "ok"); await load(); } catch (e) { W.toast(e.message, "err"); W.busy(b, false); } };
 document.addEventListener("DOMContentLoaded", async () => { await W.ready; if (!W.requireLogin()) return; load().catch(e => document.getElementById("review").innerHTML = W.empty("Could not load", W.esc(e.message)));

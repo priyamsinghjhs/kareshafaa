@@ -890,3 +890,18 @@ h5 { font-size: var(--fs-xs); font-weight: var(--fw-semibold); }
 .kpi { text-align: start; } .kpi .l { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--c-muted); }
 tbody th { text-transform: none; letter-spacing: 0; font-size: var(--fs-sm); color: var(--c-text); background: transparent; }
 .kpi .v + .l { font-size: var(--fs-xs); font-weight: var(--fw-regular); }
+
+/* ---- advisory algorithms (risk band, queue why-first, match candidates, contact hint, copilot) ---- */
+.why-first { display: block; font-size: var(--fs-xs); color: var(--c-muted); font-weight: var(--fw-regular); margin-top: var(--s-1); max-width: 36ch; white-space: normal; line-height: 1.4; }
+.q-cards .why-first { max-width: 100%; }
+.match-cands { list-style: none; padding: 0; margin: var(--s-2) 0 0; display: grid; gap: var(--s-2); }
+.match-cand { margin: 0; padding: var(--s-2) var(--s-3); border: 1px solid var(--c-border); border-radius: var(--s-2); background: var(--c-surface-2); display: grid; gap: var(--s-1); }
+.match-cand .row { margin: 0; gap: var(--s-2); align-items: center; }
+.contact-hint { margin: var(--s-2) 0 0; padding: var(--s-2) 0 0; border-top: 1px solid var(--c-border); }
+.copilot-panel .copilot-tools { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: var(--s-2) 0; align-items: end; }
+.copilot-panel textarea { width: 100%; min-height: 8rem; }
+.copilot-sources { margin: var(--s-1) 0 0; font-size: var(--fs-xs); color: var(--c-muted); }
+@media (max-width: 599px) {
+  .why-first { max-width: 100%; }
+  .match-cand .row { flex-wrap: wrap; }
+}

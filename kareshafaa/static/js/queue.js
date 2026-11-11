@@ -3,6 +3,7 @@ const VIEWS = [["all", "All open cases"], ["critical", "Critical: read-back need
   ["escalated", "Escalated"], ["rejected", "Referral rejected"], ["calls", "Phone calls to make"], ["transfers", "Transfers waiting"], ["consults", "Open consultations"]];
 const TITLES = { all: "All open cases", review: "Patients needing review", mine: "Assigned to me", overdue: "Overdue steps" };
 let view = new URLSearchParams(location.search).get("view") || "all", data = null, offset = 0, timer = null;
+let sort = new URLSearchParams(location.search).get("sort") === "deadline" ? "deadline" : "priority";
 const PAGE = 25;
 const EMPTY = { all: ["No open cases"], mine: ["Nothing assigned to you"], overdue: ["Nothing overdue"], unassigned: ["Every case has an owner"],
   rejected: ["No rejected referrals"], escalated: ["No open escalations"], review: ["No one needs review", "<a href='/queue'>See all cases</a>"],
@@ -17,10 +18,13 @@ function stats() {
 function setView(v) { view = v; offset = 0; load(); }
 async function load() {
   const prog = document.getElementById("prog").value, q = document.getElementById("search").value.trim();
-  // keep the chosen view, programme and search in the address, so Back / reload shows the same list
+  const sortEl = document.getElementById("sort");
+  if (sortEl) { if (sortEl.value !== sort) sortEl.value = sort; }
+  // keep the chosen view, programme, search and sort in the address, so Back / reload shows the same list
   const qs = new URLSearchParams({ view }); if (prog) qs.set("programme", prog); if (q) qs.set("q", q);
+  if (sort === "deadline") qs.set("sort", "deadline");
   history.replaceState(null, "", "?" + qs.toString());
-  data = await W.api(`/api/queue?view=${view}&limit=${PAGE}&offset=${offset}${prog ? "&programme=" + prog : ""}${q ? "&q=" + encodeURIComponent(q) : ""}`);
+  data = await W.api(`/api/queue?view=${view}&limit=${PAGE}&offset=${offset}&sort=${sort}${prog ? "&programme=" + prog : ""}${q ? "&q=" + encodeURIComponent(q) : ""}`);
   document.getElementById("all-h").textContent = TITLES[view] || (VIEWS.find(v => v[0] === view) || [, "Work queue"])[1];
   stats(); render();
 }
@@ -43,20 +47,28 @@ function render() {
   if (!rows.length) { const e = EMPTY[view] || ["Nothing here"];
     document.getElementById("qtable").innerHTML = document.getElementById("search").value ? W.empty("No matching open case", "", "", "list") : W.empty(e[0], e[1] || ""); return; }
   const from = data.offset + 1, to = data.offset + rows.length;
-  const risk = r => r.risk_score == null ? '<span class="muted small">–</span>' : `<span class="risk" title="${W.esc("Why: " + (r.risk_rationale || "close to the typical case") + " - orders within the same urgency only")}"><span class="risk-bar" aria-hidden="true"><i style="width:${Math.round(r.risk_score * 100)}%"></i></span>${Math.round(r.risk_score * 100)}%</span>`;
+  const bandChip = r => {
+    const b = r.risk_band;
+    if (!b) return '<span class="muted small">–</span>';
+    const cls = b.key === "high" ? "sla-red" : b.key === "medium" ? "sla-amber" : "sla-green";
+    const title = W.esc("Why: " + (r.risk_rationale || "close to the typical case") + " — advisory, orders work only");
+    return `<span class="chip ${cls}" title="${title}">${W.esc(b.label)}</span>`;
+  };
+  const why = r => r.why_first ? `<span class="why-first">${W.esc(r.why_first)}</span>` : "";
   const owner = r => `${r.owner_is_pool ? '<span class="chip pool">Team pool</span> ' : ""}${W.esc(r.owner.split(" (")[0])}`;
-  document.getElementById("qtable").innerHTML = `<div class="table-scroll q-table"><table class="striped"><caption class="sr-only">Open cases, most urgent first</caption><thead><tr><th>Urgency</th><th class="w-patient">Patient</th><th>Screening</th><th>Next step</th><th>Deadline</th><th>Owner</th><th title="Model estimate of the chance of missing the next step - orders outreach within the same urgency only">Outreach priority</th></tr></thead><tbody>` +
+  document.getElementById("qtable").innerHTML = `<div class="table-scroll q-table"><table class="striped"><caption class="sr-only">Open cases, highest priority first</caption><thead><tr><th>Urgency</th><th class="w-patient">Patient</th><th>Screening</th><th>Next step</th><th>Deadline</th><th>Owner</th><th title="Predicted chance of delayed or dropped care — Low / Medium / High. Advisory only.">Risk</th></tr></thead><tbody>` +
     rows.map(r => `<tr class="clickable" data-href="/cases/${r.id}">
       <td>${W.tier(r.tier)}</td>
-      <td><a href="/cases/${r.id}"><b>${W.esc(r.patient)}</b></a><span class="sub">#${r.id} · ${W.esc(r.mrn)} · speaks ${W.esc(W.langName(r.language))}</span></td>
+      <td><a href="/cases/${r.id}"><b>${W.esc(r.patient)}</b></a><span class="sub">#${r.id} · ${W.esc(r.mrn)} · speaks ${W.esc(W.langName(r.language))}</span>${why(r)}</td>
       <td>${W.prog(r.programme)}</td><td>${W.esc(r.state_label)}<div class="chips">${flags(r)}</div></td>
       <td>${W.sla(r.sla_status, r.sla_fraction)}<span class="sub">${W.leftHtml(r.due_at, r.sla_status)}</span></td>
-      <td class="small">${owner(r)}</td><td>${risk(r)}</td></tr>`).join("") +
-    `</tbody></table></div><ul class="q-cards" aria-label="Open cases, most urgent first">${rows.map(r => `<li><a class="q-card" href="/cases/${r.id}">
-      <span class="chips">${W.tier(r.tier)} ${W.sla(r.sla_status, r.sla_fraction)} ${flags(r)}</span>
+      <td class="small">${owner(r)}</td><td>${bandChip(r)}</td></tr>`).join("") +
+    `</tbody></table></div><ul class="q-cards" aria-label="Open cases, highest priority first">${rows.map(r => `<li><a class="q-card" href="/cases/${r.id}">
+      <span class="chips">${W.tier(r.tier)} ${W.sla(r.sla_status, r.sla_fraction)} ${flags(r)} ${r.risk_band ? `<span class="chip ${r.risk_band.key === "high" ? "sla-red" : r.risk_band.key === "medium" ? "sla-amber" : "sla-green"}">${W.esc(r.risk_band.label)}</span>` : ""}</span>
       <span class="q-name">${W.esc(r.patient)}</span>
       <span class="q-line">${W.progText(r.programme)} · next: <b>${W.esc(r.state_label)}</b></span>
-      <span class="q-line">${W.leftHtml(r.due_at, r.sla_status)} · ${owner(r)}${r.risk_score == null ? "" : ` · priority ${Math.round(r.risk_score * 100)}%`}</span></a></li>`).join("")}</ul>` +
+      <span class="q-line">${W.leftHtml(r.due_at, r.sla_status)} · ${owner(r)}</span>
+      ${r.why_first ? `<span class="why-first">${W.esc(r.why_first)}</span>` : ""}</a></li>`).join("")}</ul>` +
     `<nav class="pager" aria-label="Queue pages"><span class="small muted">Showing ${from}–${to} of ${data.total}</span><span class="btns">
      <button class="secondary" ${data.offset ? "" : "disabled"} data-click="page" data-args="[-1]">Previous</button>
      <button class="secondary" ${to < data.total ? "" : "disabled"} data-click="page" data-args="[1]">Next</button></span></nav>`;
@@ -152,6 +164,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   const qs0 = new URLSearchParams(location.search);
   if (qs0.get("programme")) document.getElementById("prog").value = qs0.get("programme");
   if (qs0.get("q")) document.getElementById("search").value = qs0.get("q");
+  const sortEl = document.getElementById("sort");
+  if (sortEl) {
+    sortEl.value = sort;
+    sortEl.onchange = () => { sort = sortEl.value === "deadline" ? "deadline" : "priority"; offset = 0; load(); };
+  }
   document.getElementById("search").oninput = () => { clearTimeout(timer); timer = setTimeout(() => { offset = 0; load(); }, 250); };
   document.getElementById("prog").onchange = () => { offset = 0; load(); };
   document.getElementById("view").onchange = e => setView(e.target.value);

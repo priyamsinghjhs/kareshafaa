@@ -21,7 +21,7 @@ COMPONENTS = [
     {"name": "Loop engine", "does": "Case state machine with one accountable owner, closure only with evidence or a signed decision", "code": "kareshafaa/statemachine.py, services/workflow.py"},
     {"name": "Deadlines and escalation", "does": "Step clocks per state and tier on the UAE working-day calendar, L1-L4 escalation ladder", "code": "kareshafaa/sla.py, services/escalation.py"},
     {"name": "Patient communication", "does": "Approved templates in English, Arabic, Hindi and Urdu, teach-back check, channel fallback (simulated delivery)", "code": "kareshafaa/comms/"},
-    {"name": "Outreach model", "does": "scikit-learn model that orders outreach within a tier; registry, fairness gates, approval, rollback", "code": "kareshafaa/ml/"},
+    {"name": "Outreach model", "does": "scikit-learn missed-appointment risk (Low/Medium/High), fairness gates, approval, rollback; deterministic queue priority; matching suggestions; contact-time hint; coordinator copilot (LangGraph)", "code": "kareshafaa/ml/"},
     {"name": "Audit trail", "does": "Append-only, SHA-256 hash-chained log of every read and write", "code": "kareshafaa/audit.py"},
     {"name": "Web app and patient app", "does": "Server-rendered pages, installable PWA, role-based navigation, right-to-left layouts", "code": "kareshafaa/templates, static/"},
     {"name": "Database", "does": "PostgreSQL (Neon) in hosting, SQLite locally; FHIR-shaped tables", "code": "kareshafaa/models.py"},

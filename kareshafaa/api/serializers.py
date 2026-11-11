@@ -89,6 +89,18 @@ def _critical_status(db: Session, c: Case) -> dict | None:
     return status(db, c)
 
 
+
+def _risk(c: Case) -> dict:
+    from ..services.priority import CALIBRATION_NOTE, risk_band
+    score = None if c.risk_score is None else round(c.risk_score, 3)
+    return {"score": score, "model_version": c.risk_model_version,
+            "rationale": c.risk_rationale or [],
+            "band": risk_band(score),
+            "calibration_note": CALIBRATION_NOTE,
+            "ordering": "Orders cases WITHIN the same clinical urgency tier only; it never changes the tier",
+            "use": "Outreach prioritisation only - never used for clinical decisions, state changes or closure"}
+
+
 def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None) -> dict[str, Any]:
     now = now or utcnow()
     sla = SlaLookup.load(db)
@@ -113,6 +125,11 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
     from ..services.patient_answers import changes_for_case
     from ..services.clinical_record import _tb_text
     tb_changes = changes_for_case(db, c.id)  # patient used "Change my answers": new response -> replaced one
+    from ..services.contact_timing import suggest as contact_suggest
+    try:
+        contact_suggestion = contact_suggest(db, p, now)
+    except Exception:  # noqa: BLE001 — never fail the case page for an advisory hint
+        contact_suggestion = None
     return {
         **case_summary(db, c),
         "label": "KareShafaa case record",
@@ -120,10 +137,8 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
         "sla": {"status": cur["sla_status"] if cur else "none", "fraction": cur["sla_fraction"] if cur else None,
                 "due_at": cur["due_at"] if cur else None, "escalation_level": max(c.escalation_level or 0, c.target_alert_level or 0)},
         "why": _why(db, c),
-        "risk": {"score": None if c.risk_score is None else round(c.risk_score, 3), "model_version": c.risk_model_version,
-                 "rationale": c.risk_rationale or [],
-                 "ordering": "Orders cases WITHIN the same clinical urgency tier only; it never changes the tier",
-                 "use": "Outreach prioritisation only - never used for clinical decisions, state changes or closure"},
+        "risk": _risk(c),
+        "contact_suggestion": contact_suggestion,
         "patient": {"id": p.id, "name": f"{p.given_name} {p.family_name}", "mrn": p.mrn, "gender": p.gender,
                     "age_band": p.age_band, "language": p.language, "region": p.region,
                     "managing_org": oname(db, p.managing_org_id), "gp": gp.name if gp else None,

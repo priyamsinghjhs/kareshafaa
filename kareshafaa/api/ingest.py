@@ -156,12 +156,19 @@ def messages(status: str | None = None, actor: Actor = Depends(require("results:
     q = select(IngestMessage).order_by(IngestMessage.id.desc()).limit(200)
     if status:
         q = q.where(IngestMessage.status == status)
-    return {"items": [{"id": m.id, "source": m.source, "message_id": m.message_id, "status": m.status,
-                       "received_at": m.received_at.isoformat(), "patient_identifier": m.patient_identifier,
-                       "programme": m.programme, "reason": m.error, "case_id": m.case_id,
-                       "ordering_clinician": m.ordering_clinician, "screening_site": m.screening_site,
-                       "specimen_collected_at": m.specimen_collected_at.isoformat() if m.specimen_collected_at else None,
-                       **_who(m)} for m in db.scalars(q)]}
+    from ..services.matching import suggest_for_message
+    items = []
+    for m in db.scalars(q):
+        row = {"id": m.id, "source": m.source, "message_id": m.message_id, "status": m.status,
+               "received_at": m.received_at.isoformat(), "patient_identifier": m.patient_identifier,
+               "programme": m.programme, "reason": m.error, "case_id": m.case_id,
+               "ordering_clinician": m.ordering_clinician, "screening_site": m.screening_site,
+               "specimen_collected_at": m.specimen_collected_at.isoformat() if m.specimen_collected_at else None,
+               **_who(m), "candidates": []}
+        if m.status == "needs_match_review":
+            row["candidates"] = suggest_for_message(db, m)
+        items.append(row)
+    return {"items": items}
 
 
 def _who(m: IngestMessage) -> dict:

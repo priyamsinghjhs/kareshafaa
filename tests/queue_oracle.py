@@ -10,13 +10,15 @@ from sqlalchemy.orm import Session, aliased
 
 from kareshafaa.models import AppointmentRequest, CallTask, Case, ConsultRequest, Escalation, Patient, Practitioner, StepTask, utcnow
 from kareshafaa.security import PROGRAMME_WIDE_ROLES, Actor
+from kareshafaa.services.priority import DEADLINE_ORDERING, ORDERING, decorate
 from kareshafaa.services.queue import VIEWS, _org_scope, action_queue_case_ids, sort_key
 from kareshafaa.sla import SlaLookup, rag_reminder_fraction, rag_status
 from kareshafaa.statemachine import LABELS, S
 
 
 def work_queue_python(db: Session, actor: Actor, view: str = "all", now: datetime | None = None, limit: int = 200,
-               programme: str | None = None, offset: int = 0, search: str | None = None) -> dict:
+               programme: str | None = None, offset: int = 0, search: str | None = None,
+               sort: str = "priority") -> dict:
     """One pass over open cases using column queries (no ORM object hydration, no N+1).
 
     Cost is O(open cases) with ~8 set-based queries regardless of size; closed cases are never touched
@@ -24,9 +26,11 @@ def work_queue_python(db: Session, actor: Actor, view: str = "all", now: datetim
     now = now or utcnow()
     sla = SlaLookup.load(db)
     owner = aliased(Practitioner)
+    sort = "deadline" if sort == "deadline" else "priority"
     q = (select(Case.id, Case.programme, Case.tier, Case.state, Case.owner_id, Case.due_at, sa_case((Case.target_alert_level > Case.escalation_level, Case.target_alert_level), else_=Case.escalation_level),
                 Case.risk_score, Case.risk_model_version, Case.transfer_pending_owner_id, Case.review_required,
                 Patient.given_name, Patient.family_name, Patient.mrn, Patient.language,
+                Patient.phone_valid, Patient.whatsapp, Patient.email,
                 owner.name, owner.is_pool, owner.active, StepTask.started_at, StepTask.due_at, StepTask.state)
          .join(Patient, Patient.id == Case.patient_id).join(owner, owner.id == Case.owner_id)
          .outerjoin(StepTask, (StepTask.case_id == Case.id) & (StepTask.status == "in-progress"))
@@ -67,7 +71,7 @@ def work_queue_python(db: Session, actor: Actor, view: str = "all", now: datetim
     read_back = set(db.scalars(select(CriticalReadBack.case_id).where(CriticalReadBack.read_back_confirmed.is_(True))))
     rows = []
     for (cid, prog, tier, state, owner_id, due, esc, risk, risk_v, pending, review, given, family, mrn, lang,
-         oname, opool, oactive, s_start, s_due, s_state) in rows_db:
+         phone_valid, whatsapp, email, oname, opool, oactive, s_start, s_due, s_state) in rows_db:
         if scoped is not None and cid not in scoped:
             continue
         if cid not in role_keep:
@@ -86,6 +90,7 @@ def work_queue_python(db: Session, actor: Actor, view: str = "all", now: datetim
             "open_escalation": cid in open_esc, "open_consult": cid in open_consults, "unassigned": unassigned,
             "review_required": bool(review), "patient_change_request": cid in open_appt_req,
             "read_back_needed": tier == "critical" and cid not in read_back,
+            "phone_valid": bool(phone_valid), "whatsapp": bool(whatsapp), "email": email or "",
         }
         member = {
             "all": True, "review": bool(review), "overdue": rag == "red", "unassigned": unassigned, "rejected": state == S.REFERRAL_REJECTED,
@@ -97,7 +102,7 @@ def work_queue_python(db: Session, actor: Actor, view: str = "all", now: datetim
             counts[v] += int(m)
         if member.get(view, False):
             rows.append(row)
-    rows.sort(key=sort_key)
+    rows.sort(key=lambda r: sort_key(r, sort=sort))
     page = rows[offset:offset + limit]
     # JSON columns are decoded only for the returned page (was: for every open case on every request)
     extra = {cid: (rr, why) for cid, rr, why in db.execute(
@@ -106,6 +111,8 @@ def work_queue_python(db: Session, actor: Actor, view: str = "all", now: datetim
         rr, why = extra.get(r["id"], (None, None))
         r["review_reasons"] = rr or []
         r["risk_rationale"] = "; ".join(f"{w['text']} ({w['direction']})" for w in (why or []))
+        decorate(r, now)
     return {"view": view, "counts": counts, "total": len(rows), "offset": offset, "limit": limit,
             "items": page,
-            "ordering": "SLA status, then urgency tier, then clinical-review flag, then ML outreach priority (within tier only), then due time"}
+            "ordering": DEADLINE_ORDERING if sort == "deadline" else ORDERING,
+            "sort": sort}

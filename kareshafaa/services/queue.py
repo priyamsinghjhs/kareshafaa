@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime
 
-from sqlalchemy import Numeric, case as sa_case, cast, false, func, literal, or_, select, true
+from sqlalchemy import case as sa_case, false, func, literal, or_, select, true
 from sqlalchemy.orm import Session, aliased
 
 from ..models import (Appointment, AppointmentRequest, CallTask, Case, ConsultRequest, Escalation, Patient, Practitioner, ServiceRequest,
@@ -118,11 +118,10 @@ _event.listen(Session, "after_commit", _after_commit)
 _event.listen(Session, "after_rollback", _after_rollback)
 
 
-def sort_key(row: dict) -> tuple:
-    # 1) SLA status (clinical safety first)  2) urgency tier  3) ML outreach priority  4) due time
-    # The ML score only orders cases WITHIN the same SLA status and tier; it can never move a case across tiers.
-    return (RAG_RANK[row["sla_status"]], TIER_RANK.get(row["tier"], 9), not row.get("review_required"),
-            -(row["risk_score"] or 0.0), row["due_at"] or "9")
+def sort_key(row: dict, sort: str = "priority") -> tuple:
+    """Default: combined priority score (urgency always outranks a lower tier). ``sort='deadline'`` is earliest due first."""
+    from .priority import sort_key as _sk
+    return _sk(row, sort=sort)
 
 
 def _rag_rank(now: datetime):
@@ -160,7 +159,8 @@ def action_queue_case_ids(db: Session, actor: Actor, case_ids: list[int], search
 
 
 def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | None = None, limit: int = 200,
-               programme: str | None = None, offset: int = 0, search: str | None = None) -> dict:
+               programme: str | None = None, offset: int = 0, search: str | None = None,
+               sort: str = "priority") -> dict:
     """Filtering, counts, ordering and paging in SQL (SQLite and PostgreSQL alike).
 
     RAG comes from the stored per-case thresholds (sla_amber_at / sla_red_at) compared with `now`, so only the page
@@ -169,6 +169,7 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
     follow the filtered list; a case-number search still returns a hidden case. Same visible result as the former Python path
     (tests/queue_oracle.py, tests/test_queue_sql.py); exact ties are broken by case id."""
     now = now or utcnow()
+    sort = "deadline" if sort == "deadline" else "priority"
     owner = aliased(Practitioner)
     pend = aliased(Practitioner)
     # uncorrelated IN (sub-select evaluated once) rather than a correlated EXISTS per open case
@@ -230,13 +231,19 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
     total = counts[view] if view in conds else 0
     items: list[dict] = []
     if total and view in conds:
-        tier_rank = sa_case(TIER_RANK, value=Case.tier, else_=9)
-        review_key = sa_case((Case.review_required.is_(True), 0), else_=1)
-        risk_key = func.round(cast(func.coalesce(Case.risk_score, 0.0), Numeric), 3)
+        from .priority import ORDERING as PRIORITY_ORDERING, DEADLINE_ORDERING, decorate, sql_priority_terms
         due_null = sa_case((Case.due_at.is_(None), 1), else_=0)
+        missing_expr = (Patient.phone_valid.is_not(True)) & (Patient.whatsapp.is_not(True)) & or_(
+            Patient.email.is_(None), Patient.email == "")
+        if sort == "deadline":
+            order = (due_null, Case.due_at, Case.id)
+        else:
+            score = sql_priority_terms(rag, read_back_needed, missing_expr, Case.review_required.is_(True),
+                                       Case.risk_score)
+            order = (score.desc(), due_null, Case.due_at, Case.id)
         # 1) the page's ids: sort keys only (the sort runs over every matching open case, so keep its rows narrow)
         page_ids = list(db.scalars(base(Case.id).where(conds[view])
-                                   .order_by(rag, tier_rank, review_key, risk_key.desc(), due_null, Case.due_at, Case.id)
+                                   .order_by(*order)
                                    .offset(offset).limit(limit)))
         # 2) everything shown for those rows only
         q = (select(Case.id, Case.programme, Case.tier, Case.state, Case.owner_id, Case.due_at,
@@ -244,6 +251,7 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
                             else_=Case.escalation_level),
                     Case.risk_score, Case.risk_model_version, Case.transfer_pending_owner_id, Case.review_required,
                     Patient.given_name, Patient.family_name, Patient.mrn, Patient.language,
+                    Patient.phone_valid, Patient.whatsapp, Patient.email,
                     owner.name, owner.is_pool, owner.active, StepTask.started_at, StepTask.due_at, StepTask.state,
                     rag, calls, esc, consults, appt_req, Case.review_reasons, Case.risk_rationale, read_back_needed)
              .select_from(Case).join(Patient, Patient.id == Case.patient_id).join(owner, owner.id == Case.owner_id)
@@ -252,12 +260,12 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
         pos = {cid: i for i, cid in enumerate(page_ids)}
         sla = SlaLookup.load(db)
         for (cid, prog, tier, state, owner_id, due, lvl, risk, risk_v, pending, review, given, family, mrn, lang,
-             oname, opool, oactive, s_start, s_due, s_state, rank, has_call, has_esc, has_consult, has_appt_req,
-             rr, why, rb_needed) in sorted(db.execute(q).all(), key=lambda r: pos[r[0]]) if page_ids else ():
+             phone_valid, whatsapp, email, oname, opool, oactive, s_start, s_due, s_state, rank, has_call, has_esc,
+             has_consult, has_appt_req, rr, why, rb_needed) in sorted(db.execute(q).all(), key=lambda r: pos[r[0]]) if page_ids else ():
             frac = 0.0
             if s_start is not None:
                 frac = rag_status(s_start, s_due, now, rag_reminder_fraction(s_state, sla.reminder_fraction(s_state, tier)))[1]
-            items.append({
+            items.append(decorate({
                 "id": cid, "patient": f"{given} {family}", "mrn": mrn, "language": lang, "programme": prog,
                 "tier": tier, "state": state, "state_label": LABELS.get(state, state), "owner_id": owner_id,
                 "owner": oname, "owner_is_pool": bool(opool), "due_at": due.isoformat() if due else None,
@@ -268,7 +276,9 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
                 "unassigned": bool(opool) or not oactive, "review_required": bool(review),
                 "patient_change_request": bool(has_appt_req), "review_reasons": rr or [],
                 "read_back_needed": bool(rb_needed),
+                "phone_valid": bool(phone_valid), "whatsapp": bool(whatsapp), "email": email or "",
                 "risk_rationale": "; ".join(f"{w['text']} ({w['direction']})" for w in (why or [])),
-            })
+            }, now))
+    from .priority import ORDERING as PRIORITY_ORDERING, DEADLINE_ORDERING
     return {"view": view, "counts": counts, "total": total, "offset": offset, "limit": limit, "items": items,
-            "ordering": "SLA status, then urgency tier, then clinical-review flag, then ML outreach priority (within tier only), then due time"}
+            "ordering": DEADLINE_ORDERING if sort == "deadline" else PRIORITY_ORDERING, "sort": sort if sort == "deadline" else "priority"}

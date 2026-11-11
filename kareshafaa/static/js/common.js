@@ -158,7 +158,8 @@ const W = {
       <div><div class="chips">${W.tier(r.tier)} ${W.leftHtml(r.due_at, r.sla_status)}${r.escalation_level ? ` <span class="chip sla-red">Escalated</span>` : ""}${r.review_required ? ` <span class="chip sla-red">Needs review</span>` : ""}</div>
         <div class="now-who">${W.esc(r.patient)}</div>
         <div class="now-what">${W.esc(W.progText(r.programme))} · now: ${W.esc(r.state_label)}</div>
-        <div class="now-meta">Speaks ${W.esc(W.langName(r.language))} · ${r.owner_is_pool ? "Team pool" : W.esc(String(r.owner || "").split(" (")[0])} · #${r.id}</div></div>
+        <div class="now-meta">Speaks ${W.esc(W.langName(r.language))} · ${r.owner_is_pool ? "Team pool" : W.esc(String(r.owner || "").split(" (")[0])} · #${r.id}</div>
+        ${r.why_first ? `<div class="why-first">${W.esc(r.why_first)}</div>` : ""}</div>
       <a role="button" class="now-go" href="/cases/${r.id}">${W.esc(W.nextAction(r))}</a></li>`).join("")}</ol>`;
   },
   tier(t) { const T = KS.tiers[t]; if (!T) return `<span class="chip">${W.esc(t)}</span>`;

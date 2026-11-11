@@ -35,11 +35,13 @@ _QUEUE_SLOTS = threading.BoundedSemaphore(2)
 
 @router.get("/queue")
 def queue(view: str = Query("all"), programme: str | None = None, limit: int = Query(50, ge=1, le=1000),
-          offset: int = Query(0, ge=0), q: str | None = Query(None, max_length=80), actor: Actor = Depends(require("queue:read")), db: Session = Depends(get_db)) -> dict:
+          offset: int = Query(0, ge=0), q: str | None = Query(None, max_length=80),
+          sort: str = Query("priority"), actor: Actor = Depends(require("queue:read")), db: Session = Depends(get_db)) -> dict:
     if view not in VIEWS:
         view = "all"
+    sort = "deadline" if sort == "deadline" else "priority"
     with _QUEUE_SLOTS:
-        return work_queue(db, actor, view, limit=limit, programme=programme, offset=offset, search=q)
+        return work_queue(db, actor, view, limit=limit, programme=programme, offset=offset, search=q, sort=sort)
 
 
 @router.post("/sla/sweep")
@@ -91,7 +93,8 @@ def impact(programme: str | None = Query(None, max_length=40), format: str = Que
 @router.get("/analytics/fairness")
 def fairness(actor: Actor = Depends(require("analytics:read")), db: Session = Depends(get_db)) -> dict:
     return {"label": "Live figures from the records in this system", "suppression_threshold": get_settings().suppression_threshold,
-            "slices": analytics.cached("fairness", db, lambda: analytics.fairness_slices(db))}
+            "slices": analytics.cached("fairness", db, lambda: analytics.fairness_slices(db)),
+            "score_bands": analytics.cached("score_bands", db, lambda: analytics.score_band_equity(db))}
 
 
 @router.get("/analytics/lessons")

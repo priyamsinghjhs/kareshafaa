@@ -92,9 +92,14 @@ const tabs = {
   },
   async fair(el) {
     const f = await W.api("/api/analytics/fairness");
+    const bands = f.score_bands || {};
+    const bandTable = (title, rows) => `<div class="card"><h4>${W.esc(title)}</h4><table class="compact"><thead><tr><th>Group</th><th>n scored</th><th>High</th><th>Medium</th><th>Low</th><th>Mean score</th><th>Share high</th></tr></thead><tbody>
+      ${(rows || []).map(r => `<tr><td>${W.esc(r.group)}</td><td>${r.n ?? "–"}</td><td>${r.n_high ?? "–"}</td><td>${r.n_medium ?? "–"}</td><td>${r.n_low ?? "–"}</td><td>${r.mean_score ?? "–"}</td><td>${W.pct(r.share_high)}</td></tr>`).join("")}</tbody></table></div>`;
     el.innerHTML = `<p class="footnote">Outcome rates per group · n&lt;${f.suppression_threshold} suppressed</p>` +
       Object.entries(f.slices).map(([sl, rows]) => `<div class="card"><h4>${W.esc(sl.replace("_", " "))}</h4><table class="compact"><thead><tr><th>Group</th><th>n</th><th>Notified</th><th>Teach-back pass</th><th>Care reached</th><th>Closed</th><th>Median days to care</th></tr></thead><tbody>${rows.map(r =>
-        `<tr><td>${W.esc(r.group)}</td><td>${r.n}</td><td>${W.pct(r.notified_rate)}</td><td>${W.pct(r.teach_back_pass_rate)}</td><td>${W.pct(r.care_reached_rate)}</td><td>${W.pct(r.closure_rate)}</td><td>${r.median_days_to_care ?? "–"}</td></tr>`).join("")}</tbody></table></div>`).join("");
+        `<tr><td>${W.esc(r.group)}</td><td>${r.n}</td><td>${W.pct(r.notified_rate)}</td><td>${W.pct(r.teach_back_pass_rate)}</td><td>${W.pct(r.care_reached_rate)}</td><td>${W.pct(r.closure_rate)}</td><td>${r.median_days_to_care ?? "–"}</td></tr>`).join("")}</tbody></table></div>`).join("") +
+      `<h3 class="card-h">Missed-appointment risk bands</h3><p class="footnote">${W.esc(bands.note || "Higher scores mean more outreach support, never less. Language and nationality are not model inputs.")}</p>` +
+      bandTable("By language", bands.by_language) + bandTable("By nationality group", bands.by_nationality_group);
   },
   async lessons(el) {
     const l = await W.api("/api/analytics/lessons");

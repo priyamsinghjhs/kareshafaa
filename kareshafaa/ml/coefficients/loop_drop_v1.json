@@ -1,0 +1,39 @@
+{
+  "name": "Missed-appointment / loop-drop risk",
+  "version": "loop_drop_v1",
+  "priority_version": "priority_v1",
+  "algorithm": "Existing governed model in kareshafaa/ml (logistic regression or gradient boosting). Trained offline on synthetic follow-up history, fairness-gated, promoted only after clinical-lead approval. Coefficients of a promoted logistic candidate are stored with the ModelVersion artifact (joblib + ModelArtifact), not loaded at start-up from this file. This file versions the feature policy, band thresholds and the deterministic queue-priority weights.",
+  "label": "1 = delayed or dropped care (treatment or surveillance not reached within the tier target, including authorised closures for decline or unable to contact). 0 = care reached within target.",
+  "inputs": {
+    "categorical": ["programme", "tier", "region"],
+    "numeric": [
+      "has_smartphone", "whatsapp", "phone_valid", "alt_contact",
+      "prior_no_shows", "prior_screens",
+      "early_failed_contacts", "early_notified", "early_teach_back_failed",
+      "language_unsupported"
+    ]
+  },
+  "excluded_from_inputs": {
+    "gender": "Protected attribute. Used only for fairness monitoring.",
+    "nationality_group": "Protected attribute. Used only for fairness monitoring.",
+    "language": "Not used as an identity one-hot (it under-served English speakers in training). The operational barrier is kept as language_unsupported (no patient material in the preferred language, so an interpreter is needed). Language is fairness-monitored.",
+    "age_band": "Not a model input: with it, working-age adults were ranked last and failed the fairness gate. Age band is fairness-monitored only."
+  },
+  "equity_rule": "A higher score means MORE outreach support, never less. Protected attributes must not be used to deprioritise a group. The analyst dashboard reports score-band distribution by language and nationality so a skewed pattern can be reviewed.",
+  "bands": {
+    "low": {"max_exclusive": 0.25, "label": "Low"},
+    "medium": {"min_inclusive": 0.25, "max_exclusive": 0.50, "label": "Medium"},
+    "high": {"min_inclusive": 0.50, "label": "High"}
+  },
+  "calibration_note": "The band is a predicted chance of delayed or dropped care, from a model trained on simulated follow-up history and checked for calibration on a held-out slice. High means a predicted risk of 50% or more. It is an outreach aid only: it never sets urgency, moves a case, or decides care. Real-world calibration is unknown.",
+  "priority_weights": {
+    "version": "priority_v1",
+    "tier": {"critical": 10000, "urgent": 7000, "high": 4000, "routine": 1000},
+    "sla": {"red": 600, "amber": 300, "green": 0, "none": 0},
+    "critical_read_back": 80,
+    "risk_scale": 60,
+    "missing_contact": 40,
+    "review": 25,
+    "guarantee": "The largest possible sum of non-tier components is 805, smaller than the 3000-point gap between adjacent tiers, so a lower urgency tier never sorts ahead of a higher one."
+  }
+}

@@ -60,6 +60,7 @@ POLICY: dict[str, str] = {
     "POST /api/assist/suggest": "perm:case:read",  # draft note text only; the handler also checks case access
     "POST /api/assist/record-note": "perm:case:read",  # record-sourced note; handler also checks the action's permission
     "POST /api/assist/record-note/used": "perm:case:read",  # audit whether the suggested note was edited
+    "POST /api/assist/copilot": "perm:case:read",  # advisory outreach/summary/letter draft; never sends
     # ---- patient app (own record only)
     "GET /api/me/case": "perm:self:read", "POST /api/me/teach-back": "perm:self:respond",
     "POST /api/me/teach-back/reopen": "perm:self:respond", "POST /api/me/teach-back/reopen/cancel": "perm:self:respond",

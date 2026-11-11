@@ -139,7 +139,8 @@ function contactTiles(K) {
   return `<div class="ct-tile"><dt>Phone</dt><dd>${K.phone ? `<a href="tel:${W.esc(K.phone)}">${ltr(K.phone)}</a>${K.whatsapp ? ' <span class="chip">WhatsApp</span>' : ""}${K.phone_valid ? "" : ' <span class="chip sla-amber">May not work</span>'}` : NR()}</dd></div>
      <div class="ct-tile"><dt>Email</dt><dd>${K.email ? `<a href="mailto:${W.esc(K.email)}">${ltr(K.email)}</a>` : NR()}${K.can_edit ? ` <a class="small" data-edit-contact href="/patients/${K.patient_id}#edit-contact">${K.email ? "Edit" : "Add email"}</a>` : ""}</dd></div>
      <div class="ct-tile"><dt>Contact consent</dt><dd>${CC[K.consent] || '<span class="muted">Not recorded (contact allowed)</span>'}${(K.channels_refused || []).length ? `<span class="sub small">No ${W.esc(K.channels_refused.join(", "))}</span>` : ""}</dd></div>
-     <div class="wide ct-tile"><dt>Address</dt><dd>${K.address ? W.esc(K.address) : NR()}${K.preferred_channel ? `<span class="sub small muted">Prefers ${W.esc(K.preferred_channel)}</span>` : ""}</dd></div>`;
+     <div class="wide ct-tile"><dt>Address</dt><dd>${K.address ? W.esc(K.address) : NR()}${K.preferred_channel ? `<span class="sub small muted">Prefers ${W.esc(K.preferred_channel)}</span>` : ""}</dd></div>
+     ${contactHint()}`;
 }
 // insurance (FHIR Coverage): payer, plan, member number (last 4 only for roles that do not book), validity, status
 function insuranceTile(I) {
@@ -247,6 +248,66 @@ function whyCard() {
     ${rev.required ? `<div><dt>Waiting for clinician review</dt><dd>${rev.reasons.map(x => W.esc(x.replaceAll("_", " "))).join(", ")}</dd></div>` : ""}</dl>
    <p class="xs muted">${W.esc(w.human_in_loop)}</p></section>`;
 }
+
+function contactHint() {
+  const s = C && C.contact_suggestion;
+  if (!s) return "";
+  return `<div class="wide contact-hint"><dt>Best time to contact</dt><dd>
+    <span class="chip">${W.esc(s.channel_label)}</span>
+    <span class="chip">${W.esc(s.hour_band_label)}</span>
+    <span class="sub small">${W.esc(s.reason)}</span>
+    <span class="xs muted">Advisory — you choose when and how to call or message.</span></dd></div>`;
+}
+function copilotCard() {
+  if (!W.me || W.me.role === "patient" || W.me.role === "admin") return "";
+  const lang = (C.patient && C.patient.language) || "en";
+  const langs = [["en","English"],["ar","العربية"],["hi","हिन्दी"],["ur","اردو"]];
+  return `<section class="card flat copilot-panel" id="copilot" aria-labelledby="copilot-h">
+    <h2 id="copilot-h" class="card-h">Coordinator drafts</h2>
+    <p class="xs muted">Advisory wording only. You edit it and send it yourself — nothing is sent automatically.</p>
+    <div class="copilot-tools">
+      <label class="m-0">Language
+        <select id="copilot-lang">${langs.map(([k,l]) => `<option value="${k}" ${k===lang?"selected":""}>${l}</option>`).join("")}</select>
+      </label>
+      <button type="button" class="secondary sm" data-copilot="outreach">Draft next message</button>
+      <button type="button" class="secondary sm" data-copilot="summary">Summarise this case</button>
+      <button type="button" class="secondary sm" data-copilot="simplify_letter">Simplify the result letter</button>
+    </div>
+    <div id="copilot-out" hidden>
+      <label for="copilot-text">Draft<textarea id="copilot-text" rows="6" maxlength="2000"></textarea></label>
+      <p class="copilot-sources small" id="copilot-meta"></p>
+      <div class="row"><button type="button" class="secondary sm" id="copilot-copy">Copy</button></div>
+    </div>
+  </section>`;
+}
+async function runCopilot(task, btn) {
+  const out = document.getElementById("copilot-out"), ta = document.getElementById("copilot-text"), meta = document.getElementById("copilot-meta");
+  if (!out) return;
+  out.hidden = false; ta.value = ""; meta.textContent = "Writing a draft…";
+  if (btn) W.busy(btn, true);
+  try {
+    const lang = (document.getElementById("copilot-lang") || {}).value || "en";
+    const r = await W.api("/api/assist/copilot", { method: "POST", body: { case_id: CASE_ID, task, language: lang } });
+    ta.value = r.text || "";
+    ta.dir = (lang === "ar" || lang === "ur") ? "rtl" : "ltr";
+    const origin = r.origin === "model" ? "Draft from the healthcare model" : "Template draft";
+    const src = (r.sources || []).map(s => s.replace(/_/g, " ")).join(", ");
+    meta.textContent = `${origin}. ${r.disclaimer || ""} Sources used: ${src || "case record"}.`;
+    if (!r.text) meta.textContent = "No draft this time. Try again, or write the message yourself.";
+  } catch (e) { meta.textContent = e.message || "Could not draft."; }
+  if (btn) W.busy(btn, false);
+}
+function wireCopilot() {
+  const rootEl = document.getElementById("copilot");
+  if (!rootEl) return;
+  rootEl.querySelectorAll("[data-copilot]").forEach(b => b.onclick = () => runCopilot(b.dataset.copilot, b));
+  const copy = document.getElementById("copilot-copy");
+  if (copy) copy.onclick = async () => {
+    const t = document.getElementById("copilot-text").value;
+    try { await navigator.clipboard.writeText(t); W.toast("Draft copied", "ok"); } catch (e) { W.toast("Copy it from the box", "err"); }
+  };
+}
+
 function patientCard() {
   const p = C.patient, o = C.result, r = C.risk;
   const ch = [p.channels.smartphone ? "App" : "", p.channels.whatsapp ? "WhatsApp" : "", p.channels.phone_valid ? "Phone" : ""].filter(Boolean);
@@ -258,9 +319,10 @@ function patientCard() {
      <dl class="facts result-meta" data-result-meta><div><dt>Ordered by</dt><dd>${o.ordering_clinician ? W.esc(o.ordering_clinician) : '<span class="muted">Not recorded</span>'}</dd></div><div><dt>Screening site</dt><dd>${o.screening_site ? W.esc(o.screening_site) : '<span class="muted">Not recorded</span>'}</dd></div><div><dt>Specimen taken</dt><dd>${o.specimen_collected_at ? W.dt(o.specimen_collected_at) : '<span class="muted">Not recorded</span>'}</dd></div></dl>` : "<p class='small muted'>–</p>"}
    <h3 class="card-h">Consent</h3><p class="small">${C.consents.filter(c => c.status === "active").map(c => `<span class="chip ${c.decision === "permit" ? "sla-green" : "sla-red"}">${c.decision === "permit" ? "✓" : "✕"} ${W.esc(c.scope.replace(/_/g, " "))}: ${c.decision === "permit" ? "yes" : "no"}</span>${c.note ? ` <span class="small muted">${W.esc(c.note)}</span>` : ""}`).join(" ") || "–"}</p></section>
    ${whyCard()}
-   <section class="card flat" aria-labelledby="ml-h"><h2 id="ml-h" class="card-h">Outreach priority <span class="muted xs">(model v${r.model_version ?? "–"}, ordering only)</span></h2>
-   <p class="mb-2"><b>${r.score == null ? "–" : Math.round(r.score * 100) + "%"}</b> <span class="small muted">chance of missing the next step</span></p>
-   ${r.score == null ? "" : `<details class="small"><summary>Why this estimate</summary>${(r.rationale || []).length ? `<ul>${r.rationale.map(w => `<li>${W.esc(w.text)} – <b>${w.direction}</b> the chance (${w.effect > 0 ? "+" : ""}${Math.round(w.effect * 100)} points)</li>`).join("")}</ul>` : "<p>No single factor stands out.</p>"}<p class="muted">${W.esc(r.ordering)}. ${W.esc(r.use)}.</p></details>`}</section>`;
+   <section class="card flat" aria-labelledby="ml-h"><h2 id="ml-h" class="card-h">Missed-appointment risk <span class="muted xs">(model v${r.model_version ?? "–"}, ordering only)</span></h2>
+   <p class="mb-2">${r.band ? `<span class="chip ${r.band.key === "high" ? "sla-red" : r.band.key === "medium" ? "sla-amber" : "sla-green"}">${W.esc(r.band.label)}</span> ` : ""}<b>${r.score == null ? "–" : Math.round(r.score * 100) + "%"}</b> <span class="small muted">chance of delayed or dropped care</span></p>
+   ${contactHint()}
+   ${r.score == null ? "" : `<details class="small"><summary>Why this estimate</summary>${(r.rationale || []).length ? `<ul>${r.rationale.map(w => `<li>${W.esc(w.text)} – <b>${w.direction}</b> the chance (${w.effect > 0 ? "+" : ""}${Math.round(w.effect * 100)} points)</li>`).join("")}</ul>` : "<p>No single factor stands out.</p>"}<p class="muted">${W.esc(r.calibration_note || "")} ${W.esc(r.ordering)}. ${W.esc(r.use)}.</p></details>`}</section>`;
 }
 
 // the patient's answers to a booked appointment (patient app): "I will come" / "please change it" (never moves it)
@@ -287,7 +349,8 @@ function render() {
     <aside aria-label="Actions and patient details"><section class="card ${primary ? "next-step" : ""}" aria-labelledby="act-h"><h2 id="act-h" class="card-title">${W.ic(primary ? "arrow" : "list")}${primary ? "Next step" : "Actions"}</h2>
       ${primary ? `<button class="primary-action" data-k="${primary.key}" data-ev="${primary.evidence_type || ""}">${W.esc(primary.label)}</button>` : ""}
       ${others.length ? (primary ? `<details class="more-actions"><summary>More actions (${others.length})</summary><div class="actions">${others.map(btn).join("")}</div></details>` : `<div class="actions">${others.map(btn).join("")}</div>`) : (primary ? "" : `<p class="small muted">Nothing for your role now</p>`)}
-      <div id="aform"></div></section>${patientRequests()}${patientCard()}</aside></div>`;
+      <div id="aform"></div></section>${patientRequests()}${patientCard()}${copilotCard()}</aside></div>`;
+  wireCopilot();
   const tabs = { steps, events, audit: auditTable };
   root().querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
     root().querySelectorAll(".tabs button").forEach(x => { x.className = "secondary"; x.setAttribute("aria-selected", "false"); }); b.className = ""; b.setAttribute("aria-selected", "true");

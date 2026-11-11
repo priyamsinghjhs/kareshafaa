@@ -75,3 +75,45 @@ def suggest(body: SuggestIn, actor: Actor = Depends(require("case:read")), db: S
                          "model": s.slm_model, "returned": bool(text), "error": None if text else res.get("error")})
     db.commit()
     return _out(True, None, text, s.slm_model, unavailable=not text)
+
+
+class CopilotIn(_In):
+    case_id: int = Field(ge=1)
+    task: str = Field(max_length=40)
+    language: str = Field(default="en", max_length=8)
+    draft: str = Field(default="", max_length=assist.MAX_DRAFT)
+
+
+@router.post("/copilot")
+def copilot(body: CopilotIn, actor: Actor = Depends(require("case:read")), db: Session = Depends(get_db)) -> dict:
+    """Advisory draft only. Never sends, files, moves or closes a case."""
+    from ..services import copilot as cop
+
+    if actor.role == "patient" or not actor.is_human:
+        raise Forbidden("the copilot is for staff only")
+    if body.task not in cop.TASKS:
+        raise Invalid("unknown copilot task")
+    lang = body.language if body.language in cop.LANGS else "en"
+    c = wf.get_case(db, body.case_id)
+    assert_can_view(db, actor, c)
+    s = get_settings()
+    use_model = cop.available_for_model(db)
+    if use_model and not cop.assist.LIMITER.allow(actor.user_id, int(s.slm_rate_per_minute)):
+        use_model = False
+    staff = [actor.display or ""]
+    if c.owner is not None and not c.owner.is_pool:
+        staff.append(c.owner.name)
+    ctx = cop.gather(db, c, task=body.task, language=lang, staff_names=staff)
+    case_id = c.id
+    sources = list(ctx.get("sources") or [])
+    db.rollback()
+    res = cop.run(ctx, task=body.task, language=lang, use_model=use_model)
+    audit.record(db, actor, "E", "copilot.requested", entity_type="Case", entity_id=case_id, case_id=case_id,
+                 detail={"task": body.task, "language": lang, "origin": res.get("origin"),
+                         "returned": bool(res.get("text")), "model_used": use_model and res.get("origin") == "model",
+                         "error": res.get("error")})
+    db.commit()
+    return {"text": res.get("text"), "origin": res.get("origin"), "sources": res.get("sources") or sources,
+            "disclaimer": cop.DISCLAIMER, "model": (s.slm_model if res.get("origin") == "model" else None),
+            "kill_switch_off": not use_model and not cop.available_for_model(db),
+            "task": body.task, "language": lang}

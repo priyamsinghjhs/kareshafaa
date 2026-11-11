@@ -197,6 +197,65 @@ def fairness_slices(db: Session) -> dict[str, list[dict]]:
     return out
 
 
+
+def score_band_equity(db: Session) -> dict:
+    """Distribution of the advisory missed-appointment risk band by language and nationality.
+
+    Language and nationality are NOT model inputs (kareshafaa/ml/features.py). A higher score
+    means the case is offered MORE outreach support, never less. Small cells are suppressed
+    with the same rule as the other fairness slices.
+    """
+    from collections import defaultdict
+
+    from ..services.priority import BAND_HIGH, BAND_MEDIUM, CALIBRATION_NOTE
+
+    rows = db.execute(
+        select(Case.risk_score, Patient.language, Patient.nationality_group)
+        .join(Patient, Patient.id == Case.patient_id)
+        .where(Case.state != "closed", Case.risk_score.is_not(None))
+    ).all()
+    note = (
+        "Higher scores mean more outreach support, never less. Language and nationality are not "
+        "used as model inputs; they are shown only so a skewed band distribution can be reviewed. "
+        + CALIBRATION_NOTE
+    )
+
+    def band(score: float) -> str:
+        if score >= BAND_HIGH:
+            return "high"
+        if score >= BAND_MEDIUM:
+            return "medium"
+        return "low"
+
+    def slice_of(idx: int) -> list[dict]:
+        groups: dict[str, list[float]] = defaultdict(list)
+        for r in rows:
+            groups[str(r[idx] or "unknown")].append(float(r[0]))
+        out = []
+        for g, scores in sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+            n = len(scores)
+            n_high = sum(1 for s in scores if band(s) == "high")
+            n_med = sum(1 for s in scores if band(s) == "medium")
+            n_low = n - n_high - n_med
+            hidden = n < _thr()
+            out.append({
+                "group": g,
+                "n": suppress_count(n),
+                "n_high": suppress_count(n) if hidden else suppress_count(n_high),
+                "n_medium": suppress_count(n) if hidden else suppress_count(n_med),
+                "n_low": suppress_count(n) if hidden else suppress_count(n_low),
+                "mean_score": None if hidden else round(sum(scores) / n, 3),
+                "share_high": None if hidden else suppress_rate(n_high, n),
+            })
+            if hidden:
+                out[-1]["n_high"] = out[-1]["n_medium"] = out[-1]["n_low"] = out[-1]["n"]
+                out[-1]["share_high"] = None
+        return out
+
+    return {"note": note, "n_scored": suppress_count(len(rows)),
+            "by_language": slice_of(1), "by_nationality_group": slice_of(2)}
+
+
 # ---- aggregate cache ------------------------------------------------------------------------------------
 # KPIs scan every case and step (O(N)); dashboards poll them. Results are cached per process and keyed on
 # a cheap data fingerprint (max ids / counts of the tables they read), so any new event invalidates them,

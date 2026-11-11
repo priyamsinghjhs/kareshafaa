@@ -154,8 +154,13 @@ def test_drift_report(client, as_user):
 
 
 def test_risk_model_only_orders_queue(client, as_user):
-    """Risk never overrides SLA status: within the queue, RAG status dominates ML risk."""
+    """Risk never moves a case across urgency tiers; within a tier, overdue (SLA) still leads."""
+    from itertools import groupby
+    from kareshafaa.services.queue import TIER_RANK
     items = client.get("/api/queue?view=all&limit=500", headers=as_user("aisha.rahman")).json()["items"]
-    rank = {"red": 0, "amber": 1, "green": 2}
-    keys = [(rank.get(i["sla_status"], 3)) for i in items]
-    assert keys == sorted(keys)
+    tiers = [TIER_RANK.get(i["tier"], 9) for i in items]
+    assert tiers == sorted(tiers)
+    sla_rank = {"red": 0, "amber": 1, "green": 2, "none": 3}
+    for tier, group in groupby(items, key=lambda i: i["tier"]):
+        keys = [sla_rank.get(i["sla_status"], 3) for i in group]
+        assert keys == sorted(keys), tier

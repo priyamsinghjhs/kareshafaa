@@ -20,8 +20,8 @@ closure.
 ## Features
 
 **Focused screens (care, empathy, timely decisions, clarity)**
-* Every clinical home starts with **“Needs you now”**: the five most urgent cases in your scope (overdue first, then
-  T0→T3), each with the time left in plain words (“Overdue by 3 days”, “5 h left”), the patient's name and preferred
+* Every clinical home starts with **“Needs you now”**: the five highest-priority cases in your scope (urgency first, then
+  overdue, risk and flags), each with the time left in plain words (“Overdue by 3 days”, “5 h left”), the patient's name and preferred
   language, and **one button** for the next step (e.g. “Tell the patient their result”, “Book appointment”). The button
   opens the case; every existing check and confirmation still applies. For a GP, specialist or coordinator, only cases with a next
   step for that role are listed (see **Role work queues** below).
@@ -224,8 +224,9 @@ closure.
   model actor is refused by the workflow for every case or patient action (move, close, file a result, contact),
   checked by the property test. **AI kill switch:** `KARESHAFAA_ML_ENABLED=false` at deployment, or **Admin → System →
   AI suggestions → Switch off** at runtime (`POST /api/admin/system/ml-switch`, permission `ml:switch`, admin only,
-  reason required, audited `ml.switched_off` / `ml.switched_on`). Off clears every open case's score at once and the
-  work queue falls back to deadline order; clinical work is not affected.
+  reason required, audited `ml.switched_off` / `ml.switched_on`). Off clears every open case's score at once; the work queue still orders by urgency,
+  overdue status and critical flags, with the risk component at zero. Clinical work is not affected.
+  Staff can also sort the queue by deadline.
   Registry with AUC, calibration and fairness gates; promotion needs clinical-lead approval; drift and rollback.
 * **Closure notes (from the record, not AI):** closing a case is health-critical, so the note is **not** drafted
   by a language model — no model can honestly promise 100% accuracy on clinical facts. On closure forms (close with
@@ -451,6 +452,35 @@ closure.
   `data-click="function"` / `data-args` handled by one delegated listener in `common.js` instead of `onclick=`.
   `tests/test_csp.py` fails on any new inline script or `on*=` handler. `style-src` still allows inline styles
   (`style=""` attributes; see `docs/security.md`).
+
+
+## Algorithms
+
+Five advisory algorithms help coordinators close the screening-to-care loop. **None of them takes a clinical or case action.** They never set urgency, move, assign, close, file, link or send anything. A person confirms every match, edits every draft, and sends every message. The existing **AI kill switch** (`KARESHAFAA_ML_ENABLED` or Admin → System → AI suggestions) turns the hosted model off; deterministic templates and the priority score (without the risk component) still work. Every request is audited (without storing draft text). Feature policy, band thresholds and priority weights are versioned in `kareshafaa/ml/coefficients/loop_drop_v1.json`.
+
+### 1. Missed-appointment / loop-drop risk
+
+The existing governed model in `kareshafaa/ml` (logistic regression or gradient boosting, trained **offline** on synthetic follow-up history, fairness-gated, promoted only after clinical-lead approval). Inputs include prior no-shows, failed contact attempts in the first 72 hours, contact-channel availability, region, programme, urgency, and whether patient materials exist in the preferred language (`language_unsupported`). **Language, nationality, gender and age band are not model inputs** — they are fairness-monitored only, because using them as inputs under-served groups in training. A higher score means **more** outreach support, never less.
+
+Each open case shows a **Low / Medium / High** band (thresholds 0.25 and 0.50 of predicted probability) with the top contributing factors and a calibration note, on the queue and on the case page. The analyst **Outcomes → Fairness** tab reports the band distribution by language and nationality so a skewed pattern can be reviewed (small cells suppressed).
+
+### 2. Smart queue ordering
+
+One deterministic priority score (`kareshafaa/services/priority.py`, `priority_v1`) combines urgency tier, overdue (SLA) status, critical read-back still needed, the missed-appointment risk, missing contact details, and a clinical-review flag. **Urgency always outranks a lower tier**: the largest possible sum of the other components is smaller than the gap between adjacent tiers, so a high-risk overdue routine case cannot sort ahead of a critical one. The default order for coordinator, GP and specialist queues (and the clinical-lead overview) uses this score, with a short **why first** line on each row. Staff can still **sort by deadline**. The role-queue filter is unchanged: cases with nothing for this role stay hidden, and a case-number search still finds them.
+
+### 3. Result-to-patient matching suggestions
+
+The Results inbox unmatched list (`needs_match_review`) now shows up to three **candidate patients**, with a confidence and a reason (`kareshafaa/services/matching.py`). Matching uses the existing Arabic-aware name keys (Mohammed/Muhammad/Mohamed, Al-/El- prefixes, Abdul/Abd al joins), date of birth, a partial Emirates ID (last 4 characters) and a close MRN. **A person must confirm**, through the existing confirm path. Nothing is auto-linked, including exact-looking identifier hits that were rejected for a birth-year clash (those are shown with a warning).
+
+### 4. Best time and channel to contact
+
+On the case page, an advisory hint (`kareshafaa/services/contact_timing.py`) suggests a channel and a UAE hour band (morning 08:00–12:00, afternoon 12:00–17:00, evening 17:00–21:00 Asia/Dubai). It learns from this patient's answered vs unanswered outreach (call-task outcomes and digital delivery) when there are at least three attempts, and otherwise falls back to a cohort prior or clinic-hours default. Protected attributes are not used to withhold contact. Staff choose when and how to call or message.
+
+### 5. Coordinator copilot
+
+`POST /api/assist/copilot` drafts the next outreach message, summarises the case, or simplifies a result letter (English, Arabic, Hindi or Urdu). It does not draft closure notes — those stay on the record-sourced **Suggest note** path. It is a small **LangGraph** graph — gather scrubbed case facts → draft → safety check → output with cited sources — using the same free healthcare SLM already used for note drafts. When the model is off, the API key is missing, the kill switch is on, or the draft fails the safety check, a **deterministic template** is used instead. The safety check refuses diagnoses that are not in the record, dosing, promises of a cure, and claims that a message was already sent. Drafts appear in an editable box on the case page; the staff member copies, edits and sends them through the normal forms. Nothing is auto-sent.
+
+**Limits:** the risk model is trained on simulated history, so real-world calibration is unknown. Priority and matching are rule-based and deterministic. Contact-time suggestions need enough outreach history to be personal. Copilot drafts are wording aids, not clinical advice.
 
 ## Roles
 
