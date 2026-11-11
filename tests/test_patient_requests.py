@@ -100,6 +100,7 @@ def test_profile_offers_request_action_and_options(client, screener):
     assert set(o["programmes"]) == {"colorectal_fit", "cervical", "breast", "diabetes_hba1c"}
     assert o["days"] == list(pr.DAYS) and o["sites"] and all(s["kind"] in pr.SITE_KINDS for s in o["sites"])
     assert set(o["programme_names"]) == set(o["programmes"])
+    assert o["can_request"] is True and o["block_reason"] is None and o["booked"] is None
 
 
 # ------------------------------------------------------------------ screening
@@ -113,7 +114,7 @@ def test_screening_request_validates_and_is_never_a_booking(client, db, screener
     r = _screen(client, h, db, note="Mornings before work")
     assert r.status_code == 200, r.text
     assert r.json()["booked"] is False
-    assert _screen(client, h, db).status_code == 409  # one open request per programme
+    assert _screen(client, h, db).status_code == 409  # one waiting screening request at a time
     db.expire_all()
     req = db.get(PatientRequest, r.json()["request_id"])
     assert (req.kind, req.status, req.preferred_days, req.preferred_times, req.language) == ("screening", "open", ["mon", "wed"], ["morning"], "ar")
@@ -168,6 +169,97 @@ def test_recall_request_is_own_only_and_marks_the_recall_invited(client, db, scr
     assert client.post(f"/api/patient-requests/{rid}/decline", headers=co,
                        json={"reason_code": "other", "note": "too late now"}).status_code == 409  # already answered
 
+
+
+
+def test_open_screening_request_hides_option_and_blocks_any_programme(client, db, screener, as_user, make_patient):
+    """An open screening request hides 'Request an appointment' and the server refuses a second request
+    (including a different programme). Another patient is unaffected. After withdraw the option returns."""
+    h = screener["h"]
+    first = _screen(client, h, db, programme="colorectal_fit")
+    assert first.status_code == 200, first.text
+    rid = first.json()["request_id"]
+    d = client.get("/api/me/profile?lang=en", headers=h).json()
+    o = d["request_options"]
+    assert o["can_request"] is False and o["block_reason"] == "open_request" and o["booked"] is None
+    assert d["text"]["req"]["already_requested"] == REQ_TEXT["en"]["already_requested"]
+    assert any(r["id"] == rid and r["status"] == "open" for r in d["requests"])
+    # same or another programme, with the patient's language (ar) or an explicit lang
+    again = _screen(client, h, db, programme="breast")
+    assert again.status_code == 409
+    assert again.json()["detail"] == REQ_TEXT["ar"]["already_requested"]
+    ar = client.post("/api/me/requests/screening?lang=hi", headers=h,
+                     json={"programme": "cervical", "site_org_id": _site(db), "days": ["mon"], "times": ["morning"]})
+    assert ar.status_code == 409 and ar.json()["detail"] == REQ_TEXT["hi"]["already_requested"]
+    other = _user_for(db, make_patient(language="en"), prefix="req.other")
+    oh = as_user(other.username)
+    od = client.get("/api/me/profile", headers=oh).json()["request_options"]
+    assert od["can_request"] is True and od["block_reason"] is None
+    ok = _screen(client, oh, db, programme="colorectal_fit")
+    assert ok.status_code == 200, ok.text
+    # withdraw: the option returns and a new request is accepted
+    assert client.post(f"/api/me/requests/{rid}/withdraw", headers=h, json={}).status_code == 200
+    d = client.get("/api/me/profile", headers=h).json()
+    assert d["request_options"]["can_request"] is True and d["request_options"]["block_reason"] is None
+    nxt = _screen(client, h, db, programme="breast")
+    assert nxt.status_code == 200, nxt.text
+    # the other patient's open request is unchanged
+    assert client.get("/api/me/profile", headers=oh).json()["request_options"]["can_request"] is False
+
+
+def test_confirmed_upcoming_screening_blocks_new_request(client, db, screener, as_user):
+    """A confirmed screening still ahead hides the request option and is refused (409) until the booked time passes."""
+    from kareshafaa.calendar_uae import local_display
+
+    h = screener["h"]
+    rid = _screen(client, h, db, programme="cervical").json()["request_id"]
+    start = (utcnow() + timedelta(days=12)).replace(second=0, microsecond=0)
+    ok = client.post(f"/api/patient-requests/{rid}/confirm", headers=as_user(COORD),
+                     json={"start": start.isoformat() + "Z", "org_id": _site(db)})
+    assert ok.status_code == 200, ok.text
+    d = client.get("/api/me/profile?lang=en", headers=h).json()
+    o = d["request_options"]
+    assert o["can_request"] is False and o["block_reason"] == "booked"
+    assert o["booked"]["programme"] == "cervical" and o["booked"]["place"] and o["booked"]["start"]
+    blocked = _screen(client, h, db, programme="breast")
+    assert blocked.status_code == 409
+    detail = blocked.json()["detail"]
+    assert detail == REQ_TEXT["ar"]["already_booked"].format(when=local_display(start), place=o["booked"]["place"])
+    # once the booked time has passed, the option returns
+    db.expire_all()
+    req = db.get(PatientRequest, rid)
+    req.confirmed_start = utcnow() - timedelta(hours=1)
+    db.commit()
+    d = client.get("/api/me/profile", headers=h).json()
+    assert d["request_options"]["can_request"] is True
+    nxt = _screen(client, h, db, programme="breast")
+    assert nxt.status_code == 200, nxt.text
+
+
+def test_declined_or_follow_up_does_not_block_screening(client, db, screener, follow_up, as_user):
+    """A declined screening, or an open follow-up request, does not hide or refuse a new screening request."""
+    h = screener["h"]
+    rid = _screen(client, h, db).json()["request_id"]
+    assert client.post(f"/api/patient-requests/{rid}/decline", headers=as_user(COORD),
+                       json={"reason_code": "not_due", "note": "Your screening is not due yet"}).status_code == 200
+    d = client.get("/api/me/profile", headers=h).json()
+    assert d["request_options"]["can_request"] is True
+    assert _screen(client, h, db, programme="breast").status_code == 200
+    fh = follow_up["h"]
+    slot = client.get("/api/me/profile", headers=fh).json()["loop"]
+    slot = next(x for x in slot if x.get("case_id") == follow_up["case"])["choose_time"]["slots"][0]
+    assert client.post("/api/me/requests/follow-up", headers=fh, json={"case_id": follow_up["case"], "slot": slot}).status_code == 200
+    fd = client.get("/api/me/profile", headers=fh).json()
+    assert fd["request_options"]["can_request"] is True
+    assert _screen(client, fh, db, programme="cervical").status_code == 200
+
+
+def test_patient_app_hides_request_button_when_blocked():
+    js = open("kareshafaa/static/js/patient_profile.js", encoding="utf-8").read()
+    assert "data-req-new" in js and "can_request" in js
+    assert "already_requested" in js and "already_booked" in js and "data-request-blocked" in js
+    assert "canReq && REQ" in js  # the form only opens when a new request is allowed
+    assert "demo" not in js.lower()
 
 # ------------------------------------------------------------------ follow-up
 def test_follow_up_slots_stay_inside_the_case_deadline(client, db, follow_up):

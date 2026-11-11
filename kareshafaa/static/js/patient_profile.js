@@ -203,10 +203,17 @@
   function historyBox(lang) {
     const box = document.getElementById("pappts"); if (!box || !P) return;
     const T = P.text, H = P.history;
-    const RQ = T.req, reqBtn = `<button type="button" class="${H.appointments.length ? "secondary " : ""}sm" data-req-new>${W.esc(RQ.request_btn)}</button>`;
-    const showForm = REQ && !REQ.recall_id;
-    const appts = (H.appointments.length ? `<ul class="hist">${H.appointments.map(a => apptItem(a, T, lang)).join("")}</ul>${showForm ? "" : `<div class="tb-actions">${reqBtn}</div>`}`
-      : `<div class="empty-req" data-empty-appts><p>${W.esc(RQ.request_intro)}</p>${showForm ? "" : `<div class="tb-actions">${reqBtn}</div>`}</div>`)
+    const RQ = T.req, O = P.request_options || {};
+    const canReq = O.can_request !== false;
+    const bookedNote = O.block_reason === "booked" && O.booked
+      ? fill(RQ.already_booked, { when: when(O.booked.start, lang), place: O.booked.place || "" }) : "";
+    const blockNote = !canReq ? (bookedNote || RQ.already_requested) : "";
+    const reqBtn = canReq ? `<button type="button" class="${H.appointments.length ? "secondary " : ""}sm" data-req-new>${W.esc(RQ.request_btn)}</button>` : "";
+    const showForm = canReq && REQ && !REQ.recall_id;
+    const actions = showForm ? "" : (reqBtn ? `<div class="tb-actions">${reqBtn}</div>` : "");
+    const block = blockNote ? `<p class="small" data-request-blocked="${W.esc(O.block_reason || "")}">${W.esc(blockNote)}</p>` : "";
+    const appts = (H.appointments.length ? `<ul class="hist">${H.appointments.map(a => apptItem(a, T, lang)).join("")}</ul>${block}${actions}`
+      : `<div class="empty-req" data-empty-appts>${canReq ? `<p>${W.esc(RQ.request_intro)}</p>` : block}${actions}</div>`)
       + (showForm ? requestForm(T) : "");
     const results = H.results.length ? `<ul class="hist">${H.results.map(r => `<li class="hist-item"><div><b>${W.esc(when(r.date, lang, false))}</b> · ${W.esc(cap(r.programme))} <span class="small muted">(${W.esc(r.kind)})</span></div><div><span class="chip ${r.outcome === "normal" ? "sla-green" : r.outcome === "follow_up" ? "sla-amber" : ""}" data-outcome="${r.outcome}">${W.esc(r.outcome_text)}</span>${r.site ? ` <span class="small muted">${W.esc(r.site)}</span>` : ""}</div></li>`).join("")}</ul>` : `<p class="small muted">${W.esc(T.no_results)}</p>`;
     box.innerHTML = `<div class="card" id="self-appts"><h4 class="p-sec-h">${W.ic("calendar")}${W.esc(T.appts_title)}</h4>${appts}</div>${requestsCard(T, lang)}

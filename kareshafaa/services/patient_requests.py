@@ -86,6 +86,36 @@ def _open_for(db: Session, p: Patient, *, programme: str | None = None, case_id:
     return db.scalars(q.order_by(PatientRequest.id.desc())).first()
 
 
+def _open_screening_request(db: Session, p: Patient) -> PatientRequest | None:
+    """Any waiting screening or next-screening request (one at a time, any programme)."""
+    return db.scalars(select(PatientRequest).where(
+        PatientRequest.patient_id == p.id, PatientRequest.status == "open",
+        PatientRequest.kind.in_(("screening", "recall"))).order_by(PatientRequest.id.desc())).first()
+
+
+def _upcoming_confirmed_screening(db: Session, p: Patient, now: datetime) -> PatientRequest | None:
+    """A confirmed screening / next-screening whose booked time has not yet started (UTC naive)."""
+    return db.scalars(select(PatientRequest).where(
+        PatientRequest.patient_id == p.id, PatientRequest.status == "confirmed",
+        PatientRequest.kind.in_(("screening", "recall")), PatientRequest.confirmed_start.is_not(None),
+        PatientRequest.confirmed_start >= now).order_by(PatientRequest.confirmed_start)).first()
+
+
+def _refuse_duplicate_screening(db: Session, p: Patient, lang: str, now: datetime) -> None:
+    """Patients may have only one waiting screening request, or one upcoming booked screening, at a time."""
+    from ..calendar_uae import local_display
+    from ..comms.request_text import REQ_TEXT
+
+    T = REQ_TEXT[lang if lang in REQ_TEXT else "en"]
+    if _open_screening_request(db, p) is not None:
+        raise DomainError(T["already_requested"])
+    booked = _upcoming_confirmed_screening(db, p, now)
+    if booked is not None:
+        org = db.get(Organization, booked.confirmed_org_id) if booked.confirmed_org_id else None
+        raise DomainError(T["already_booked"].format(
+            when=local_display(booked.confirmed_start), place=org.name if org else ""))
+
+
 def _answer_by(kind: str, tier: str, now: datetime) -> datetime | None:
     t = tier if kind == "follow_up" else SCREENING_RESPONSE_TIER
     return due_at(now, RESPONSE_HOURS.get(t, RESPONSE_HOURS["routine"]), t)
@@ -183,8 +213,7 @@ def request_screening(db: Session, actor: Actor, programme: str, site_org_id: in
             raise DomainError("this screening reminder is no longer open")
         if rec.programme != programme:
             raise Invalid("the screening must match the reminder")
-    if _open_for(db, p, programme=programme) is not None:
-        raise DomainError("you already asked for this screening - your care team will contact you")
+    _refuse_duplicate_screening(db, p, _lang(p, lang), now)
     kind = "recall" if rec is not None else "screening"
     r = PatientRequest(patient_id=p.id, user_id=actor.user_id, kind=kind, programme=programme,
                        recall_id=rec.id if rec else None, tier=SCREENING_RESPONSE_TIER, preferred_org_id=org.id,
@@ -277,11 +306,30 @@ def options(db: Session) -> dict:
             "sites": [{"id": o.id, "name": o.name, "region": o.region, "kind": o.kind} for o in sites]}
 
 
-def loop_extras(db: Session, actor: Actor, loop: list[dict], now: datetime | None = None) -> None:
-    """Add to each programme of the patient's tracker: the follow-up times they may choose, the due recall they may
-    book, and their open request (so no second request button is shown)."""
+def screening_availability(db: Session, actor: Actor, now: datetime | None = None) -> dict:
+    """Whether the patient app may offer 'Request an appointment' (and why not, if not)."""
     now = now or utcnow()
     p = _me(db, actor)
+    open_req = _open_screening_request(db, p)
+    booked = _upcoming_confirmed_screening(db, p, now)
+    if open_req is not None:
+        return {"can_request": False, "block_reason": "open_request", "booked": None}
+    if booked is not None:
+        org = db.get(Organization, booked.confirmed_org_id) if booked.confirmed_org_id else None
+        return {"can_request": False, "block_reason": "booked",
+                "booked": {"start": _iso(booked.confirmed_start), "place": org.name if org else None,
+                           "programme": booked.programme}}
+    return {"can_request": True, "block_reason": None, "booked": None}
+
+
+def loop_extras(db: Session, actor: Actor, loop: list[dict], now: datetime | None = None) -> None:
+    """Add to each programme of the patient's tracker: the follow-up times they may choose, the due recall they may
+    book, and their open request (so no second request button is shown). A waiting screening request or an upcoming
+    booked screening also hides 'Book your next screening' on every programme."""
+    now = now or utcnow()
+    p = _me(db, actor)
+    screening_blocked = (_open_screening_request(db, p) is not None
+                         or _upcoming_confirmed_screening(db, p, now) is not None)
     for x in loop:
         c = db.get(Case, x["case_id"]) if x.get("case_id") else None
         open_req = _open_for(db, p, case_id=c.id) if c is not None and x.get("open") else None
@@ -296,7 +344,7 @@ def loop_extras(db: Session, actor: Actor, loop: list[dict], now: datetime | Non
         x["book_recall"] = None
         rec = db.scalars(select(Recall).where(Recall.patient_id == p.id, Recall.programme == x["programme"],
                                               Recall.status.in_(("due", "invited"))).order_by(Recall.due_on)).first()
-        if rec is not None and open_req is None and not x.get("open") \
+        if rec is not None and open_req is None and not x.get("open") and not screening_blocked \
                 and rec.due_on <= (to_local(now).date() + timedelta(days=RECALL_BOOK_AHEAD_DAYS)):
             x["book_recall"] = {"recall_id": rec.id, "due_on": rec.due_on.isoformat()}
 

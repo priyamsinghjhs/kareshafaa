@@ -218,8 +218,8 @@ def my_profile(lang: str | None = Query(None, max_length=5), actor: Actor = Depe
                         "consent_scopes": list(pl.PATIENT_SCOPES)},
             "history": ss.history(db, actor, lang),
             "loop": loop,
-            "requests": pr.mine(db, actor, lang), "request_options": {**pr.options(db), "programme_names": {
-                k: ss._prog_name(lang, k) for k in pr.PROGRAMMES}},
+            "requests": pr.mine(db, actor, lang), "request_options": {**pr.options(db), **pr.screening_availability(db, actor),
+                "programme_names": {k: ss._prog_name(lang, k) for k in pr.PROGRAMMES}},
             "messages": pl.messages_view(db, actor), "consent": pl.consent_view(db, actor),
             "simulated_note": True}
 

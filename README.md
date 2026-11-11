@@ -133,7 +133,11 @@ closure.
 * Confirm an appointment or ask to change it; messages with replies; teach-back check; contact consent.
 * **Appointment requests:** patients can ask for a screening, a follow-up or their next screening from a due recall.
   Nothing is booked automatically — requests land in the **coordinator queue**, where they are confirmed or declined
-  with an answer-by deadline.
+  with an answer-by deadline. A patient may have only **one waiting screening request or one upcoming booked
+  screening** at a time: the patient app then hides “Request an appointment” and shows the existing request or
+  booking (times in UAE). They can withdraw a waiting request to ask again; after a decline, a withdrawal, or once
+  a booked screening has passed, the option returns. The server refuses a second request (409, in the patient's
+  language). Staff do not create these requests on the patient's behalf.
 * Patient messages in English, Arabic, Hindi and Urdu (signed-off wording only; otherwise English plus an
   interpreter-supported call).
 
