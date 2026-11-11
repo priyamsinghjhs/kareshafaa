@@ -3,7 +3,8 @@
 Patients: 3-factor identity check (date of birth, last 4 of the ID document, registered mobile), generic answers
 (no account enumeration), device pause and silent record lock, every attempt audited; username shown on a match;
 password -> coordinator reset request -> identity check -> one-time reset code -> /reset-password (code + date of
-birth) -> every session ended. Staff: request to the administrator (admins only), admin reset with a one-time
+birth) -> every session ended. Staff: a username on Forgot password emails a one-time reset link (or the same generic message if none is sent);
+staff who cannot use email may still leave a request for the administrator. Admin reset with a one-time
 temporary password, change forced at next sign-in, sessions ended. RBAC: only coordinators handle patient resets,
 only admins staff ones; the clinical lead has no admin tools."""
 from __future__ import annotations
@@ -18,7 +19,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from kareshafaa import accounts
-from kareshafaa.comms.signin_text import HELP_TEXT, LOGIN_TEXT, RESET_OVERRIDES, SMS_RESET_TEXT
+from kareshafaa.comms.signin_text import HELP_TEXT, LOGIN_TEXT, RESET_OVERRIDES, SMS_RESET_TEXT, STAFF_RESET_TEXT
 from kareshafaa.models import AuditEvent, Communication, Patient, PatientInvite, SigninHelpRequest, User, utcnow
 from kareshafaa.services import invites as inv
 from kareshafaa.services import signin_help as sh
@@ -75,13 +76,16 @@ def _f(pat, **kw):
 
 # ------------------------------------------------------------------ texts and pages
 def test_texts_have_the_same_keys_in_every_language_and_no_demo_wording():
-    for D in (LOGIN_TEXT, HELP_TEXT, RESET_OVERRIDES, SMS_RESET_TEXT):
+    for D in (LOGIN_TEXT, HELP_TEXT, RESET_OVERRIDES, SMS_RESET_TEXT, STAFF_RESET_TEXT):
         assert set(D) == {"en", "ar", "hi", "ur"}
         for lang in D:
             if isinstance(D["en"], dict):
                 assert set(D[lang]) == set(D["en"]), lang
                 assert set(D[lang].get("roles", {})) == set(D["en"].get("roles", {}))
-    assert "demo" not in (repr(LOGIN_TEXT) + repr(HELP_TEXT) + repr(RESET_OVERRIDES) + repr(SMS_RESET_TEXT)).lower()
+                if "err" in D["en"]:
+                    assert set(D[lang]["err"]) == set(D["en"]["err"]), lang
+    blob = repr(LOGIN_TEXT) + repr(HELP_TEXT) + repr(RESET_OVERRIDES) + repr(SMS_RESET_TEXT) + repr(STAFF_RESET_TEXT)
+    assert "demo" not in blob.lower()
     assert set(HELP_TEXT["en"]["roles"]) == set(sh.STAFF_ROLES)
 
 
@@ -97,8 +101,15 @@ def test_signin_page_has_forgot_links_in_each_language(app, lang):
         for who in ("patient", "staff"):
             r = c.get(f"/forgot-{mode}?lang={lang}&who={who}")
             assert r.status_code == 200 and HELP_TEXT[lang]["title_" + mode] in r.text
-            assert ('id="birth_date"' in r.text) == (who == "patient") and ('id="full_name"' in r.text) == (who == "staff")
+            assert ('id="birth_date"' in r.text) == (who == "patient")
+            if who == "staff" and mode == "password":
+                assert 'id="username"' in r.text and 'id="full_name"' not in r.text
+                assert 'id="help-ask-admin"' in r.text
+                assert 'id="full_name"' in c.get(f"/forgot-password?lang={lang}&who=staff&via=admin").text
+            else:
+                assert ('id="full_name"' in r.text) == (who == "staff")
     assert RESET_OVERRIDES[lang]["title"] in c.get(f"/reset-password?lang={lang}").text
+    assert STAFF_RESET_TEXT[lang]["title"] in c.get(f"/staff-reset-password?lang={lang}").text
 
 
 def test_signin_error_is_translated_and_keeps_language(app):
@@ -322,9 +333,10 @@ def test_reset_page_refuses_an_activation_code(client, db, as_user, app, make_pa
 
 # ------------------------------------------------------------------ staff
 def _staff(c, mode="password", **kw):
-    data = {"who": "staff", "full_name": "Sara Ali", "role": "coordinator", "org": "Corniche Family Health Centre",
+    data = {"who": "staff", "via": "admin", "full_name": "Sara Ali", "role": "coordinator", "org": "Corniche Family Health Centre",
             "contact": "02 555 0101", "need": mode, "note": "", **kw}
-    return help_post(c, mode, **data)
+    tok = csrf(c, f"/forgot-{mode}?lang=en&who=staff&via=admin")
+    return c.post(f"/forgot-{mode}", data={"csrf_token": tok, "lang": "en", **data})
 
 
 def test_staff_request_validation_storage_and_admin_only(client, db, as_user, app):

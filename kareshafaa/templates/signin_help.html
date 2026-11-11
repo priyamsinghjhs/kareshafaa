@@ -6,7 +6,7 @@
   <div class="auth-card">
     <img class="logo-full auth-logo" src="{{ asset('brand/logo-horizontal.svg') }}" alt="KareShafaa" width="199" height="56">
     <div class="lang-switch" role="group" aria-label="{{ lt.lang_label }}">
-      {% for k, v in langs.items() %}<a role="button" class="{{ '' if k == lang else 'secondary outline' }} sm" href="/forgot-{{ mode }}?lang={{ k }}&who={{ who }}" lang="{{ k }}" aria-current="{{ 'true' if k == lang else 'false' }}">{{ v }}</a>{% endfor %}
+      {% for k, v in langs.items() %}<a role="button" class="{{ '' if k == lang else 'secondary outline' }} sm" href="/forgot-{{ mode }}?lang={{ k }}&who={{ who }}{% if via %}&via={{ via }}{% endif %}" lang="{{ k }}" aria-current="{{ 'true' if k == lang else 'false' }}">{{ v }}</a>{% endfor %}
     </div>
     <h1 id="help-title">{{ t['title_' + mode] }}</h1>
     <div class="who-switch" role="group" aria-label="{{ t.who_label }}">
@@ -20,6 +20,8 @@
     {% elif sent %}
       <div class="notice-inline ok" role="status" id="help-result" data-result="sent">{{ t.generic_password }}</div>
       <p class="small">{{ t.have_code }} <a href="/reset-password?lang={{ lang }}" id="help-reset">{{ t.reset_link }}</a></p>
+    {% elif staff_reset_sent %}
+      <div class="notice-inline ok" role="status" id="help-result" data-result="staff_reset_sent">{{ t.s_generic_reset }}</div>
     {% elif staff_sent %}
       <div class="notice-inline ok" role="status" id="help-result" data-result="staff_sent">{{ t.s_sent }}</div>
     {% else %}
@@ -43,10 +45,20 @@
           <span class="hint small muted">{{ t.phone_hint }}</span></label>
         <button type="submit">{{ t['submit_' + mode] }}</button>
       </form>
+      {% elif who == 'staff' and mode == 'password' and via != 'admin' %}
+      <p class="small muted" id="staff-intro">{{ t.s_pw_intro }}</p>
+      <form method="post" action="/forgot-{{ mode }}" id="help-form" data-who="staff" data-path="email" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ login_csrf }}"><input type="hidden" name="lang" value="{{ lang }}"><input type="hidden" name="who" value="staff">
+        <label for="username">{{ t.s_username }}
+          <input id="username" name="username" type="text" dir="ltr" maxlength="80" autocomplete="username" autocapitalize="none" spellcheck="false" value="{{ v.username or '' }}" required {% if 'username' in bad %}aria-invalid="true" aria-describedby="help-error"{% endif %}>
+        </label>
+        <button type="submit">{{ t.s_submit_reset }}</button>
+      </form>
+      <p class="small"><a href="/forgot-{{ mode }}?lang={{ lang }}&who=staff&via=admin" id="help-ask-admin">{{ t.s_ask_admin }}</a></p>
       {% else %}
       <p class="small" id="staff-intro">{{ t.s_intro }}</p>
-      <form method="post" action="/forgot-{{ mode }}" id="help-form" data-who="staff" novalidate>
-        <input type="hidden" name="csrf_token" value="{{ login_csrf }}"><input type="hidden" name="lang" value="{{ lang }}"><input type="hidden" name="who" value="staff">
+      <form method="post" action="/forgot-{{ mode }}" id="help-form" data-who="staff" data-path="admin" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ login_csrf }}"><input type="hidden" name="lang" value="{{ lang }}"><input type="hidden" name="who" value="staff"><input type="hidden" name="via" value="admin">
         <label for="full_name">{{ t.s_name }}<input id="full_name" name="full_name" maxlength="200" autocomplete="name" value="{{ v.full_name or '' }}" required {% if 'name' in bad %}aria-invalid="true"{% endif %}></label>
         <label for="role">{{ t.s_role }}<select id="role" name="role" required {% if 'role' in bad %}aria-invalid="true"{% endif %}><option value="">{{ t.choose }}</option>{% for k, l in t.roles.items() %}<option value="{{ k }}" {% if v.role == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
         <label for="org">{{ t.s_org }}<input id="org" name="org" maxlength="200" autocomplete="organization" value="{{ v.org or '' }}" required {% if 'org' in bad %}aria-invalid="true"{% endif %}></label>
@@ -57,6 +69,7 @@
         <label for="note">{{ t.s_note }}<textarea id="note" name="note" rows="2" maxlength="1000">{{ v.note or '' }}</textarea></label>
         <button type="submit">{{ t.s_submit }}</button>
       </form>
+      {% if mode == 'password' %}<p class="small"><a href="/forgot-{{ mode }}?lang={{ lang }}&who=staff" id="help-use-email">{{ t.s_use_email_instead }}</a></p>{% endif %}
       {% endif %}
     {% endif %}
     <nav class="auth-help" aria-label="{{ lt.help_links }}">

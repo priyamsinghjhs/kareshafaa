@@ -132,21 +132,28 @@ def is_synthetic_patient(patient) -> bool:
     return (getattr(patient, "mrn", "") or "").upper().startswith("SYN-") or is_synthetic_address(getattr(patient, "email", None))
 
 
-def can_send_to_patient(patient) -> bool:
-    """Configured, the patient has a valid e-mail, the domain is not a reserved example domain, and the record is not a
-    SYN- sample (unless KARESHAFAA_MAIL_ALLOW_SYNTHETIC, or the address is an allowlisted test inbox)."""
-    if not configured() or patient is None or not (getattr(patient, "email", None) or "").strip():
+def can_send_to_address(addr: str | None) -> bool:
+    """Configured, a valid address, and not a reserved example domain (example.com / .org / .net)."""
+    if not configured() or not (addr or "").strip():
         return False
     try:
-        addr = validate_address(patient.email)
+        addr = validate_address(addr)
     except Exception:  # noqa: BLE001 - an invalid stored address is simply not e-mailed
         return False
     if is_synthetic_address(addr):
         log.info("e-mail skipped: reserved example domain placeholder (RFC 2606)")
         return False
+    return True
+
+
+def can_send_to_patient(patient) -> bool:
+    """Configured, the patient has a valid e-mail, the domain is not a reserved example domain, and the record is not a
+    SYN- sample (unless KARESHAFAA_MAIL_ALLOW_SYNTHETIC, or the address is an allowlisted test inbox)."""
+    if patient is None or not can_send_to_address(getattr(patient, "email", None)):
+        return False
     if (patient.mrn or "").upper().startswith("SYN-"):
         from ..synth.test_mailboxes import is_allowlisted_patient_address  # noqa: PLC0415
-        if is_allowlisted_patient_address(addr):
+        if is_allowlisted_patient_address(patient.email):
             return True
         if not get_settings().mail_allow_synthetic:
             return False

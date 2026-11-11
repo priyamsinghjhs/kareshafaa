@@ -153,8 +153,11 @@ def main() -> int:
         last4 = nid[-4:]
         wrong4 = f"{(int(last4) + 1) % 10000:04d}"
 
-        def forgot(p, mode, lang, who="patient", **f):
-            p.goto(f"{base}/forgot-{mode}?lang={lang}&who={who}"); p.wait_for_selector("#help-form")
+        def forgot(p, mode, lang, who="patient", via=None, **f):
+            url = f"{base}/forgot-{mode}?lang={lang}&who={who}"
+            if via:
+                url += f"&via={via}"
+            p.goto(url); p.wait_for_selector("#help-form")
             for k, v in f.items():
                 if k == "id_type":
                     p.check(f'#help-form input[name=id_type][value="{v}"]')
@@ -245,11 +248,18 @@ def main() -> int:
         fz_name = q("select display_name from users where username=?", FORGETFUL)[0][0]
         sl = page("laptop", "staff-en")
         sl.goto(f"{base}/forgot-password?lang=en"); sl.wait_for_selector("#who-staff"); sl.click("#who-staff"); sl.wait_for_selector('#help-form[data-who="staff"]')
+        ok("Staff password form asks for the username and offers the administrator path",
+           sl.locator("#username").count() == 1 and sl.locator("#help-ask-admin").count() == 1
+           and "reset link" in sl.inner_text("#staff-intro").lower())
+        sl.click("#help-form button[type=submit]"); sl.wait_for_timeout(300)
+        ok("Staff email form: inline error when username is empty", sl.locator('#help-form [aria-invalid="true"]').count() >= 1)
+        shot(sl, "staff_email_form_validation_laptop", "#help-form")
+        sl.click("#help-ask-admin"); sl.wait_for_selector('#help-form[data-path="admin"]')
         ok("Staff are told to contact the administrator", sl.locator("#staff-intro").is_visible() and "administrator" in sl.inner_text("#staff-intro").lower())
         sl.click("#help-form button[type=submit]"); sl.wait_for_timeout(300)
         ok("Staff form: inline errors when empty", sl.locator('#help-form [aria-invalid="true"]').count() >= 4)
         shot(sl, "staff_form_validation_laptop", "#help-form")
-        forgot(sl, "password", "en", who="staff", full_name=fz_name, role="coordinator", org="Al Ain Health Centre",
+        forgot(sl, "password", "en", who="staff", via="admin", full_name=fz_name, role="coordinator", org="Al Ain Health Centre",
                contact="ext 4410", need="password", note="Back from leave, password expired")
         ok("Staff request sent", result(sl)[0] == "staff_sent")
         shot(sl, "staff_sent_laptop")

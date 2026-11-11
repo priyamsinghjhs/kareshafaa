@@ -415,6 +415,22 @@ class SigninHelpRequest(Base):  # "Forgot username / password" from the sign-in 
     invite_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
+class StaffPasswordReset(Base):
+    """One-time staff password-reset link from Forgot password (hashed token only; the raw token is never stored).
+    Single use, short expiry; a new request revokes any earlier open token for that user."""
+    __tablename__ = "staff_password_resets"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revoke_reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    language: Mapped[str | None] = mapped_column(String(8), nullable=True)
+
+
 class PatientRequest(Base):  # patient app: a REQUEST for an appointment (added 3 Nov 2026). Patients never book.
     """kind: screening (programme + preferred site, days and times), recall (the same, started from a due recall and
     linked to it) or follow_up (an open case whose follow-up can be booked: a slot the patient picked inside the

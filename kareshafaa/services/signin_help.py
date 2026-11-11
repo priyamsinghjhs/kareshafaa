@@ -1,35 +1,45 @@
 """Sign-in help: "Forgot username?" and "Forgot password?" from the sign-in page (added 3 Nov 2026).
 
-There is no e-mail or SMS provider (patient messages are simulated), so nothing is sent automatically:
-
 * PATIENTS prove who they are with three facts we hold: date of birth, the last 4 characters of their identity
   document (Emirates ID or passport / other ID) and their registered mobile number.
-  - Forgot username: on a match the username is shown on the page (patients have no e-mail). Otherwise a generic
-    message. SHOW_USERNAME_ON_MATCH is a CONFIRM decision for the clinical lead.
+  - Forgot username: on a match the username is shown on the page. Otherwise a generic message.
+    SHOW_USERNAME_ON_MATCH is a CONFIRM decision for the clinical lead.
   - Forgot password: on a match a reset request goes to the care coordinators; the page always shows the same
     message. A coordinator checks who the patient is and sends a one-time RESET code (the activation-code mechanism
     in services/invites.py: single use, expiry, lockout, revoke). The patient sets a new password on
     /reset-password with the code and their date of birth; every existing session ends.
   Responses never reveal whether an account exists. Repeated failures pause the device, and repeated near-misses
   on one record silently stop that record answering for a while. Every attempt is audited (no typed values).
-* STAFF are told to contact the system administrator and may leave a request (name, role, organisation,
-  contact). Only administrators see it (Admin > Users); they reset the password there (temporary password shown
-  once, change forced at next sign-in, all sessions ended).
+* STAFF who know their username request a password-reset email: a single-use link (30 minutes) is sent to the
+  email on the User record when the account is active and the address is deliverable. The page always shows the
+  same generic message (no account enumeration). @example.com placeholders and an unconfigured mailbox skip the
+  send but still get the generic answer; a mail failure is logged and audited, and the page looks the same. The
+  staff member sets a new password on /staff-reset-password (existing password policy; every session ends; no
+  forced change). Staff who cannot use email may still leave a request for the administrator (name, role,
+  organisation, contact). Only administrators see it (Admin > Users); they reset the password there (temporary
+  password shown once, change forced at next sign-in, all sessions ended).
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
+import logging
 import re
+import secrets
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .. import audit
-from ..models import LoginAttempt, Patient, SigninHelpRequest, User, utcnow
+from .. import accounts, audit
+from ..config import get_settings
+from ..models import LoginAttempt, Patient, SigninHelpRequest, StaffPasswordReset, User, utcnow
 from ..security import Actor
 from ..sla import due_at as sla_due_at
 from ..sla import rag_status
 from .errors import Forbidden, Invalid, NotFound
+
+log = logging.getLogger("kareshafaa.mail")
 
 # ---- CONFIRM values (security / operations) -----------------------------------------------------------------
 SHOW_USERNAME_ON_MATCH = True   # CONFIRM (clinical lead): show a patient's username on screen after a 3-factor match
@@ -42,6 +52,8 @@ PATIENT_RESET_RESPONSE_HOURS = 24  # CONFIRM (programme manager): coordinators a
 STAFF_HELP_RESPONSE_HOURS = 24     # CONFIRM (operations): administrators answer a staff request within (working days)
 
 HELP_MARK = "~signin_help"      # LoginAttempt.username marker: failed patient checks (per device)
+STAFF_RESET_MARK = "~staff_reset"  # LoginAttempt marker: staff email-reset attempts (per device)
+STAFF_RESET_TTL_MINUTES = 30   # CONFIRM (security): a staff email-reset link expires sooner than a patient code
 STAFF_ROLES = ("coordinator", "gp", "specialist", "clinical_lead", "admin", "analyst", "translator", "other")
 VERIFY_METHODS = {"in_person_id": "Seen in person with photo ID",
                   "phone_call_checks": "Phone call to the registered mobile: date of birth, ID number and address checked",
@@ -285,3 +297,197 @@ def open_counts(db: Session) -> dict:
     rows = db.execute(select(SigninHelpRequest.audience, func.count(SigninHelpRequest.id))
                       .where(SigninHelpRequest.status == "open").group_by(SigninHelpRequest.audience)).all()
     return {a: n for a, n in rows}
+
+
+# ------------------------------------------------------------------ staff email reset
+def _staff_reset_user_mark(uid: int) -> str:
+    return f"~staff_reset:u{uid}"
+
+
+def _token_hash(token: str) -> str:
+    key = (get_settings().secret_key or "").encode()
+    return hmac.new(key, f"staff_reset|{token}".encode(), hashlib.sha256).hexdigest()
+
+
+def _staff_reset_paused(db: Session, ip: str | None, now: datetime) -> bool:
+    if not ip:
+        return False
+    since = now - timedelta(minutes=HELP_WINDOW_MINUTES)
+    n = db.scalar(select(func.count(LoginAttempt.id)).where(
+        LoginAttempt.username == STAFF_RESET_MARK, LoginAttempt.ip == ip,
+        LoginAttempt.success.is_(False), LoginAttempt.at >= since)) or 0
+    return n >= HELP_IP_MAX_FAILURES
+
+
+def _open_staff_resets(db: Session, user_id: int, now: datetime):
+    return db.scalars(select(StaffPasswordReset).where(
+        StaffPasswordReset.user_id == user_id, StaffPasswordReset.used_at.is_(None),
+        StaffPasswordReset.revoked_at.is_(None))).all()
+
+
+def find_staff_reset(db: Session, token: str | None) -> StaffPasswordReset | None:
+    if not token:
+        return None
+    return db.scalar(select(StaffPasswordReset).where(StaffPasswordReset.token_hash == _token_hash(token)))
+
+
+def staff_reset_status(db: Session, token: str | None, now: datetime | None = None) -> str:
+    """Reason for a GET of the reset page: ok, missing, invalid, used, expired, revoked."""
+    now = now or utcnow()
+    if not token:
+        return "missing"
+    row = find_staff_reset(db, token)
+    if row is None:
+        return "invalid"
+    if row.used_at is not None:
+        return "used"
+    if row.revoked_at is not None:
+        return "revoked"
+    if row.expires_at <= now:
+        return "expired"
+    u = db.get(User, row.user_id)
+    if u is None or not u.active or u.role == "patient":
+        return "revoked"
+    return "ok"
+
+
+def staff_forgot_password(db: Session, username: str | None, ip: str | None, lang: str = "en",
+                          base_url: str = "", now: datetime | None = None) -> str:
+    """Always "sent" (the page shows one generic message) or "paused". Never reveals whether an account exists.
+    Typed username and email are not audited."""
+    now = now or utcnow()
+    ip = (ip or "")[:64] or None
+    uname = (username or "").strip().lower()[:80]
+    if _staff_reset_paused(db, ip, now):
+        audit.record(db, SYSTEM, "E", "signin_help.staff_reset_requested", entity_type="User", outcome="failure",
+                     ts=now, detail={"reason": "rate_limited", "ip": ip, "language": lang})
+        return "paused"
+    db.add(LoginAttempt(username=STAFF_RESET_MARK, ip=ip, at=now, success=False))
+
+    u = db.scalar(select(User).where(User.username == uname)) if uname else None
+    reason, uid = "no_account", None
+    if u is not None:
+        uid = u.id
+        db.add(LoginAttempt(username=_staff_reset_user_mark(u.id), ip=ip, at=now, success=False))
+        if not u.active:
+            reason = "inactive"
+        elif u.role == "patient":
+            reason = "patient_account"
+        elif _prior_staff_reset_requests(db, u.id, now) >= HELP_RECORD_MAX_FAILURES:
+            reason = "user_limited"
+        else:
+            reason = _issue_staff_reset(db, u, ip, lang, base_url, now)
+
+    audit.record(db, SYSTEM, "C" if reason == "sent" else "E", "signin_help.staff_reset_requested",
+                 entity_type="User", entity_id=None if reason in ("no_account", "patient_account") else uid,
+                 ts=now, outcome="success" if reason == "sent" else "failure",
+                 detail={"reason": reason, "ip": ip, "language": lang})
+    return "sent"
+
+
+def _prior_staff_reset_requests(db: Session, uid: int, now: datetime) -> int:
+    """Attempts for this user in the lock window, excluding the row just recorded at `now`."""
+    since = now - timedelta(hours=HELP_RECORD_LOCK_HOURS)
+    return db.scalar(select(func.count(LoginAttempt.id)).where(
+        LoginAttempt.username == _staff_reset_user_mark(uid),
+        LoginAttempt.success.is_(False), LoginAttempt.at >= since, LoginAttempt.at < now)) or 0
+
+
+def _issue_staff_reset(db: Session, u: User, ip: str | None, lang: str, base_url: str, now: datetime) -> str:
+    from ..calendar_uae import to_local
+    from ..comms import mail
+    from ..comms.signin_text import STAFF_RESET_TEXT
+
+    addr = (u.email or "").strip()
+    if not addr:
+        return "no_email"
+    if mail.is_synthetic_address(addr):
+        return "placeholder"
+    if not mail.configured():
+        return "mail_off"
+    if not mail.can_send_to_address(addr):
+        return "not_deliverable"
+    for old in _open_staff_resets(db, u.id, now):
+        old.revoked_at, old.revoke_reason = now, "replaced by a new link"
+    token = secrets.token_urlsafe(24)
+    row = StaffPasswordReset(user_id=u.id, token_hash=_token_hash(token), created_at=now,
+                             expires_at=now + timedelta(minutes=STAFF_RESET_TTL_MINUTES), ip=ip, language=lang)
+    db.add(row)
+    db.flush()
+    texts = STAFF_RESET_TEXT[lang if lang in STAFF_RESET_TEXT else "en"]
+    exp = to_local(row.expires_at).strftime("%d/%m/%Y %H:%M") + " UAE"
+    link = (base_url or "").rstrip("/") + "/staff-reset-password?t=" + token
+    body = texts["mail_body"].format(name=u.display_name or "", username=u.username, link=link, expires=exp)
+    try:
+        mail.send_email(addr, texts["mail_subject"], body)
+        return "sent"
+    except mail.MailError as e:
+        log.warning("staff password-reset email not sent: %s", type(e).__name__)
+        return "mail_failed"
+
+
+def complete_staff_reset(db: Session, *, token: str | None, password: str, confirm: str, ip: str | None,
+                         lang: str = "en", now: datetime | None = None) -> tuple[User | None, str]:
+    """Returns (user, "ok") or (None, reason). reason in: rate_limited, invalid, expired, used, revoked,
+    mismatch, weak:<problem>."""
+    now = now or utcnow()
+    ip = (ip or "")[:64] or None
+    actor = Actor(user_id=None, role="anonymous", display="staff (password reset page)", is_human=True)
+
+    def fail(reason: str, row: StaffPasswordReset | None = None) -> tuple[None, str]:
+        if reason not in ("mismatch",) and not reason.startswith("weak:"):
+            db.add(LoginAttempt(username=STAFF_RESET_MARK, ip=ip, at=now, success=False))
+        audit.record(db, actor, "E", "signin_help.staff_reset_failed", entity_type="User",
+                     entity_id=row.user_id if row else None, ts=now, outcome="failure",
+                     detail={"reason": reason.split(":")[0], "ip": ip, "language": lang})
+        return None, reason
+
+    if _staff_reset_paused(db, ip, now):
+        audit.record(db, actor, "E", "signin_help.staff_reset_failed", entity_type="User", outcome="failure",
+                     ts=now, detail={"reason": "rate_limited", "ip": ip, "language": lang})
+        return None, "rate_limited"
+    row = find_staff_reset(db, token)
+    if row is None:
+        return fail("invalid")
+    if row.used_at is not None:
+        return fail("used", row)
+    if row.revoked_at is not None:
+        return fail("revoked", row)
+    if row.expires_at <= now:
+        return fail("expired", row)
+    u = db.get(User, row.user_id)
+    if u is None or not u.active or u.role == "patient":
+        return fail("revoked", row)
+    if password != confirm:
+        return None, "mismatch"
+    probs = accounts.password_problems(password, u.username, u.display_name)
+    if probs:
+        return None, "weak:" + probs[0]
+    accounts.set_password(u, password, must_change=False)
+    accounts.revoke_user_sessions(db, u.id)
+    row.used_at = now
+    db.add(LoginAttempt(username=u.username, ip=ip, at=now, success=True))
+    notify = _notify_password_changed(db, u, lang)
+    audit.record(db, actor, "U", "user.password_reset", entity_type="User", entity_id=u.id, ts=now,
+                 detail={"method": "email_link", "sessions_ended": True, "forced_change": False,
+                         "notify_sent": notify})
+    return u, "ok"
+
+
+def _notify_password_changed(db: Session, u: User, lang: str) -> bool:
+    from ..comms import mail
+    from ..comms.signin_text import STAFF_RESET_TEXT
+
+    if not mail.can_send_to_address(u.email):
+        return False
+    texts = STAFF_RESET_TEXT[lang if lang in STAFF_RESET_TEXT else "en"]
+    try:
+        mail.send_email(u.email, texts["changed_subject"],
+                        texts["changed_body"].format(name=u.display_name or "", username=u.username))
+        return True
+    except mail.MailError as e:
+        log.warning("staff password-changed email not sent: %s", type(e).__name__)
+        audit.record(db, SYSTEM, "E", "signin_help.staff_reset_notify_failed", entity_type="User",
+                     entity_id=u.id, outcome="failure", detail={"reason": type(e).__name__})
+        return False
+

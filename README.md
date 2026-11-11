@@ -144,9 +144,20 @@ closure.
 **Sign-in and accounts**
 * Username + password (argon2id), server-side sessions (HttpOnly, SameSite, Secure on HTTPS), CSRF tokens, idle
   timeout, rate limit and lockout, generic errors.
-* **Sign-in help:** `/forgot-username`, `/forgot-password` and `/reset-password`; requests appear in the admin
-  **sign-in help panel** on Admin → Users. Admins can set a **temporary password**, which must be changed at the
-  next sign-in (`/account/password`).
+* **Sign-in help:** `/forgot-username`, `/forgot-password`, `/reset-password` (patients) and
+  `/staff-reset-password` (staff). A staff member who knows their username asks for a reset on
+  `/forgot-password?who=staff`: if the account is active and has a deliverable email, a **single-use
+  link** (30 minutes, expiry shown in UAE time, absolute URL from `KARESHAFAA_PUBLIC_BASE_URL`) is
+  emailed from `kareshafaa_com@outlook.com`. The page always says “If the account exists, a reset
+  link has been sent to its email.” (no account enumeration). `@example.com` placeholders and an
+  unconfigured mailbox skip the send but still get that answer; a mail failure is logged and audited
+  and the page looks the same. The link opens `/staff-reset-password`, where they choose a new
+  password (existing policy); every other session ends and there is no forced change. A confirmation
+  email is sent after the change when the address is deliverable. Staff who cannot use email can
+  still **ask the administrator** (the previous request form). Patient forgot-password is unchanged
+  (coordinators issue a one-time code after an identity check). Requests for admin help still appear
+  in the **sign-in help panel** on Admin → Users. Admins can set a **temporary password**, which must
+  be changed at the next sign-in (`/account/password`).
 * Admin user management: create, role, site/team, reset, deactivate/reactivate (never hard-deleted).
 
 **Impact and responsible AI**
@@ -253,9 +264,16 @@ closure.
     (Graph or SMTP host; never a secret) and, when configured, a **Send test email** box (`POST /api/admin/system/mail/test`
     `{"to": "..."}`, admin only; 503 when not configured, 502 with a short reason when the mail server refuses; audited
     as `mail.test` with the recipient's domain only). `/healthz` reports `mail: {configured, from}`.
+  * **Staff password-reset emails:** a staff member who knows their username can request a reset
+    link from `/forgot-password?who=staff`. The app emails an absolute link
+    (`KARESHAFAA_PUBLIC_BASE_URL/staff-reset-password?t=…`) when the User record has a deliverable
+    address. The token is hashed (HMAC); the raw token is never stored. A new request replaces any
+    earlier open token. Reserved example-domain placeholders are never emailed. The response on the
+    page is always the same generic sentence, including for an unknown username, a skipped
+    placeholder, or a mail failure (the failure is logged and audited, with no typed values or
+    address). Rate limits reuse the sign-in-help windows (per device and per user).
   * Email is **not end-to-end encrypted** (TLS protects it only in transit to Microsoft). Secrets (refresh token,
-    access tokens, password) are never logged, audited, shown or put in an error message. Sign-in help (forgot username / password) still does **not**
-    use email.
+    access tokens, password) are never logged, audited, shown or put in an error message.
 * Transparency pages: **why this priority** (per case), **rule and model cards**, **override register**,
   **data protection** and **data retention** (Governance).
 * Lessons-learned engine proposes rule changes that a human must approve.

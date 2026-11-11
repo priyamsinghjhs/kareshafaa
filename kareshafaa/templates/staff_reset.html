@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block bodyclass %} auth-page{% endblock %}
+{% block content %}
+<div class="auth-grid activate-grid" lang="{{ lang }}" dir="{{ 'rtl' if rtl else 'ltr' }}">
+  <div class="auth-card">
+    <img class="logo-full auth-logo" src="{{ asset('brand/logo-horizontal.svg') }}" alt="KareShafaa" width="199" height="56">
+    <div class="lang-switch" role="group" aria-label="Language">
+      {% for k, v in langs.items() %}<a role="button" class="{{ '' if k == lang else 'secondary outline' }} sm" href="/staff-reset-password?lang={{ k }}{% if token %}&t={{ token }}{% endif %}" lang="{{ k }}" aria-current="{{ 'true' if k == lang else 'false' }}">{{ v }}</a>{% endfor %}
+    </div>
+    {% if done %}
+      <h1>{{ t.done_title }}</h1>
+      <div class="notice-inline ok" role="status">{{ t.done_body }} <b dir="ltr">{{ username }}</b></div>
+      <p class="small">{{ t.done_keep }}</p>
+      <a role="button" href="/login?lang={{ lang }}" id="act-go">{{ t.sign_in }}</a>
+    {% elif link_error %}
+      <h1>{{ t.title }}</h1>
+      <div class="notice-inline err" role="alert" id="act-error">{{ link_error }}</div>
+      <p class="small"><a href="/forgot-password?lang={{ lang }}&who=staff" id="help-back">{{ t.back }}</a></p>
+    {% else %}
+      <h1>{{ t.title }}</h1>
+      <p class="small muted">{{ t.intro }}</p>
+      {% if error %}<div class="notice-inline err" role="alert" id="act-error">{{ error }}</div>{% endif %}
+      <form method="post" action="/staff-reset-password" id="act-form" data-mode="staff_reset" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ login_csrf }}">
+        <input type="hidden" name="lang" value="{{ lang }}">
+        <input type="hidden" name="t" value="{{ token }}">
+        <label for="password">{{ t.pw }}
+          <span class="pw-field"><input id="password" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required dir="ltr" {% if error_field == 'pw' %}aria-invalid="true" aria-describedby="act-error"{% endif %}>
+          <button type="button" class="reveal" data-reveal="password" aria-controls="password" aria-pressed="false">{{ t.show }}</button></span>
+          <span class="hint small muted">{{ t.pw_hint }}</span>
+        </label>
+        <label for="confirm">{{ t.pw2 }}
+          <input id="confirm" name="confirm" type="password" autocomplete="new-password" maxlength="256" required dir="ltr" {% if error_field == 'pw' %}aria-invalid="true"{% endif %}>
+        </label>
+        <button type="submit">{{ t.submit }}</button>
+      </form>
+      <p class="small" style="margin-top:var(--s-3)"><a href="/login?lang={{ lang }}">{{ t.sign_in }}</a></p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script type="application/json" id="page-strings">{{ {"show": t.show, "hide": t.hide, "missing": t.err.missing, "mismatch": t.err.mismatch}|tojson }}</script><script src="{{ asset('js/auth_forms.js') }}"></script>{% endblock %}

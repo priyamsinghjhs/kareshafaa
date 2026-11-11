@@ -377,9 +377,9 @@ def test_signin_help_staff_request_and_admin_note_capture(client, db, as_user, a
     from fastapi.testclient import TestClient
 
     c = TestClient(app, client=("10.88.0.1", 50000), follow_redirects=False)
-    ctok = _re.search(r'name="csrf_token" value="([^"]+)"', c.get("/forgot-password?who=staff").text).group(1)
+    ctok = _re.search(r'name="csrf_token" value="([^"]+)"', c.get("/forgot-password?who=staff&via=admin").text).group(1)
     name, org, note = tok("help_name"), tok("help_org"), tok("help_note")
-    r = c.post("/forgot-password", data={"csrf_token": ctok, "lang": "en", "who": "staff", "full_name": name,
+    r = c.post("/forgot-password", data={"csrf_token": ctok, "lang": "en", "who": "staff", "via": "admin", "full_name": name,
                                          "role": "gp", "org": org, "contact": "02 555 0199", "need": "password", "note": note})
     ad = as_user("admin")
     for v in (name, org, note):
