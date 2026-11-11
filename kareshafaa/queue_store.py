@@ -25,7 +25,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session
 
 from .models import Case, SlaRule, StepTask
-from .sla import rag_status
+from .sla import rag_reminder_fraction, rag_status
 
 ALWAYS = datetime(1900, 1, 1)
 last_stale: list[dict] = []  # details of the last write=False check (diagnostics in tests)  # threshold for a step whose due time is not after its start (always red)
@@ -96,7 +96,7 @@ def refresh(conn: Connection, case_ids=None, *, write: bool = True) -> int:
             if state == "closed":
                 new = (None, None)
             else:
-                new = thresholds(st_start, st_due, rules.get((st_state, tier), rf_default))
+                new = thresholds(st_start, st_due, rag_reminder_fraction(st_state, rules.get((st_state, tier), rf_default)))
             if (old_a, old_r) != new:
                 changes.append({"cid": cid, "a": new[0], "r": new[1], "old": (old_a, old_r), "state": state,
                                 "tier": tier, "step": (st_start, st_due, st_state)})

@@ -28,6 +28,12 @@ def as_utc_naive(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc).replace(tzinfo=None) if dt.tzinfo is not None else dt
 
 
+def local_day_end_utc(utc_naive: datetime) -> datetime:
+    """End of the UAE calendar day containing `utc_naive` (00:00 Asia/Dubai the next day), as naive UTC."""
+    nxt = to_local(utc_naive).date() + timedelta(days=1)
+    return to_utc(datetime.combine(nxt, datetime.min.time()))
+
+
 def local_display(utc_naive: datetime) -> str:
     """Patient-facing date/time in UAE local time, numeric (language-neutral) dd/mm/yyyy HH:MM."""
     return to_local(utc_naive).strftime("%d/%m/%Y %H:%M")

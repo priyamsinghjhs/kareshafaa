@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, aliased
 from kareshafaa.models import AppointmentRequest, CallTask, Case, ConsultRequest, Escalation, Patient, Practitioner, StepTask, utcnow
 from kareshafaa.security import PROGRAMME_WIDE_ROLES, Actor
 from kareshafaa.services.queue import VIEWS, _org_scope, sort_key
-from kareshafaa.sla import SlaLookup, rag_status
+from kareshafaa.sla import SlaLookup, rag_reminder_fraction, rag_status
 from kareshafaa.statemachine import LABELS, S
 
 
@@ -70,7 +70,7 @@ def work_queue_python(db: Session, actor: Actor, view: str = "all", now: datetim
             continue
         rag, frac = ("none", 0.0)
         if s_start is not None:
-            rag, frac = rag_status(s_start, s_due, now, sla.reminder_fraction(s_state, tier))
+            rag, frac = rag_status(s_start, s_due, now, rag_reminder_fraction(s_state, sla.reminder_fraction(s_state, tier)))
         unassigned = bool(opool) or not oactive
         row = {
             "id": cid, "patient": f"{given} {family}", "mrn": mrn, "language": lang, "programme": prog, "tier": tier,

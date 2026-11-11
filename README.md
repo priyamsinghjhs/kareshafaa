@@ -81,6 +81,15 @@ closure.
 * Deterministic state machine with **SLA tiers T0–T3** (T0 critical, T1 urgent, T2 soon, T3 routine; T0/T1 clocks
   run 24/7, T2/T3 count UAE working days) and an L1–L4 escalation ladder. Handles no-shows, rejected referrals,
   unreachable patients, transfers (two-key), declines and deaths.
+* **Booked appointment waits for the visit:** the "appointment booked" step is due at the **end of the appointment's
+  UAE day** (00:00 Asia/Dubai the next day), whatever the pathway target, and a reschedule moves it. Before then the
+  case is on track (green, no amber phase) and nothing escalates on either clock, so a visit booked months ahead is
+  not in the overdue queue; the next bar shows the appointment time. If attendance (or a no-show) is not recorded by
+  the end of that day, the next day the case is overdue and the step ladder runs (L2 supervisor, L3 clinical lead,
+  phone for critical). A booking after the pathway target is still recorded as a missed target (written reason,
+  audit, breach lessons kept); the case tier is unchanged. Older stored deadlines are corrected at start-up
+  (`bootstrap.backfill_booked_appointment_due`, idempotent; escalation history kept). Rule:
+  `alert_policy.decide(waiting_until=...)`, `workflow.appointment_wait_due`; tests `tests/test_booked_appointment_wait.py`.
 * **Critical-result fast lane (T0):** a critical result cannot be triaged until a clinician records the **direct
   contact and read-back** (phone, in person or paged secure message; who gave it, who received it, when; table
   `critical_read_backs`, `POST /api/cases/{id}/critical-read-back`, permission `critical:readback` for GP, specialist

@@ -84,6 +84,15 @@ def due_at(start: datetime, hours: float | None, tier: str | None = None) -> dat
     return start + timedelta(hours=hours)
 
 
+# States that wait for a planned event (a booked appointment, due at the end of its UAE day): no amber "reminder"
+# phase - the case is on track (green) until the deadline, then red. Escalation: alert_policy WAITING.
+WAITING_STATES = frozenset({"appointment_booked"})
+
+
+def rag_reminder_fraction(state: str | None, reminder_fraction: float) -> float:
+    return 1.0 if state in WAITING_STATES else reminder_fraction
+
+
 def rag_status(started: datetime, due: datetime | None, now: datetime, reminder_fraction: float = 0.5) -> tuple[str, float]:
     """Return (green|amber|red|none, fraction_elapsed)."""
     if due is None:

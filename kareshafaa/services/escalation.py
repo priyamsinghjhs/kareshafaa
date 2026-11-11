@@ -51,7 +51,10 @@ def _decision(case: Case, step: StepTask, now: datetime, sla: SlaLookup) -> Aler
     cfg = get_settings()
     lad = Ladder(sla.reminder_fraction(step.state, case.tier), cfg.clinical_lead_after_breach_fraction,
                  cfg.director_after_fraction)
-    return decide(tier=case.tier, step_started=step.started_at, step_due=step.due_at, case_created=case.created_at,
+    # booked appointment: the step is due at the end of the appointment's UAE day (workflow.appointment_wait_due);
+    # nothing escalates before then, on either clock (alert_policy WAITING)
+    waiting = step.due_at if step.state == S.APPOINTMENT_BOOKED and step.status == "in-progress" else None
+    return decide(waiting_until=waiting, tier=case.tier, step_started=step.started_at, step_due=step.due_at, case_created=case.created_at,
                   target_due=case.target_due_at, care_reached=case.care_reached_at, now=now,
                   step_level_alerted=case.escalation_level or 0, target_level_alerted=case.target_alert_level or 0,
                   lad=lad)
@@ -59,7 +62,7 @@ def _decision(case: Case, step: StepTask, now: datetime, sla: SlaLookup) -> Aler
 
 def required_level(case: Case, step: StepTask, now: datetime, sla: SlaLookup) -> tuple[int, str, float]:
     d = _decision(case, step, now, sla)
-    rag = "none" if d.clock == "none" else ("red" if d.breached else ("amber" if d.level >= 1 else "green"))
+    rag = "none" if d.clock == "none" else "green" if d.clock == "waiting" else ("red" if d.breached else ("amber" if d.level >= 1 else "green"))
     return d.level, rag, d.frac
 
 

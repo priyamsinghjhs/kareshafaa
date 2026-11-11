@@ -12,6 +12,10 @@ Two clocks:
   breached do not get an L1 reminder (they are past it) but do inherit the ladder.
 The first alert on a true breach is never suppressed: a step-clock breach and the pathway-target breach are
 separate events with separate deduplication counters.
+* WAITING - a booked appointment (`waiting_until` = end of the appointment's UAE day): nothing is due and nothing
+  escalates before then, on either clock (a late booking was already recorded as a missed target when it was
+  booked). Once it has passed with no attendance recorded, the STEP clock is breached and runs the L2-L4 ladder
+  (no L1: the reminder point is gone), so the case comes back as overdue the next day.
 """
 from __future__ import annotations
 
@@ -46,7 +50,7 @@ def _frac(start: datetime, due: datetime, now: datetime) -> float:
 
 @dataclass(frozen=True)
 class AlertDecision:
-    clock: str            # "step" | "pathway" | "none"
+    clock: str            # "step" | "pathway" | "waiting" | "none"
     level: int            # level required now on that clock
     frac: float
     new_levels: tuple     # levels to raise now (after deduplication)
@@ -59,7 +63,15 @@ def target_missed(target_due: datetime | None, care_reached: datetime | None, no
 
 def decide(*, tier: str, step_started: datetime, step_due: datetime | None, case_created: datetime,
            target_due: datetime | None, care_reached: datetime | None, now: datetime,
-           step_level_alerted: int, target_level_alerted: int, lad: Ladder = Ladder()) -> AlertDecision:
+           step_level_alerted: int, target_level_alerted: int, lad: Ladder = Ladder(),
+           waiting_until: datetime | None = None) -> AlertDecision:
+    if waiting_until is not None:
+        if now < waiting_until:
+            return AlertDecision("waiting", 0, 0.0, (), False)
+        frac = _frac(step_started, waiting_until, now)
+        level = ladder_level(frac, tier, lad, allow_l1=False)
+        return AlertDecision("step", level, frac, tuple(lv for lv in range(step_level_alerted + 1, level + 1) if lv >= 2),
+                             True)
     if target_missed(target_due, care_reached, now) and care_reached is None:
         frac = _frac(case_created, target_due, now)
         level = ladder_level(frac, tier, lad, allow_l1=False)

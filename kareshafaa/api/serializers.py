@@ -12,7 +12,7 @@ from ..models import (Appointment, AuditEvent, CallTask, CarePlan, Case, Communi
                       ServiceRequest, StepTask, utcnow, Lesson, User)
 from ..programmes import PROGRAMMES
 from ..security import Actor
-from ..sla import SlaLookup, rag_status
+from ..sla import SlaLookup, rag_reminder_fraction, rag_status
 from ..statemachine import LABELS, MAIN_PATH, S
 
 
@@ -99,7 +99,8 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
     rep = db.get(DiagnosticReport, c.report_id)
     steps = []
     for s in c.steps:
-        rag, frac = rag_status(s.started_at, s.due_at, s.ended_at or now, sla.reminder_fraction(s.state, c.tier))
+        rag, frac = rag_status(s.started_at, s.due_at, s.ended_at or now,
+                               rag_reminder_fraction(s.state, sla.reminder_fraction(s.state, c.tier)))
         steps.append({"id": s.id, "state": s.state, "label": LABELS.get(s.state, s.state), "owner_id": s.owner_id,
                       "owner": pname(db, s.owner_id), "status": s.status, "started_at": iso(s.started_at),
                       "ended_at": iso(s.ended_at), "due_at": iso(s.due_at), "sla_hours": s.sla_hours,

@@ -175,6 +175,18 @@ def backfill_model_artifacts() -> int:
     return n
 
 
+def backfill_booked_appointment_due() -> dict:
+    """Waiting booked appointments get the current deadline rule (services/workflow.py); idempotent, every start."""
+    from .services.workflow import backfill_booked_appointment_due as fix
+
+    try:
+        with session_scope() as db:
+            return fix(db)
+    except Exception as e:  # noqa: BLE001 - a derived-deadline fix must never stop the service from starting
+        log.warning("booked-appointment deadline fix skipped: %s", type(e).__name__)
+        return {"error": type(e).__name__}
+
+
 def _prepare(s) -> dict:
     init_db()
     eng = get_engine()
@@ -195,6 +207,7 @@ def _prepare(s) -> dict:
         out["seconds"] = round(time.time() - t0, 1)
         init_db()  # indexes/triggers after a bulk copy (idempotent)
     out["model_files_saved_to_database"] = backfill_model_artifacts()
+    out["booked_appointment_due"] = backfill_booked_appointment_due()
     # one-time data steps for SYN- sample patients only (guarded by data_migrations; never real records)
     if s.data_steps == "startup":
         from .db import session_factory

@@ -73,8 +73,12 @@ function loopStrip() {
 function nextBar() {
   const primary = (C.actions || []).find(a => a.primary);
   if (C.closure && !primary) return "";
+  // booked visit, not yet overdue: due at the end of the appointment day (attendance is recorded after the visit)
+  const appt = C.state === "appointment_booked" && C.sla.status !== "red" && (C.appointments || []).filter(a => a.status === "booked").pop();
+  const when = appt ? "Appointment " + W.esc(W.dt(appt.start)) + " · record attendance after the visit"
+    : C.sla.due_at ? W.leftHtml(C.sla.due_at, C.sla.status) + " · due " + W.esc(W.dt(C.sla.due_at)) : "No deadline on this step";
   return `<section class="card next-bar ${W.esc(C.sla.status)}" aria-labelledby="nb-h"><div><h2 id="nb-h" class="nb-title">${W.ic("arrow", "nb-ic")}Now: ${W.esc(C.state_label)}</h2>
-    <p class="small" style="margin:0">${C.sla.due_at ? W.leftHtml(C.sla.due_at, C.sla.status) + " · due " + W.esc(W.dt(C.sla.due_at)) : "No deadline on this step"} · owner ${W.esc(String(C.owner || "").split(" (")[0])}</p></div>
+    <p class="small" style="margin:0">${when} · owner ${W.esc(String(C.owner || "").split(" (")[0])}</p></div>
     ${primary ? `<button class="nb-go" data-k="${primary.key}" data-ev="${primary.evidence_type || ""}" data-scroll>${W.esc(primary.label)}</button>` : `<span class="small muted">Nothing for your role now</span>`}</section>`;
 }
 

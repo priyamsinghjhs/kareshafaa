@@ -221,7 +221,7 @@ def flag_review(db: Session, case: Case, reasons: list[str], actor: Actor, now: 
         step = current_step(db, case)
         if step is not None:  # re-time the running clock for the more urgent tier (never later than before)
             hours = SlaLookup.load(db).hours(S(case.state), target)
-            if hours is not None:
+            if hours is not None and S(case.state) != S.APPOINTMENT_BOOKED:  # booked: due after the visit
                 due = _capped_due(case, due_at(step.started_at, hours, target), step.started_at)
                 if step.due_at is None or due < step.due_at:
                     step.due_at = case.due_at = due
@@ -431,15 +431,31 @@ def _capped_due(case: Case, due: datetime | None, start: datetime, state: S | No
     return cap if due is None or due > cap else due
 
 
+def appointment_wait_due(start: datetime) -> datetime:
+    """A booked appointment's step is due at the END of the appointment's UAE calendar day (00:00 Asia/Dubai the
+    next day, naive UTC): attendance is recorded after the visit. Never capped at the pathway target - a booking
+    after the target was already recorded as a missed target when it was made (beyond_target_reason)."""
+    from ..calendar_uae import local_day_end_utc
+
+    return local_day_end_utc(start)
+
+
 def _open_step(db: Session, case: Case, state: S, owner_id: int, actor: Actor, now: datetime, note: str | None = None) -> StepTask:
     sla = SlaLookup.load(db)
     hours = sla.hours(state, case.tier) if state != S.CLOSED else None
     from ..alert_policy import opened_already_breached
 
     inherited = state != S.CLOSED and opened_already_breached(case.target_due_at, case.care_reached_at, now)
+    due = _capped_due(case, due_at(now, hours, case.tier), now, state)
+    breached = inherited
+    if state == S.APPOINTMENT_BOOKED:
+        appt = _latest(db, Appointment, case.id, status="booked")
+        if appt is not None:  # waiting for the visit: due at the end of its day, not overdue before then
+            due = appointment_wait_due(appt.start)
+            breached = inherited and now >= due
     step = StepTask(case_id=case.id, state=state, owner_id=owner_id, status="in-progress", started_at=now,
-                    due_at=_capped_due(case, due_at(now, hours, case.tier), now, state), sla_hours=hours,
-                    actor_user_id=actor.user_id, note=note, inherited_breach=inherited, breached=inherited)
+                    due_at=due, sla_hours=hours,
+                    actor_user_id=actor.user_id, note=note, inherited_breach=inherited, breached=breached)
     db.add(step)
     case.state = state
     case.state_entered_at = now
@@ -991,6 +1007,12 @@ def reschedule_appointment(db: Session, case: Case, actor: Actor, start: datetim
                       practitioner_id=old.practitioner_id, start=start, status="booked", created_at=now,
                       booking_note=(beyond_target_reason or "").strip() or None, rescheduled_from_id=old.id)
     db.add(new)
+    step = current_step(db, case)
+    if step is not None and step.state == S.APPOINTMENT_BOOKED:  # same step, new visit day: the deadline moves
+        step.due_at = case.due_at = appointment_wait_due(start)
+        if now < step.due_at:
+            step.breached = False
+            case.escalation_level = 0
     db.flush()
     audit.record(db, actor, "U", "appointment.rescheduled", entity_type="Appointment", entity_id=new.id, case_id=case.id,
                  ts=now, detail={"from_appointment": old.id, "from": old.start.isoformat(), "to": start.isoformat(),
@@ -1044,6 +1066,46 @@ def book_appointment(db: Session, case: Case, actor: Actor, start: datetime, *, 
                                  **({"beyond_target_reason": beyond_target_reason} if beyond_target_reason else {})})
     transition(db, case, S.APPOINTMENT_BOOKED, actor, now=now)
     return appt
+
+
+def backfill_booked_appointment_due(db: Session, now: datetime | None = None) -> dict:
+    """Idempotent start-up fix (additive, no schema change): open cases waiting at 'appointment booked' for a FUTURE
+    visit get the deadline of the current rule - the end of the appointment's UAE day - instead of an older step
+    clock (e.g. capped at a pathway target that had already passed, which showed them overdue straight away). The
+    breach flag of that waiting step and the step escalation level are reset; escalation history, lessons and the
+    pathway-target record are kept. Closed cases and past appointments are not touched. 2 queries + changed rows."""
+    now = _now(now)
+    rows = db.execute(select(Case, StepTask).join(StepTask, (StepTask.case_id == Case.id)
+                                                  & (StepTask.status == "in-progress"))
+                      .where(Case.state == S.APPOINTMENT_BOOKED, StepTask.state == S.APPOINTMENT_BOOKED)).all()
+    if not rows:
+        return {"fixed": 0}
+    latest: dict[int, Appointment] = {}
+    ids = [c.id for c, _ in rows]
+    for i in range(0, len(ids), 500):
+        for a in db.scalars(select(Appointment).where(Appointment.status == "booked",
+                                                      Appointment.case_id.in_(ids[i:i + 500]))):
+            if a.case_id not in latest or a.id > latest[a.case_id].id:
+                latest[a.case_id] = a
+    fixed = []
+    for case, step in rows:
+        appt = latest.get(case.id)
+        if appt is None:
+            continue
+        due = appointment_wait_due(appt.start)
+        if due <= now or (step.due_at == due and case.due_at == due and not step.breached):
+            continue
+        old = step.due_at
+        step.due_at = case.due_at = due
+        step.breached = False
+        case.escalation_level = 0
+        audit.record(db, SYSTEM, "U", "case.appointment_wait_due", entity_type="Task", entity_id=case.id,
+                     case_id=case.id, ts=now, detail={"old_due": old.isoformat() if old else None,
+                                                      "new_due": due.isoformat(), "appointment_id": appt.id,
+                                                      "rule": "booked appointment: due at the end of its UAE day"})
+        fixed.append(case.id)
+    db.flush()
+    return {"fixed": len(fixed), "case_ids": fixed[:50]}
 
 
 def record_attendance(db: Session, case: Case, actor: Actor, attended: bool, *, barrier_code: str | None = None,

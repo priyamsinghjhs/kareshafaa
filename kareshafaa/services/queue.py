@@ -11,7 +11,7 @@ from ..models import (Appointment, AppointmentRequest, CallTask, Case, ConsultRe
                       StepTask, utcnow)
 from ..security import PROGRAMME_WIDE_ROLES, Actor
 from .access import sharing_denied_select
-from ..sla import SlaLookup, rag_status
+from ..sla import SlaLookup, rag_reminder_fraction, rag_status
 from ..statemachine import LABELS, S
 
 RAG_RANK = {"red": 0, "amber": 1, "green": 2, "none": 3}
@@ -218,7 +218,7 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
              rr, why, rb_needed) in sorted(db.execute(q).all(), key=lambda r: pos[r[0]]) if page_ids else ():
             frac = 0.0
             if s_start is not None:
-                frac = rag_status(s_start, s_due, now, sla.reminder_fraction(s_state, tier))[1]
+                frac = rag_status(s_start, s_due, now, rag_reminder_fraction(s_state, sla.reminder_fraction(s_state, tier)))[1]
             items.append({
                 "id": cid, "patient": f"{given} {family}", "mrn": mrn, "language": lang, "programme": prog,
                 "tier": tier, "state": state, "state_label": LABELS.get(state, state), "owner_id": owner_id,
