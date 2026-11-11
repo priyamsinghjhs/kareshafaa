@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, aliased
 
 from kareshafaa.models import AppointmentRequest, CallTask, Case, ConsultRequest, Escalation, Patient, Practitioner, StepTask, utcnow
 from kareshafaa.security import PROGRAMME_WIDE_ROLES, Actor
-from kareshafaa.services.queue import VIEWS, _org_scope, sort_key
+from kareshafaa.services.queue import VIEWS, _org_scope, action_queue_case_ids, sort_key
 from kareshafaa.sla import SlaLookup, rag_reminder_fraction, rag_status
 from kareshafaa.statemachine import LABELS, S
 
@@ -60,6 +60,8 @@ def work_queue_python(db: Session, actor: Actor, view: str = "all", now: datetim
         # patient's sharing consent, kareshafaa/services/access.py)
         from kareshafaa.services.access import case_visible
         scoped = {cid for cid in ids if actor.org_id in orgs.get(cid, ()) and case_visible(db, actor, db.get(Case, cid))}
+    visible_ids = [cid for cid in ids if scoped is None or cid in scoped]
+    role_keep = action_queue_case_ids(db, actor, visible_ids, search)
     counts = {v: 0 for v in VIEWS}
     from kareshafaa.models import CriticalReadBack
     read_back = set(db.scalars(select(CriticalReadBack.case_id).where(CriticalReadBack.read_back_confirmed.is_(True))))
@@ -67,6 +69,8 @@ def work_queue_python(db: Session, actor: Actor, view: str = "all", now: datetim
     for (cid, prog, tier, state, owner_id, due, esc, risk, risk_v, pending, review, given, family, mrn, lang,
          oname, opool, oactive, s_start, s_due, s_state) in rows_db:
         if scoped is not None and cid not in scoped:
+            continue
+        if cid not in role_keep:
             continue
         rag, frac = ("none", 0.0)
         if s_start is not None:

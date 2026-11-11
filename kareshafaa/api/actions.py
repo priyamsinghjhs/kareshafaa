@@ -1,32 +1,88 @@
 """Context-aware next actions for a case (drives the UI action panel)."""
 from __future__ import annotations
 
+from collections import defaultdict
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
+
 from ..programmes import CLINICIAN_CONFIRMED_TIERS
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
-from ..models import CallTask, Case, QuestionnaireResponse, ServiceRequest
+from ..models import CallTask, Case, Consent, CriticalReadBack, QuestionnaireResponse, ServiceRequest
 from ..security import Actor
-from ..services.access import consent_status
 from ..services.workflow import can_decide_referral
 from ..statemachine import S
 
 
-def available_actions(db: Session, actor: Actor, c: Case) -> list[dict]:
+@dataclass
+class _Lookups:
+    """Inputs for available_actions, so the work-queue filter can reuse the exact case-page rules."""
+
+    read_back: set[int]
+    open_calls: set[int]
+    teachbacks: dict[int, list[QuestionnaireResponse]]
+    confirmatory: dict[int, ServiceRequest]
+    share_denied: set[int]
+    decide_ok: set[int]
+
+    @classmethod
+    def load(cls, db: Session, actor: Actor, cases: Sequence[Case]) -> _Lookups:
+        ids = [c.id for c in cases]
+        if not ids:
+            return cls(set(), set(), {}, {}, set(), set())
+        critical_ids = [c.id for c in cases if c.tier == "critical" and S(c.state) != S.CLOSED]
+        have_rb = set()
+        if critical_ids:
+            have_rb = set(db.scalars(select(CriticalReadBack.case_id).where(
+                CriticalReadBack.case_id.in_(critical_ids), CriticalReadBack.read_back_confirmed.is_(True))))
+        open_calls = set(db.scalars(select(CallTask.case_id).where(
+            CallTask.case_id.in_(ids), CallTask.status == "requested")))
+        notified_ids = [c.id for c in cases if S(c.state) == S.PATIENT_NOTIFIED]
+        teachbacks: dict[int, list[QuestionnaireResponse]] = defaultdict(list)
+        if notified_ids:
+            for t in db.scalars(select(QuestionnaireResponse).where(QuestionnaireResponse.case_id.in_(notified_ids))
+                                .order_by(QuestionnaireResponse.created_at.desc(), QuestionnaireResponse.id.desc())):
+                teachbacks[t.case_id].append(t)
+        conf_ids = [c.id for c in cases if S(c.state) == S.CONFIRMATORY_TEST]
+        confirmatory: dict[int, ServiceRequest] = {}
+        if conf_ids:
+            for sr in db.scalars(select(ServiceRequest).where(
+                    ServiceRequest.case_id.in_(conf_ids), ServiceRequest.kind == "confirmatory_test")):
+                if sr.case_id not in confirmatory or sr.id > confirmatory[sr.case_id].id:
+                    confirmatory[sr.case_id] = sr
+        share_ids = [c.patient_id for c in cases if S(c.state) in (S.CONSULTATION, S.REFERRAL_REJECTED)]
+        share_denied: set[int] = set()
+        if share_ids:
+            seen: set[int] = set()
+            for row in db.scalars(select(Consent).where(
+                    Consent.patient_id.in_(share_ids), Consent.scope == "share_external",
+                    Consent.status == "active").order_by(Consent.id.desc())):
+                if row.patient_id in seen:
+                    continue
+                seen.add(row.patient_id)
+                if row.decision == "deny":
+                    share_denied.add(row.patient_id)
+        # same rule as the actions panel and the server (workflow.can_decide_referral)
+        decide_ok = {c.id for c in cases if can_decide_referral(db, c, actor)}
+        return cls(set(critical_ids) - have_rb, open_calls, dict(teachbacks), confirmatory, share_denied, decide_ok)
+
+
+def available_actions(db: Session, actor: Actor, c: Case, *, lookups: _Lookups | None = None) -> list[dict]:
     st = S(c.state)
     can = actor.can
     acts: list[dict] = []
+    L = lookups or _Lookups.load(db, actor, [c])
 
     def add(key: str, label: str, perm: str | None = None, primary: bool = False, **extra) -> None:
         if perm is None or can(perm):
             acts.append({"key": key, "label": label, "primary": primary, **extra})
 
-    from ..services.critical import read_back_needed as _rbn
-    read_back_needed = _rbn(db, c)
+    read_back_needed = c.id in L.read_back
     if read_back_needed:  # critical-result fast lane: before anything else, a clinician has it and read it back
         add("read_back", "Record direct contact and read-back (critical result)", "critical:readback", True)
-    open_call = db.scalar(select(CallTask).where(CallTask.case_id == c.id, CallTask.status == "requested"))
+    open_call = c.id in L.open_calls
     if c.review_required and st != S.CLOSED:
         add("review", "Resolve clinical review", "case:triage_urgent", True)
     if st == S.ISSUED and c.review_required:
@@ -42,8 +98,7 @@ def available_actions(db: Session, actor: Actor, c: Case) -> list[dict]:
     if st in (S.TRIAGED, S.PATIENT_NOTIFIED, S.UNREACHABLE, S.NO_SHOW) or open_call:
         add("call", "Record phone call outcome", "call:record", st == S.TRIAGED and bool(open_call))
     if st == S.PATIENT_NOTIFIED:
-        tbs = list(db.scalars(select(QuestionnaireResponse).where(QuestionnaireResponse.case_id == c.id)
-                              .order_by(QuestionnaireResponse.created_at.desc(), QuestionnaireResponse.id.desc())))
+        tbs = L.teachbacks.get(c.id, [])
         if not tbs:
             add("teachback", "Check the patient understood (teach-back)", "call:record", True)
         elif not any(t.passed for t in tbs):  # a passed check is never offered again; a failed one can be retried
@@ -61,8 +116,7 @@ def available_actions(db: Session, actor: Actor, c: Case) -> list[dict]:
         else:
             add("consultation", "Record consultation", "case:write", True)
     if st == S.CONFIRMATORY_TEST:
-        sr = db.scalar(select(ServiceRequest).where(ServiceRequest.case_id == c.id, ServiceRequest.kind == "confirmatory_test")
-                       .order_by(ServiceRequest.id.desc()))
+        sr = L.confirmatory.get(c.id)
         if sr and sr.status == "requested":
             add("confirm_result", "Record confirmatory result", "confirm:result", True)
         elif sr and sr.result == "negative":
@@ -75,12 +129,12 @@ def available_actions(db: Session, actor: Actor, c: Case) -> list[dict]:
                 add("start_care", "Record surveillance plan (repeat test)", "careplan:write", True)
     if st in (S.CONSULTATION, S.REFERRAL_REJECTED):
         add("refer", "Send referral" if st == S.CONSULTATION else "Re-route referral", "referral:create", True,
-            consent_blocked=consent_status(db, c.patient_id, "share_external") == "deny")
+            consent_blocked=c.patient_id in L.share_denied)
     if st == S.REFERRAL_REJECTED:
         add("consultation", "Alternative plan: back to consultation", "case:write")
     if st in (S.CONSULTATION, S.APPOINTMENT_ATTENDED):
         add("start_care", "Record treatment / surveillance plan", "careplan:write", st == S.APPOINTMENT_ATTENDED)
-    if st == S.REFERRAL_SENT and can_decide_referral(db, c, actor):  # never the clinician who sent it
+    if st == S.REFERRAL_SENT and c.id in L.decide_ok:  # never the clinician who sent it
         add("decide_referral", "Accept / reject referral", "referral:decide", True)
     if st in (S.REFERRAL_ACCEPTED, S.NO_SHOW):
         add("book", "Book appointment" if st == S.REFERRAL_ACCEPTED else "Rebook appointment", "appointment:write", True)
@@ -116,3 +170,18 @@ def available_actions(db: Session, actor: Actor, c: Case) -> list[dict]:
     if can("fhir:export"):
         add("fhir", "Export FHIR R4 bundle", "fhir:export")
     return acts
+
+
+def has_primary_action(db: Session, actor: Actor, c: Case, *, lookups: _Lookups | None = None) -> bool:
+    """True when the case page would show a primary next-step button, not “Nothing for your role now”."""
+    return any(a.get("primary") for a in available_actions(db, actor, c, lookups=lookups))
+
+
+def primary_action_case_ids(db: Session, actor: Actor, case_ids: Iterable[int]) -> set[int]:
+    """Case ids in `case_ids` that have a primary action for this actor (same rule as the case page)."""
+    ids = sorted({i for i in case_ids if i is not None})
+    if not ids:
+        return set()
+    cases = list(db.scalars(select(Case).options(joinedload(Case.patient)).where(Case.id.in_(ids))).unique())
+    lookups = _Lookups.load(db, actor, cases)
+    return {c.id for c in cases if has_primary_action(db, actor, c, lookups=lookups)}

@@ -14,6 +14,12 @@ from .access import sharing_denied_select
 from ..sla import SlaLookup, rag_reminder_fraction, rag_status
 from ..statemachine import LABELS, S
 
+# GP and specialist work queues are action lists: hide cases whose next step has nothing for
+# this role (same rule as the case page "Nothing for your role now"). Coordinator and clinical
+# lead keep a programme-wide overview of every in-scope open case, including ones waiting on
+# another role.
+ACTION_QUEUE_ROLES = frozenset({"gp", "specialist"})
+
 RAG_RANK = {"red": 0, "amber": 1, "green": 2, "none": 3}
 TIER_RANK = {"critical": 0, "urgent": 1, "high": 2, "routine": 3}
 VIEWS = ("all", "review", "overdue", "unassigned", "rejected", "escalated", "calls", "transfers", "consults", "mine",
@@ -128,13 +134,40 @@ def _rag_rank(now: datetime):
 _RAG_LABEL = {0: "red", 1: "amber", 2: "green", 3: "none"}
 
 
+
+def case_number_query(search: str | None) -> int | None:
+    """Exact case-number lookup (digits, optional leading #), or None."""
+    if not search:
+        return None
+    s = search.strip().lstrip("#")
+    return int(s) if s.isdigit() else None
+
+
+def action_queue_case_ids(db: Session, actor: Actor, case_ids: list[int], search: str | None = None) -> set[int]:
+    """Ids a GP/specialist should see in the work queue. Oversight roles keep every given id.
+
+    Hidden cases still appear when the search is that case's number (and the case is already in
+    the given, already-scoped set). Name or MRN search does not reveal them.
+    """
+    if actor.role not in ACTION_QUEUE_ROLES:
+        return set(case_ids)
+    from ..api.actions import primary_action_case_ids
+    keep = primary_action_case_ids(db, actor, case_ids)
+    reveal = case_number_query(search)
+    if reveal is not None and reveal in set(case_ids):
+        keep.add(reveal)
+    return keep
+
+
 def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | None = None, limit: int = 200,
                programme: str | None = None, offset: int = 0, search: str | None = None) -> dict:
     """Filtering, counts, ordering and paging in SQL (SQLite and PostgreSQL alike).
 
     RAG comes from the stored per-case thresholds (sla_amber_at / sla_red_at) compared with `now`, so only the page
-    is transferred and decoded: 4 statements whatever the number of open cases. Same visible result as the former
-    Python path (tests/queue_oracle.py, tests/test_queue_sql.py); exact ties are broken by case id."""
+    is transferred and decoded: 4 statements whatever the number of open cases. For GP and specialist queues, cases
+    with no primary action for that role are dropped first (same rule as the case page), and counts follow the
+    filtered list; a case-number search still returns a hidden case. Same visible result as the former Python path
+    (tests/queue_oracle.py, tests/test_queue_sql.py); exact ties are broken by case id."""
     now = now or utcnow()
     owner = aliased(Practitioner)
     pend = aliased(Practitioner)
@@ -184,6 +217,11 @@ def work_queue(db: Session, actor: Actor, view: str = "all", now: datetime | Non
         return (select(*cols).select_from(Case).join(Patient, Patient.id == Case.patient_id)
                 .join(owner, owner.id == Case.owner_id).outerjoin(pend, pend.id == Case.transfer_pending_owner_id)
                 .where(*where))
+
+    if actor.role in ACTION_QUEUE_ROLES:
+        candidates = list(db.scalars(base(Case.id)))
+        keep = action_queue_case_ids(db, actor, candidates, search)
+        where.append(Case.id.in_(keep) if keep else false())
 
     one = literal(1)
     count_row = db.execute(base(*[func.coalesce(func.sum(sa_case((c, one), else_=0)), 0).label(v)

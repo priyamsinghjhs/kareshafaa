@@ -23,7 +23,8 @@ closure.
 * Every clinical home starts with **“Needs you now”**: the five most urgent cases in your scope (overdue first, then
   T0→T3), each with the time left in plain words (“Overdue by 3 days”, “5 h left”), the patient's name and preferred
   language, and **one button** for the next step (e.g. “Tell the patient their result”, “Book appointment”). The button
-  opens the case; every existing check and confirmation still applies.
+  opens the case; every existing check and confirmation still applies. For a GP or specialist, only cases with a next
+  step for that role are listed (see **Role work queues** below).
 * The case screen opens with a **“Now:” bar** — current step, time left, owner and the one next action — above the
   clinical record. Escalations, critical tiers and clinical-review alerts stay visible; nothing safety-relevant is folded away.
 * Navigation keeps the 3–4 screens each role uses daily; secondary screens (e.g. audit trail, recall list, “How decisions
@@ -78,6 +79,13 @@ closure.
 
 **Case loop**
 * Exactly one accountable owner per open case (enforced in the DB and service layer).
+* **Role work queues (GP and specialist):** a case whose next step has nothing for your role — the same rule as
+  “Nothing for your role now” on the case page (no primary action in `available_actions`) — is hidden from that
+  role's work queue, including “Needs you now”, the overdue / mine / review and other view filters, and the count
+  tiles, which match the filtered list. Coordinator and clinical-lead overviews still list every in-scope open case,
+  including ones waiting on another role. The case stays openable by its URL, and searching the work queue by **case
+  number** (`1395` or `#1395`) still returns it; a name or MRN search does not. Organisation scope and sharing
+  consent are unchanged. Tests: `tests/test_role_queue_filter.py`.
 * Deterministic state machine with **SLA tiers T0–T3** (T0 critical, T1 urgent, T2 soon, T3 routine; T0/T1 clocks
   run 24/7, T2/T3 count UAE working days) and an L1–L4 escalation ladder. Handles no-shows, rejected referrals,
   unreachable patients, transfers (two-key), declines and deaths.
@@ -356,8 +364,8 @@ usernames come from the staff directory (`kareshafaa/synth/directory.py`, `kares
 | Admin | `admin` | Menu: Users · System · About; **More:** Outcomes, Advanced. Users and sign-in help, System status, Outcomes (read), Advanced tools (deadline-check runner, model training, proposal engine, simulation, configuration), audit-chain verification, About. **No clinical actions.** |
 | Clinical lead | `fatima.al.mansoori`, `layla.al.hashimi` | Menu: Overview (escalations and overdue first) · Work queue · Approvals · Outcomes; **More:** Audit trail, Recall list, How decisions are made. Overview, work queue and every clinical action incl. reopening cases; approvals for models, rules and content; outcomes; audit trail (read). **No admin tools** (users, system, training, configuration). |
 | Care coordinator | `aisha.rahman` | Menu: Today's queue · Patients · Due for recall · Results inbox. Today's queue (“Needs you now” first) incl. patient appointment requests, outreach and calls, triage/assign/transfer, referrals, patient registration and invites, recall list, results inbox (HL7/FHIR) incl. **Results not in the loop** (reconciliation list). |
-| GP (family doctor) | `omar.haddad` | Menu: Needs me · Patients · Care summaries · Ask a specialist; **More:** All my cases, Due for recall. Needs-review queue, confirmatory tests, referrals, care plans, authorised closure, care summaries, patients and recalls, ask a specialist. |
-| Specialist | `vikram.mehta` | Menu: Needs me · My cases · Patients · Consult requests. Accept or reject referrals with a reason, booking and attendance, care plans, closure, consult replies. |
+| GP (family doctor) | `omar.haddad` | Menu: Needs me · Patients · Care summaries · Ask a specialist; **More:** All my cases, Due for recall. Needs-review queue, confirmatory tests, referrals, care plans, authorised closure, care summaries, patients and recalls, ask a specialist. The work queue lists only cases with a next step for the GP; a case waiting on another role (for example a referral sent to a specialist) is found by case number. |
+| Specialist | `vikram.mehta` | Menu: Needs me · My cases · Patients · Consult requests. Accept or reject referrals with a reason, booking and attendance, care plans, closure, consult replies. The work queue lists only cases with a next step for the specialist; other in-scope cases are found by case number. |
 | Programme analyst | `analyst` | Aggregate outcomes only (small cells suppressed), read-only models and rules. |
 | Medical translator | `translator` | Content sign-off: attests that a translation matches the signed-off English. |
 | Patient | `patient.en` (also `patient.ar`, `.hi`, `.ur`, `.tl`) | Own results, journey, appointments, requests, messages and consent. |
@@ -457,6 +465,8 @@ orders and pages in SQL (SQLite and PostgreSQL), so only the requested page is r
 database flush hook keeps them current on every case, step and SLA-rule change, and start-up recomputes them
 idempotently (additive migration). Proposal generation reads pending proposals and configuration once per run.
 `scripts/loadtest/queue_equivalence.py` checks the SQL queue against the former Python ordering on any database.
+GP and specialist queues add a small, set-based pass over in-scope open cases so that counts and pages exclude
+cases with no primary action for that role; coordinator and clinical-lead overviews stay on the original SQL path.
 
 **Migration rehearsal (before every deploy that adds tables or columns):** `python scripts/migration_rehearsal.py
 --base-ref master` seeds a throw-away SQLite database with the code at that ref (synthetic data), upgrades it with
