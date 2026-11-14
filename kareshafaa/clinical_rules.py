@@ -49,7 +49,12 @@ FPG_MGDL = {"hypo": 54, "prediabetes": 100, "diabetes": 126, "high": 300, "criti
 FPG_MMOL = {"hypo": 3.0, "prediabetes": 5.6, "diabetes": 7.0, "high": 16.7, "critical": 27.7}
 FPG_RANGE_MGDL, FPG_RANGE_MMOL = (10.0, 1500.0), (0.6, 83.0)
 
-ELIGIBLE_AGE = {  # Department of Health Abu Dhabi
+# Eligibility ages aligned with DoH Abu Dhabi / ADPHC 2025 standards:
+# - Colorectal: 40-75 (FIT annually or colonoscopy every 10 years; IFHAS V10/2025)
+# - Cervical: 25-65 (primary HPV DNA every 5 years; Cervical Cancer Screening Standard 2025)
+# - Breast: mammography from 40 (every 2 years average risk; Breast Cancer Screening Standard V2/2025)
+# - Diabetes: from 18 (HbA1c/FPG/OGTT; re-screen every 3 years if normal)
+ELIGIBLE_AGE = {  # Department of Health Abu Dhabi / ADPHC 2025
     "colorectal_fit": (40, 75), "cervical": (25, 65), "breast": (40, 200), "diabetes_hba1c": (18, 200)}
 ELIGIBLE_SEX = {"cervical": {"female"}, "breast": {"female"}}
 
@@ -541,10 +546,10 @@ def review_min_tier(reasons: list[str]) -> str | None:
 # When a person is due for their next screen. ALL VALUES ARE CONFIRM (programme clinical lead sign-off) -
 # they follow common programme practice and the Department of Health Abu Dhabi programmes where known.
 RECALL_INTERVAL_MONTHS = {        # routine re-screen after a NEGATIVE screening result
-    "colorectal_fit": 24,         # CONFIRM: biennial FIT (UK NSC); some programmes use annual FIT
-    "cervical": 60,               # CONFIRM: HPV primary screening every 5 years (cytology-only: 3 years)
-    "breast": 24,                 # CONFIRM: mammography every 2 years from 40
-    "diabetes_hba1c": 36,         # CONFIRM: re-screen every 3 years when normal (ADA); yearly if risk factors
+    "colorectal_fit": 12,         # DoH / ADPHC 2025: annual FIT (40-75); colonoscopy every 10 years alternative
+    "cervical": 60,               # DoH Cervical Cancer Screening Standard 2025: primary HPV DNA every 5 years
+    "breast": 24,                 # DoH Breast Cancer Screening Standard V2/2025: mammography every 2 years from 40
+    "diabetes_hba1c": 36,         # DoH / ADA: re-screen every 3 years when normal; yearly if risk factors
 }
 SURVEILLANCE_MONTHS = {           # default review date of a SURVEILLANCE care plan (clinician can change it)
     "colorectal_fit": 36,         # CONFIRM: post-polypectomy surveillance colonoscopy at 3 years (BSG 2020)
