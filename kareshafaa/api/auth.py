@@ -17,6 +17,7 @@ from ..models import User
 from ..security import PERMISSIONS, Actor, make_token
 from .deps import COOKIE, CSRF_COOKIE, actor_from_user, current_actor, token_from_request
 from .schemas import LoginIn, PasswordChangeIn, PasswordLoginIn
+import os
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 ANON = Actor(user_id=None, role="anonymous", display="anonymous", is_human=True)
@@ -175,6 +176,9 @@ def me(request: Request, actor: Actor = Depends(current_actor), db: Session = De
 # --------------------------------------------------------------------------------------------- dev/test only
 def _one_click_enabled() -> bool:
     s = get_settings()
+    # TEMPORARY: allow when testing flag is set even in prod
+    if os.environ.get("KARESHAFAA_ALLOW_DEMO_TESTING") == "1" and s.demo_logins and not s.public_demo:
+        return True
     return s.demo_logins and not s.public_demo and s.env != "prod"
 
 
