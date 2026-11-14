@@ -76,17 +76,29 @@ def integration_status(db: Session) -> dict:
 
 # Sources checked 3 Nov 2026: https://www.malaffi.ae/providers/facilities-required-to-connect/ ,
 # https://www.doh.gov.ae/en/resources/HIE , https://www.malaffi.ae/providers/resources/
+# Malaffi has achieved ~90% LOINC adoption for laboratory results (Malaffi announcement).
+# DoH mandates LOINC for lab results (OBX-3), CPT for orders (OBR-4), and specific units.
 MALAFFI_READINESS = [
     {"item": "HL7-capable system", "need": "Malaffi requires an HL7-capable EMR to connect.",
      "status": "ready", "evidence": "HL7 v2 ORU^R01 inbound with ACK AA/AE, idempotent on MSH-10; FHIR R4 Bundles in and out."},
     {"item": "DoH demographic data standards", "need": "Emirates ID and passport, name, date of birth, nationality, phone, email.",
      "status": "ready", "evidence": "Captured at registration with the same rules (Emirates ID check digit, E.164 phone)."},
-    {"item": "DoH code sets for laboratory results", "need": "Results coded with the DoH mandated code sets and units.",
-     "status": "to do", "evidence": "Tests are recognised by LOINC code; mapping to the DoH code sets is a pilot task."},
+    {"item": "DoH code sets for laboratory results",
+     "need": "Results coded with the DoH mandated code sets and units (LOINC for results, CPT for orders, SI units).",
+     "status": "to do",
+     "evidence": "Tests are recognised by LOINC code; mapping to the DoH code sets is a pilot task. "
+                 "TODO(pilot): obtain current DoH/Malaffi lab code-set tables, map the four screening tests "
+                 "(FIT, HPV, mammography BI-RADS, HbA1c/FPG) to the mandated LOINC + units, and add a validation "
+                 "step that rejects or routes unmapped codes to clinical review."},
     {"item": "Security assessment", "need": "Pass the Malaffi security assessment (an excerpt of the DoH ADHICS survey).",
      "status": "partly", "evidence": "Access control, audit, sessions and lockout are built; a formal ADHICS gap assessment is a pilot task."},
-    {"item": "Accession agreement and network", "need": "Accession agreement and facility declaration; SD-WAN connection.",
-     "status": "to do", "evidence": "Signed by the pilot provider, not by KareShafaa. No connection or partnership is claimed."},
+    {"item": "Accession agreement and network",
+     "need": "Accession agreement and facility declaration; SD-WAN connection.",
+     "status": "to do",
+     "evidence": "Signed by the pilot provider, not by KareShafaa. No connection or partnership is claimed. "
+                 "TODO(pilot): facility completes Accession Agreement + Facility Declaration, passes Malaffi security "
+                 "assessment, and establishes the Etisalat SD-WAN link. KareShafaa then subscribes to result feeds "
+                 "for enrolled screening patients (match on Emirates ID; never write clinical data back without a clinician)."},
     {"item": "Integration pattern", "need": "Read results and appointments across providers; detect when a patient was seen elsewhere.",
      "status": "designed", "evidence": "Subscribe to result feeds for enrolled screening patients through the provider's "
                                       "Malaffi connection; match on Emirates ID; never write clinical data back without a clinician."},
