@@ -11,7 +11,6 @@ from ..config import get_settings
 from ..db import get_db
 from ..models import User
 from ..security import Actor, verify_token
-import os
 
 COOKIE = "kareshafaa_session"
 CSRF_COOKIE = "kareshafaa_csrf"  # pre-login double-submit token for the login form
@@ -42,8 +41,7 @@ def resolve_user(request: Request, db: Session) -> User | None:
         return found[1] if found else None
     # legacy signed token: only from the dev/test token endpoint (never enabled in public demo or prod)
     s = get_settings()
-    # TEMPORARY: allow legacy demo tokens in prod only while testing flag is set
-    if not s.demo_logins or s.public_demo or (s.env == "prod" and os.environ.get("KARESHAFAA_ALLOW_DEMO_TESTING") != "1"):
+    if not s.demo_logins or s.public_demo or s.env == "prod":
         return None
     uid = verify_token(tok)
     if uid is None:
