@@ -15,7 +15,7 @@ from pathlib import Path
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.exc import TimeoutError as SATimeoutError
 from sqlalchemy.orm.exc import StaleDataError
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.middleware.gzip import GZipMiddleware
@@ -571,6 +571,9 @@ def create_app() -> FastAPI:
             response = await call_next(request)
         except OverflowError:
             # oversized path/query integers: let the dedicated handler return 422
+            raise
+        except HTTPException:
+            # intentional API errors (404, 422, 403, etc.) must reach the client as-is
             raise
         except Exception:  # noqa: BLE001
             # fail closed AND leave a trail: an unexpected error mid-request rolls its transaction back (the request
