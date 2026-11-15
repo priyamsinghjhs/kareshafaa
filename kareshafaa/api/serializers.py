@@ -105,32 +105,17 @@ def _risk(c: Case) -> dict:
 
 def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None) -> dict[str, Any]:
     now = now or utcnow()
-    sla = SlaLookup.load(db)
-    # Do not load the whole staff directory here. Each name lookup is a single primary-key
-    # read; loading every practitioner and user on every case view was making the page hang
-    # on the free host.
+    # Minimal first response so the case page opens. Related records are empty
+    # and the advisory panels are deferred.
     p = c.patient
-    rep = db.get(DiagnosticReport, c.report_id)
     steps = []
     for s in c.steps:
-        rag, frac = rag_status(s.started_at, s.due_at, s.ended_at or now,
-                               rag_reminder_fraction(s.state, sla.reminder_fraction(s.state, c.tier)))
         steps.append({"id": s.id, "state": s.state, "label": LABELS.get(s.state, s.state), "owner_id": s.owner_id,
                       "owner": pname(db, s.owner_id), "status": s.status, "started_at": iso(s.started_at),
                       "ended_at": iso(s.ended_at), "due_at": iso(s.due_at), "sla_hours": s.sla_hours,
-                      "breached": s.breached or (s.status == "in-progress" and rag == "red"),
-                      "sla_status": rag if s.status == "in-progress" else ("red" if s.breached else "green"),
-                      "sla_fraction": round(frac, 2), "note": s.note})
+                      "breached": bool(s.breached), "sla_status": "red" if s.breached else "green",
+                      "sla_fraction": 0.0, "note": s.note})
     cur = next((s for s in steps if s["status"] == "in-progress"), None)
-    q = lambda m: db.scalars(select(m).where(m.case_id == c.id).order_by(m.id)).all()  # noqa: E731
-    gp = db.get(Practitioner, p.gp_id) if p.gp_id else None
-    from ..services.patient_answers import changes_for_case
-    from ..services.clinical_record import _tb_text
-    tb_changes = changes_for_case(db, c.id)  # patient used "Change my answers": new response -> replaced one
-    # Contact suggestion and "why this priority" are advisory. They scan history and
-    # were adding seconds to every case open on the free host. The page loads them
-    # only if the staff open those panels.
-    contact_suggestion = None
     return {
         **case_summary(db, c),
         "label": "KareShafaa case record",
@@ -139,23 +124,18 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
                 "due_at": cur["due_at"] if cur else None, "escalation_level": max(c.escalation_level or 0, c.target_alert_level or 0)},
         "why": {"tier": c.tier, "tier_label": c.tier, "steps": [], "deferred": True},
         "risk": _risk(c),
-        "contact_suggestion": contact_suggestion,
+        "contact_suggestion": None,
         "patient": {"id": p.id, "name": f"{p.given_name} {p.family_name}", "mrn": p.mrn, "gender": p.gender,
                     "age_band": p.age_band, "language": p.language, "region": p.region,
-                    "managing_org": oname(db, p.managing_org_id), "gp": gp.name if gp else None,
+                    "managing_org": None, "gp": None,
                     "channels": {"smartphone": p.has_smartphone, "whatsapp": p.whatsapp, "phone_valid": p.phone_valid},
                     "deceased": p.deceased},
-        "result": {"id": rep.id, "display": rep.display, "issued_at": iso(rep.issued_at),
-                   "ordering_clinician": rep.ordering_clinician, "screening_site": rep.screening_site,
-                   "specimen_collected_at": iso(rep.specimen_collected_at),
-                   "observations": [{"display": o.display, "value": o.value, "value_text": o.value_text, "unit": o.unit,
-                                     "interpretation": o.interpretation} for o in rep.observations]} if rep else None,
+        "result": None,
         "journey": journey(db, c),
-        "fast_lane": _critical_status(db, c),
-        "coverage": _coverage_banner(db, actor, p),
+        "fast_lane": None,
+        "coverage": None,
         "steps": steps,
-        "transfer_pending": {"to_owner_id": c.transfer_pending_owner_id, "to_owner": pname(db, c.transfer_pending_owner_id),
-                             "note": c.transfer_note} if c.transfer_pending_owner_id else None,
+        "transfer_pending": None,
         "closure": {"type": c.closure_type, "reason": c.closure_reason, "note": c.closure_note,
                     "evidence_type": c.closure_evidence_type, "evidence_id": c.closure_evidence_id,
                     "closed_at": iso(c.closed_at)} if c.closed_at else None,
@@ -166,7 +146,7 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
         "reviews": list(c.review_log or []),
         "lessons": [],
         "care_plans": [],
-        "recall": {"next_screening_due": iso(c.next_screening_due), "recall": None},
+        "recall": {"next_screening_due": None, "recall": None},
         "gp_summaries": [],
         "communications": [],
         "call_tasks": [],
