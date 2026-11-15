@@ -74,7 +74,7 @@ def malaffi_status(actor: Actor = Depends(require("config:read"))) -> dict:
 
 
 @router.get("/frameworks")
-def frameworks(actor: Actor = Depends(require("config:read"))) -> dict:
+def frameworks(actor: Actor = Depends(require("case:read"))) -> dict:
     """Alignment with Malaffi, ADHICS V2, IoMT (retired), and UAE IA Standard (formerly NESA)."""
     return frameworks_status()
 
