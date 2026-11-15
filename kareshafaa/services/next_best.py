@@ -19,6 +19,7 @@ from . import assist
 from . import copilot as _cop
 
 DISCLAIMER = "Draft only. A human must approve before any action is recorded."
+NOT_SEEN = "Draft used risk score, escalation, open steps, and rule id only. No free-text notes, medicines, or diagnoses."
 SYSTEM = (
     "You draft a short plain-language next step for a screening follow-up coordinator. "
     "Use ONLY the facts given. Do not invent results, medicines, doses, or diagnoses. "
@@ -51,13 +52,16 @@ def _template(facts: dict) -> str:
         explain += f" Escalation level is {escalation}."
     if why:
         explain += f" {why}"
+    # Comparison: simple priority queue vs agent
+    without = f"Without the agent: ordered by {tier} and age only."
+    with_agent = f"With the agent: raised because escalation is {escalation or 'none'} and the open step is overdue." if (escalation or overdue) else "With the agent: same order as a simple priority queue."
     if primary:
         action = f"Recommended next step: {primary}."
         idle = "If no one acts, the case stays overdue and can escalate further."
     else:
         action = "No primary next step is available for your role right now."
         idle = "You can still view the record, reassign, or add a lesson."
-    return (f"{explain} {action} {idle} "
+    return (f"{explain} {without} {with_agent} {action} {idle} "
             f"This is a draft for your review. Approve or edit before recording any action.")
 
 def _node_prompt(state: NextBestState) -> NextBestState:
@@ -131,4 +135,5 @@ def run(facts: dict, *, use_model: bool) -> dict:
         text = _template(facts)
         origin = "template"
     return {"draft": text, "origin": origin, "steps": steps,
-            "requires_approval": True, "disclaimer": DISCLAIMER}
+            "requires_approval": True, "disclaimer": DISCLAIMER,
+            "not_seen": NOT_SEEN}
