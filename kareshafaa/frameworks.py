@@ -66,6 +66,13 @@ def frameworks_status() -> dict[str, Any]:
     """Summary for the About page and judges."""
     return {
         "frameworks": FRAMEWORKS,
+        "agent": {
+            "framework": "LangGraph",
+            "why": "Explicit graph, deterministic fallback, free-hostable, no unmaintained dependency.",
+            "human_in_the_loop": "External approval. Graph returns a draft; staff approve via normal action form. "
+                                 "POST /api/assist/next-best/approve records the decision without performing the action.",
+            "persistence": "None for the draft graph (stateless). Correct for free Render; no PHI in checkpoints.",
+        },
         "disclaimer": "Design and readiness mapping only. No certification is claimed. "
                       "Malaffi connection and formal ADHICS / IA assessments are facility and pilot-owner tasks. "
                       "Synthetic data only in the public demo.",

@@ -155,3 +155,26 @@ def next_best(case_id: int, actor: Actor = Depends(require("case:read")), db: Se
             "primary_label": primary["label"] if primary else None,
             "origin": res.get("origin"),
             "disclaimer": res["disclaimer"], "requires_approval": True}
+
+
+class ApproveIn(_In):
+    case_id: int = Field(ge=1)
+    decision: str = Field(max_length=20)  # approve | edit | reject
+    note: str = Field(default="", max_length=500)
+
+
+@router.post("/next-best/approve")
+def approve_next_best(body: ApproveIn, actor: Actor = Depends(require("case:read")),
+                      db: Session = Depends(get_db)) -> dict:
+    """Record a human decision on a next-best draft. Does not perform the action."""
+    if actor.role == "patient" or not actor.is_human:
+        raise Forbidden("approval is for staff only")
+    if body.decision not in ("approve", "edit", "reject"):
+        raise Invalid("decision must be approve, edit, or reject")
+    c = wf.get_case(db, body.case_id)
+    assert_can_view(db, actor, c)
+    audit.record(db, actor, "E", "assist.next_best_decision", entity_type="Case", entity_id=c.id, case_id=c.id,
+                 detail={"decision": body.decision, "note_len": len(body.note)})
+    db.commit()
+    return {"recorded": True, "decision": body.decision,
+            "message": "Decision recorded. Use the normal action form to apply any change."}

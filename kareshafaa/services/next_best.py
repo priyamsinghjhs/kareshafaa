@@ -16,6 +16,7 @@ from langgraph.graph import END, START, StateGraph
 
 from ..config import get_settings
 from . import assist
+from . import copilot as _cop
 
 DISCLAIMER = "Draft only. A human must approve before any action is recorded."
 SYSTEM = (
@@ -74,14 +75,22 @@ def _node_draft(state: NextBestState) -> NextBestState:
     return {"raw": _template(state.get("facts") or {}), "origin": "template"}
 
 def _node_safety(state: NextBestState) -> NextBestState:
+    facts = state.get("facts") or {}
     text = (state.get("raw") or "").strip()
-    # strip any claim that an action was already taken
+    origin = state.get("origin") or "template"
+    # reject claims that an action was already taken
     if assist.CLAIMS_ACTION.search(text):
-        text = _template(state.get("facts") or {})
-        return {"text": text, "origin": "template"}
-    if len(text) > 600:
-        text = text[:600].rsplit(" ", 1)[0] + "."
-    return {"text": text or _template(state.get("facts") or {}), "origin": state.get("origin") or "template"}
+        return {"text": _template(facts), "origin": "template"}
+    # reject dosing or diagnosis language not present in facts
+    if _cop._DOSE.search(text) or _cop._DIAGNOSIS.search(text):
+        fact_text = " ".join(str(v) for v in facts.values())
+        if not (_cop._DOSE.search(fact_text) or _cop._DIAGNOSIS.search(fact_text)):
+            return {"text": _template(facts), "origin": "template"}
+    if len(text) > 500:
+        text = text[:500].rsplit(" ", 1)[0] + "."
+    if not text:
+        return {"text": _template(facts), "origin": "template"}
+    return {"text": text, "origin": origin}
 
 def _build():
     g = StateGraph(NextBestState)
