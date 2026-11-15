@@ -22,8 +22,8 @@ async function load() {
   rootEl.innerHTML = '<div class="loading" role="status">Loading case…</div>';
   try {
     [C, META] = await Promise.all([
-      W.api(`/api/cases/${CASE_ID}`, { timeoutMs: 8000 }),
-      W.api(`/api/cases/${CASE_ID}/actions`, { timeoutMs: 8000 })
+      W.api(`/api/cases/${CASE_ID}`, { timeoutMs: 25000 }),
+      W.api(`/api/cases/${CASE_ID}/actions`, { timeoutMs: 25000 })
     ]);
     render();
     try {
