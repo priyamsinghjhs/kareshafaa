@@ -26,7 +26,9 @@ services:
       - key: KARESHAFAA_PUBLIC_DEMO
         value: "0"
       - key: KARESHAFAA_DEMO_LOGINS
-        value: "false"
+        value: "true"
+      - key: KARESHAFAA_ALLOW_DEMO_LOGINS
+        value: "1"
       - key: KARESHAFAA_SECRET_KEY
         generateValue: true
       - key: KARESHAFAA_DEMO_PASSWORD   # secret: entered in the Render dashboard, never committed

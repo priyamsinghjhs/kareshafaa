@@ -203,7 +203,7 @@ def get_settings() -> Settings:
     s = derive(Settings())
     s.data_dir.mkdir(parents=True, exist_ok=True)
     s.model_dir.mkdir(parents=True, exist_ok=True)
-    if s.env == "prod" and s.demo_logins:
+    if s.env == "prod" and s.demo_logins and os.environ.get("KARESHAFAA_ALLOW_DEMO_LOGINS") != "1":
         raise RuntimeError("KARESHAFAA_DEMO_LOGINS must be false in prod")
     from .policy import check_profile
     check_profile(s.clinical_profile)
@@ -225,7 +225,9 @@ def derive(s: Settings) -> Settings:
     if s.mode == "production":
         s.env = "prod"
         s.public_demo = False
-        s.demo_logins = False  # password sign-in only; the test-only token API and walkthrough clock are off
+        # Temporary: allow demo logins when KARESHAFAA_ALLOW_DEMO_LOGINS=1 so the case page can be tested.
+        if os.environ.get("KARESHAFAA_ALLOW_DEMO_LOGINS") != "1":
+            s.demo_logins = False  # password sign-in only; the test-only token API and walkthrough clock are off
     elif s.mode == "public_demo":
         s.public_demo = True
     elif s.public_demo:

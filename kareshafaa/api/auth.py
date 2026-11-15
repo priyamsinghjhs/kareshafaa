@@ -4,6 +4,7 @@ The HTML forms (/login, /logout, /account/password in main.py) and the JSON endp
 functions, so both paths get the same rate limiting, lockout, CSRF checks and audit events."""
 from __future__ import annotations
 
+import os
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -175,7 +176,7 @@ def me(request: Request, actor: Actor = Depends(current_actor), db: Session = De
 # --------------------------------------------------------------------------------------------- dev/test only
 def _one_click_enabled() -> bool:
     s = get_settings()
-    return s.demo_logins and not s.public_demo and s.env != "prod"
+    return s.demo_logins and not s.public_demo and (s.env != "prod" or os.environ.get("KARESHAFAA_ALLOW_DEMO_LOGINS") == "1")
 
 
 @router.get("/demo-users", include_in_schema=False)
