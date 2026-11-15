@@ -125,18 +125,17 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
     from ..services.patient_answers import changes_for_case
     from ..services.clinical_record import _tb_text
     tb_changes = changes_for_case(db, c.id)  # patient used "Change my answers": new response -> replaced one
-    from ..services.contact_timing import suggest as contact_suggest
-    try:
-        contact_suggestion = contact_suggest(db, p, now)
-    except Exception:  # noqa: BLE001 — never fail the case page for an advisory hint
-        contact_suggestion = None
+    # Contact suggestion and "why this priority" are advisory. They scan history and
+    # were adding seconds to every case open on the free host. The page loads them
+    # only if the staff open those panels.
+    contact_suggestion = None
     return {
         **case_summary(db, c),
         "label": "KareShafaa case record",
         "needs_confirmation": c.needs_confirmation,
         "sla": {"status": cur["sla_status"] if cur else "none", "fraction": cur["sla_fraction"] if cur else None,
                 "due_at": cur["due_at"] if cur else None, "escalation_level": max(c.escalation_level or 0, c.target_alert_level or 0)},
-        "why": _why(db, c),
+        "why": {"tier": c.tier, "tier_label": c.tier, "steps": [], "deferred": True},
         "risk": _risk(c),
         "contact_suggestion": contact_suggestion,
         "patient": {"id": p.id, "name": f"{p.given_name} {p.family_name}", "mrn": p.mrn, "gender": p.gender,
@@ -204,7 +203,7 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
         "audit": [{"id": a.id, "ts": iso(a.ts), "actor": a.actor_display, "role": a.actor_role, "action": a.action,
                    "event": a.event, "outcome": a.outcome, "detail": a.detail}
                   for a in db.scalars(select(AuditEvent).where(AuditEvent.case_id == c.id).order_by(AuditEvent.id.desc())
-                                      .limit(300))],
+                                      .limit(50))],
     }
 
 
