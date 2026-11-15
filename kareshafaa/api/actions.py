@@ -10,7 +10,9 @@ from ..programmes import CLINICIAN_CONFIRMED_TIERS
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from ..models import CallTask, Case, Consent, CriticalReadBack, QuestionnaireResponse, ServiceRequest
+from datetime import datetime, timedelta, timezone
+
+from ..models import Appointment, CallTask, Case, Consent, CriticalReadBack, QuestionnaireResponse, ServiceRequest
 from ..security import Actor
 from ..services.workflow import can_decide_referral
 from ..statemachine import S
@@ -26,12 +28,13 @@ class _Lookups:
     confirmatory: dict[int, ServiceRequest]
     share_denied: set[int]
     decide_ok: set[int]
+    booked_appts: dict[int, Appointment]  # case_id -> latest booked appointment
 
     @classmethod
     def load(cls, db: Session, actor: Actor, cases: Sequence[Case]) -> _Lookups:
         ids = [c.id for c in cases]
         if not ids:
-            return cls(set(), set(), {}, {}, set(), set())
+            return cls(set(), set(), {}, {}, set(), set(), {})
         critical_ids = [c.id for c in cases if c.tier == "critical" and S(c.state) != S.CLOSED]
         have_rb = set()
         if critical_ids:
@@ -66,7 +69,17 @@ class _Lookups:
                     share_denied.add(row.patient_id)
         # same rule as the actions panel and the server (workflow.can_decide_referral)
         decide_ok = {c.id for c in cases if can_decide_referral(db, c, actor)}
-        return cls(set(critical_ids) - have_rb, open_calls, dict(teachbacks), confirmatory, share_denied, decide_ok)
+        # latest booked appointment per case (for attendance window gating)
+        booked_ids = [c.id for c in cases if S(c.state) == S.APPOINTMENT_BOOKED]
+        booked_appts: dict[int, Appointment] = {}
+        if booked_ids:
+            for a in db.scalars(select(Appointment).where(
+                    Appointment.case_id.in_(booked_ids), Appointment.status == "booked")
+                    .order_by(Appointment.id.desc())):
+                if a.case_id not in booked_appts:
+                    booked_appts[a.case_id] = a
+        return cls(set(critical_ids) - have_rb, open_calls, dict(teachbacks), confirmatory, share_denied, decide_ok,
+                   booked_appts)
 
 
 def available_actions(db: Session, actor: Actor, c: Case, *, lookups: _Lookups | None = None) -> list[dict]:
@@ -139,7 +152,14 @@ def available_actions(db: Session, actor: Actor, c: Case, *, lookups: _Lookups |
     if st in (S.REFERRAL_ACCEPTED, S.NO_SHOW):
         add("book", "Book appointment" if st == S.REFERRAL_ACCEPTED else "Rebook appointment", "appointment:write", True)
     if st == S.APPOINTMENT_BOOKED:
-        add("attendance", "Record attendance / no-show", "appointment:write", True)
+        # attendance only becomes available within the early-arrival window (workflow.ATTENDANCE_EARLY_HOURS);
+        # before that the case stays findable by search but does not offer the record-attendance action
+        from ..services.workflow import ATTENDANCE_EARLY_HOURS
+        appt = L.booked_appts.get(c.id)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        within_window = appt is not None and now >= (appt.start - timedelta(hours=ATTENDANCE_EARLY_HOURS))
+        if within_window:
+            add("attendance", "Record attendance / no-show", "appointment:write", True)
         add("reschedule", "Change appointment time", "appointment:write")
         add("cancel_appointment", "Cancel appointment", "appointment:write")
         add("appointment_reminder", "Send appointment reminder", "comm:send")

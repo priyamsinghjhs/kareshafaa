@@ -569,6 +569,9 @@ def create_app() -> FastAPI:
         start = time.time()
         try:
             response = await call_next(request)
+        except OverflowError:
+            # oversized path/query integers: let the dedicated handler return 422
+            raise
         except Exception:  # noqa: BLE001
             # fail closed AND leave a trail: an unexpected error mid-request rolls its transaction back (the request
             # session is closed without a commit) and is audited below as a failed request (status 500), instead of
@@ -655,11 +658,19 @@ def create_app() -> FastAPI:
         if exc.status_code in _ERR_PAGES and _wants_page(req):
             t, m = _ERR_PAGES[exc.status_code]
             return templates.TemplateResponse(req, "error.html", {"title": t, "message": m}, status_code=exc.status_code)
+        # 422 from HTTPException(msg) must match the OpenAPI ValidationError array shape
+        if exc.status_code == 422 and isinstance(exc.detail, str):
+            return JSONResponse({"detail": [{"loc": ["body"], "msg": exc.detail, "type": "value_error"}]},
+                                status_code=422)
         return await _default_http(req, exc)
 
     @app.exception_handler(DomainError)
     async def _domain(_req: Request, exc: DomainError):
-        body = {"detail": exc.message}
+        # 422 (Invalid) must match the OpenAPI ValidationError array shape; other statuses keep a string detail
+        if exc.status_code == 422:
+            body = {"detail": [{"loc": ["body"], "msg": exc.message, "type": "value_error"}]}
+        else:
+            body = {"detail": exc.message}
         if getattr(exc, "code", None):
             body["code"] = exc.code  # machine-readable reason (e.g. answers_locked) so pages can show their own wording
         if getattr(exc, "extra", None):
@@ -703,8 +714,15 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     async def _validation(_req: Request, exc: RequestValidationError):
-        errs = [{"loc": list(e.get("loc", [])), "msg": e.get("msg")} for e in exc.errors()]
-        return JSONResponse({"detail": "invalid input", "errors": errs}, status_code=422)
+        errs = [{"loc": list(e.get("loc", [])), "msg": e.get("msg"), "type": e.get("type", "value_error")}
+                for e in exc.errors()]
+        return JSONResponse({"detail": errs}, status_code=422)
+
+    @app.exception_handler(OverflowError)
+    async def _overflow(_req: Request, exc: OverflowError):
+        """Path/query integers outside the signed 64-bit range (e.g. 2**63) become a clear 422, not a 500."""
+        return JSONResponse({"detail": [{"loc": ["path"], "msg": "integer out of range", "type": "value_error"}]},
+                            status_code=422)
 
     for r in (auth.router, admin_users.router, admin_users.system_router, cases.router, me.router, ops.router, governance.router, ingest.router, demo_api.router,
               pwa.router, patients.router, recalls.router, gp_summaries.router, patient_requests.router, signin_help.router,
