@@ -82,6 +82,149 @@
     return localStorage.getItem("ks-staff-lang") || "en";
   }
 
+  // Common visible strings replaced on language change (queue, overview, cards).
+  const TEXT = {
+    en: {
+      "Needs you now": "Needs you now",
+      "All open cases": "All open cases",
+      "Overdue": "Overdue",
+      "Need review": "Need review",
+      "No owner": "No owner",
+      "Escalated": "Escalated",
+      "Call patient": "Call patient",
+      "Close the loop": "Close the loop",
+      "Check understanding": "Check understanding",
+      "Record attendance": "Record attendance",
+      "Hello,": "Hello,",
+      "Speaks": "Speaks",
+      "Overdue by": "Overdue by",
+      "days": "days",
+      "Screening programme": "Screening programme",
+      "Find a patient": "Find a patient",
+      "Order": "Order",
+      "Priority (needs you first)": "Priority (needs you first)",
+      "What do the urgency levels mean?": "What do the urgency levels mean?",
+      "URGENCY": "URGENCY",
+      "PATIENT": "PATIENT",
+      "SCREENING": "SCREENING",
+      "NEXT STEP": "NEXT STEP",
+      "DEADLINE": "DEADLINE",
+      "OWNER": "OWNER",
+      "RISK": "RISK"
+    },
+    ar: {
+      "Needs you now": "يحتاجك الآن",
+      "All open cases": "كل الحالات المفتوحة",
+      "Overdue": "متأخر",
+      "Need review": "يحتاج مراجعة",
+      "No owner": "بدون مالك",
+      "Escalated": "مُصعَّد",
+      "Call patient": "اتصل بالمريض",
+      "Close the loop": "أغلق الحلقة",
+      "Check understanding": "تحقق من الفهم",
+      "Record attendance": "تسجيل الحضور",
+      "Hello,": "مرحباً،",
+      "Speaks": "يتحدث",
+      "Overdue by": "متأخر بـ",
+      "days": "أيام",
+      "Screening programme": "برنامج الفحص",
+      "Find a patient": "ابحث عن مريض",
+      "Order": "ترتيب",
+      "Priority (needs you first)": "الأولوية (يحتاجك أولاً)",
+      "What do the urgency levels mean?": "ماذا تعني مستويات الإلحاح؟",
+      "URGENCY": "الإلحاح",
+      "PATIENT": "المريض",
+      "SCREENING": "الفحص",
+      "NEXT STEP": "الخطوة التالية",
+      "DEADLINE": "الموعد",
+      "OWNER": "المالك",
+      "RISK": "الخطر"
+    },
+    hi: {
+      "Needs you now": "अभी आपको चाहिए",
+      "All open cases": "सभी खुले मामले",
+      "Overdue": "अतिदेय",
+      "Need review": "समीक्षा चाहिए",
+      "No owner": "कोई मालिक नहीं",
+      "Escalated": "बढ़ाया गया",
+      "Call patient": "मरीज़ को कॉल करें",
+      "Close the loop": "लूप बंद करें",
+      "Check understanding": "समझ जाँचें",
+      "Record attendance": "उपस्थिति दर्ज करें",
+      "Hello,": "नमस्ते,",
+      "Speaks": "बोलते हैं",
+      "Overdue by": "अतिदेय",
+      "days": "दिन",
+      "Screening programme": "जांच कार्यक्रम",
+      "Find a patient": "मरीज़ खोजें",
+      "Order": "क्रम",
+      "Priority (needs you first)": "प्राथमिकता (पहले आपको)",
+      "What do the urgency levels mean?": "तत्कालता स्तर का क्या अर्थ है?",
+      "URGENCY": "तत्कालता",
+      "PATIENT": "मरीज़",
+      "SCREENING": "जांच",
+      "NEXT STEP": "अगला कदम",
+      "DEADLINE": "समय सीमा",
+      "OWNER": "मालिक",
+      "RISK": "जोखिम"
+    },
+    ur: {
+      "Needs you now": "اب آپ کو چاہیے",
+      "All open cases": "تمام کھلے کیسز",
+      "Overdue": "تاخیر شدہ",
+      "Need review": "جائزہ چاہیے",
+      "No owner": "کوئی مالک نہیں",
+      "Escalated": "بڑھا ہوا",
+      "Call patient": "مریض کو کال کریں",
+      "Close the loop": "لوپ بند کریں",
+      "Check understanding": "سمجھ چیک کریں",
+      "Record attendance": "حاضری درج کریں",
+      "Hello,": "السلام علیکم،",
+      "Speaks": "بولتے ہیں",
+      "Overdue by": "تاخیر",
+      "days": "دن",
+      "Screening programme": "اسکریننگ پروگرام",
+      "Find a patient": "مریض تلاش کریں",
+      "Order": "ترتیب",
+      "Priority (needs you first)": "ترجیح (پہلے آپ کو)",
+      "What do the urgency levels mean?": "فوری سطح کا کیا مطلب ہے؟",
+      "URGENCY": "فوری",
+      "PATIENT": "مریض",
+      "SCREENING": "اسکریننگ",
+      "NEXT STEP": "اگلا قدم",
+      "DEADLINE": "آخری تاریخ",
+      "OWNER": "مالک",
+      "RISK": "خطرہ"
+    }
+  };
+
+  function replaceText(lang) {
+    // Build a map from any known string (en or translated) back to the English key,
+    // then to the target language. This lets switching back to English work.
+    const toEn = {};
+    Object.keys(TEXT).forEach(l => {
+      Object.entries(TEXT[l]).forEach(([en, tr]) => { toEn[tr] = en; toEn[en] = en; });
+    });
+    const target = TEXT[lang] || {};
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    const nodes = [];
+    let n;
+    while ((n = walker.nextNode())) nodes.push(n);
+    nodes.forEach(node => {
+      let v = node.nodeValue;
+      if (!v || !v.trim()) return;
+      // try whole-string match first, then substring
+      const trimmed = v.trim();
+      if (toEn[trimmed] && target[toEn[trimmed]]) {
+        node.nodeValue = v.replace(trimmed, target[toEn[trimmed]]);
+        return;
+      }
+      Object.keys(target).forEach(en => {
+        if (v.includes(en)) v = v.split(en).join(target[en]);
+      });
+      if (v !== node.nodeValue) node.nodeValue = v;
+    });
+  }
   function t(key) {
     const lang = current();
     return (STRINGS[lang] && STRINGS[lang][key]) || STRINGS.en[key] || key;
@@ -102,6 +245,11 @@
       const key = el.getAttribute("data-i18n-title");
       if (key) el.title = t(key);
     });
+    // Replace common visible strings in the page
+    replaceText(lang);
+    // Re-apply once more after async content (queue cards) has rendered
+    setTimeout(() => replaceText(lang), 400);
+    setTimeout(() => replaceText(lang), 1200);
     // Update switcher
     const sel = document.getElementById("staff-lang-sel");
     if (sel && sel.value !== lang) sel.value = lang;
