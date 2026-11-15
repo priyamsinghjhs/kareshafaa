@@ -73,6 +73,24 @@ regular `pg_dump` to storage you control.
 | Google Cloud Run | Always-free request tier, needs a billing account (card) | `gcloud run deploy kareshafaa --source . --set-env-vars KARESHAFAA_MODE=production,...` |
 | Koyeb | One free 512 MB service, may ask for a card | Docker from GitHub |
 
+## Keep-alive (free tier cold start)
+
+Free Render sleeps after 15 minutes idle. The first request then takes 30–40 s.
+A free Google Apps Script ping every 10 minutes keeps the first load under 2 s
+and does not use Grok credits.
+
+1. Open [script.google.com](https://script.google.com) with a free Gmail account.
+2. New project. Paste:
+
+```javascript
+function ping() {
+  UrlFetchApp.fetch("https://kareshafaa.onrender.com/healthz", { muteHttpExceptions: true });
+}
+```
+
+3. Triggers → Add trigger → `ping` → Time-driven → Minutes timer → Every 10 minutes.
+4. Authorise when prompted. The first call after a sleep still takes longer; later calls stay warm.
+
 ## Health checks and logs
 
 * `/healthz`: the process is alive (Render's health check). `/readyz`: the database answers and the initial records

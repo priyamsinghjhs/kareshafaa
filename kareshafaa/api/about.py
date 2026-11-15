@@ -60,7 +60,7 @@ def about(request: Request, actor: Actor = Depends(require("config:read")), db: 
 
 
 @router.get("/malaffi")
-def malaffi_status(actor: Actor = Depends(require("config:read"))) -> dict:
+def malaffi_status(actor: Actor = Depends(require("case:read"))) -> dict:
     """Read-only Malaffi adapter status and a mock patient lookup. Skeleton only."""
     from ..services.malaffi import get_adapter
     a = get_adapter()
@@ -77,6 +77,21 @@ def malaffi_status(actor: Actor = Depends(require("config:read"))) -> dict:
 def frameworks(actor: Actor = Depends(require("case:read"))) -> dict:
     """Alignment with Malaffi, ADHICS V2, IoMT (retired), and UAE IA Standard (formerly NESA)."""
     return frameworks_status()
+
+
+@router.get("/pilot")
+def pilot(actor: Actor = Depends(require("case:read"))) -> dict:
+    """30-day pilot readiness. Who owns it, next integration step, what is measured."""
+    return {
+        "owner": "Care coordinator (queue owner) with clinical lead for sign-off",
+        "duration_days": 30,
+        "next_integration": "Malaffi read-only adapter — match on Emirates ID, subscribe to result feeds",
+        "measures": ["closure rate", "median days to care", "overdue cases cleared"],
+        "storage": "persistent (Supabase Postgres)",
+        "cold_start": "Free Render sleeps after 15 min idle. A keep-alive ping every 10 min keeps the first load under 2 s.",
+        "synthetic_label": "All outcome numbers on the queue are synthetic. Not real patients.",
+        "requires_approval": True,
+    }
 
 
 @router.get("/openapi.json")
