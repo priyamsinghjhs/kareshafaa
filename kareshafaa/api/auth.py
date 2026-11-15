@@ -176,7 +176,7 @@ def me(request: Request, actor: Actor = Depends(current_actor), db: Session = De
 # --------------------------------------------------------------------------------------------- dev/test only
 def _one_click_enabled() -> bool:
     s = get_settings()
-    return s.demo_logins and not s.public_demo and (s.env != "prod" or os.environ.get("KARESHAFAA_ALLOW_DEMO_LOGINS") == "1")
+    return s.demo_logins and not s.public_demo
 
 
 @router.get("/demo-users", include_in_schema=False)
