@@ -102,11 +102,9 @@
       const key = el.getAttribute("data-i18n-title");
       if (key) el.title = t(key);
     });
-    // Update switcher buttons
-    document.querySelectorAll("[data-staff-lang]").forEach(btn => {
-      btn.setAttribute("aria-pressed", btn.getAttribute("data-staff-lang") === lang ? "true" : "false");
-      btn.classList.toggle("secondary", btn.getAttribute("data-staff-lang") !== lang);
-    });
+    // Update switcher
+    const sel = document.getElementById("staff-lang-sel");
+    if (sel && sel.value !== lang) sel.value = lang;
   }
 
   function mountSwitcher() {
@@ -117,17 +115,22 @@
     bar.className = "lang-switch";
     bar.setAttribute("role", "group");
     bar.setAttribute("aria-label", t("language"));
-    bar.style.cssText = "display:flex;gap:.25rem;margin-inline-end:.5rem;";
-    Object.keys(LANG_LABEL).forEach(code => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "secondary sm";
-      b.setAttribute("data-staff-lang", code);
-      b.setAttribute("lang", code);
-      b.textContent = LANG_LABEL[code];
-      b.addEventListener("click", () => apply(code));
-      bar.appendChild(b);
+    // single compact select: never wraps, works on mobile and desktop
+    const sel = document.createElement("select");
+    sel.id = "staff-lang-sel";
+    sel.setAttribute("aria-label", t("language"));
+    sel.style.cssText = "height:32px;padding:0 .4rem;font-size:.8rem;border-radius:6px;border:1px solid var(--c-border,#ccc);background:var(--c-surface,#fff);";
+    Object.entries(LANG_LABEL).forEach(([code, label]) => {
+      const o = document.createElement("option");
+      o.value = code;
+      o.textContent = label;
+      o.lang = code;
+      sel.appendChild(o);
     });
+    sel.value = current();
+    sel.addEventListener("change", () => apply(sel.value));
+    bar.appendChild(sel);
+    bar.style.cssText = "display:flex;align-items:center;margin-inline-end:.4rem;";
     topbar.parentNode.insertBefore(bar, topbar.nextSibling);
   }
 
