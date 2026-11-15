@@ -165,6 +165,10 @@
       "needs-me": "مجھے چاہیے", "care-summaries": "نگہداشت کے خلاصے",
       "ask-a-specialist": "ماہر سے پوچھیں", "consult-requests": "مشورے کی درخواستیں",
       "due-for-recall": "یاد دہانی کے لیے", "results-inbox": "نتائج ان باکس",
+      "register-a-patient": "مریض رجسٹر کریں",
+      "find-a-patient": "مریض تلاش کریں",
+      "search-placeholder": "نام، MRN، Emirates ID، پاسپورٹ یا فون",
+      "type-to-search": "تلاش کے لیے 2+ حروف لکھیں۔",
       "my-cases": "میرے کیسز", "all-my-cases": "تمام میرے کیسز",
       "models-rules": "ماڈلز اور قواعد", users: "صارفین", system: "سسٹم",
       "recall-list": "یاد دہانی فہرست", "how-decisions-are-made": "فیصلے کیسے ہوتے ہیں",
@@ -327,6 +331,14 @@
       "Clinical decisions stay with the treating clinician.": "Clinical decisions stay with the treating clinician.",
       "Register a patient": "Register a patient",
       "Find a patient": "Find a patient",
+      "Breast": "Breast",
+      "mammogram": "mammogram",
+      "Cervical": "Cervical",
+      "HPV": "HPV",
+      "Bowel": "Bowel",
+      "FIT": "FIT",
+      "Diabetes": "Diabetes",
+      "HbA1c": "HbA1c",
     },
     ar: {
       "Needs you now": "يحتاجك الآن",
@@ -470,6 +482,14 @@
       "Clinical decisions stay with the treating clinician.": "القرارات السريرية تبقى مع الطبيب المعالج.",
       "Register a patient": "تسجيل مريض",
       "Find a patient": "ابحث عن مريض",
+      "Breast": "الثدي",
+      "mammogram": "تصوير",
+      "Cervical": "عنق الرحم",
+      "HPV": "HPV",
+      "Bowel": "الأمعاء",
+      "FIT": "FIT",
+      "Diabetes": "السكري",
+      "HbA1c": "HbA1c",
     },
     hi: {
       "Needs you now": "अभी आपको चाहिए",
@@ -613,6 +633,14 @@
       "Clinical decisions stay with the treating clinician.": "चिकित्सा निर्णय उपचार करने वाले चिकित्सक के पास रहते हैं।",
       "Register a patient": "मरीज़ पंजीकरण",
       "Find a patient": "मरीज़ खोजें",
+      "Breast": "स्तन",
+      "mammogram": "मैमोग्राम",
+      "Cervical": "गर्भाशय",
+      "HPV": "HPV",
+      "Bowel": "आंत",
+      "FIT": "FIT",
+      "Diabetes": "मधुमेह",
+      "HbA1c": "HbA1c",
     },
     ur: {
       "Needs you now": "اب آپ کو چاہیے",
@@ -756,6 +784,14 @@
       "Clinical decisions stay with the treating clinician.": "طبی فیصلے علاج کرنے والے معالج کے پاس رہتے ہیں۔",
       "Register a patient": "مریض رجسٹر کریں",
       "Find a patient": "مریض تلاش کریں",
+      "Breast": "چھاتی",
+      "mammogram": "میموگرام",
+      "Cervical": "سروائیکل",
+      "HPV": "HPV",
+      "Bowel": "آنت",
+      "FIT": "FIT",
+      "Diabetes": "ذیابیطس",
+      "HbA1c": "HbA1c",
     },
   };
 
@@ -820,6 +856,8 @@
     localStorage.setItem("ks-staff-lang", lang);
     document.documentElement.lang = lang;
     document.documentElement.dir = RTL.has(lang) ? "rtl" : "ltr";
+    const um = document.getElementById("usermenu");
+    if (um && um.open) um.open = false;
     // Translate elements marked with data-i18n
     document.querySelectorAll("[data-i18n]").forEach(el => {
       const key = el.getAttribute("data-i18n");
