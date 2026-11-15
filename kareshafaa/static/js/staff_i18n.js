@@ -728,9 +728,28 @@
   };
 
   const ORIG = new WeakMap();
+  // Map any translated string back to English so a language switch
+  // never keeps leftover Hindi, Urdu or Arabic.
+  const REVERSE = {};
+  ["ar", "hi", "ur"].forEach(lang => {
+    const map = TEXT[lang] || {};
+    Object.keys(map).forEach(en => {
+      const tr = map[en];
+      if (tr && tr !== en && !REVERSE[tr]) REVERSE[tr] = en;
+    });
+  });
+  function toEnglish(text) {
+    if (!text) return text;
+    const trimmed = text.trim();
+    if (REVERSE[trimmed]) return text.replace(trimmed, REVERSE[trimmed]);
+    let v = text;
+    Object.keys(REVERSE).sort((a, b) => b.length - a.length).forEach(tr => {
+      if (tr.length < 4) return;
+      if (v.includes(tr)) v = v.split(tr).join(REVERSE[tr]);
+    });
+    return v;
+  }
   function replaceText(lang) {
-    // Translate from the original English only. Re-applying on already
-    // translated text was mixing Hindi, Urdu and Arabic on the same screen.
     const target = TEXT[lang] || TEXT.en;
     const keys = Object.keys(TEXT.en).sort((a, b) => b.length - a.length);
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
@@ -742,7 +761,7 @@
       if (!parent || parent.closest("script, style, textarea, input, select, code, [data-i18n]")) return;
       let original = ORIG.get(node);
       if (original == null) {
-        original = node.nodeValue || "";
+        original = toEnglish(node.nodeValue || "");
         ORIG.set(node, original);
       }
       if (!original.trim()) return;
@@ -753,7 +772,7 @@
         return;
       }
       keys.forEach(en => {
-        if (en.length < 4) return; // short words cause mixed languages
+        if (en.length < 4) return;
         if (v.includes(en) && target[en]) v = v.split(en).join(target[en]);
       });
       if (v !== node.nodeValue) node.nodeValue = v;
