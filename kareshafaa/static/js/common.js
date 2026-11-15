@@ -11,8 +11,24 @@ const W = {
     if (o.raw !== undefined) { o.body = o.raw; delete o.raw; }
     else if (o.body && typeof o.body !== "string") { o.body = JSON.stringify(o.body); o.headers["Content-Type"] = "application/json"; }
     if (o.method && o.method !== "GET") o.headers["X-CSRF-Token"] = W.csrf();
+    // Client-side deadline so a stuck request cannot leave a page on "Loading" forever.
+    const timeoutMs = o.timeoutMs || 20000;
+    delete o.timeoutMs;
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), timeoutMs);
+    if (!o.signal) o.signal = ac.signal;
     let r;
-    try { r = await fetch(path, o); } catch (e) { const err = new Error("No connection - nothing was saved. Check your network and try again."); err.status = 0; throw err; }
+    try { r = await fetch(path, o); }
+    catch (e) {
+      clearTimeout(timer);
+      if (e && e.name === "AbortError") {
+        const err = new Error("This is taking too long. Please try again.");
+        err.status = 0; err.timeout = true; throw err;
+      }
+      const err = new Error("No connection - nothing was saved. Check your network and try again.");
+      err.status = 0; throw err;
+    }
+    clearTimeout(timer);
     if (r.status === 401 && !path.startsWith("/api/auth/me")) { location.href = "/login?next=" + encodeURIComponent(location.pathname + location.search); throw new Error("Your session has ended - please sign in again."); }
     const ct = r.headers.get("content-type") || "";
     const data = ct.includes("json") ? await r.json() : await r.text();

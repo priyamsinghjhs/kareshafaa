@@ -19,12 +19,23 @@ async function load() {
   // Show the case as soon as the core payload is back. The clinical record is heavier;
   // fill it in when it arrives so the page is not blank while that call runs.
   REC = null;
-  const core = Promise.all([W.api(`/api/cases/${CASE_ID}`), W.api(`/api/cases/${CASE_ID}/actions`)]);
-  const recordP = W.api(`/api/cases/${CASE_ID}/record`).catch(e => ({ error: e.message }));
-  [C, META] = await core;
-  render();
-  REC = await recordP;
-  render();
+  const rootEl = root();
+  try {
+    const core = Promise.all([
+      W.api(`/api/cases/${CASE_ID}`, { timeoutMs: 15000 }),
+      W.api(`/api/cases/${CASE_ID}/actions`, { timeoutMs: 15000 })
+    ]);
+    const recordP = W.api(`/api/cases/${CASE_ID}/record`, { timeoutMs: 20000 }).catch(e => ({ error: e.message }));
+    [C, META] = await core;
+    render();
+    REC = await recordP;
+    render();
+  } catch (e) {
+    rootEl.innerHTML = `<div class="card notice"><p>${W.esc(e.message || "Could not load this case.")}</p>
+      <button type="button" class="primary" id="case-retry">Try again</button></div>`;
+    const btn = document.getElementById("case-retry");
+    if (btn) btn.onclick = () => { rootEl.innerHTML = '<div class="loading" role="status">Loading case…</div>'; load(); };
+  }
 }
 
 
@@ -319,6 +330,7 @@ function wireNextBest() {
     }
   };
 }
+function wireCopilot() {
   const rootEl = document.getElementById("copilot");
   if (!rootEl) return;
   rootEl.querySelectorAll("[data-copilot]").forEach(b => b.onclick = () => runCopilot(b.dataset.copilot, b));
