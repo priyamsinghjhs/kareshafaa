@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     slm_model: str = "inclusionai/ling-3.0-flash-sante:free"
     slm_timeout_s: float = 12.0
     slm_rate_per_minute: int = 20  # suggestion requests per signed-in user per minute, per worker (free quota)
+    # --- Malaffi (Abu Dhabi HIE) read-only adapter skeleton (kareshafaa/services/malaffi.py) --------------------
+    # mock = return synthetic data for demo; live = reserved for future real connection (not implemented).
+    # No live connection is claimed. Match on Emirates ID only; never write clinical data.
+    malaffi_mode: str = "mock"  # mock | live
+    malaffi_base_url: str = ""  # placeholder; set when facility has Accession Agreement
+    malaffi_client_id: str = ""  # placeholder
     # --- outbound e-mail (kareshafaa/comms/mail.py, added 10 Nov 2026) ------------------------------------------
     # Real e-mail from the app's own mailbox (stdlib only; no paid provider). OFF until a sign-in secret is set on the
     # host: without it every patient message stays simulated, exactly as before.

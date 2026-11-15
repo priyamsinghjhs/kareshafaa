@@ -57,6 +57,20 @@ def about(request: Request, actor: Actor = Depends(require("config:read")), db: 
                                  "Requirements are taken from malaffi.ae and doh.gov.ae (checked 3 Nov 2026)."}}
 
 
+@router.get("/malaffi")
+def malaffi_status(actor: Actor = Depends(require("config:read"))) -> dict:
+    """Read-only Malaffi adapter status and a mock patient lookup. Skeleton only."""
+    from ..services.malaffi import get_adapter
+    a = get_adapter()
+    demo_eid = "784-1980-1234567-1"
+    return {
+        "status": a.status(),
+        "demo_lookup": a.search_patient(demo_eid),
+        "demo_results": a.get_screening_results(demo_eid, "fit"),
+        "disclaimer": "Skeleton only. Mock mode returns synthetic data. No live Malaffi connection is claimed.",
+    }
+
+
 @router.get("/openapi.json")
 def openapi(request: Request, actor: Actor = Depends(require("config:read"))) -> JSONResponse:
     spec = dict(request.app.openapi())

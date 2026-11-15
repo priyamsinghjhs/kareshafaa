@@ -71,7 +71,7 @@ def integration_status(db: Session) -> dict:
         {"label": "FHIR R4 case export", "endpoint": "/api/cases/{id}/fhir", "state": "available"},
         {"label": "FHIR R4 CapabilityStatement", "endpoint": "/fhir/metadata", "state": "available"},
         {"label": "Patient messages (SMS / WhatsApp / app)", "endpoint": "channel adapter", "state": "simulated - no gateway connected"},
-        {"label": "Malaffi (Abu Dhabi HIE)", "endpoint": "-", "state": "not connected (see readiness)"}]}
+        {"label": "Malaffi (Abu Dhabi HIE)", "endpoint": "/api/admin/about/malaffi", "state": "skeleton (mock mode; not connected)"}]}
 
 
 # Sources checked 3 Nov 2026: https://www.malaffi.ae/providers/facilities-required-to-connect/ ,
