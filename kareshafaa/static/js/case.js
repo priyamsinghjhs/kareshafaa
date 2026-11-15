@@ -402,6 +402,7 @@ function render() {
   wireRecord();
   root().querySelectorAll("[data-resolve]").forEach(b => b.onclick = () => W.ask("Patient's change request handled", "What was done (e.g. phoned, the patient keeps the time)", { ok: "Mark as handled", min: 5, suggest: { caseId: CASE_ID, action: "appointment_request_resolve" },
     save: async note => { await W.api(`/api/cases/${CASE_ID}/appointment/requests/${b.dataset.resolve}/resolve`, { method: "POST", body: { reason: note } }); W.toast("Request marked as handled", "ok"); await load(); } }));
+  if (window.KS_I18N) window.KS_I18N.apply(window.KS_I18N.current());
 }
 const btn = a => `<button class="secondary" data-k="${a.key}" data-ev="${a.evidence_type || ""}">${W.esc(a.label)}</button>`;
 
