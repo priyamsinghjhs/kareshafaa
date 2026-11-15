@@ -18,7 +18,38 @@
       "my-cases": "My cases", "all-my-cases": "All my cases",
       "models-rules": "Models & rules", users: "Users", system: "System",
       "recall-list": "Recall list", "how-decisions-are-made": "How decisions are made",
-      advanced: "Advanced", "my-results": "My results", "content-sign-off": "Content sign-off"
+      advanced: "Advanced", "my-results": "My results", "content-sign-off": "Content sign-off",
+      "Soon": "Soon",
+      "Appointment booked": "Appointment booked",
+      "Diabetes (HbA1c)": "Diabetes (HbA1c)",
+      "Breast (mammogram)": "Breast (mammogram)",
+      "Cervical (HPV)": "Cervical (HPV)",
+      "Bowel (FIT)": "Bowel (FIT)",
+      "Due for recall": "Due for recall",
+      "Register a patient": "Register a patient",
+      "Type 2+ characters to search.": "Type 2+ characters to search.",
+      "Install app": "Install app",
+      "next:": "next:",
+      "now:": "now:",
+      "Escalated L3": "Escalated L3",
+      "Team pool": "Team pool",
+      "Showing": "Showing",
+      "Previous": "Previous",
+      "Next": "Next",
+      "of": "of",
+      "speaks": "speaks",
+      "Name, MRN, Emirates ID, passport or phone": "Name, MRN, Emirates ID, passport or phone",
+      "KareShafaa is not a certified medical device.": "KareShafaa is not a certified medical device.",
+      "Clinical decisions stay with the treating clinician.": "Clinical decisions stay with the treating clinician.",
+      "Show the guide": "Show the guide",
+      "Find a patient": "Find a patient",
+      "Results inbox": "Results inbox",
+      "Today's queue": "Today's queue",
+      "due-for-recall": "Due for recall",
+      "register-a-patient": "Register a patient",
+      "find-a-patient": "Find a patient",
+      "search-placeholder": "Name, MRN, Emirates ID, passport or phone",
+      "type-to-search": "Type 2+ characters to search.",
     },
     ar: {
       overview: "نظرة عامة", "work-queue": "قائمة العمل", "todays-queue": "قائمة اليوم",
@@ -37,7 +68,38 @@
       "my-cases": "حالاتي", "all-my-cases": "كل حالاتي",
       "models-rules": "النماذج والقواعد", users: "المستخدمون", system: "النظام",
       "recall-list": "قائمة الاستدعاء", "how-decisions-are-made": "كيف تُتخذ القرارات",
-      advanced: "متقدم", "my-results": "نتائجي", "content-sign-off": "اعتماد المحتوى"
+      advanced: "متقدم", "my-results": "نتائجي", "content-sign-off": "اعتماد المحتوى",
+      "Soon": "قريباً",
+      "Appointment booked": "تم حجز الموعد",
+      "Diabetes (HbA1c)": "السكري (HbA1c)",
+      "Breast (mammogram)": "الثدي (تصوير)",
+      "Cervical (HPV)": "عنق الرحم (HPV)",
+      "Bowel (FIT)": "الأمعاء (FIT)",
+      "Due for recall": "موعد الاستدعاء",
+      "Register a patient": "تسجيل مريض",
+      "Type 2+ characters to search.": "اكتب حرفين أو أكثر للبحث.",
+      "Install app": "تثبيت التطبيق",
+      "next:": "التالي:",
+      "now:": "الآن:",
+      "Escalated L3": "مُصعَّد L3",
+      "Team pool": "مجموعة الفريق",
+      "Showing": "عرض",
+      "Previous": "السابق",
+      "Next": "التالي",
+      "of": "من",
+      "speaks": "يتحدث",
+      "Name, MRN, Emirates ID, passport or phone": "الاسم أو رقم الملف أو الهوية أو الجواز أو الهاتف",
+      "KareShafaa is not a certified medical device.": "KareShafaa ليس جهازاً طبياً معتمداً.",
+      "Clinical decisions stay with the treating clinician.": "القرارات السريرية تبقى للطبيب المعالج.",
+      "Show the guide": "عرض الدليل",
+      "Find a patient": "ابحث عن مريض",
+      "Results inbox": "صندوق النتائج",
+      "Today's queue": "قائمة اليوم",
+      "due-for-recall": "موعد الاستدعاء",
+      "register-a-patient": "تسجيل مريض",
+      "find-a-patient": "ابحث عن مريض",
+      "search-placeholder": "الاسم أو رقم الملف أو الهوية أو الجواز أو الهاتف",
+      "type-to-search": "اكتب حرفين أو أكثر للبحث.",
     },
     hi: {
       overview: "अवलोकन", "work-queue": "कार्य कतार", "todays-queue": "आज की कतार",
@@ -56,7 +118,38 @@
       "my-cases": "मेरे मामले", "all-my-cases": "सभी मेरे मामले",
       "models-rules": "मॉडल और नियम", users: "उपयोगकर्ता", system: "सिस्टम",
       "recall-list": "याद सूची", "how-decisions-are-made": "निर्णय कैसे होते हैं",
-      advanced: "उन्नत", "my-results": "मेरे परिणाम", "content-sign-off": "सामग्री साइन-ऑफ"
+      advanced: "उन्नत", "my-results": "मेरे परिणाम", "content-sign-off": "सामग्री साइन-ऑफ",
+      "Soon": "जल्द",
+      "Appointment booked": "अपॉइंटमेंट बुक",
+      "Diabetes (HbA1c)": "मधुमेह (HbA1c)",
+      "Breast (mammogram)": "स्तन (मैमोग्राम)",
+      "Cervical (HPV)": "गर्भाशय (HPV)",
+      "Bowel (FIT)": "आंत (FIT)",
+      "Due for recall": "रिकॉल देय",
+      "Register a patient": "मरीज़ पंजीकरण",
+      "Type 2+ characters to search.": "खोजने के लिए 2+ अक्षर लिखें।",
+      "Install app": "ऐप इंस्टॉल करें",
+      "next:": "अगला:",
+      "now:": "अभी:",
+      "Escalated L3": "बढ़ाया L3",
+      "Team pool": "टीम पूल",
+      "Showing": "दिखा रहे",
+      "Previous": "पिछला",
+      "Next": "अगला",
+      "of": "में से",
+      "speaks": "बोलते हैं",
+      "Name, MRN, Emirates ID, passport or phone": "नाम, MRN, Emirates ID, पासपोर्ट या फोन",
+      "KareShafaa is not a certified medical device.": "KareShafaa प्रमाणित चिकित्सा उपकरण नहीं है।",
+      "Clinical decisions stay with the treating clinician.": "नैदानिक निर्णय इलाज करने वाले चिकित्सक के पास रहते हैं।",
+      "Show the guide": "गाइड दिखाएं",
+      "Find a patient": "मरीज़ खोजें",
+      "Results inbox": "परिणाम इनबॉक्स",
+      "Today's queue": "आज की कतार",
+      "due-for-recall": "रिकॉल देय",
+      "register-a-patient": "मरीज़ पंजीकरण",
+      "find-a-patient": "मरीज़ खोजें",
+      "search-placeholder": "नाम, MRN, Emirates ID, पासपोर्ट या फोन",
+      "type-to-search": "खोजने के लिए 2+ अक्षर लिखें।",
     },
     ur: {
       overview: "جائزہ", "work-queue": "کام کی قطار", "todays-queue": "آج کی قطار",
@@ -131,7 +224,38 @@
       "Outcomes": "Outcomes",
       "Audit trail": "Audit trail",
       "About": "About",
-      "More": "More"
+      "More": "More",
+      "Soon": "جلد",
+      "Appointment booked": "اپائنٹمنٹ بک",
+      "Diabetes (HbA1c)": "ذیابیطس (HbA1c)",
+      "Breast (mammogram)": "چھاتی (میموگرام)",
+      "Cervical (HPV)": "سروائیکل (HPV)",
+      "Bowel (FIT)": "آنت (FIT)",
+      "Due for recall": "ری کال واجب",
+      "Register a patient": "مریض رجسٹر کریں",
+      "Type 2+ characters to search.": "تلاش کے لیے 2+ حروف لکھیں۔",
+      "Install app": "ایپ انسٹال کریں",
+      "next:": "اگلا:",
+      "now:": "اب:",
+      "Escalated L3": "بڑھا L3",
+      "Team pool": "ٹیم پول",
+      "Showing": "دکھا رہے",
+      "Previous": "پچھلا",
+      "Next": "اگلا",
+      "of": "میں سے",
+      "speaks": "بولتے ہیں",
+      "Name, MRN, Emirates ID, passport or phone": "نام، MRN، Emirates ID، پاسپورٹ یا فون",
+      "KareShafaa is not a certified medical device.": "KareShafaa تصدیق شدہ طبی آلہ نہیں ہے۔",
+      "Clinical decisions stay with the treating clinician.": "طبی فیصلے علاج کرنے والے معالج کے پاس رہتے ہیں۔",
+      "Show the guide": "گائیڈ دکھائیں",
+      "Find a patient": "مریض تلاش کریں",
+      "Results inbox": "نتائج ان باکس",
+      "Today's queue": "آج کی قطار",
+      "due-for-recall": "ری کال واجب",
+      "register-a-patient": "مریض رجسٹر کریں",
+      "find-a-patient": "مریض تلاش کریں",
+      "search-placeholder": "نام، MRN، Emirates ID، پاسپورٹ یا فون",
+      "type-to-search": "تلاش کے لیے 2+ حروف لکھیں۔",
     },
     ar: {
       "Needs you now": "يحتاجك الآن",
@@ -317,6 +441,10 @@
       const key = el.getAttribute("data-i18n-title");
       if (key) el.title = t(key);
     });
+    document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
+      const key = el.getAttribute("data-i18n-placeholder");
+      if (key) el.placeholder = t(key);
+    });
     // Replace common visible strings, then again after async queue cards render.
     replaceText(lang);
     setTimeout(() => replaceText(lang), 400);
@@ -356,6 +484,15 @@
   function init() {
     mountSwitcher();
     apply(current());
+    // Re-apply when pages insert content after load, so every screen stays in the chosen language.
+    let pending = null;
+    const obs = new MutationObserver(() => {
+      const lang = current();
+      if (lang === "en") return;
+      clearTimeout(pending);
+      pending = setTimeout(() => replaceText(lang), 80);
+    });
+    if (document.body) obs.observe(document.body, { childList: true, subtree: true, characterData: true });
   }
 
   if (document.readyState === "loading") {
