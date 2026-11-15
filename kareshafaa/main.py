@@ -575,13 +575,14 @@ def create_app() -> FastAPI:
         except HTTPException:
             # intentional API errors (404, 422, 403, etc.) must reach the client as-is
             raise
-        except Exception:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
             # fail closed AND leave a trail: an unexpected error mid-request rolls its transaction back (the request
             # session is closed without a commit) and is audited below as a failed request (status 500), instead of
             # escaping past this layer unlogged
             log.exception("unhandled error in %s %s", request.method, request.url.path)
             response = JSONResponse({"detail": "something went wrong and this action was not completed - reload "
-                                               "the page to see the current record before trying again"},
+                                               "the page to see the current record before trying again",
+                                    "debug": f"{type(e).__name__}: {e}"},
                                     status_code=500)
         path = request.url.path
         if path.startswith("/static") or path in ("/favicon.ico", "/healthz") or path in PWA_PUBLIC_PATHS:

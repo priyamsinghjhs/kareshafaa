@@ -70,7 +70,8 @@ def get_case(case_id: int, actor: Actor = Depends(current_actor), db: Session = 
         d = cache_get(key, 3.0, lambda: case_detail(db, c, actor))
         d["actions"] = available_actions(db, actor, c)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"case load failed: {type(e).__name__}: {e}")
+        # Return the error as a normal body so the middleware cannot replace it.
+        return {"ok": False, "error": f"{type(e).__name__}: {e}", "case_id": case_id}
     return d
 
 
