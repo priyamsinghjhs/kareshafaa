@@ -65,7 +65,7 @@ def get_case(case_id: int, actor: Actor = Depends(current_actor), db: Session = 
         raise Forbidden("patients use /api/me")
     c = _load(db, actor, case_id)
     from ..services.read_cache import get as cache_get
-    key = f"case:{case_id}:{actor.role}:{actor.id}"
+    key = f"case:{case_id}:{actor.role}:{actor.user_id}"
     try:
         d = cache_get(key, 3.0, lambda: case_detail(db, c, actor))
         d["actions"] = available_actions(db, actor, c)
