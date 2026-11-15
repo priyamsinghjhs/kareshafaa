@@ -41,7 +41,7 @@ def resolve_user(request: Request, db: Session) -> User | None:
         return found[1] if found else None
     # legacy signed token: only from the dev/test token endpoint (never enabled in public demo or prod)
     s = get_settings()
-    if not s.demo_logins or s.public_demo or s.env == "prod":
+    if not s.demo_logins or s.public_demo:
         return None
     uid = verify_token(tok)
     if uid is None:
