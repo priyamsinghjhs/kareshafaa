@@ -99,8 +99,8 @@ class Settings(BaseSettings):
     # the re-opened episode a fresh target for its tier. CLINICAL LEAD TO CONFIRM (round 19/20 open question).
     reopen_restarts_target: bool = False
     # --- load / graceful degradation (round 21) -----------------------------------------------------------
-    db_pool_size: int = 20  # per worker process (Postgres-ready; SQLite uses the same pool)
-    db_max_overflow: int = 20
+    db_pool_size: int = 5  # per worker; free host has one worker, Supabase free allows few connections
+    db_max_overflow: int = 5  # short bursts only; total per worker stays small
     db_pool_timeout_s: float = 3.0  # wait for a pooled connection, then 503 + Retry-After (was SQLAlchemy's 30 s)
     db_busy_timeout_s: float = 5.0  # SQLite busy_timeout / Postgres lock_timeout for one statement
     writer_lock_timeout_s: float = 5.0  # wait for the audit-chain writer lock, then 503 (nothing is saved)

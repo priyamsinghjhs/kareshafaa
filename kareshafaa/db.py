@@ -27,10 +27,17 @@ def get_engine() -> Engine:
         kwargs: dict = {"future": True, "pool_pre_ping": True}
         memory = url.startswith("sqlite") and (":memory:" in url or url.rstrip("/") in ("sqlite:", "sqlite:"))
         if not memory:
-            # round 21: bounded waits everywhere - a saturated server answers 503 + Retry-After (main.py) instead of
-            # holding requests for SQLAlchemy's default 30 s pool wait. Same settings serve Postgres.
-            kwargs.update(pool_size=cfg.db_pool_size, max_overflow=cfg.db_max_overflow,
-                          pool_timeout=cfg.db_pool_timeout_s, pool_recycle=1800)
+            # QueuePool: reuse connections instead of opening one per request.
+            # pool_use_lifo keeps a small hot set so free-tier hosts do not
+            # hold idle connections. pool_pre_ping drops a dead connection
+            # before a request uses it.
+            kwargs.update(
+                pool_size=cfg.db_pool_size,
+                max_overflow=cfg.db_max_overflow,
+                pool_timeout=cfg.db_pool_timeout_s,
+                pool_recycle=1800,
+                pool_use_lifo=True,
+            )
         if url.startswith("sqlite"):
             kwargs["connect_args"] = {"check_same_thread": False, "timeout": cfg.db_busy_timeout_s}
         elif url.startswith("postgresql"):

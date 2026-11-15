@@ -34,8 +34,9 @@ services:
       - key: DATABASE_URL               # REQUIRED: Supabase free Postgres URL (secret)
         sync: false
         # Create a free project at https://supabase.com, then Project Settings -> Database
-        # -> Connection string -> URI (direct, port 5432). Paste it here.
-        # Use the direct host (db.xxxxx.supabase.co:5432), not the pooler (port 6543).
+        # -> Connection string -> URI. Prefer the direct host (db.xxxxx.supabase.co:5432).
+        # The app pools its own connections (5 + 5 overflow per worker). Use the
+        # Supabase pooler (port 6543) only if the direct connection limit is hit.
         # Without DATABASE_URL the app falls back to SQLite on the free instance disk,
         # which is lost on every restart.
       - key: KARESHAFAA_MAIL_OAUTH_CLIENT_ID      # app mailbox sign-in (Outlook.com OAuth2): Entra app client id
