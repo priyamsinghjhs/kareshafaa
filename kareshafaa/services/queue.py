@@ -105,6 +105,8 @@ def _mark_domain_write(session, _ctx, _instances) -> None:
 def _after_commit(session) -> None:
     if session.info.pop("domain_write", False):
         _BASE_CACHE.bump()
+        from .read_cache import bump as _bump_reads
+        _bump_reads()
 
 
 def _after_rollback(session) -> None:

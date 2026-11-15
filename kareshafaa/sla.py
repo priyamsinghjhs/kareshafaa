@@ -64,8 +64,13 @@ class SlaLookup:
 
     @classmethod
     def load(cls, db: Session) -> SlaLookup:
-        rows = db.scalars(select(SlaRule).where(SlaRule.active.is_(True))).all()
-        return cls({(r.state, r.tier): r for r in rows})
+        from .services.read_cache import get as cache_get
+
+        def load() -> SlaLookup:
+            rows = db.scalars(select(SlaRule).where(SlaRule.active.is_(True))).all()
+            return cls({(r.state, r.tier): r for r in rows})
+
+        return cache_get("sla:active", 30.0, load)
 
     def hours(self, state: str, tier: str) -> float | None:
         r = self.rules.get((state, tier))

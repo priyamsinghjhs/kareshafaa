@@ -125,19 +125,30 @@ def simulation_run(n: int = Query(2000, ge=100, le=20000), seed: int | None = No
 @router.get("/directory/practitioners")
 def practitioners(role: str | None = None, org_id: int | None = None, actor: Actor = Depends(require("case:read")),
                   db: Session = Depends(get_db)) -> dict:
-    q = select(Practitioner).where(Practitioner.active.is_(True))
-    if role:
-        q = q.where(Practitioner.role == role)
-    if org_id:
-        q = q.where(Practitioner.org_id == org_id)
-    return {"items": [{"id": p.id, "name": p.name, "role": p.role, "org_id": p.org_id, "specialty": p.specialty,
-                       "programme": p.programme, "is_pool": p.is_pool} for p in db.scalars(q.order_by(Practitioner.name))]}
+    from ..services.read_cache import get as cache_get
+
+    def load() -> dict:
+        q = select(Practitioner).where(Practitioner.active.is_(True))
+        if role:
+            q = q.where(Practitioner.role == role)
+        if org_id:
+            q = q.where(Practitioner.org_id == org_id)
+        return {"items": [{"id": p.id, "name": p.name, "role": p.role, "org_id": p.org_id, "specialty": p.specialty,
+                           "programme": p.programme, "is_pool": p.is_pool}
+                          for p in db.scalars(q.order_by(Practitioner.name))]}
+
+    return cache_get(f"dir:prac:{role or ''}:{org_id or ''}", 30.0, load)
 
 
 @router.get("/directory/organizations")
 def organizations(actor: Actor = Depends(require("case:read")), db: Session = Depends(get_db)) -> dict:
-    return {"items": [{"id": o.id, "name": o.name, "kind": o.kind, "region": o.region}
-                      for o in db.scalars(select(Organization).order_by(Organization.kind, Organization.name))]}
+    from ..services.read_cache import get as cache_get
+
+    def load() -> dict:
+        return {"items": [{"id": o.id, "name": o.name, "kind": o.kind, "region": o.region}
+                          for o in db.scalars(select(Organization).order_by(Organization.kind, Organization.name))]}
+
+    return cache_get("dir:orgs", 30.0, load)
 
 
 @router.get("/audit")
