@@ -16,19 +16,22 @@ const opts = (arr, v = x => x.id, l = x => x.name) => arr.map(x => `<option valu
 const kv = obj => Object.entries(obj).map(([k, v]) => `<option value="${k}">${W.esc(v)}</option>`).join("");
 
 async function load() {
-  // Show the case as soon as the core payload is back. The clinical record is heavier;
-  // fill it in when it arrives so the page is not blank while that call runs.
+  // Load the case first. On a single-worker host the heavy record call was
+  // starting at the same time and blocking the case response, so the page
+  // stayed on Loading. Show the case, then fill the record.
   REC = null;
   const rootEl = root();
   try {
-    const core = Promise.all([
-      W.api(`/api/cases/${CASE_ID}`, { timeoutMs: 15000 }),
-      W.api(`/api/cases/${CASE_ID}/actions`, { timeoutMs: 15000 })
+    [C, META] = await Promise.all([
+      W.api(`/api/cases/${CASE_ID}`, { timeoutMs: 12000 }),
+      W.api(`/api/cases/${CASE_ID}/actions`, { timeoutMs: 12000 })
     ]);
-    const recordP = W.api(`/api/cases/${CASE_ID}/record`, { timeoutMs: 20000 }).catch(e => ({ error: e.message }));
-    [C, META] = await core;
     render();
-    REC = await recordP;
+    try {
+      REC = await W.api(`/api/cases/${CASE_ID}/record`, { timeoutMs: 15000 });
+    } catch (e) {
+      REC = { error: e.message };
+    }
     render();
   } catch (e) {
     rootEl.innerHTML = `<div class="card notice"><p>${W.esc(e.message || "Could not load this case.")}</p>
