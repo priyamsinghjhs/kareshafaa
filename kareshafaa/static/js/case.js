@@ -16,8 +16,14 @@ const opts = (arr, v = x => x.id, l = x => x.name) => arr.map(x => `<option valu
 const kv = obj => Object.entries(obj).map(([k, v]) => `<option value="${k}">${W.esc(v)}</option>`).join("");
 
 async function load() {
-  [C, META, REC] = await Promise.all([W.api(`/api/cases/${CASE_ID}`), W.api(`/api/cases/${CASE_ID}/actions`),
-    W.api(`/api/cases/${CASE_ID}/record`).catch(e => ({ error: e.message }))]);
+  // Show the case as soon as the core payload is back. The clinical record is heavier;
+  // fill it in when it arrives so the page is not blank while that call runs.
+  REC = null;
+  const core = Promise.all([W.api(`/api/cases/${CASE_ID}`), W.api(`/api/cases/${CASE_ID}/actions`)]);
+  const recordP = W.api(`/api/cases/${CASE_ID}/record`).catch(e => ({ error: e.message }));
+  [C, META] = await core;
+  render();
+  REC = await recordP;
   render();
 }
 

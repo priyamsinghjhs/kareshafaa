@@ -297,11 +297,13 @@
       const key = el.getAttribute("data-i18n-title");
       if (key) el.title = t(key);
     });
-    // Replace common visible strings in the page
+    // Replace common visible strings. One delayed pass covers async queue cards.
+    // Skip the full walk on very large pages so a case timeline does not freeze.
     replaceText(lang);
-    // Re-apply once more after async content (queue cards) has rendered
-    setTimeout(() => replaceText(lang), 400);
-    setTimeout(() => replaceText(lang), 1200);
+    setTimeout(() => {
+      const n = document.body ? document.body.getElementsByTagName("*").length : 0;
+      if (n < 800) replaceText(lang);
+    }, 600);
     // Update switcher
     const sel = document.getElementById("staff-lang-sel");
     if (sel && sel.value !== lang) sel.value = lang;
