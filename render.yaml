@@ -31,8 +31,12 @@ services:
         generateValue: true
       - key: KARESHAFAA_DEMO_PASSWORD   # secret: entered in the Render dashboard, never committed
         sync: false
-      - key: DATABASE_URL               # secret: PostgreSQL connection string (e.g. Neon free tier), never committed
+      - key: DATABASE_URL               # REQUIRED for permanent data: Neon free Postgres URL (secret)
         sync: false
+        # Create a free project at https://neon.com, copy the connection string
+        # (postgresql://USER:PASSWORD@ep-....neon.tech/DB?sslmode=require)
+        # and paste it here in the Render dashboard. Without it the app falls
+        # back to SQLite on the free instance disk, which is lost on every restart.
       - key: KARESHAFAA_MAIL_OAUTH_CLIENT_ID      # app mailbox sign-in (Outlook.com OAuth2): Entra app client id
         sync: false
       - key: KARESHAFAA_MAIL_OAUTH_REFRESH_TOKEN  # secret: from scripts/outlook_oauth_setup.py; unset = email off
