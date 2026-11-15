@@ -3,10 +3,6 @@
 <div class="page-head">
   <div>{% set nm = user.display_name.split(' (')[0] %}<h1 id="q-title" data-i18n-prefix="Hello,">Hello, {{ nm if nm.startswith('Dr.') else nm.split(' ')[0] }}</h1></div>
 </div>
-<section class="now" id="now" aria-labelledby="now-h">
-  <div class="now-head"><h2 id="now-h" data-i18n="needs-you-now">Needs you now</h2><span id="now-count" class="small muted" aria-live="polite"></span></div>
-  <div id="now-list"><div class="loading" role="status">Loading…</div></div>
-</section>
 <section class="card" id="outcomes-strip" aria-labelledby="out-h">
   <div class="now-head"><h2 id="out-h" class="card-title"><span data-i18n="outcomes">Outcomes</span> <span class="chip" data-i18n="synthetic">Synthetic</span></h2></div>
   <p class="small muted" data-i18n="outcomes-note">Simulated before/after on the same cohort. Not real patients. Labelled synthetic.</p>
@@ -17,6 +13,11 @@
     <div class="stat"><b>24 d</b><span data-i18n="days-baseline">baseline days to care</span></div>
   </div>
   <p class="small" data-i18n="pilot-line"><b>30-day pilot:</b> coordinator owns the queue. Next step: Malaffi read-only adapter. Measures: closure rate and days-to-care.</p>
+  <p class="xs muted" data-i18n="outcomes-how">How this was scored: same synthetic cohort, before/after. Not real patients.</p>
+</section>
+<section class="now" id="now" aria-labelledby="now-h">
+  <div class="now-head"><h2 id="now-h" data-i18n="needs-you-now">Needs you now</h2><span id="now-count" class="small muted" aria-live="polite"></span></div>
+  <div id="now-list"><div class="loading" role="status">Loading…</div></div>
 </section>
 <section class="card preq" id="preq" hidden aria-labelledby="preq-h">
   <div class="preq-head"><h2 id="preq-h">Patient appointment requests</h2><span id="preq-count" class="small muted"></span></div>
