@@ -117,3 +117,38 @@ def copilot(body: CopilotIn, actor: Actor = Depends(require("case:read")), db: S
             "disclaimer": cop.DISCLAIMER, "model": (s.slm_model if res.get("origin") == "model" else None),
             "kill_switch_off": not use_model and not cop.available_for_model(db),
             "task": body.task, "language": lang}
+
+
+@router.get("/next-best/{case_id}")
+def next_best(case_id: int, actor: Actor = Depends(require("case:read")), db: Session = Depends(get_db)) -> dict:
+    """Plain-language draft of the recommended next step. Advisory only; human must approve before any action."""
+    from ..api.actions import available_actions
+    from ..services.explain import why_priority
+    from ..statemachine import LABELS
+
+    if actor.role == "patient" or not actor.is_human:
+        raise Forbidden("draft suggestions are for staff only")
+    c = wf.get_case(db, case_id)
+    assert_can_view(db, actor, c)
+    acts = available_actions(db, actor, c)
+    primary = next((a for a in acts if a.get("primary")), None)
+    why = why_priority(db, c)
+    state_label = LABELS.get(c.state, c.state)
+    if primary:
+        draft = (f"Recommended next step: {primary['label']}. "
+                 f"This case is currently '{state_label}'. "
+                 f"Priority is {why.get('tier_label', c.tier)} because: "
+                 f"{' '.join(why.get('steps') or ['tier set when the result arrived.'])} "
+                 f"This is a draft for your review. Approve or edit before recording any action.")
+    else:
+        draft = (f"No primary next step is available for your role right now. "
+                 f"Current state: '{state_label}'. "
+                 f"Priority: {why.get('tier_label', c.tier)}. "
+                 f"You can still view the record, reassign, or add a lesson if needed.")
+    audit.record(db, actor, "E", "assist.next_best", entity_type="Case", entity_id=c.id, case_id=c.id,
+                 detail={"has_primary": bool(primary), "key": primary["key"] if primary else None})
+    db.commit()
+    return {"draft": draft, "primary_key": primary["key"] if primary else None,
+            "primary_label": primary["label"] if primary else None,
+            "disclaimer": "Draft only. A human must approve before any action is recorded.",
+            "requires_approval": True}

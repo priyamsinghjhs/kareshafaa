@@ -246,7 +246,9 @@ function whyCard() {
    <dl class="facts small">${r.id ? `<div><dt>Rule</dt><dd><code>${W.esc(r.id)}</code>${link}</dd></div>` : ""}${r.source ? `<div><dt>Source</dt><dd>${W.esc(r.source)}</dd></div>` : ""}
     ${w.target_text ? `<div><dt>Pathway target</dt><dd>${W.esc(w.target_text)}${w.target_due_at ? ` – by ${W.dt(w.target_due_at)}` : ""}</dd></div>` : ""}
     ${rev.required ? `<div><dt>Waiting for clinician review</dt><dd>${rev.reasons.map(x => W.esc(x.replaceAll("_", " "))).join(", ")}</dd></div>` : ""}</dl>
-   <p class="xs muted">${W.esc(w.human_in_loop)}</p></section>`;
+   <p class="xs muted">${W.esc(w.human_in_loop)}</p>
+   <button type="button" class="secondary sm" id="next-best-btn" style="margin-top:.5rem">Draft next-best action</button>
+   <div id="next-best-out" class="small" style="margin-top:.4rem"></div></section>`;
 }
 
 function contactHint() {
@@ -297,7 +299,20 @@ async function runCopilot(task, btn) {
   } catch (e) { meta.textContent = e.message || "Could not draft."; }
   if (btn) W.busy(btn, false);
 }
-function wireCopilot() {
+function wireNextBest() {
+  const btn = document.getElementById("next-best-btn");
+  if (!btn) return;
+  btn.onclick = async () => {
+    const out = document.getElementById("next-best-out");
+    out.textContent = "Drafting…";
+    try {
+      const r = await W.api(`/api/assist/next-best/${CASE_ID}`);
+      out.innerHTML = `<div class="notice" style="margin-top:.4rem"><b>Draft (human approval required)</b><p>${W.esc(r.draft)}</p><p class="xs muted">${W.esc(r.disclaimer)}</p></div>`;
+    } catch (e) {
+      out.textContent = "Could not draft: " + (e.message || e);
+    }
+  };
+}
   const rootEl = document.getElementById("copilot");
   if (!rootEl) return;
   rootEl.querySelectorAll("[data-copilot]").forEach(b => b.onclick = () => runCopilot(b.dataset.copilot, b));
@@ -351,6 +366,7 @@ function render() {
       ${others.length ? (primary ? `<details class="more-actions"><summary>More actions (${others.length})</summary><div class="actions">${others.map(btn).join("")}</div></details>` : `<div class="actions">${others.map(btn).join("")}</div>`) : (primary ? "" : `<p class="small muted">Nothing for your role now</p>`)}
       <div id="aform"></div></section>${patientRequests()}${patientCard()}${copilotCard()}</aside></div>`;
   wireCopilot();
+  wireNextBest();
   const tabs = { steps, events, audit: auditTable };
   root().querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
     root().querySelectorAll(".tabs button").forEach(x => { x.className = "secondary"; x.setAttribute("aria-selected", "false"); }); b.className = ""; b.setAttribute("aria-selected", "true");

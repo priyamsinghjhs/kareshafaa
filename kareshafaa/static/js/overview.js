@@ -34,10 +34,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (ai) {
     const closure = k ? W.pct(k.closure_rate) : "–";
     const median = k && k.median_days_to_care != null ? k.median_days_to_care + " d" : "–";
+    let arms = null;
+    try { const imp = await W.api("/api/analytics/impact"); arms = imp.synthetic_arms; } catch (e) { /* ignore */ }
+    const armsHtml = arms && arms.measures && arms.measures.length ? `<div class="card notice" style="grid-column:1/-1;margin-top:.5rem"><b>Synthetic before/after</b> <span class="chip">Synthetic</span><p class="small">${W.esc(arms.statement || "")} Example: ${arms.measures[0].label} ${W.pct(arms.measures[0].baseline.rate)} → ${W.pct(arms.measures[0].loop.rate)}.</p></div>` : (arms ? `<div class="card notice" style="grid-column:1/-1;margin-top:.5rem"><b>Synthetic before/after</b> <span class="chip">Synthetic</span><p class="small">${W.esc(arms.statement || "Simulated baseline vs with-system.")}</p></div>` : "");
+    const pilot = `<div class="card notice" style="grid-column:1/-1;margin-top:.5rem"><b>30-day pilot path</b><p class="small">Owner: clinical lead + coordinator team. Next integration: planned Malaffi/HIE adapter (read-only result feed). Measures: loop-closure rate, median days to first appointment, no-show rate, and equity by language. Human approval required for every state change.</p></div>`;
     ai.innerHTML =
       stat("/governance?tab=models", "Outreach risk", "Calibrated model · orders queue only", "", "gauge") +
       stat("/dashboard?tab=impact", closure, "Loop closed (mature cases)", "", "ok") +
       stat("/dashboard?tab=sim", median, "Median days to care", "", "clock") +
-      stat("/dashboard?tab=fair", "Equity", "Fairness slices by group", "", "users");
+      stat("/dashboard?tab=fair", "Equity", "Fairness slices by group", "", "users") +
+      armsHtml + pilot;
   }
 });
