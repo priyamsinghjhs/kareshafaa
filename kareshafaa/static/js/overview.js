@@ -29,4 +29,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     stat("/queue?view=rejected", c.rejected, "Referrals rejected", c.rejected ? "warning" : "ok", "route");
   document.getElementById("kpis").innerHTML = k ? stat("/dashboard", k.open_cases, "Open cases", "", "list") + stat("/dashboard", W.pct(k.closure_rate), "Closure rate", "", "ok") +
     stat("/dashboard", k.median_days_to_care, "Median days to care", "", "clock") + stat("/dashboard", W.pct(k.teach_back_pass_rate_first_attempt), "Understood first time", "", "chat") : W.empty("Figures unavailable", "", "", "chart");
+  // AI & impact strip for judges and clinical leads: model purpose, key outcome, links to model card and equity
+  const ai = document.getElementById("ai-impact");
+  if (ai) {
+    const closure = k ? W.pct(k.closure_rate) : "–";
+    const median = k && k.median_days_to_care != null ? k.median_days_to_care + " d" : "–";
+    ai.innerHTML =
+      stat("/governance?tab=models", "Outreach risk", "Calibrated model · orders queue only", "", "gauge") +
+      stat("/dashboard?tab=impact", closure, "Loop closed (mature cases)", "", "ok") +
+      stat("/dashboard?tab=sim", median, "Median days to care", "", "clock") +
+      stat("/dashboard?tab=fair", "Equity", "Fairness slices by group", "", "users");
+  }
 });
