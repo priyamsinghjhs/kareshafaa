@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from ..programmes import CLINICIAN_CONFIRMED_TIERS
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, joinedload
 
@@ -66,8 +66,11 @@ def get_case(case_id: int, actor: Actor = Depends(current_actor), db: Session = 
     c = _load(db, actor, case_id)
     from ..services.read_cache import get as cache_get
     key = f"case:{case_id}:{actor.role}:{actor.id}"
-    d = cache_get(key, 3.0, lambda: case_detail(db, c, actor))
-    d["actions"] = available_actions(db, actor, c)
+    try:
+        d = cache_get(key, 3.0, lambda: case_detail(db, c, actor))
+        d["actions"] = available_actions(db, actor, c)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"case load failed: {type(e).__name__}: {e}")
     return d
 
 
