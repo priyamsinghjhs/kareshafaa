@@ -10,6 +10,7 @@ from .. import __version__
 from ..config import get_settings
 from ..db import get_db
 from ..integration import EMIRATE_PROFILES, MALAFFI_READINESS, integration_status
+from ..frameworks import frameworks_status
 from ..security import Actor
 from .deps import require
 
@@ -52,6 +53,7 @@ def about(request: Request, actor: Actor = Depends(require("config:read")), db: 
     s = get_settings()
     return {"version": __version__, "mode": s.mode, "components": COMPONENTS, "jobs": JOBS,
             "integrations": integration_status(db), "malaffi": MALAFFI_READINESS, "emirates": EMIRATE_PROFILES,
+            "frameworks": frameworks_status(),
             "api": _api_reference(request),
             "notes": {"malaffi": "No connection to Malaffi or partnership with Abu Dhabi Health Data Services is claimed. "
                                  "Requirements are taken from malaffi.ae and doh.gov.ae (checked 3 Nov 2026)."}}
@@ -69,6 +71,12 @@ def malaffi_status(actor: Actor = Depends(require("config:read"))) -> dict:
         "demo_results": a.get_screening_results(demo_eid, "fit"),
         "disclaimer": "Skeleton only. Mock mode returns synthetic data. No live Malaffi connection is claimed.",
     }
+
+
+@router.get("/frameworks")
+def frameworks(actor: Actor = Depends(require("config:read"))) -> dict:
+    """Alignment with Malaffi, ADHICS V2, IoMT (retired), and UAE IA Standard (formerly NESA)."""
+    return frameworks_status()
 
 
 @router.get("/openapi.json")
