@@ -110,7 +110,20 @@
       "NEXT STEP": "NEXT STEP",
       "DEADLINE": "DEADLINE",
       "OWNER": "OWNER",
-      "RISK": "RISK"
+      "RISK": "RISK",
+      "Patients": "Patients",
+      "Search": "Search",
+      "Register": "Register",
+      "Sign in": "Sign in",
+      "Sign out": "Sign out",
+      "Change password": "Change password",
+      "Overview": "Overview",
+      "Work queue": "Work queue",
+      "Approvals": "Approvals",
+      "Outcomes": "Outcomes",
+      "Audit trail": "Audit trail",
+      "About": "About",
+      "More": "More"
     },
     ar: {
       "Needs you now": "يحتاجك الآن",
@@ -138,7 +151,20 @@
       "NEXT STEP": "الخطوة التالية",
       "DEADLINE": "الموعد",
       "OWNER": "المالك",
-      "RISK": "الخطر"
+      "RISK": "الخطر",
+      "Patients": "المرضى",
+      "Search": "بحث",
+      "Register": "تسجيل",
+      "Sign in": "تسجيل الدخول",
+      "Sign out": "تسجيل الخروج",
+      "Change password": "تغيير كلمة المرور",
+      "Overview": "نظرة عامة",
+      "Work queue": "قائمة العمل",
+      "Approvals": "الموافقات",
+      "Outcomes": "النتائج",
+      "Audit trail": "سجل التدقيق",
+      "About": "حول",
+      "More": "المزيد"
     },
     hi: {
       "Needs you now": "अभी आपको चाहिए",
@@ -166,7 +192,20 @@
       "NEXT STEP": "अगला कदम",
       "DEADLINE": "समय सीमा",
       "OWNER": "मालिक",
-      "RISK": "जोखिम"
+      "RISK": "जोखिम",
+      "Patients": "मरीज़",
+      "Search": "खोजें",
+      "Register": "पंजीकरण",
+      "Sign in": "साइन इन",
+      "Sign out": "साइन आउट",
+      "Change password": "पासवर्ड बदलें",
+      "Overview": "अवलोकन",
+      "Work queue": "कार्य कतार",
+      "Approvals": "स्वीकृतियाँ",
+      "Outcomes": "परिणाम",
+      "Audit trail": "ऑडिट ट्रेल",
+      "About": "के बारे में",
+      "More": "और"
     },
     ur: {
       "Needs you now": "اب آپ کو چاہیے",
@@ -194,7 +233,20 @@
       "NEXT STEP": "اگلا قدم",
       "DEADLINE": "آخری تاریخ",
       "OWNER": "مالک",
-      "RISK": "خطرہ"
+      "RISK": "خطرہ",
+      "Patients": "مریض",
+      "Search": "تلاش",
+      "Register": "رجسٹر",
+      "Sign in": "سائن ان",
+      "Sign out": "سائن آؤٹ",
+      "Change password": "پاس ورڈ تبدیل کریں",
+      "Overview": "جائزہ",
+      "Work queue": "کام کی قطار",
+      "Approvals": "منظوریاں",
+      "Outcomes": "نتائج",
+      "Audit trail": "آڈٹ ٹریل",
+      "About": "کے بارے میں",
+      "More": "مزید"
     }
   };
 
