@@ -136,7 +136,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("f-site-list").innerHTML = U.organizations.map(o => `<option value="${W.esc(o.name)}"></option>`).join("");
   const drawStaff = () => { const r = document.getElementById("f-role").value;
     document.getElementById("f-staff").innerHTML = r ? staffBlock("f", r) : "";
-    document.getElementById("f-site-h").textContent = isClinical(r) ? "Leave empty to use the practice, hospital or programme office of their staff record." : "Shown on the user list.";
+    const siteH = document.getElementById("f-site-h"); if (siteH) siteH.textContent = isClinical(r) ? "Leave empty to use the practice, hospital or programme office of their staff record." : "Shown on the user list.";
     wireStaff(f, "f"); };
   document.getElementById("f-role").addEventListener("change", () => { clearFieldErrs(f); drawStaff(); });
   dlg.querySelector("[data-close]").onclick = () => dlg.close();
