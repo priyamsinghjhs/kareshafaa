@@ -71,8 +71,8 @@
   {% if nav and nav|length > 1 %}
   {% set main_nav = nav | rejectattr("more") | list %}{% set more_nav = nav | selectattr("more") | list %}
   <nav class="bottom-nav" aria-label="Main (mobile)">
-    {% for n in main_nav %}<a href="{{ n.href }}" {% if n.href == current_nav %}aria-current="page"{% endif %}><svg class="icon" aria-hidden="true"><use href="#i-{{ n.icon }}"/></svg><span>{{ n.label }}</span></a>{% endfor %}
-    {% if more_nav %}<details class="bn-more"><summary {% if current_nav in more_nav | map(attribute="href") | list %}aria-current="page"{% endif %}><svg class="icon" aria-hidden="true"><use href="#i-more"/></svg><span>More</span></summary>
+    {% for n in main_nav %}<a href="{{ n.href }}" {% if n.href == current_nav %}aria-current="page"{% endif %}><svg class="icon" aria-hidden="true"><use href="#i-{{ n.icon }}"/></svg><span data-i18n="{{ n.label|lower|replace(' ', '-')|replace("'", '') }}">{{ n.label }}</span></a>{% endfor %}
+    {% if more_nav %}<details class="bn-more"><summary {% if current_nav in more_nav | map(attribute="href") | list %}aria-current="page"{% endif %}><svg class="icon" aria-hidden="true"><use href="#i-more"/></svg><span data-i18n="more">More</span></summary>
       <div class="bn-sheet">{% for n in more_nav %}<a href="{{ n.href }}" {% if n.href == current_nav %}aria-current="page"{% endif %}><svg class="icon" aria-hidden="true"><use href="#i-{{ n.icon }}"/></svg><span>{{ n.label }}</span></a>{% endfor %}</div>
     </details>{% endif %}
   </nav>

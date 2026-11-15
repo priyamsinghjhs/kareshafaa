@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-head">
-  <div>{% set nm = user.display_name.split(' (')[0] %}<h1 id="q-title">Hello, {{ nm if nm.startswith('Dr.') else nm.split(' ')[0] }}</h1></div>
+  <div>{% set nm = user.display_name.split(' (')[0] %}<h1 id="q-title" data-i18n-prefix="Hello,">Hello, {{ nm if nm.startswith('Dr.') else nm.split(' ')[0] }}</h1></div>
 </div>
 <section class="now" id="now" aria-labelledby="now-h">
-  <div class="now-head"><h2 id="now-h">Needs you now</h2><span id="now-count" class="small muted" aria-live="polite"></span></div>
+  <div class="now-head"><h2 id="now-h" data-i18n="needs-you-now">Needs you now</h2><span id="now-count" class="small muted" aria-live="polite"></span></div>
   <div id="now-list"><div class="loading" role="status">Loading…</div></div>
 </section>
 <section class="card preq" id="preq" hidden aria-labelledby="preq-h">

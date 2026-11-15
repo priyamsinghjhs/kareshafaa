@@ -7,6 +7,7 @@
       approvals: "Approvals", "audit-trail": "Audit trail", about: "About", more: "More",
       "sign-out": "Sign out", "change-password": "Change password",
       "next-step": "Next step", actions: "Actions", priority: "Priority",
+      "needs-you-now": "Needs you now",
       "open-cases": "Open cases", "closure-rate": "Closure rate", overdue: "Overdue",
       "synthetic": "Synthetic before/after", "pilot": "Pilot path",
       search: "Search", "record-attendance": "Record attendance", cancel: "Cancel",
@@ -25,6 +26,7 @@
       approvals: "الموافقات", "audit-trail": "سجل التدقيق", about: "حول", more: "المزيد",
       "sign-out": "تسجيل الخروج", "change-password": "تغيير كلمة المرور",
       "next-step": "الخطوة التالية", actions: "الإجراءات", priority: "الأولوية",
+      "needs-you-now": "يحتاجك الآن",
       "open-cases": "الحالات المفتوحة", "closure-rate": "معدل الإغلاق", overdue: "متأخر",
       "synthetic": "قبل/بعد (محاكاة)", "pilot": "مسار التجربة",
       search: "بحث", "record-attendance": "تسجيل الحضور", cancel: "إلغاء",
@@ -43,6 +45,7 @@
       approvals: "स्वीकृतियाँ", "audit-trail": "ऑडिट ट्रेल", about: "के बारे में", more: "और",
       "sign-out": "साइन आउट", "change-password": "पासवर्ड बदलें",
       "next-step": "अगला कदम", actions: "कार्रवाई", priority: "प्राथमिकता",
+      "needs-you-now": "अभी आपको चाहिए",
       "open-cases": "खुले मामले", "closure-rate": "समापन दर", overdue: "अतिदेय",
       "synthetic": "पहले/बाद (सिंथेटिक)", "pilot": "पायलट पथ",
       search: "खोजें", "record-attendance": "उपस्थिति दर्ज करें", cancel: "रद्द करें",
@@ -61,6 +64,7 @@
       approvals: "منظوریاں", "audit-trail": "آڈٹ ٹریل", about: "کے بارے میں", more: "مزید",
       "sign-out": "سائن آؤٹ", "change-password": "پاس ورڈ تبدیل کریں",
       "next-step": "اگلا قدم", actions: "اقدامات", priority: "ترجیح",
+      "needs-you-now": "اب آپ کو چاہیے",
       "open-cases": "کھلے کیسز", "closure-rate": "بند ہونے کی شرح", overdue: "تاخیر شدہ",
       "synthetic": "پہلے/بعد (مصنوعی)", "pilot": "پائلٹ راستہ",
       search: "تلاش", "record-attendance": "حاضری درج کریں", cancel: "منسوخ",
@@ -297,13 +301,10 @@
       const key = el.getAttribute("data-i18n-title");
       if (key) el.title = t(key);
     });
-    // Replace common visible strings. One delayed pass covers async queue cards.
-    // Skip the full walk on very large pages so a case timeline does not freeze.
+    // Replace common visible strings, then again after async queue cards render.
     replaceText(lang);
-    setTimeout(() => {
-      const n = document.body ? document.body.getElementsByTagName("*").length : 0;
-      if (n < 800) replaceText(lang);
-    }, 600);
+    setTimeout(() => replaceText(lang), 400);
+    setTimeout(() => replaceText(lang), 1200);
     // Update switcher
     const sel = document.getElementById("staff-lang-sel");
     if (sel && sel.value !== lang) sel.value = lang;

@@ -41,6 +41,7 @@ async function loadNow() {
   const d = await W.api("/api/queue?view=all&limit=5"), el = document.getElementById("now-list"), c = d.counts || {};
   document.getElementById("now-count").textContent = d.total ? `${c.overdue || 0} overdue · ${d.total} open` : "";
   el.innerHTML = d.items.length ? W.nowList(d.items) : W.empty("You are all caught up");
+  if (window.KS_I18N) window.KS_I18N.apply(window.KS_I18N.current());
 }
 function render() {
   const rows = data.items;
@@ -176,4 +177,5 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadRequests().catch(e => { const L = document.getElementById("preq-list"); document.getElementById("preq").hidden = false; L.innerHTML = W.empty("Could not load patient requests", W.esc(e.message)); });
   loadNow().catch(e => { document.getElementById("now-list").innerHTML = W.empty("Could not load your list", W.esc(e.message), '<button data-click="reloadPage">Try again</button>'); });
   try { await load(); } catch (e) { document.getElementById("qtable").innerHTML = W.empty("Could not load the queue", W.esc(e.message), '<button data-click="reloadPage">Try again</button>'); }
+  if (window.KS_I18N) window.KS_I18N.apply(window.KS_I18N.current());
 });
