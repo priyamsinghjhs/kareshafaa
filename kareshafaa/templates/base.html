@@ -38,8 +38,8 @@
         <span class="who"><b>{{ user.display_name.split(' (')[0] }}</b><span>{{ role_label }}</span></span></summary>
       <div class="menu" role="menu">
         <div class="menu-head"><b>{{ user.display_name.split(' (')[0] }}</b><div class="small muted">{{ role_label }}{% if user.site %} · {{ user.site }}{% endif %}</div><div class="xs muted">Signed in as {{ user.username }}</div></div>
-        <a href="/account/password" role="menuitem"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg>Change password</a>
-        <form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button type="submit" role="menuitem"><svg class="icon" aria-hidden="true"><use href="#i-out"/></svg>Sign out</button></form>
+        <a href="/account/password" role="menuitem"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg><span data-i18n="change-password">Change password</span></a>
+        <form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button type="submit" role="menuitem"><svg class="icon" aria-hidden="true"><use href="#i-out"/></svg><span data-i18n="sign-out">Sign out</span></button></form>
       </div>
     </details>
     {% endif %}
@@ -49,13 +49,13 @@
     <nav class="sidebar" id="sidebar" aria-label="Main">
       {% set main_nav = nav | rejectattr("more") | list %}{% set more_nav = nav | selectattr("more") | list %}
       <ul class="nav-list">
-        {% for n in main_nav %}<li><a href="{{ n.href }}" {% if n.href == current_nav %}aria-current="page"{% endif %} title="{{ n.label }}"><svg class="icon" aria-hidden="true"><use href="#i-{{ n.icon }}"/></svg><span class="label">{{ n.label }}</span></a></li>{% endfor %}
+        {% for n in main_nav %}<li><a href="{{ n.href }}" {% if n.href == current_nav %}aria-current="page"{% endif %} title="{{ n.label }}" data-i18n-title="{{ n.label|lower|replace(' ', '-')|replace("'", '') }}"><svg class="icon" aria-hidden="true"><use href="#i-{{ n.icon }}"/></svg><span class="label" data-i18n="{{ n.label|lower|replace(' ', '-')|replace("'", '') }}">{{ n.label }}</span></a></li>{% endfor %}
       </ul>
       {% if more_nav %}
       <details class="nav-more" {% if current_nav in more_nav | map(attribute="href") | list %}open{% endif %}>
-        <summary title="More"><svg class="icon" aria-hidden="true"><use href="#i-more"/></svg><span class="label">More</span></summary>
+        <summary title="More"><svg class="icon" aria-hidden="true"><use href="#i-more"/></svg><span class="label" data-i18n="more">More</span></summary>
         <ul class="nav-list">
-          {% for n in more_nav %}<li><a href="{{ n.href }}" {% if n.href == current_nav %}aria-current="page"{% endif %} title="{{ n.label }}"><svg class="icon" aria-hidden="true"><use href="#i-{{ n.icon }}"/></svg><span class="label">{{ n.label }}</span></a></li>{% endfor %}
+          {% for n in more_nav %}<li><a href="{{ n.href }}" {% if n.href == current_nav %}aria-current="page"{% endif %} title="{{ n.label }}" data-i18n-title="{{ n.label|lower|replace(' ', '-')|replace("'", '') }}"><svg class="icon" aria-hidden="true"><use href="#i-{{ n.icon }}"/></svg><span class="label" data-i18n="{{ n.label|lower|replace(' ', '-')|replace("'", '') }}">{{ n.label }}</span></a></li>{% endfor %}
         </ul>
       </details>
       {% endif %}
@@ -80,6 +80,7 @@
   <div id="toast" role="status" aria-live="polite"></div>
   <script type="application/json" id="ks-config">{{ {"tiers": tiers, "roles": role_labels, "read_only": read_only_site, "walkthrough": walkthrough} | tojson }}</script>
   <script src="{{ asset('js/common.js') }}"></script>
+  <script src="{{ asset('js/staff_i18n.js') }}"></script>
   <script defer src="{{ asset('js/pwa.js') }}"></script>
   <script defer src="{{ asset('js/tour.js') }}"></script>
   {% block scripts %}{% endblock %}

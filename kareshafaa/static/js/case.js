@@ -361,7 +361,7 @@ function render() {
   root().innerHTML = header() + `<div class="grid-2 case-grid"><div>
     <div class="tabs" role="tablist" aria-label="Case details" id="case-timeline"><button role="tab" aria-selected="true" data-t="steps">Timeline</button><button role="tab" aria-selected="false" class="secondary" data-t="events">Messages &amp; events</button><button role="tab" aria-selected="false" class="secondary" data-t="audit">Audit (${C.audit.length})</button></div>
     <div id="tabbody" role="tabpanel"></div></div>
-    <aside aria-label="Actions and patient details"><section class="card ${primary ? "next-step" : ""}" aria-labelledby="act-h"><h2 id="act-h" class="card-title">${W.ic(primary ? "arrow" : "list")}${primary ? "Next step" : "Actions"}</h2>
+    <aside aria-label="Actions and patient details"><section class="card ${primary ? "next-step" : ""}" aria-labelledby="act-h"><h2 id="act-h" class="card-title">${W.ic(primary ? "arrow" : "list")}<span data-i18n="${primary ? "next-step" : "actions"}">${primary ? "Next step" : "Actions"}</span></h2>
       ${primary ? `<button class="primary-action" data-k="${primary.key}" data-ev="${primary.evidence_type || ""}">${W.esc(primary.label)}</button>` : ""}
       ${others.length ? (primary ? `<details class="more-actions"><summary>More actions (${others.length})</summary><div class="actions">${others.map(btn).join("")}</div></details>` : `<div class="actions">${others.map(btn).join("")}</div>`) : (primary ? "" : `<p class="small muted">Nothing for your role now</p>`)}
       <div id="aform"></div></section>${patientRequests()}${patientCard()}${copilotCard()}</aside></div>`;
