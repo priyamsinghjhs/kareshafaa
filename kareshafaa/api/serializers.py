@@ -34,9 +34,11 @@ def oname(db: Session, oid: int | None) -> str | None:
 
 def case_summary(db: Session, c: Case) -> dict:
     p = c.patient
-    return {"id": c.id, "programme": c.programme, "programme_name": PROGRAMMES[c.programme].name, "tier": c.tier,
-            "state": c.state, "state_label": LABELS.get(c.state, c.state), "owner_id": c.owner_id, "owner": c.owner.name,
-            "owner_is_pool": c.owner.is_pool, "created_at": iso(c.created_at), "due_at": iso(c.due_at),
+    prog = PROGRAMMES.get(c.programme)
+    return {"id": c.id, "programme": c.programme, "programme_name": prog.name if prog else c.programme, "tier": c.tier,
+            "state": c.state, "state_label": LABELS.get(c.state, c.state), "owner_id": c.owner_id,
+            "owner": c.owner.name if c.owner else "Unassigned",
+            "owner_is_pool": bool(c.owner and c.owner.is_pool), "created_at": iso(c.created_at), "due_at": iso(c.due_at),
             "patient": {"id": p.id, "name": f"{p.given_name} {p.family_name}", "mrn": p.mrn, "language": p.language},
             "closed_at": iso(c.closed_at), "closure_type": c.closure_type, "closure_reason": c.closure_reason,
             "review_required": bool(c.review_required), "review_reasons": c.review_reasons or [],
