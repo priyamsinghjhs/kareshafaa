@@ -225,25 +225,25 @@
       "Audit trail": "Audit trail",
       "About": "About",
       "More": "More",
-      "Soon": "جلد",
-      "Appointment booked": "اپائنٹمنٹ بک",
-      "Diabetes (HbA1c)": "ذیابیطس (HbA1c)",
-      "Breast (mammogram)": "چھاتی (میموگرام)",
-      "Cervical (HPV)": "سروائیکل (HPV)",
-      "Bowel (FIT)": "آنت (FIT)",
-      "Due for recall": "ری کال واجب",
-      "Register a patient": "مریض رجسٹر کریں",
-      "Type 2+ characters to search.": "تلاش کے لیے 2+ حروف لکھیں۔",
-      "Install app": "ایپ انسٹال کریں",
-      "next:": "اگلا:",
-      "now:": "اب:",
-      "Escalated L3": "بڑھا L3",
-      "Team pool": "ٹیم پول",
-      "Showing": "دکھا رہے",
-      "Previous": "پچھلا",
-      "Next": "اگلا",
-      "of": "میں سے",
-      "speaks": "بولتے ہیں",
+      "Soon": "Soon",
+      "Appointment booked": "Appointment booked",
+      "Diabetes (HbA1c)": "Diabetes (HbA1c)",
+      "Breast (mammogram)": "Breast (mammogram)",
+      "Cervical (HPV)": "Cervical (HPV)",
+      "Bowel (FIT)": "Bowel (FIT)",
+      "Due for recall": "Due for recall",
+      "Register a patient": "Register a patient",
+      "Type 2+ characters to search.": "Type 2+ characters to search.",
+      "Install app": "Install app",
+      "next:": "next:",
+      "now:": "now:",
+      "Escalated L3": "Escalated L3",
+      "Team pool": "Team pool",
+      "Showing": "Showing",
+      "Previous": "Previous",
+      "Next": "Next",
+      "of": "of",
+      "speaks": "speaks",
       "Name, MRN, Emirates ID, passport or phone": "نام، MRN، Emirates ID، پاسپورٹ یا فون",
       "KareShafaa is not a certified medical device.": "KareShafaa تصدیق شدہ طبی آلہ نہیں ہے۔",
       "Clinical decisions stay with the treating clinician.": "طبی فیصلے علاج کرنے والے معالج کے پاس رہتے ہیں۔",
@@ -300,7 +300,26 @@
       "Outcomes": "النتائج",
       "Audit trail": "سجل التدقيق",
       "About": "حول",
-      "More": "المزيد"
+      "More": "المزيد",
+      "Soon": "قريباً",
+      "Appointment booked": "تم حجز الموعد",
+      "Diabetes (HbA1c)": "السكري (HbA1c)",
+      "Breast (mammogram)": "الثدي (تصوير)",
+      "Cervical (HPV)": "عنق الرحم (HPV)",
+      "Bowel (FIT)": "الأمعاء (FIT)",
+      "Due for recall": "موعد الاستدعاء",
+      "Register a patient": "تسجيل مريض",
+      "Type 2+ characters to search.": "اكتب حرفين أو أكثر للبحث.",
+      "Install app": "تثبيت التطبيق",
+      "next:": "التالي:",
+      "now:": "الآن:",
+      "Escalated L3": "مُصعَّد L3",
+      "Team pool": "مجموعة الفريق",
+      "Showing": "عرض",
+      "Previous": "السابق",
+      "Next": "التالي",
+      "speaks": "يتحدث",
+      "Show the guide": "عرض الدليل"
     },
     hi: {
       "Needs you now": "अभी आपको चाहिए",
@@ -345,7 +364,26 @@
       "Outcomes": "परिणाम",
       "Audit trail": "ऑडिट ट्रेल",
       "About": "के बारे में",
-      "More": "और"
+      "More": "और",
+      "Soon": "जल्द",
+      "Appointment booked": "अपॉइंटमेंट बुक",
+      "Diabetes (HbA1c)": "मधुमेह (HbA1c)",
+      "Breast (mammogram)": "स्तन (मैमोग्राम)",
+      "Cervical (HPV)": "गर्भाशय (HPV)",
+      "Bowel (FIT)": "आंत (FIT)",
+      "Due for recall": "रिकॉल देय",
+      "Register a patient": "मरीज़ पंजीकरण",
+      "Type 2+ characters to search.": "खोजने के लिए 2+ अक्षर लिखें।",
+      "Install app": "ऐप इंस्टॉल करें",
+      "next:": "अगला:",
+      "now:": "अभी:",
+      "Escalated L3": "बढ़ाया L3",
+      "Team pool": "टीम पूल",
+      "Showing": "दिखा रहे",
+      "Previous": "पिछला",
+      "Next": "अगला",
+      "speaks": "बोलते हैं",
+      "Show the guide": "गाइड दिखाएं"
     },
     ur: {
       "Needs you now": "اب آپ کو چاہیے",
@@ -390,33 +428,57 @@
       "Outcomes": "نتائج",
       "Audit trail": "آڈٹ ٹریل",
       "About": "کے بارے میں",
-      "More": "مزید"
+      "More": "مزید",
+      "Soon": "جلد",
+      "Appointment booked": "اپائنٹمنٹ بک",
+      "Diabetes (HbA1c)": "ذیابیطس (HbA1c)",
+      "Breast (mammogram)": "چھاتی (میموگرام)",
+      "Cervical (HPV)": "سروائیکل (HPV)",
+      "Bowel (FIT)": "آنت (FIT)",
+      "Due for recall": "ری کال واجب",
+      "Register a patient": "مریض رجسٹر کریں",
+      "Type 2+ characters to search.": "تلاش کے لیے 2+ حروف لکھیں۔",
+      "Install app": "ایپ انسٹال کریں",
+      "next:": "اگلا:",
+      "now:": "اب:",
+      "Escalated L3": "بڑھا L3",
+      "Team pool": "ٹیم پول",
+      "Showing": "دکھا رہے",
+      "Previous": "پچھلا",
+      "Next": "اگلا",
+      "speaks": "بولتے ہیں",
+      "Show the guide": "گائیڈ دکھائیں"
     }
   };
 
+  const ORIG = new WeakMap();
   function replaceText(lang) {
-    // Build a map from any known string (en or translated) back to the English key,
-    // then to the target language. This lets switching back to English work.
-    const toEn = {};
-    Object.keys(TEXT).forEach(l => {
-      Object.entries(TEXT[l]).forEach(([en, tr]) => { toEn[tr] = en; toEn[en] = en; });
-    });
-    const target = TEXT[lang] || {};
+    // Translate from the original English only. Re-applying on already
+    // translated text was mixing Hindi, Urdu and Arabic on the same screen.
+    const target = TEXT[lang] || TEXT.en;
+    const keys = Object.keys(TEXT.en).sort((a, b) => b.length - a.length);
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
     const nodes = [];
     let n;
     while ((n = walker.nextNode())) nodes.push(n);
     nodes.forEach(node => {
-      let v = node.nodeValue;
-      if (!v || !v.trim()) return;
-      // try whole-string match first, then substring
+      const parent = node.parentElement;
+      if (!parent || parent.closest("script, style, textarea, input, select, code, [data-i18n]")) return;
+      let original = ORIG.get(node);
+      if (original == null) {
+        original = node.nodeValue || "";
+        ORIG.set(node, original);
+      }
+      if (!original.trim()) return;
+      let v = original;
       const trimmed = v.trim();
-      if (toEn[trimmed] && target[toEn[trimmed]]) {
-        node.nodeValue = v.replace(trimmed, target[toEn[trimmed]]);
+      if (target[trimmed]) {
+        node.nodeValue = v.replace(trimmed, target[trimmed]);
         return;
       }
-      Object.keys(target).forEach(en => {
-        if (v.includes(en)) v = v.split(en).join(target[en]);
+      keys.forEach(en => {
+        if (en.length < 4) return; // short words cause mixed languages
+        if (v.includes(en) && target[en]) v = v.split(en).join(target[en]);
       });
       if (v !== node.nodeValue) node.nodeValue = v;
     });
@@ -484,15 +546,23 @@
   function init() {
     mountSwitcher();
     apply(current());
-    // Re-apply when pages insert content after load, so every screen stays in the chosen language.
+    // Re-apply when pages insert new content. Do not watch text changes:
+    // our own replacements were triggering more translations and mixing languages.
     let pending = null;
+    let applying = false;
+    const origApply = apply;
+    apply = function (lang) {
+      applying = true;
+      try { origApply(lang); } finally { applying = false; }
+    };
     const obs = new MutationObserver(() => {
+      if (applying) return;
       const lang = current();
       if (lang === "en") return;
       clearTimeout(pending);
-      pending = setTimeout(() => replaceText(lang), 80);
+      pending = setTimeout(() => { applying = true; try { replaceText(lang); } finally { applying = false; } }, 120);
     });
-    if (document.body) obs.observe(document.body, { childList: true, subtree: true, characterData: true });
+    if (document.body) obs.observe(document.body, { childList: true, subtree: true });
   }
 
   if (document.readyState === "loading") {
