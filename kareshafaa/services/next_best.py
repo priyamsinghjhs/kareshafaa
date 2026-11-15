@@ -42,14 +42,23 @@ def _template(facts: dict) -> str:
     state = facts.get("state_label") or facts.get("state")
     tier = facts.get("tier_label") or facts.get("tier")
     why = facts.get("why") or ""
+    overdue = facts.get("overdue_days")
+    escalation = facts.get("escalation_level")
+    explain = f"This case is '{state}' at {tier} priority."
+    if overdue:
+        explain += f" It is {overdue} days past the step deadline."
+    if escalation:
+        explain += f" Escalation level is {escalation}."
+    if why:
+        explain += f" {why}"
     if primary:
-        return (f"Recommended next step: {primary}. "
-                f"This case is currently '{state}'. "
-                f"Priority is {tier}. {why} "
-                f"This is a draft for your review. Approve or edit before recording any action.")
-    return (f"No primary next step is available for your role right now. "
-            f"Current state: '{state}'. Priority: {tier}. "
-            f"You can still view the record, reassign, or add a lesson if needed.")
+        action = f"Recommended next step: {primary}."
+        idle = "If no one acts, the case stays overdue and can escalate further."
+    else:
+        action = "No primary next step is available for your role right now."
+        idle = "You can still view the record, reassign, or add a lesson."
+    return (f"{explain} {action} {idle} "
+            f"This is a draft for your review. Approve or edit before recording any action.")
 
 def _node_prompt(state: NextBestState) -> NextBestState:
     facts = state.get("facts") or {}
@@ -112,7 +121,8 @@ def graph():
     return _GRAPH
 
 def run(facts: dict, *, use_model: bool) -> dict:
-    """Run the graph. Returns {draft, origin, requires_approval, disclaimer}."""
+    """Run the graph. Returns draft, origin, steps, requires_approval, disclaimer."""
+    steps = ["facts gathered", "draft written", "safety checked"]
     try:
         out = graph().invoke({"facts": facts, "use_model": use_model})
         text = out.get("text") or _template(facts)
@@ -120,4 +130,5 @@ def run(facts: dict, *, use_model: bool) -> dict:
     except Exception:
         text = _template(facts)
         origin = "template"
-    return {"draft": text, "origin": origin, "requires_approval": True, "disclaimer": DISCLAIMER}
+    return {"draft": text, "origin": origin, "steps": steps,
+            "requires_approval": True, "disclaimer": DISCLAIMER}

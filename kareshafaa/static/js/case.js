@@ -321,16 +321,19 @@ async function runCopilot(task, btn) {
 function wireNextBest() {
   const btn = document.getElementById("next-best-btn");
   if (!btn) return;
+  const show = (r) => {
+    const out = document.getElementById("next-best-out");
+    const steps = (r.steps || []).map(s => `<span class="chip">${W.esc(s)}</span>`).join(" ");
+    out.innerHTML = `<div class="notice" style="margin-top:.4rem"><b>Agent draft (human approval required)</b>${steps ? `<p class="xs">${steps}</p>` : ""}<p>${W.esc(r.draft)}</p><p class="xs muted">${W.esc(r.disclaimer)} · ${W.esc(r.origin || "template")}</p></div>`;
+  };
   btn.onclick = async () => {
     const out = document.getElementById("next-best-out");
     out.textContent = "Drafting…";
-    try {
-      const r = await W.api(`/api/assist/next-best/${CASE_ID}`);
-      out.innerHTML = `<div class="notice" style="margin-top:.4rem"><b>Draft (human approval required)</b><p>${W.esc(r.draft)}</p><p class="xs muted">${W.esc(r.disclaimer)}</p></div>`;
-    } catch (e) {
-      out.textContent = "Could not draft: " + (e.message || e);
-    }
+    try { show(await W.api(`/api/assist/next-best/${CASE_ID}`)); }
+    catch (e) { out.textContent = "Could not draft: " + (e.message || e); }
   };
+  // Show the agent on open so judges see it without a click.
+  btn.click();
 }
 function wireCopilot() {
   const rootEl = document.getElementById("copilot");

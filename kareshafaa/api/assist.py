@@ -140,6 +140,8 @@ def next_best(case_id: int, actor: Actor = Depends(require("case:read")), db: Se
         "tier_label": why.get("tier_label", c.tier),
         "primary_label": primary["label"] if primary else None,
         "why": " ".join(why.get("steps") or []),
+        "overdue_days": why.get("overdue_days") or getattr(c, "overdue_days", None),
+        "escalation_level": max(c.escalation_level or 0, getattr(c, "target_alert_level", 0) or 0) or None,
     }
     # scrub any residual identifiers before the optional model call
     facts = {k: assist.scrub(str(v)) if v else v for k, v in facts.items()}
@@ -153,7 +155,7 @@ def next_best(case_id: int, actor: Actor = Depends(require("case:read")), db: Se
     db.commit()
     return {"draft": res["draft"], "primary_key": primary["key"] if primary else None,
             "primary_label": primary["label"] if primary else None,
-            "origin": res.get("origin"),
+            "origin": res.get("origin"), "steps": res.get("steps") or [],
             "disclaimer": res["disclaimer"], "requires_approval": True}
 
 
