@@ -121,9 +121,10 @@ def copilot(body: CopilotIn, actor: Actor = Depends(require("case:read")), db: S
 
 @router.get("/next-best/{case_id}")
 def next_best(case_id: int, actor: Actor = Depends(require("case:read")), db: Session = Depends(get_db)) -> dict:
-    """Plain-language draft of the recommended next step. Advisory only; human must approve before any action."""
+    """Plain-language next-step draft from a small LangGraph agent. Advisory only; human must approve."""
     from ..api.actions import available_actions
     from ..services.explain import why_priority
+    from ..services import next_best as nb
     from ..statemachine import LABELS
 
     if actor.role == "patient" or not actor.is_human:
@@ -134,21 +135,23 @@ def next_best(case_id: int, actor: Actor = Depends(require("case:read")), db: Se
     primary = next((a for a in acts if a.get("primary")), None)
     why = why_priority(db, c)
     state_label = LABELS.get(c.state, c.state)
-    if primary:
-        draft = (f"Recommended next step: {primary['label']}. "
-                 f"This case is currently '{state_label}'. "
-                 f"Priority is {why.get('tier_label', c.tier)} because: "
-                 f"{' '.join(why.get('steps') or ['tier set when the result arrived.'])} "
-                 f"This is a draft for your review. Approve or edit before recording any action.")
-    else:
-        draft = (f"No primary next step is available for your role right now. "
-                 f"Current state: '{state_label}'. "
-                 f"Priority: {why.get('tier_label', c.tier)}. "
-                 f"You can still view the record, reassign, or add a lesson if needed.")
-    audit.record(db, actor, "E", "assist.next_best", entity_type="Case", entity_id=c.id, case_id=c.id,
-                 detail={"has_primary": bool(primary), "key": primary["key"] if primary else None})
+    facts = {
+        "state_label": state_label,
+        "tier_label": why.get("tier_label", c.tier),
+        "primary_label": primary["label"] if primary else None,
+        "why": " ".join(why.get("steps") or []),
+    }
+    # scrub any residual identifiers before the optional model call
+    facts = {k: assist.scrub(str(v)) if v else v for k, v in facts.items()}
+    use_model = assist.availability(db) is None
+    case_id_val = c.id
+    db.rollback()
+    res = nb.run(facts, use_model=use_model)
+    audit.record(db, actor, "E", "assist.next_best", entity_type="Case", entity_id=case_id_val, case_id=case_id_val,
+                 detail={"has_primary": bool(primary), "key": primary["key"] if primary else None,
+                         "origin": res.get("origin")})
     db.commit()
-    return {"draft": draft, "primary_key": primary["key"] if primary else None,
+    return {"draft": res["draft"], "primary_key": primary["key"] if primary else None,
             "primary_label": primary["label"] if primary else None,
-            "disclaimer": "Draft only. A human must approve before any action is recorded.",
-            "requires_approval": True}
+            "origin": res.get("origin"),
+            "disclaimer": res["disclaimer"], "requires_approval": True}
