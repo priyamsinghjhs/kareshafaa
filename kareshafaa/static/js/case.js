@@ -16,19 +16,18 @@ const opts = (arr, v = x => x.id, l = x => x.name) => arr.map(x => `<option valu
 const kv = obj => Object.entries(obj).map(([k, v]) => `<option value="${k}">${W.esc(v)}</option>`).join("");
 
 async function load() {
-  // Load the case first. On a single-worker host the heavy record call was
-  // starting at the same time and blocking the case response, so the page
-  // stayed on Loading. Show the case, then fill the record.
+  // Show a shell at once so the page never looks frozen. Load the case, then the record.
   REC = null;
   const rootEl = root();
+  rootEl.innerHTML = '<div class="loading" role="status">Loading case…</div>';
   try {
     [C, META] = await Promise.all([
-      W.api(`/api/cases/${CASE_ID}`, { timeoutMs: 12000 }),
-      W.api(`/api/cases/${CASE_ID}/actions`, { timeoutMs: 12000 })
+      W.api(`/api/cases/${CASE_ID}`, { timeoutMs: 8000 }),
+      W.api(`/api/cases/${CASE_ID}/actions`, { timeoutMs: 8000 })
     ]);
     render();
     try {
-      REC = await W.api(`/api/cases/${CASE_ID}/record`, { timeoutMs: 15000 });
+      REC = await W.api(`/api/cases/${CASE_ID}/record`, { timeoutMs: 10000 });
     } catch (e) {
       REC = { error: e.message };
     }
@@ -37,7 +36,7 @@ async function load() {
     rootEl.innerHTML = `<div class="card notice"><p>${W.esc(e.message || "Could not load this case.")}</p>
       <button type="button" class="primary" id="case-retry">Try again</button></div>`;
     const btn = document.getElementById("case-retry");
-    if (btn) btn.onclick = () => { rootEl.innerHTML = '<div class="loading" role="status">Loading case…</div>'; load(); };
+    if (btn) btn.onclick = () => load();
   }
 }
 
@@ -258,15 +257,15 @@ function wireRecord() {
 }
 
 function whyCard() {
-  const w = C.why; if (!w) return "";
+  const w = C.why; if (!w || w.deferred) return "";
   const r = w.rule || {}, rev = w.review || {}, link = W.can("model:read") && r.id ? ` · <a href="/governance?tab=decisions#rule-${encodeURIComponent(r.id)}">rule card</a>` : "";
   return `<section class="card flat" id="why-priority" aria-labelledby="why-h"><h2 id="why-h" class="card-h">Why this priority</h2>
-   <p class="mb-2"><span class="chip">${W.esc(w.tier_label)}</span> <span class="small muted">set by the ${W.esc(w.decided_by)}</span></p>
-   <ol class="small" id="why-steps">${(w.steps.length ? w.steps : ["Tier set when the result arrived."]).map(t => `<li>${W.esc(t)}</li>`).join("")}</ol>
+   <p class="mb-2"><span class="chip">${W.esc(w.tier_label)}</span> <span class="small muted">set by the ${W.esc(w.decided_by || "")}</span></p>
+   <ol class="small" id="why-steps">${((w.steps || []).length ? w.steps : ["Tier set when the result arrived."]).map(t => `<li>${W.esc(t)}</li>`).join("")}</ol>
    <dl class="facts small">${r.id ? `<div><dt>Rule</dt><dd><code>${W.esc(r.id)}</code>${link}</dd></div>` : ""}${r.source ? `<div><dt>Source</dt><dd>${W.esc(r.source)}</dd></div>` : ""}
     ${w.target_text ? `<div><dt>Pathway target</dt><dd>${W.esc(w.target_text)}${w.target_due_at ? ` – by ${W.dt(w.target_due_at)}` : ""}</dd></div>` : ""}
-    ${rev.required ? `<div><dt>Waiting for clinician review</dt><dd>${rev.reasons.map(x => W.esc(x.replaceAll("_", " "))).join(", ")}</dd></div>` : ""}</dl>
-   <p class="xs muted">${W.esc(w.human_in_loop)}</p>
+    ${rev.required ? `<div><dt>Waiting for clinician review</dt><dd>${(rev.reasons || []).map(x => W.esc(x.replaceAll("_", " "))).join(", ")}</dd></div>` : ""}</dl>
+   <p class="xs muted">${W.esc(w.human_in_loop || "")}</p>
    <button type="button" class="secondary sm" id="next-best-btn" style="margin-top:.5rem">Draft next-best action</button>
    <div id="next-best-out" class="small" style="margin-top:.4rem"></div></section>`;
 }
