@@ -22,7 +22,21 @@ KareShafaa's database is about 25-40 MB with the initial records, so Neon's 1 GB
 service sleeps after 15 min idle, and Neon's compute then sleeps after 5 more minutes, so normal use stays well
 inside 100 CU-hours a month.
 
-## Steps (one-time, about 10 minutes)
+## Supabase (chosen free Postgres)
+
+1. Go to https://supabase.com and sign up (GitHub or Google).
+2. Create a new project. Pick a region close to your Render region. Set a database password and save it.
+3. After the project is ready: **Project Settings → Database → Connection string → URI**.
+   Choose the **direct** connection (host `db.<ref>.supabase.co`, port **5432**), not the pooler (port 6543).
+   It looks like `postgresql://postgres:[PASSWORD]@db.<ref>.supabase.co:5432/postgres`.
+4. On Render: service `kareshafaa` → **Environment** → set `DATABASE_URL` to that URI (secret). Save and redeploy.
+5. First start seeds organisations, programmes, staff and sample cases into the empty database. Later restarts keep the data.
+6. Confirm in **Admin → System** that storage is permanent (PostgreSQL).
+
+Supabase Free pauses after about a week of low activity; resume it from the dashboard. For the worker lock, use the direct URL (port 5432). If you only have the pooler URL, also set `KARESHAFAA_WORKER_LOCK_DATABASE_URL` to the direct URI.
+
+## Steps (one-time, about 10 minutes) — Neon alternative
+
 
 1. **Neon account:** go to https://neon.com, click *Sign up* and sign in with GitHub or Google (free plan, no card).
 2. **Create a project:** name `kareshafaa`, Postgres 17, region **AWS US West 2 (Oregon)** - the same region as
