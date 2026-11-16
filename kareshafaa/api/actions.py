@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from datetime import datetime, timedelta, timezone
 
-from ..models import Appointment, CallTask, Case, Consent, CriticalReadBack, QuestionnaireResponse, ServiceRequest
+from ..models import Appointment, CallTask, Case, Communication, Consent, CriticalReadBack, QuestionnaireResponse, ServiceRequest
 from ..security import Actor
 from ..services.workflow import can_decide_referral
 from ..statemachine import S
