@@ -26,7 +26,7 @@ from ..programmes import PROGRAMMES, TIER_LABEL
 from ..statemachine import LABELS
 from . import assist
 
-TASKS = ("outreach", "summary", "simplify_letter")
+TASKS = ("outreach", "summary", "simplify_letter", "treatment_plan")
 LANGS = ("en", "ar", "hi", "ur")
 DISCLAIMER = "Draft only. Check against the record, edit if needed, and send it yourself — nothing is sent automatically."
 MAX_OUT = 900
@@ -200,6 +200,18 @@ def template(ctx: dict) -> str:
                     f"{('الموعد النهائي: ' + due + '. ') if due else ''}"
                     "هذا ملخص وقائع من السجل، وليس رأياً سريرياً.")
         return " ".join(bits)
+
+    if task == "treatment_plan":
+        # Advisory options only — modern practice patterns, not a prescription
+        options = {
+            "breast": "Imaging follow-up or biopsy if indicated; endocrine therapy or surgery per multidisciplinary review for confirmed malignancy.",
+            "cervical": "Colposcopy if HPV-positive/abnormal; excision or surveillance per guidelines for high-grade findings.",
+            "bowel": "Colonoscopy for positive FIT; polypectomy or surgical referral if advanced neoplasia.",
+            "diabetes": "Lifestyle + metformin first-line if confirmed; specialist review for complications or poor control.",
+        }
+        opt = options.get(ctx.get("programme"), "Specialist review to decide surveillance, further testing, or treatment.")
+        return (f"Advisory options for {prog} ({ctx.get('urgency')}): {opt} "
+                "These are general modern-practice patterns, not a prescription. The treating clinician decides.")
 
     if task == "simplify_letter":
         if lang == "ar":
