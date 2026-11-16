@@ -128,7 +128,7 @@ def case_detail(db: Session, c: Case, actor: Actor, now: datetime | None = None)
         "patient": {"id": p.id, "name": f"{p.given_name} {p.family_name}", "mrn": p.mrn, "gender": p.gender,
                     "age_band": p.age_band, "language": p.language, "region": p.region,
                     "managing_org": None, "gp": None,
-                    "channels": {"smartphone": p.has_smartphone, "whatsapp": p.whatsapp, "phone_valid": p.phone_valid},
+                    "channels": {"smartphone": p.has_smartphone, "whatsapp": p.whatsapp, "phone_valid": p.phone_valid, "email": bool(p.email)},
                     "deceased": p.deceased},
         "result": None,
         "journey": journey(db, c),
