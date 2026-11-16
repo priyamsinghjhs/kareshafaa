@@ -406,7 +406,7 @@ function render() {
     if (b.hasAttribute("data-scroll")) { const f = document.getElementById("aform"), sec = f && f.closest("section"); if (sec) sec.scrollIntoView({ block: "start", behavior: "smooth" });
       const i = f && f.querySelector("input, select, textarea, button"); if (i) i.focus({ preventScroll: true }); } });
   root().querySelectorAll("[data-act=notify]").forEach(b => b.onclick = async () => {
-    try { await post(`/api/cases/${CASE_ID}/notify`, { category: "result_notification" }, sentMsg("Result sent", "Result recorded – email not configured yet")); }
+    try { await post(`/api/cases/${CASE_ID}/notify`, { category: "result_notification" }, sentMsg("Result sent by email", "Result recorded – no deliverable email on this patient (synthetic or no consent)")); }
     catch (e) { W.toast(e.message || "Could not send", "err"); } });
   wireRecord();
   root().querySelectorAll("[data-resolve]").forEach(b => b.onclick = () => W.ask("Patient's change request handled", "What was done (e.g. phoned, the patient keeps the time)", { ok: "Mark as handled", min: 5, suggest: { caseId: CASE_ID, action: "appointment_request_resolve" },
