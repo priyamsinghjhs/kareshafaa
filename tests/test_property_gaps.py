@@ -88,11 +88,11 @@ I18N = Path(__file__).resolve().parent.parent / "kareshafaa" / "static" / "js" /
 
 def _text_keys(lang: str) -> set[str]:
     text = I18N.read_text()
-    # crude but stable: find the TEXT[lang] block
-    m = re.search(rf"{lang}:\s*\{{", text)
-    if not m:
+    # Use the TEXT map (second occurrence), not STRINGS
+    matches = list(re.finditer(rf"{lang}:\s*\{{", text))
+    if len(matches) < 2:
         return set()
-    start = m.end()
+    start = matches[1].end()
     depth, i = 1, start
     while i < len(text) and depth:
         if text[i] == "{":
