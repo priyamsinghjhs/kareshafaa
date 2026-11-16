@@ -349,11 +349,13 @@ function wireCopilot() {
 
 function patientCard() {
   const p = C.patient, o = C.result, r = C.risk;
-  const ch = [p.channels.smartphone ? "App" : "", p.channels.whatsapp ? "WhatsApp" : "", p.channels.phone_valid ? "Phone" : ""].filter(Boolean);
+  const ch = [p.channels.smartphone ? "App" : "", p.channels.whatsapp ? "WhatsApp" : "", p.channels.phone_valid ? "Phone" : "", p.channels.email ? "Email" : ""].filter(Boolean);
+  const noPhone = !p.channels.smartphone && !p.channels.whatsapp && !p.channels.phone_valid;
+  const emailOffer = noPhone && p.channels.email ? ` <button class="secondary sm" data-act="notify">Send result by email</button>` : "";
   return `<section class="card" aria-labelledby="pt-h"><h2 id="pt-h" class="card-h">Patient</h2>
    <p class="small">${W.esc(p.name)} · ${W.esc(p.gender)} · age ${W.esc(p.age_band)} · speaks <b>${W.esc(p.language)}</b> · ${W.esc(p.region)}</p>
    <p class="small">Family doctor (GP): ${W.esc(p.gp || "–")}<br>${W.esc(p.managing_org)}</p>
-   <p class="small">Can be reached by: ${ch.length ? ch.join(", ") : "<b>no valid phone or app</b>"}</p>
+   <p class="small">Can be reached by: ${ch.length ? ch.join(", ") : "<b>no valid phone or app</b>"}${emailOffer}</p>
    <h3 class="card-h">Screening result</h3>${o ? `<p class="small">${W.esc(o.display)}: ${o.observations.map(x => `<b>${W.esc(x.value ?? x.value_text)}</b> ${W.esc(x.unit || "")}`).join(", ")}<br><span class="muted">issued ${W.dt(o.issued_at)}</span></p>
      <dl class="facts result-meta" data-result-meta><div><dt>Ordered by</dt><dd>${o.ordering_clinician ? W.esc(o.ordering_clinician) : '<span class="muted">Not recorded</span>'}</dd></div><div><dt>Screening site</dt><dd>${o.screening_site ? W.esc(o.screening_site) : '<span class="muted">Not recorded</span>'}</dd></div><div><dt>Specimen taken</dt><dd>${o.specimen_collected_at ? W.dt(o.specimen_collected_at) : '<span class="muted">Not recorded</span>'}</dd></div></dl>` : "<p class='small muted'>–</p>"}
    <h3 class="card-h">Consent</h3><p class="small">${C.consents.filter(c => c.status === "active").map(c => `<span class="chip ${c.decision === "permit" ? "sla-green" : "sla-red"}">${c.decision === "permit" ? "✓" : "✕"} ${W.esc(c.scope.replace(/_/g, " "))}: ${c.decision === "permit" ? "yes" : "no"}</span>${c.note ? ` <span class="small muted">${W.esc(c.note)}</span>` : ""}`).join(" ") || "–"}</p></section>
