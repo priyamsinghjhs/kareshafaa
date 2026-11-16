@@ -557,6 +557,9 @@
       "All programmes": "كل البرامج",
       "Find a person": "ابحث عن شخص",
       "Send invitation to selected": "إرسال دعوة للمحددين",
+
+      "Name, MRN, Emirates ID, passport or phone": "الاسم، رقم الملف، الهوية الإماراتية، جواز السفر أو الهاتف",
+      "of": "من",
       "30-day pilot:": "تجربة 30 يوماً:",
     },
     hi: {
