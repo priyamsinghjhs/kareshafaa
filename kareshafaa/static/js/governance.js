@@ -67,6 +67,13 @@ const tabsG = {
 tabsG.content = async el => {
   const r = await W.api("/api/governance/content"), s = r.summary;
   const rows = r.items.filter(x => x.gated || !x.readability.ok || x.lang !== "en" || x.group !== "template");
+  // Pending translator sign-off first, then pending clinical, then already live
+  rows.sort((a, b) => {
+    const aNeed = !a.translation_signoff && a.lang !== "en" ? 0 : (!a.clinical_signoff && a.gated ? 1 : 2);
+    const bNeed = !b.translation_signoff && b.lang !== "en" ? 0 : (!b.clinical_signoff && b.gated ? 1 : 2);
+    if (aNeed !== bNeed) return aNeed - bNeed;
+    return (a.live ? 1 : 0) - (b.live ? 1 : 0);
+  });
   const rd = x => { const d = x.readability; return `${d.ok ? '<span class="gate-pass">OK</span>' : '<span class="gate-fail">FIX</span>'} <span class="small muted">${d.fk_grade != null ? "FK " + d.fk_grade + " · ease " + d.reading_ease + " · " : ""}${d.avg_words_per_sentence} w/sent · long ${Math.round(d.long_word_share * 100)}%</span>${d.problems.length ? `<div class="small">${d.problems.map(W.esc).join("; ")}</div>` : ""}`; };
   const so = (x, k) => { const v = x[k + "_signoff"]; return v ? `<span class="chip sla-green" title="${W.esc(W.dt(v.at))}">${W.esc(v.by)}</span>${v.note ? `<div class="small muted">${W.esc(v.note)}</div>` : ""}` : (k === "translation" && x.lang === "en" ? '<span class="small muted">n/a</span>' : (can(k === "clinical" ? "content:approve" : "content:translation_review") ? `<button class="secondary" data-click="signoff" data-args="${W.esc(JSON.stringify([x.content_id, k]))}">Sign off</button>` : '<span class="chip sla-amber">pending</span>')); };
   el.innerHTML = `<div class="card"><p class="small">${s.items} patient-facing texts · ${s.readability_ok} pass reading-level &amp; tone checks · ${s.gated_live}/${s.gated} governed pathway texts live. A sign-off is bound to the exact wording (sha256): any edit needs a new sign-off. Arabic, Hindi and Urdu need a <b>professional translator</b> and a <b>clinician</b> (two different people); until then patients get English plus an interpreter-supported call.</p>
