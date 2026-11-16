@@ -92,7 +92,7 @@ class Settings(BaseSettings):
     smtp_port: int = 587  # STARTTLS submission port (port 25 is refused)
     smtp_timeout_s: float = 20.0
     alert_to: str | None = None  # inbox that receives staff/operational escalation alerts; None = no alert e-mails
-    mail_allow_synthetic: bool = False  # True: SYN- / example.com sample records may be e-mailed (testing only)
+    mail_allow_synthetic: bool = True  # TESTING: SYN- sample records may be e-mailed. Set KARESHAFAA_MAIL_ALLOW_SYNTHETIC=false to lock again.
     mail_alerts_per_sweep: int = 20  # escalation alert e-mails per SLA sweep; the rest go in one summary e-mail
     # Re-opened case (CLOSED -> active): False (default, the safer choice) keeps the ORIGINAL pathway target, so a
     # case re-opened after its target is flagged breached at once and escalates (more alerts, not fewer). True gives
