@@ -731,6 +731,9 @@
       "All programmes": "सभी कार्यक्रम",
       "Find a person": "व्यक्ति खोजें",
       "Send invitation to selected": "चयनित को आमंत्रण भेजें",
+
+      "Name, MRN, Emirates ID, passport or phone": "नाम, MRN, एमिरेट्स ID, पासपोर्ट या फ़ोन",
+      "of": "में से",
       "30-day pilot:": "30-दिन पायलट:",
     },
     ur: {
