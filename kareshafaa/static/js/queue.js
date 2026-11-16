@@ -121,9 +121,19 @@ function openRq(id, mode) {
   const sites = RQ.sites.map(o => `<option value="${o.id}" ${o.id === r.preferred_org_id ? "selected" : ""}>${W.esc(o.name)}${o.region ? " – " + W.esc(o.region) : ""}</option>`).join("");
   let body;
   if (mode === "confirm") {
-    body = r.kind === "follow_up" && r.chosen_start ? `<p>Book the time the patient chose: <b>${W.esc(W.dt(r.chosen_start))}</b>.</p>`
+    const why = r.kind === "follow_up" ? "Follow-up after a previous screening result or missed visit"
+      : r.kind === "recall" ? "Due for routine recall screening"
+      : "Routine screening (patient requested)";
+    const pref = r.chosen_start ? `Patient chose <b>${W.esc(W.dt(r.chosen_start))}</b>`
+      : `Patient prefers ${W.esc((r.days || []).map(d => RQ_DAY[d] || d).join(", ") || "any day")}, ${W.esc((r.times || []).map(t => RQ_TIME[t] || t).join(", ") || "any time")}${r.site ? ` at ${W.esc(r.site)}` : ""}`;
+    body = `<div class="small" style="margin-bottom:.6rem;padding:.5rem;background:#f6f8fa;border-radius:6px">
+      <div><b>${W.esc(r.patient.name)}</b> · ${W.esc(W.progText(r.programme))} · ${W.esc(r.tier_label || r.tier)}</div>
+      <div>${pref}</div>
+      <div class="muted">${why}${r.note ? ` · Patient note: ${W.esc(r.note)}` : ""}</div>
+    </div>` +
+      (r.kind === "follow_up" && r.chosen_start ? `<p>Book the time the patient chose: <b>${W.esc(W.dt(r.chosen_start))}</b>.</p>`
       : `<label>Appointment date and time (UAE)<input type="datetime-local" name="start" required value="${localInput(r.chosen_start)}"></label>` +
-        (r.kind === "follow_up" ? `<label>If this is after the deadline, why? <input name="beyond" maxlength="500"></label>` : `<label>Screening site<select name="org" required>${sites}</select></label>`);
+        (r.kind === "follow_up" ? `<label>If this is after the deadline, why? <input name="beyond" maxlength="500"></label>` : `<label>Screening site<select name="org" required>${sites}</select></label>`));
     body += `<label>Note (optional)<input name="note" maxlength="1000"></label><p class="small muted">The patient gets a confirmation message in their language.</p>`;
     document.getElementById("preq-ok").textContent = r.kind === "follow_up" ? "Confirm and book" : "Confirm";
     document.getElementById("preq-ok").className = "";
