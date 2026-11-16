@@ -293,6 +293,7 @@ function copilotCard() {
       <button type="button" class="secondary sm" data-copilot="outreach">Draft next message</button>
       <button type="button" class="secondary sm" data-copilot="summary">Summarise this case</button>
       <button type="button" class="secondary sm" data-copilot="simplify_letter">Simplify the result letter</button>
+      <button type="button" class="secondary sm" data-copilot="treatment_plan">Suggest treatment options</button>
     </div>
     <div id="copilot-out" hidden>
       <label for="copilot-text">Draft<textarea id="copilot-text" rows="6" maxlength="2000"></textarea></label>
