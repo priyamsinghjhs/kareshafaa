@@ -107,7 +107,15 @@ def available_actions(db: Session, actor: Actor, c: Case, *, lookups: _Lookups |
         add("triage", "Confirm triage" + (" (clinician)" if clin else ""),
             "case:triage_urgent" if clin else "case:triage", True)
     if st in (S.TRIAGED, S.UNREACHABLE):
-        add("notify", "Tell the patient their result", "comm:send", True)
+        # Hide once a result email has already been sent for this case
+        from ..models import Communication
+        already = db.scalar(select(Communication).where(
+            Communication.case_id == c.id,
+            Communication.category == "result_notification",
+            Communication.channel == "email",
+            Communication.status == "completed").limit(1))
+        if not already:
+            add("notify", "Tell the patient their result", "comm:send", True)
     if st in (S.TRIAGED, S.PATIENT_NOTIFIED, S.UNREACHABLE, S.NO_SHOW) or open_call:
         add("call", "Record phone call outcome", "call:record", st == S.TRIAGED and bool(open_call))
     if st == S.PATIENT_NOTIFIED:
