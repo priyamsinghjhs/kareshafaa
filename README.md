@@ -678,9 +678,11 @@ Start-up (`kareshafaa.bootstrap`) takes its **own** advisory lock (key 727003, o
   WhatsApp delivery simulated (email is real only once the mailbox sign-in is set on the host, and never for sample records); clinical policy `2026.11-p1` is *placeholder, verify* with no named approver (`live` profile refused);
   no Clinical Safety Officer, no accepted residual risk (`docs/clinical_safety_case.md` §3.1); usability test not
   run; baseline-vs-loop figures are synthetic.
-* **Intellectual property:** written for KareShafaa by its authors; ownership and licence terms are for the
-  repository owner to confirm. There is no LICENSE file, so no open-source licence is granted. Third-party packages
-  and the Figtree font (SIL OFL 1.1) keep their own licences. No real or de-identified patient data is in the repo.
+* **Intellectual property:** written for KareShafaa by its authors; Copyright (c) 2026 Priyam Singh, all rights
+  reserved. See [`LICENSE`](LICENSE) for the terms (proprietary; organisers, partners and judges of Hack2skill
+  Future Health Challenge 05 may access and run it for evaluation). Third-party packages and the Figtree font
+  (SIL OFL 1.1) keep their own licences; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). No real or
+  de-identified patient data is in the repo.
 
 ## Keeping this README current
 
