@@ -546,6 +546,40 @@ changes nothing, and both leave an audit trail (an unexpected error is audited a
 [docs/fail_closed_review.md](docs/fail_closed_review.md); `tests/test_fail_closed.py` injects faults mid-operation,
 at commit, in the message gateway and in the work-queue refresh.
 
+## Evaluation access
+
+Separate sign-in accounts for the Hack2skill Future Health Challenge 05 judges, so nobody needs the owner's own test
+accounts. Code: `kareshafaa/judge_accounts.py`; tests: `tests/test_judge_accounts.py`.
+
+| Username | Role | Same scope as |
+|---|---|---|
+| `judge.coordinator` | Care coordinator | `aisha.rahman` |
+| `judge.gp` | GP (family doctor) | `omar.haddad` |
+| `judge.specialist` | Specialist | `vikram.mehta` |
+| `judge.clinicallead` | Clinical lead | `fatima.al.mansoori` |
+| `judge.analyst` | Programme analyst | `analyst` |
+| `judge.admin` | System administrator | `admin` |
+| `judge.patient.en` | Patient (English) | a synthetic sample patient |
+| `judge.patient.ar` | Patient (Arabic) | a synthetic sample patient |
+
+* **Password:** one shared password, taken only from `KARESHAFAA_JUDGE_PASSWORD` in the Render dashboard (Environment).
+  It is never in the repository, never logged, and is hashed (argon2id) like every other password. On every start
+  each account is created or updated with it. Unset, empty or too weak (12+ characters, not a common password) =
+  the accounts have no usable password and nobody can sign in to them.
+* **Rotate:** change the value in Render → service *kareshafaa* → Environment → Save (Render redeploys; or restart).
+  Open sessions on the old password are signed out. **Disable:** delete or clear the variable and save the same way.
+* **Same permissions, own identity:** each clinical judge account has its own staff directory record, a copy of the
+  matching account's (same organisation, programme and specialty), so it sees the same work queue (queues follow role
+  and organisation) without receiving that person's e-mail. Roles stay separate: `judge.admin` has no clinical
+  actions; `judge.clinicallead` has no admin tools.
+* **No e-mail:** judge staff accounts have no e-mail address (queue-owner e-mails are skipped; the start-up
+  placeholder step leaves them empty). Judge patients are linked to an existing `SYN-` sample patient in that language
+  with a placeholder `example.com` address (or none), an open case with a result and, when available, a booked
+  appointment and a recorded understanding check, used by no other account. Sample records are never e-mailed. The
+  link is kept across restarts. No new clinical data is created for them.
+* Judges act on the shared synthetic caseload like any user, and `judge.admin` has real admin powers (it can reset
+  or deactivate accounts). Clear the variable after judging.
+
 ## Architecture
 
 * **Backend:** Python 3.11+ (CI on 3.13), FastAPI, SQLAlchemy; SQLite locally, PostgreSQL (Neon) in production via
@@ -634,6 +668,7 @@ guide: [`DEPLOY.md`](DEPLOY.md). Environment variables (set in the Render dashbo
 | `DATABASE_URL` | Neon PostgreSQL connection string (secret). Without it the app falls back to SQLite on a temporary disk and warns in Admin → System. |
 | `KARESHAFAA_SECRET_KEY` | Session/token signing key (secret, required in production). |
 | `KARESHAFAA_DEMO_PASSWORD` | First password for staff accounts that have none yet (secret; never overwrites a changed password). |
+| `KARESHAFAA_JUDGE_PASSWORD` | Password for the evaluation accounts (secret; see **Evaluation access**). Unset or empty = those accounts cannot sign in. |
 | `KARESHAFAA_MODE` | `production` on Render. |
 | `KARESHAFAA_CLINICAL_PROFILE` | `synthetic` (default). `live` is **refused at startup** while the clinical policy (`kareshafaa/policy.py`, version `2026.11-p1`, status *placeholder, verify*) has no named approver and approval reference. Separate from `KARESHAFAA_MODE`. |
 | `KARESHAFAA_ML_ENABLED` | `false` switches the advisory outreach-priority model **and the note drafts** off at deployment (AI kill switch). The runtime switch on Admin → System does the same. |

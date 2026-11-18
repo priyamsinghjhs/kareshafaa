@@ -4,6 +4,8 @@
 #   KARESHAFAA_DEMO_PASSWORD  first password for the existing staff accounts (12+ characters, not a common password).
 #                             Used only for accounts that have no password yet; it never overwrites a password that a
 #                             user or an administrator has changed. (Internal variable name.)
+#   KARESHAFAA_JUDGE_PASSWORD password for the judge.* evaluation accounts (README "Evaluation access"). Unset or
+#                             empty = those accounts cannot sign in. Change it to rotate; clear it to disable.
 #   DATABASE_URL              PostgreSQL connection string, e.g. a free Neon project:
 #                             postgresql://USER:PASSWORD@HOST/DB?sslmode=require
 #                             Without it the app runs on SQLite on the instance disk, which on the free plan is

@@ -421,19 +421,29 @@ def provision_on_startup() -> None:
     """Called from the app lifespan (every worker) and after a public-demo reset; serialised with a file lock."""
     from .db import session_factory
 
+    from .judge_accounts import provision_judge_accounts
+
     s = get_settings()
-    if not s.provision_demo_accounts:
-        return
     fd = os.open(str(s.data_dir / ".demo-accounts.lock"), os.O_CREAT | os.O_RDWR, 0o600)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)
+        if s.provision_demo_accounts:
+            db = session_factory()()
+            try:
+                out = provision_demo_accounts(db, s)
+                log.info("demo accounts: %s", out)
+            except Exception:  # noqa: BLE001 - the app must still start and show the login page
+                log.exception("demo account provisioning failed")
+            finally:
+                db.close()
+        # evaluation accounts: password only from KARESHAFAA_JUDGE_PASSWORD; unset = they cannot sign in
         db = session_factory()()
         try:
-            out = provision_demo_accounts(db, s)
-            log.info("demo accounts: %s", out)
+            log.info("evaluation accounts: %s", provision_judge_accounts(db))
+        except Exception:  # noqa: BLE001 - the app must still start and show the login page
+            db.rollback()
+            log.exception("evaluation account provisioning failed")
         finally:
             db.close()
-    except Exception:  # noqa: BLE001 - the app must still start and show the login page
-        log.exception("demo account provisioning failed")
     finally:
         os.close(fd)

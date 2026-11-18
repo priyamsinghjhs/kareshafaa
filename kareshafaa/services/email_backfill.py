@@ -91,8 +91,10 @@ def backfill_missing_emails(db: Session, now: datetime | None = None) -> dict:
             continue
         p.email = address_for_patient(p, taken)
         n_pat += 1
+    from ..judge_accounts import is_judge_username  # noqa: PLC0415
+
     for u in db.scalars(select(User).where(or_(User.email.is_(None), func.trim(User.email) == "")).order_by(User.id)):
-        if not _empty(u.email):
+        if not _empty(u.email) or is_judge_username(u.username):  # evaluation accounts stay without e-mail
             continue
         u.email = address_for_user(u, taken)
         n_user += 1

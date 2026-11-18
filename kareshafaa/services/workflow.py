@@ -173,7 +173,8 @@ def default_owner(db: Session, case: Case, state: S) -> Practitioner:
             (ref := _latest(db, ServiceRequest, case.id, kind="referral", status="accepted")):
         owner = db.get(Practitioner, ref.performer_id) if ref.performer_id else None
         owner = owner or db.scalar(select(Practitioner).where(Practitioner.org_id == ref.performer_org_id,
-                                                              Practitioner.role == "specialist", Practitioner.active.is_(True)))
+                                                              Practitioner.role == "specialist", Practitioner.active.is_(True))
+                                      .order_by(Practitioner.id).limit(1))
         owner = owner or gp or programme_pool(db, case.programme)
     elif state == S.REFERRAL_REJECTED and (ref := _latest(db, ServiceRequest, case.id, kind="referral")):
         owner = db.get(Practitioner, ref.requester_id)

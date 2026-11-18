@@ -46,9 +46,10 @@ the usability test is planned, not run; baseline-vs-loop figures are synthetic a
 no partner has agreed to a pilot yet. See `docs/operating_modes.md` and `docs/runbook_downtime_and_drills.md`.
 
 **Intellectual property.** The code, rule documents and content were written for KareShafaa by its authors;
-ownership and licence terms are for the repository owner to confirm. There is no LICENSE file, so no open-source
-licence is granted. Third-party parts keep their own licences (Python
-packages per `requirements*.txt`; Figtree font, SIL OFL 1.1, `docs/BRAND.md`). Clinical thresholds cite published
+Copyright (c) 2026 Priyam Singh, all rights reserved. The terms are in `LICENSE` (proprietary; organisers, partners
+and judges of Hack2skill Future Health Challenge 05 may access and run it for evaluation); no open-source licence is
+granted. Third-party parts keep their own licences (`THIRD_PARTY_NOTICES.md`: Python packages per
+`requirements*.txt`; Figtree font, SIL OFL 1.1). Clinical thresholds cite published
 guidelines, which remain their publishers' work. No patient data, real or de-identified, is in the repository.
 
 | Look at | Where |
